@@ -1,0 +1,21 @@
+# Idea
+.idea
+*.iml
+
+# Compiled class
+*.class
+
+# Log file
+*.log
+
+# Gradle
+.gradle
+build
+build-cache
+out
+
+# Mac system file
+.DS_Store
+
+# Local env
+.env
