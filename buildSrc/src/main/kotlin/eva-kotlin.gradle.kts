@@ -1,12 +1,12 @@
 import org.gradle.api.tasks.testing.logging.TestLogEvent.STANDARD_ERROR
 
 plugins {
+    java
     kotlin("jvm")
-    id("org.jetbrains.kotlin.plugin.serialization")
-    id("io.gitlab.arturbosch.detekt")
     id("java-library")
     id("java-test-fixtures")
-    java
+    id("io.gitlab.arturbosch.detekt")
+    id("org.jetbrains.kotlin.plugin.serialization")
 }
 
 tasks.test {
@@ -34,8 +34,14 @@ dependencies {
 
     detektPlugins(libs.detekt)
 
+    api(libs.kotlinx_serialization)
+    api(libs.kotlinx_serialization_json)
+
     testImplementation(platform(libs.testcontainers_bom))
     testImplementation(libs.mockk)
+    testImplementation(libs.kotest_assertions_core)
+    testImplementation(libs.kotest_assertions_json)
+    testImplementation(libs.kotest_runner)
 
     constraints {
         implementation(libs.log4j) {

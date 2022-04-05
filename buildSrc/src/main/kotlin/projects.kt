@@ -5,10 +5,9 @@ import org.gradle.kotlin.dsl.project
 
 internal lateinit var rootProject: Project
 
-private fun moduleName(thisRef: razz): String {
-    val module = ':' + thisRef::class
-        .qualifiedName!!
-        .replace("razz.", "")
+private fun moduleName(thisRef: eva): String {
+    val module = ':' + thisRef::class.qualifiedName!!
+        .replace("eva.", "")
         .replace('.', ':')
         .replace('_', '-')
     check(rootProject.findProject(module) != null) {
@@ -17,25 +16,26 @@ private fun moduleName(thisRef: razz): String {
     return module
 }
 
-fun DependencyHandler.project(module: razz) = this.project(moduleName(module))
+fun DependencyHandler.project(module: eva) = this.project(moduleName(module))
 
-interface razz {
-    object eva_domain : razz
-    object eva_events : razz
-    object eva_events_db_schema : razz
-    object eva_jooq : razz
-    object eva_paging : razz
-    object eva_persistence : razz
-    object eva_idempotency_key : razz
-    object eva_persistence_jdbc : razz
-    object eva_persistence_vertx : razz
-    object eva_repository : razz
-    object eva_repository_test : razz
-    object eva_saga : razz
-    object eva_tracing : razz
-    object eva_test : razz
-    object eva_test_db_schema : razz
-    object eva_uow : razz
+interface eva {
+    object eva_domain : eva
+    object eva_events : eva
+    object eva_events_db_schema : eva
+    object eva_jooq : eva
+    object eva_paging : eva
+    object eva_persistence : eva
+    object eva_idempotency_key : eva
+    object eva_persistence_jdbc : eva
+    object eva_persistence_vertx : eva
+    object eva_repository : eva
+    object eva_repository_test : eva
+    object eva_saga : eva
+    object eva_serialization : eva
+    object eva_tracing : eva
+    object eva_test : eva
+    object eva_test_db_schema : eva
+    object eva_uow : eva
 }
 
 class ProjectsPlugin : Plugin<Project> {
