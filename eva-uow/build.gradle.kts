@@ -12,12 +12,12 @@ dependencies {
     implementation(libs.kotlin_coroutines)
     implementation(libs.kotlin_logging)
 
-    implementation(project(eva.eva_idempotency_key))
-    implementation(project(eva.eva_domain))
+    api(project(eva.eva_idempotency_key))
+    api(project(eva.eva_domain))
+    api(project(eva.eva_events))
+    api(project(eva.eva_tracing))
     implementation(project(eva.eva_repository))
     implementation(project(eva.eva_persistence))
-    implementation(project(eva.eva_events))
-    implementation(project(eva.eva_tracing))
 
     testImplementation(project(eva.eva_migrations))
     testImplementation(project(eva.eva_persistence))
