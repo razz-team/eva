@@ -10,7 +10,7 @@ publishing {
             name = "GitHubPackages"
             url = URI("https://maven.pkg.github.com/razz-team/eva")
             credentials {
-                username = System.getenv("GITHUB_USER_NAME")
+                username = System.getenv("GH_USER_NAME")
                 password = System.getenv("GITHUB_TOKEN")
             }
         }
