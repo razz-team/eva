@@ -1,5 +1,6 @@
 plugins {
     id("eva-kotlin")
+    id("eva-publish")
 }
 
 kotlin.target.compilations.getByName("testFixtures") {

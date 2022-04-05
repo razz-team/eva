@@ -1,0 +1,36 @@
+name: Publish to Github Packages
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "The release version"
+        required: true
+      branch:
+        description: "The branch to release from"
+        required: true
+        default: 'main'
+
+env:
+  RELEASE_VERSION: ${{ github.event.inputs.version }}
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout the repo
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.inputs.branch }}
+
+      - uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'adopt'
+
+      - name: Publish to Github Packages
+        run: ./gradlew publish
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_USER_NAME: ${{ secrets.GITHUB_USER_NAME }}
