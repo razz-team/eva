@@ -23,13 +23,13 @@ interface eva {
     object eva_events : eva
     object eva_events_db_schema : eva
     object eva_jooq : eva
+    object eva_migrations : eva
     object eva_paging : eva
     object eva_persistence : eva
     object eva_idempotency_key : eva
     object eva_persistence_jdbc : eva
     object eva_persistence_vertx : eva
     object eva_repository : eva
-    object eva_repository_test : eva
     object eva_saga : eva
     object eva_serialization : eva
     object eva_tracing : eva
