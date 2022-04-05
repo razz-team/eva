@@ -14,3 +14,8 @@ tasks.withType<com.github.benmanes.gradle.versions.updates.DependencyUpdatesTask
         isNonStable(candidate.version)
     }
 }
+
+allprojects {
+    group = "com.razz.eva"
+    version = Ci.publishVersion
+}
