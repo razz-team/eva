@@ -1,4 +1,4 @@
-name: Publish to Github Packages
+name: Publish to Maven Central
 
 on:
   workflow_dispatch:
