@@ -7,11 +7,11 @@ plugins {
 publishing {
     repositories {
         maven {
-            name = "GitHubPackages"
-            url = URI("https://maven.pkg.github.com/razz-team/eva")
+            name = "MavenCentral"
+            url = URI("https://s01.oss.sonatype.org/")
             credentials {
-                username = System.getenv("GH_USER_NAME")
-                password = System.getenv("GITHUB_TOKEN")
+                username = System.getenv("SONATYPE_USER")
+                password = System.getenv("SONATYPE_PASS")
             }
         }
     }

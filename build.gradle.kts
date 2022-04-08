@@ -16,6 +16,6 @@ tasks.withType<com.github.benmanes.gradle.versions.updates.DependencyUpdatesTask
 }
 
 allprojects {
-    group = "com.razz.eva"
+    group = "team.razz.eva"
     version = Ci.publishVersion
 }
