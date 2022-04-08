@@ -8,7 +8,7 @@ publishing {
     repositories {
         maven {
             name = "MavenCentral"
-            url = URI("https://s01.oss.sonatype.org/")
+            url = URI("https://s01.oss.sonatype.org/content/repositories/releases/")
             credentials {
                 username = System.getenv("SONATYPE_USER")
                 password = System.getenv("SONATYPE_PASS")
@@ -16,7 +16,7 @@ publishing {
         }
     }
     publications {
-        register<MavenPublication>("gpr") {
+        register<MavenPublication>("eva") {
             from(components["java"])
         }
     }
