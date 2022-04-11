@@ -1,7 +1,8 @@
-package com.razz.eva.uow
+package com.razz.eva.uow.verify
 
 import com.razz.eva.domain.Model
 import com.razz.eva.domain.ModelEvent
+import com.razz.eva.uow.ChangesWithResult
 
 infix fun <R> ChangesWithResult<R>.verifyInOrder(block: UowSpec<R>.() -> Unit) {
     val spec = UowSpec(this)
