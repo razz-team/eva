@@ -1,8 +1,13 @@
-package com.razz.eva.uow
+package com.razz.eva.uow.verify
 
 import com.razz.eva.domain.Model
 import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
+import com.razz.eva.uow.Add
+import com.razz.eva.uow.Change
+import com.razz.eva.uow.ChangesWithResult
+import com.razz.eva.uow.Noop
+import com.razz.eva.uow.Update
 import java.util.*
 
 open class UowSpecBase<R> private constructor(
@@ -12,7 +17,7 @@ open class UowSpecBase<R> private constructor(
     private val peekingPersisting: PeekingPersisting = PeekingPersisting()
 ) {
 
-    constructor(
+    internal constructor(
         changes: ChangesWithResult<R>
     ) : this(
         result = changes.result,

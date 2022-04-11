@@ -6,6 +6,7 @@ plugins {
 dependencies {
     implementation(project(eva.eva_domain))
     implementation(project(eva.eva_repository))
+    implementation(project(eva.eva_uow))
     implementation(project(eva.eva_migrations))
     implementation(project(eva.eva_persistence_jdbc))
     implementation(project(eva.eva_persistence_vertx))

@@ -4,7 +4,7 @@ object versions {
     val kotlin = "1.6.10"
     val kotlin_coroutines = "1.6.0"
     val kotlin_serialization_json = "1.3.2"
-    val kotest = "5.2.1"
+    val kotest = "5.2.3"
     val jooq = "3.16.5"
     val flywaydb = "8.5.4"
     val opentracing = "0.33.0"
