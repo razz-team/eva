@@ -15,10 +15,10 @@ dependencies {
     api(project(eva.eva_jooq))
     api(project(eva.eva_idempotency_key))
     api(project(eva.eva_tracing))
+    api(project(eva.eva_persistence))
 
     implementation(project(eva.eva_paging))
     implementation(project(eva.eva_serialization))
-    implementation(project(eva.eva_persistence))
     implementation(project(eva.eva_events_db_schema))
 
     testImplementation(testFixtures(project(eva.eva_domain)))

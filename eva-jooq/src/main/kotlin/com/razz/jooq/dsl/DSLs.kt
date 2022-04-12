@@ -22,6 +22,6 @@ object JsonDSL {
     fun jsonbStringValue(field: Field<JSONB>, name: String): Field<String> =
         DSL.field("{0}->>{1}", String::class.java, field, name)
 
-    fun jsonbEq(field: Field<JSONB>, value: JSONB) =
+    fun jsonbContains(field: Field<JSONB>, value: JSONB) =
         DSL.condition("{0} @> {1}", field, value)
 }
