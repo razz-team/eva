@@ -24,4 +24,7 @@ object JsonDSL {
 
     fun jsonbEq(field: Field<JSONB>, value: JSONB) =
         DSL.condition("{0} @> {1}", field, value)
+
+    fun jsonbContains(field: Field<JSONB>, value: JSONB) =
+        DSL.condition("{0} @> {1}", field, value)
 }
