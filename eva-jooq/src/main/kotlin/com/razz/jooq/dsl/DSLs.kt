@@ -8,7 +8,10 @@ import org.jooq.impl.DSL.array
 object ArrayDSL {
 
     fun arrayContains(field: Field<Array<String>>, vararg values: String) =
-        DSL.condition("{0} && {1}::text[]", field, array(values))
+        DSL.condition("{0} @> {1}::text[]", field, array(values))
+
+    inline fun <reified T> arrayContains(field: Field<Array<T>>, values: List<T>) =
+        DSL.condition("{0} @> {1}", field, array(*values.toTypedArray()))
 }
 
 object JsonDSL {
