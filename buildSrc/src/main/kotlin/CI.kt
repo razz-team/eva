@@ -4,6 +4,6 @@ object Ci {
 
     private val releaseVersion = System.getenv("RELEASE_VERSION")
 
-    val isRelease = releaseVersion != null
+    val isRelease = releaseVersion != null || releaseVersion == ""
     val publishVersion = releaseVersion ?: "$snapshotBase-SNAPSHOT"
 }
