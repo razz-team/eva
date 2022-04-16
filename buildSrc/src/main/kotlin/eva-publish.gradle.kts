@@ -2,6 +2,12 @@ import java.net.URI
 
 plugins {
     id("maven-publish")
+    id("java")
+}
+
+val sourcesJar by tasks.creating(Jar::class) {
+    archiveClassifier.set("sources")
+    from(sourceSets.getByName("main").allSource)
 }
 
 publishing {
@@ -21,7 +27,13 @@ publishing {
     }
     publications {
         register<MavenPublication>("eva") {
-            from(components["java"])
+            val javaComponent = (components["java"] as AdhocComponentWithVariants).apply {
+                withVariantsFromConfiguration(configurations["testFixturesApiElements"]) { skip() }
+                withVariantsFromConfiguration(configurations["testFixturesRuntimeElements"]) { skip() }
+            }
+
+            from(javaComponent)
+            artifact(sourcesJar)
         }
     }
 }
