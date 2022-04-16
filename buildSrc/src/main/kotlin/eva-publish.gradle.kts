@@ -27,7 +27,12 @@ publishing {
     }
     publications {
         register<MavenPublication>("eva") {
-            from(components["java"])
+            val javaComponent = (components["java"] as AdhocComponentWithVariants).apply {
+                withVariantsFromConfiguration(configurations["testFixturesApiElements"]) { skip() }
+                withVariantsFromConfiguration(configurations["testFixturesRuntimeElements"]) { skip() }
+            }
+
+            from(javaComponent)
             artifact(sourcesJar)
         }
     }
