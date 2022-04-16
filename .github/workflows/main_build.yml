@@ -1,12 +1,8 @@
-name: Publish SNAPSHOT to Maven Central
+name: Main pipeline
 
 on:
-  workflow_dispatch:
-    inputs:
-      branch:
-        description: "The branch to release from"
-        required: true
-        default: 'main'
+  push:
+    branches: [ main ]
 
 jobs:
   publish:
@@ -22,6 +18,9 @@ jobs:
         with:
           java-version: '17'
           distribution: 'adopt'
+
+      - name: Build project
+        run: ./gradlew build
 
       - name: Publish to Maven snapshots
         run: ./gradlew publish
