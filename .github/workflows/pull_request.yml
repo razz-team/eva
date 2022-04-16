@@ -9,7 +9,7 @@ defaults:
     shell: bash
 
 jobs:
-  publish:
+  build_pr:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout the repo
