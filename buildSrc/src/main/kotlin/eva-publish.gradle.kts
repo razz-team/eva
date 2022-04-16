@@ -2,6 +2,12 @@ import java.net.URI
 
 plugins {
     id("maven-publish")
+    id("java")
+}
+
+val sourcesJar by tasks.creating(Jar::class) {
+    archiveClassifier.set("sources")
+    from(sourceSets.getByName("main").allSource)
 }
 
 publishing {
@@ -22,6 +28,7 @@ publishing {
     publications {
         register<MavenPublication>("eva") {
             from(components["java"])
+            artifact(sourcesJar)
         }
     }
 }
