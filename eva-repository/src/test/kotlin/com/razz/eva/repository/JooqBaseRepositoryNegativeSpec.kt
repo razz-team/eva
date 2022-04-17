@@ -17,9 +17,9 @@ import com.razz.eva.persistence.executor.FakeMemorizingQueryExecutor
 import com.razz.eva.persistence.executor.FakeMemorizingQueryExecutor.ExecutionStep.StoreExecuted
 import com.razz.eva.persistence.executor.QueryExecutor
 import com.razz.eva.repository.TransactionalContext.Companion.transactionalContext
-import com.razz.eva.test.db.Tables.DEPARTMENTS
-import com.razz.eva.test.db.enums.DepartmentsState
-import com.razz.eva.test.db.tables.records.DepartmentsRecord
+import com.razz.eva.test.schema.Tables.DEPARTMENTS
+import com.razz.eva.test.schema.enums.DepartmentsState
+import com.razz.eva.test.schema.tables.records.DepartmentsRecord
 import com.razz.jooq.converter.InstantConverter
 import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.matchers.shouldBe

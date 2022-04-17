@@ -8,11 +8,11 @@ import com.razz.eva.domain.ShakshoukaEvent
 import com.razz.eva.domain.ShakshoukaId
 import com.razz.eva.domain.ShakshoukaState
 import com.razz.eva.persistence.executor.QueryExecutor
-import com.razz.eva.test.db.Tables.SHAKSHOUKAS
-import com.razz.eva.test.db.enums.ShakshoukasState
-import com.razz.eva.test.db.enums.ShakshoukasState.CONSUMED
-import com.razz.eva.test.db.enums.ShakshoukasState.SERVED
-import com.razz.eva.test.db.tables.records.ShakshoukasRecord
+import com.razz.eva.test.schema.Tables.SHAKSHOUKAS
+import com.razz.eva.test.schema.enums.ShakshoukasState
+import com.razz.eva.test.schema.enums.ShakshoukasState.CONSUMED
+import com.razz.eva.test.schema.enums.ShakshoukasState.SERVED
+import com.razz.eva.test.schema.tables.records.ShakshoukasRecord
 import org.jooq.DSLContext
 import org.jooq.impl.DSL
 import java.util.*

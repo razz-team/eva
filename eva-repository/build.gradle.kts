@@ -22,12 +22,12 @@ dependencies {
     implementation(project(eva.eva_events_db_schema))
 
     testImplementation(testFixtures(project(eva.eva_domain)))
-    testImplementation(testFixtures(project(eva.eva_test_db_schema)))
+    testImplementation(testFixtures(project(eva.eva_repository)))
 
     testFixturesImplementation(libs.kotlin_coroutines)
     testFixturesImplementation(project(eva.eva_events))
     testFixturesImplementation(project(eva.eva_events_db_schema))
-    testFixturesImplementation(project(eva.eva_test_db_schema))
+    testFixturesImplementation(project(eva.eva_repository))
     testFixturesImplementation(project(eva.eva_serialization))
     testFixturesImplementation(testFixtures(project(eva.eva_domain)))
     testFixturesImplementation(testFixtures(project(eva.eva_persistence)))

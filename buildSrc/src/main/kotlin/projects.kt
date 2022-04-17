@@ -34,7 +34,6 @@ interface eva {
     object eva_serialization : eva
     object eva_tracing : eva
     object eva_test : eva
-    object eva_test_db_schema : eva
     object eva_uow : eva
 }
 

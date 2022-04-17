@@ -11,9 +11,9 @@ import com.razz.eva.domain.BubalehTaste
 import com.razz.eva.domain.EmployeeId
 import com.razz.eva.domain.EntityState.PersistentState
 import com.razz.eva.persistence.executor.QueryExecutor
-import com.razz.eva.test.db.Tables.BUBALEHS
-import com.razz.eva.test.db.enums.BubalehsState
-import com.razz.eva.test.db.tables.records.BubalehsRecord
+import com.razz.eva.test.schema.Tables.BUBALEHS
+import com.razz.eva.test.schema.enums.BubalehsState
+import com.razz.eva.test.schema.tables.records.BubalehsRecord
 import org.jooq.DSLContext
 import org.jooq.impl.DSL
 import java.util.*
