@@ -9,11 +9,10 @@ import com.razz.eva.domain.TestModelId.Companion.randomTestModelId
 import com.razz.eva.domain.TestModelStatus.ACTIVE
 import com.razz.eva.domain.TestModelStatus.CREATED
 import com.razz.eva.domain.Version.Companion.V1
-import com.razz.eva.uow.UnitOfWork.Configuration.Companion.withAllowedEmptyChanges
-import com.razz.eva.uow.params.UowParams
+import com.razz.eva.tracing.Tracing.noopTracer
 import com.razz.eva.uow.Clocks.fixedUTC
 import com.razz.eva.uow.Clocks.millisUTC
-import com.razz.eva.tracing.Tracing.noopTracer
+import com.razz.eva.uow.params.UowParams
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
@@ -27,21 +26,12 @@ internal abstract class DummyUow(clock: Clock) : UnitOfWork<TestPrincipal, Dummy
     }
 }
 
-internal abstract class DummyNoChangesUow(
-    clock: Clock
-) : UnitOfWork<TestPrincipal, DummyNoChangesUow.Params, String>(clock, withAllowedEmptyChanges()) {
-    @Serializable
-    object Params : UowParams<Params> {
-        override fun serialization() = serializer()
-    }
-}
-
 class ChangesDslSpec : FunSpec({
 
     val now = millisUTC().instant()
     val clock = fixedUTC(now)
 
-    test("Changes dsl should return properly built ChangesWithResult after execution by uow") {
+    test("Should return properly built ChangesWithResult when new model added and changed model updated") {
         val model0 = createdTestModel("MLG", 420).activate()
         val model1 = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
             .activate()
@@ -76,13 +66,10 @@ class ChangesDslSpec : FunSpec({
         ).execute(DummyUow::class, TestPrincipal) { DummyUow.Params }
     }
 
-    test(
-        "Changes dsl should return properly built ChangesWithResult after execution by uow " +
-            "with changes when allowedEmptyChanges flag is set"
-    ) {
+    test("Should return properly built ChangesWithResult when changed model updated") {
         val model = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1).activate()
 
-        val uow = object : DummyNoChangesUow(clock) {
+        val uow = object : DummyUow(clock) {
             override suspend fun tryPerform(principal: TestPrincipal, params: Params): ChangesWithResult<String> {
                 val changes = changes {
                     update(model)
@@ -98,47 +85,41 @@ class ChangesDslSpec : FunSpec({
             }
         }
         UnitOfWorkExecutor(
-            listOf(DummyNoChangesUow::class withFactory { uow }),
+            listOf(DummyUow::class withFactory { uow }),
             FakeMemorizingPersisting(TestModel::class),
             tracer = noopTracer()
-        ).execute(DummyNoChangesUow::class, TestPrincipal) { DummyNoChangesUow.Params }
+        ).execute(DummyUow::class, TestPrincipal) { DummyUow.Params }
     }
 
-    test(
-        "Changes dsl should return properly built ChangesWithResult after execution by uow " +
-            "without changes when allowedEmptyChanges flag is set"
-    ) {
+    test("Should return properly built ChangesWithResult when unchanged model updated") {
         val model = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
 
-        val uow = object : DummyNoChangesUow(clock) {
+        val uow = object : DummyUow(clock) {
             override suspend fun tryPerform(principal: TestPrincipal, params: Params): ChangesWithResult<String> {
                 val changes = changes {
                     update(model)
                     "K P A C U B O"
                 }
 
-                changes.toPersist shouldBe emptyList()
+                changes.toPersist shouldBe listOf(Noop)
                 changes.result shouldBe "K P A C U B O"
 
                 return changes
             }
         }
         UnitOfWorkExecutor(
-            listOf(DummyNoChangesUow::class withFactory { uow }),
+            listOf(DummyUow::class withFactory { uow }),
             FakeMemorizingPersisting(TestModel::class),
             tracer = noopTracer()
-        ).execute(DummyNoChangesUow::class, TestPrincipal) { DummyNoChangesUow.Params }
+        ).execute(DummyUow::class, TestPrincipal) { DummyUow.Params }
     }
 
-    test(
-        "Changes dsl should throw after execution by uow " +
-            "without changes when allowedEmptyChanges flag is not set"
-    ) {
+    test("Should throw exception when unchanged model required updated") {
         val model = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
 
         val uow = object : DummyUow(clock) {
             override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
-                update(model)
+                updateRequired(model)
                 "K P A C U B O"
             }
         }
@@ -153,7 +134,7 @@ class ChangesDslSpec : FunSpec({
             " but empty changes were disallowed"
     }
 
-    test("Changes dsl should throw when no models were added or updated") {
+    test("Should throw exception when no models were added or updated") {
 
         val uow = object : DummyUow(clock) {
             override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
@@ -171,10 +152,7 @@ class ChangesDslSpec : FunSpec({
         exception.message shouldBe "No changes to persist"
     }
 
-    test(
-        "Changes dsl should return properly built ChangesWithResult after execution by uow " +
-            "without changes when allowedEmptyChanges flag was not set and notChanged:M was called"
-    ) {
+    test("Should return properly built ChangesWithResult when unchanged model not changed") {
         val model = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
 
         val uow = object : DummyUow(clock) {

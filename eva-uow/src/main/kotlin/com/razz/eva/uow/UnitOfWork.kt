@@ -23,20 +23,19 @@ abstract class UnitOfWork<PRINCIPAL, PARAMS, RESULT>(
 
     protected val NO_CHANGES: ChangesWithResult<Unit> = NoChanges
 
+    // TODO do we actually need that ?
     protected fun <R> notChanged(result: R): ChangesWithResult<R> = DefaultChangesWithResult(result, emptyList())
 
     protected suspend fun changes(init: suspend ChangesDsl.() -> RESULT): ChangesWithResult<RESULT> {
-        return ChangesDsl.changes(ChangesWithoutResult(configuration.emptyChangesAllowed), init)
+        return ChangesDsl.changes(ChangesWithoutResult(), init)
     }
 
     data class Configuration(
-        val emptyChangesAllowed: Boolean = false,
         val retry: Retry? = DEFAULT,
         val supportsOutOfOrderPersisting: Boolean = false
     ) {
         companion object {
             fun default() = Configuration()
-            fun withAllowedEmptyChanges() = Configuration(emptyChangesAllowed = true)
         }
     }
 }

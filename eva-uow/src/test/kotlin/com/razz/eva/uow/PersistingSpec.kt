@@ -154,12 +154,12 @@ class PersistingSpec : BehaviorSpec({
                     principal = TestPrincipal,
                     changes = ChangesWithoutResult()
                         .withAdded(department1)
-                        .withUpdated(boss1)
+                        .withUpdatedOrUnchanged(boss1)
                         .withUnchanged(existingCreatedTestModel(param1 = "a", param2 = 1L))
-                        .withUpdated(department3)
+                        .withUpdatedOrUnchanged(department3)
                         .withUnchanged(existingCreatedTestModel(param1 = "b", param2 = 2L))
                         .withAdded(department2)
-                        .withUpdated(boss2)
+                        .withUpdatedOrUnchanged(boss2)
                         .withResult(Unit)
                         .toPersist,
                     clock = clock,

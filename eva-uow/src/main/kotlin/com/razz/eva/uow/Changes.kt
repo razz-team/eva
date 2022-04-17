@@ -13,11 +13,8 @@ abstract class ChangesWithResult<R> {
 }
 
 internal class ChangesWithoutResult private constructor(
-    private val changes: Map<ModelId<out Comparable<*>>, Change>,
-    private val emptyChangesAllowed: Boolean = false
+    private val changes: Map<ModelId<out Comparable<*>>, Change>
 ) {
-
-    constructor(emptyChangesAllowed: Boolean) : this(emptyMap(), emptyChangesAllowed)
     constructor() : this(emptyMap())
 
     fun <MID : ModelId<out Comparable<*>>, E : ModelEvent<MID>, M : Model<MID, E>>
@@ -27,14 +24,24 @@ internal class ChangesWithoutResult private constructor(
     }
 
     fun <MID : ModelId<out Comparable<*>>, E : ModelEvent<MID>, M : Model<MID, E>>
+    withUpdatedOrUnchanged(model: M): ChangesWithoutResult {
+        return if (model.isDirty()) {
+            withUpdated(model)
+        } else {
+            withUnchanged(model)
+        }
+    }
+
+    fun <MID : ModelId<out Comparable<*>>, E : ModelEvent<MID>, M : Model<MID, E>>
     withUpdated(model: M): ChangesWithoutResult {
         if (model.isDirty()) {
             val eventDrive = model.writeEvents(ModelEventDrive())
             return changes(model, eventDrive.events(), ::Update)
-        } else require(emptyChangesAllowed) {
-            "Attempted to register unchanged model [${model.id()}] but empty changes were disallowed"
+        } else {
+            throw IllegalArgumentException(
+                "Attempted to register unchanged model [${model.id()}] but empty changes were disallowed"
+            )
         }
-        return this
     }
 
     fun <MID : ModelId<out Comparable<*>>, E : ModelEvent<MID>, M : Model<MID, E>>
@@ -46,7 +53,7 @@ internal class ChangesWithoutResult private constructor(
     }
 
     fun <R> withResult(result: R): ChangesWithResult<R> {
-        check(emptyChangesAllowed || changes.isNotEmpty()) { "No changes to persist" }
+        check(changes.isNotEmpty()) { "No changes to persist" }
         return DefaultChangesWithResult(result, changes.values.toList())
     }
 
@@ -56,8 +63,7 @@ internal class ChangesWithoutResult private constructor(
             null -> ChangesWithoutResult(
                 LinkedHashMap(changes).apply {
                     put(model.id(), changer(model, modelEvents))
-                },
-                emptyChangesAllowed
+                }
             )
             else -> throw IllegalStateException(existingChangeExceptionMessage(model.id()))
         }
