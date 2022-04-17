@@ -24,15 +24,6 @@ internal class ChangesWithoutResult private constructor(
     }
 
     fun <MID : ModelId<out Comparable<*>>, E : ModelEvent<MID>, M : Model<MID, E>>
-    withUpdatedOrUnchanged(model: M): ChangesWithoutResult {
-        return if (model.isDirty()) {
-            withUpdated(model)
-        } else {
-            withUnchanged(model)
-        }
-    }
-
-    fun <MID : ModelId<out Comparable<*>>, E : ModelEvent<MID>, M : Model<MID, E>>
     withUpdated(model: M): ChangesWithoutResult {
         if (model.isDirty()) {
             val eventDrive = model.writeEvents(ModelEventDrive())

@@ -186,40 +186,6 @@ class ChangesSpec : BehaviorSpec({
             }
         }
 
-        When("Principal calling withUpdatedOrUnchanged for not updated model and then withResult") {
-            val changes = ChangesWithoutResult()
-                .withUpdatedOrUnchanged(unchangedModel)
-                .withResult("marik jackson")
-
-            Then("Noop and result produced") {
-                changes.toPersist shouldBe listOf(Noop)
-                changes.result shouldBe "marik jackson"
-            }
-        }
-
-        When("Principal calling withUpdatedOrUnchanged for the dirty model and then withResult") {
-            val changes = ChangesWithoutResult()
-                .withUpdatedOrUnchanged(dirtyModel)
-                .withResult("garik pagination")
-
-            Then("Changes matching updated and result produced") {
-                changes.toPersist shouldBe listOf(Update(dirtyModel, listOf(dirtyModelEvent)))
-                changes.result shouldBe "garik pagination"
-            }
-        }
-
-        When("Principal calling withUpdatedOrUnchanged for the new model") {
-            val attempt = {
-                ChangesWithoutResult()
-                    .withUpdatedOrUnchanged(newModel)
-            }
-
-            Then("IllegalArgumentException thrown") {
-                val exception = shouldThrow<IllegalArgumentException>(attempt)
-                exception.message shouldBe "Attempted mark new model [${newModel.id()}] as unchanged"
-            }
-        }
-
         And("initial changes with some additional models") {
             val changes0 = ChangesWithoutResult().withAdded(newModel)
             val model1 = existingCreatedTestModel(randomTestModelId(), "name1", 1337, V1)

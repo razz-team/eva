@@ -14,12 +14,16 @@ class ChangesDsl internal constructor(private var changes: ChangesWithoutResult)
 
     fun <MID, E, M> update(model: M): M
         where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
-        changes = changes.withUpdatedOrUnchanged(model)
+        changes = if (model.isDirty()) {
+            changes.withUpdated(model)
+        } else {
+            changes.withUnchanged(model)
+        }
         return model
     }
 
     fun <MID, E, M> updateRequired(model: M): M
-            where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
+        where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
         changes = changes.withUpdated(model)
         return model
     }
