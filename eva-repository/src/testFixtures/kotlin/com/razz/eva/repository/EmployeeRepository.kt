@@ -8,8 +8,8 @@ import com.razz.eva.domain.EntityState.PersistentState
 import com.razz.eva.domain.Name
 import com.razz.eva.domain.Ration
 import com.razz.eva.persistence.executor.QueryExecutor
-import com.razz.eva.test.db.Tables.EMPLOYEES
-import com.razz.eva.test.db.tables.records.EmployeesRecord
+import com.razz.eva.test.schema.Tables.EMPLOYEES
+import com.razz.eva.test.schema.tables.records.EmployeesRecord
 import org.jooq.DSLContext
 import java.util.*
 

@@ -22,7 +22,6 @@ dependencies {
     implementation(libs.kotlin_logging)
     implementation(libs.flyway)
 
-    testImplementation(project(eva.eva_test_db_schema))
     testImplementation(testFixtures(project(eva.eva_repository)))
     testImplementation(testFixtures(project(eva.eva_domain)))
 }

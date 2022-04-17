@@ -21,9 +21,6 @@ tasks.compileTestFixturesKotlin {
         jvmTarget = versions.jvm
     }
 }
-tasks.compileTestFixturesJava {
-    enabled = false
-}
 
 apply<ProjectsPlugin>()
 

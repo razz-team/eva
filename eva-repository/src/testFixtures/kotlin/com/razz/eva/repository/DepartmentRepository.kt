@@ -9,11 +9,11 @@ import com.razz.eva.domain.EmployeeId
 import com.razz.eva.domain.EntityState.PersistentState
 import com.razz.eva.domain.Ration
 import com.razz.eva.persistence.executor.QueryExecutor
-import com.razz.eva.test.db.Tables.DEPARTMENTS
-import com.razz.eva.test.db.enums.DepartmentsState
-import com.razz.eva.test.db.enums.DepartmentsState.ORPHANED
-import com.razz.eva.test.db.enums.DepartmentsState.OWNED
-import com.razz.eva.test.db.tables.records.DepartmentsRecord
+import com.razz.eva.test.schema.Tables.DEPARTMENTS
+import com.razz.eva.test.schema.enums.DepartmentsState
+import com.razz.eva.test.schema.enums.DepartmentsState.ORPHANED
+import com.razz.eva.test.schema.enums.DepartmentsState.OWNED
+import com.razz.eva.test.schema.tables.records.DepartmentsRecord
 import org.jooq.DSLContext
 import java.util.*
 

@@ -3,9 +3,9 @@ package com.razz.eva.repository
 import com.razz.eva.domain.Bubaleh
 import com.razz.eva.domain.BubalehFixtures.aServedBubaleh
 import com.razz.eva.domain.BubalehId
-import com.razz.eva.test.db.enums.BubalehsState.SERVED
-import com.razz.eva.test.db.tables.Bubalehs.BUBALEHS
-import com.razz.eva.test.db.tables.records.BubalehsRecord
+import com.razz.eva.test.schema.enums.BubalehsState.SERVED
+import com.razz.eva.test.schema.tables.Bubalehs.BUBALEHS
+import com.razz.eva.test.schema.tables.records.BubalehsRecord
 import com.razz.eva.paging.BasicPagedList
 import com.razz.eva.paging.ModelOffset
 import com.razz.eva.paging.Size
