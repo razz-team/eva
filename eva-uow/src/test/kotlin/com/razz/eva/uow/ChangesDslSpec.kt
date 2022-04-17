@@ -119,7 +119,7 @@ class ChangesDslSpec : FunSpec({
 
         val uow = object : DummyUow(clock) {
             override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
-                updateRequired(model)
+                changed(model)
                 "K P A C U B O"
             }
         }
