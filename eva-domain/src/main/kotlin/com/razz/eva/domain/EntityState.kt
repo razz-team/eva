@@ -20,6 +20,8 @@ sealed class EntityState<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>>(
 
     override fun isDirty(): Boolean = this is DirtyState<ID, E>
 
+    override fun isPersisted(): Boolean = this is PersistentState<ID, E>
+
     fun raiseEvent(firstEvent: E, vararg newEvents: E): EntityState<ID, E> = raiseEvent(listOf(firstEvent, *newEvents))
 
     fun raiseEvent(newEvent: E): EntityState<ID, E> = raiseEvent(listOf(newEvent))
@@ -113,6 +115,8 @@ interface EntityStateMixin<MID : ModelId<out Comparable<*>>, E : ModelEvent<MID>
     fun isNew(): Boolean
 
     fun isDirty(): Boolean
+
+    fun isPersisted(): Boolean
 
     override fun version(): Version
 }

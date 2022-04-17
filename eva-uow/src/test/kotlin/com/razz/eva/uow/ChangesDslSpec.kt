@@ -130,8 +130,7 @@ class ChangesDslSpec : FunSpec({
                 tracer = noopTracer()
             ).execute(DummyUow::class, TestPrincipal) { DummyUow.Params }
         }
-        exception.message shouldBe "Attempted to register unchanged model [${model.id()}]" +
-            " but empty changes were disallowed"
+        exception.message shouldBe "Attempted to register unchanged model [${model.id()}] as changed"
     }
 
     test("Should throw exception when no models were added or updated") {
@@ -142,7 +141,7 @@ class ChangesDslSpec : FunSpec({
             }
         }
 
-        val exception = shouldThrow<IllegalStateException> {
+        val exception = shouldThrow<IllegalArgumentException> {
             UnitOfWorkExecutor(
                 listOf(DummyUow::class withFactory { uow }),
                 FakeMemorizingPersisting(TestModel::class),

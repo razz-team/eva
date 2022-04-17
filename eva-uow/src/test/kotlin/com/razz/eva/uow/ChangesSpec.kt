@@ -27,8 +27,8 @@ class ChangesSpec : BehaviorSpec({
                 ChangesWithoutResult().withResult("nelson mandela")
             }
 
-            Then("IllegalStateException thrown") {
-                val exception = shouldThrow<IllegalStateException>(attempt)
+            Then("IllegalArgumentException thrown") {
+                val exception = shouldThrow<IllegalArgumentException>(attempt)
                 exception.message shouldBe "No changes to persist"
             }
         }
@@ -94,7 +94,7 @@ class ChangesSpec : BehaviorSpec({
             Then("IllegalArgumentException thrown") {
                 val exception = shouldThrow<IllegalArgumentException>(attempt)
                 exception.message shouldBe
-                    "Attempted to register unchanged model [${unchangedModel.id()}] but empty changes were disallowed"
+                    "Attempted to register unchanged model [${unchangedModel.id()}] as changed"
             }
         }
 
@@ -158,7 +158,7 @@ class ChangesSpec : BehaviorSpec({
             Then("IllegalArgumentException thrown") {
                 val exception = shouldThrow<IllegalArgumentException>(attempt)
                 exception.message shouldBe
-                    "Attempted to register unchanged model [${unchangedModel.id()}] but empty changes were disallowed"
+                    "Attempted to register unchanged model [${unchangedModel.id()}] as changed"
             }
         }
 
@@ -170,7 +170,7 @@ class ChangesSpec : BehaviorSpec({
 
             Then("IllegalArgumentException thrown") {
                 val exception = shouldThrow<IllegalArgumentException>(attempt)
-                exception.message shouldBe "Attempted mark dirty model [${dirtyModel.id()}] as unchanged"
+                exception.message shouldBe "Attempted to register dirty model [${dirtyModel.id()}] as unchanged"
             }
         }
 
@@ -182,7 +182,7 @@ class ChangesSpec : BehaviorSpec({
 
             Then("IllegalArgumentException thrown") {
                 val exception = shouldThrow<IllegalArgumentException>(attempt)
-                exception.message shouldBe "Attempted mark new model [${newModel.id()}] as unchanged"
+                exception.message shouldBe "Attempted to register new model [${newModel.id()}] as unchanged"
             }
         }
 
