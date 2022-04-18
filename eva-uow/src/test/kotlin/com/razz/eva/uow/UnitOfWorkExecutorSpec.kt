@@ -61,17 +61,15 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
 
         And("Factory which reads connection context") {
             val factories = listOf(
-                DummyNoChangesUow::class withFactory {
-                    object : DummyNoChangesUow(millisUTC()) {
+                DummyUow::class withFactory {
+                    object : DummyUow(millisUTC()) {
                         override suspend fun tryPerform(
                             principal: TestPrincipal,
                             params: Params,
-                        ) = changes {
-                            if (kotlin.coroutines.coroutineContext[PrimaryConnectionRequiredFlag] == null) {
-                                "null"
-                            } else {
-                                "not null"
-                            }
+                        ) = if (kotlin.coroutines.coroutineContext[PrimaryConnectionRequiredFlag] == null) {
+                            notChanged("null")
+                        } else {
+                            notChanged("not null")
                         }
                     }
                 }
@@ -83,7 +81,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
             )
 
             When("UnitOfWorkExecutor executes Uow") {
-                val observedContext = uowx.execute(DummyNoChangesUow::class, TestPrincipal) { DummyNoChangesUow.Params }
+                val observedContext = uowx.execute(DummyUow::class, TestPrincipal) { DummyUow.Params }
 
                 Then("Uow observed connection context") {
                     observedContext shouldBe "not null"

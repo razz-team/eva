@@ -27,25 +27,16 @@ class ChangesSpec : BehaviorSpec({
                 ChangesWithoutResult().withResult("nelson mandela")
             }
 
-            Then("IllegalStateException thrown") {
-                val exception = shouldThrow<IllegalStateException>(attempt)
+            Then("IllegalArgumentException thrown") {
+                val exception = shouldThrow<IllegalArgumentException>(attempt)
                 exception.message shouldBe "No changes to persist"
-            }
-        }
-
-        When("Principal calling withResult on empty changes when emptyChangesAllowed flag is true") {
-            val changes = ChangesWithoutResult(true)
-                .withResult("nelson mandela")
-
-            Then("Changes matching added and result produced") {
-                changes.toPersist shouldBe emptyList()
-                changes.result shouldBe "nelson mandela"
             }
         }
 
         When("Principal calling withAdded and then withResult") {
             val changes = ChangesWithoutResult()
-                .withAdded(newModel).withResult("patrice lumumba")
+                .withAdded(newModel)
+                .withResult("patrice lumumba")
 
             Then("Changes matching added and result produced") {
                 changes.toPersist shouldBe listOf(Add(newModel, listOf(newModelEvent)))
@@ -53,7 +44,7 @@ class ChangesSpec : BehaviorSpec({
             }
         }
 
-        When("Principal calling withAdded twice with the same model") {
+        When("Principal calling withAdded twice for the same model") {
             val attempt = {
                 ChangesWithoutResult()
                     .withAdded(newModel)
@@ -66,12 +57,12 @@ class ChangesSpec : BehaviorSpec({
             }
         }
 
-        When("Principal calling withAdded and then withUpdated with the same model") {
+        When("Principal calling withAdded and then withUpdated for the same model") {
             val attempt = {
                 ChangesWithoutResult()
                     .withAdded(newModel)
                     // I doubt this could ever happen in regular uow
-                    // since model has to be roundtripped through db
+                    // since model has to be round tripped through db
                     // or hacked in some other way to appear in dirty state
                     // but this container must preserve correct behavior nevertheless
                     .withUpdated(existingCreatedTestModel(newModel.id(), "noscope", 360, V1).activate())
@@ -85,7 +76,8 @@ class ChangesSpec : BehaviorSpec({
 
         When("Principal calling withUpdated and then withResult") {
             val changes = ChangesWithoutResult()
-                .withUpdated(dirtyModel).withResult("angela davis")
+                .withUpdated(dirtyModel)
+                .withResult("angela davis")
 
             Then("Changes matching updated and result produced") {
                 changes.toPersist shouldBe listOf(Update(dirtyModel, listOf(dirtyModelEvent)))
@@ -93,7 +85,7 @@ class ChangesSpec : BehaviorSpec({
             }
         }
 
-        When("Principal calling withUpdated with not updated model") {
+        When("Principal calling withUpdated for not updated model") {
             val attempt = {
                 ChangesWithoutResult()
                     .withUpdated(unchangedModel)
@@ -102,11 +94,11 @@ class ChangesSpec : BehaviorSpec({
             Then("IllegalArgumentException thrown") {
                 val exception = shouldThrow<IllegalArgumentException>(attempt)
                 exception.message shouldBe
-                    "Attempted to register unchanged model [${unchangedModel.id()}] but empty changes were disallowed"
+                    "Attempted to register unchanged model [${unchangedModel.id()}] as changed"
             }
         }
 
-        When("Principal calling withUpdated twice with the same model") {
+        When("Principal calling withUpdated twice for the same model") {
             val attempt = {
                 ChangesWithoutResult()
                     .withUpdated(dirtyModel)
@@ -119,7 +111,7 @@ class ChangesSpec : BehaviorSpec({
             }
         }
 
-        When("Principal calling withUnchanged with the unchanged model and then withResult") {
+        When("Principal calling withUnchanged for the unchanged model and then withResult") {
             val changes = ChangesWithoutResult()
                 .withUnchanged(unchangedModel)
                 .withResult("robert mugabe")
@@ -130,7 +122,7 @@ class ChangesSpec : BehaviorSpec({
             }
         }
 
-        When("Principal calling withUnchanged twice with the same model") {
+        When("Principal calling withUnchanged twice for the same model") {
             val attempt = {
                 ChangesWithoutResult()
                     .withUnchanged(unchangedModel)
@@ -143,20 +135,7 @@ class ChangesSpec : BehaviorSpec({
             }
         }
 
-        When("Principal calling withUnchanged and then withUpdated with the same model") {
-            val attempt = {
-                ChangesWithoutResult()
-                    .withUnchanged(unchangedModel)
-                    .withUpdated(unchangedModel.activate())
-            }
-
-            Then("IllegalStateException thrown") {
-                val exception = shouldThrow<IllegalStateException>(attempt)
-                exception.message shouldBe "Change for a given model [${unchangedModel.id()}] was already registered"
-            }
-        }
-
-        When("Principal calling withUnchanged and then withUpdated with the same model") {
+        When("Principal calling withUnchanged and then withUpdated for the same model") {
             val attempt = {
                 ChangesWithoutResult()
                     .withUnchanged(unchangedModel)
@@ -169,7 +148,7 @@ class ChangesSpec : BehaviorSpec({
             }
         }
 
-        When("Principal calling withUnchanged and then withUpdated with not updated model") {
+        When("Principal calling withUnchanged and then withUpdated for not updated model") {
             val attempt = {
                 ChangesWithoutResult()
                     .withUnchanged(unchangedModel)
@@ -179,11 +158,11 @@ class ChangesSpec : BehaviorSpec({
             Then("IllegalArgumentException thrown") {
                 val exception = shouldThrow<IllegalArgumentException>(attempt)
                 exception.message shouldBe
-                    "Attempted to register unchanged model [${unchangedModel.id()}] but empty changes were disallowed"
+                    "Attempted to register unchanged model [${unchangedModel.id()}] as changed"
             }
         }
 
-        When("Principal calling withUnchanged with the dirty model") {
+        When("Principal calling withUnchanged for the dirty model") {
             val attempt = {
                 ChangesWithoutResult()
                     .withUnchanged(dirtyModel)
@@ -191,11 +170,11 @@ class ChangesSpec : BehaviorSpec({
 
             Then("IllegalArgumentException thrown") {
                 val exception = shouldThrow<IllegalArgumentException>(attempt)
-                exception.message shouldBe "Attempted mark dirty model [${dirtyModel.id()}] as unchanged"
+                exception.message shouldBe "Attempted to register dirty model [${dirtyModel.id()}] as unchanged"
             }
         }
 
-        When("Principal calling withUnchanged with the new model") {
+        When("Principal calling withUnchanged for the new model") {
             val attempt = {
                 ChangesWithoutResult()
                     .withUnchanged(newModel)
@@ -203,7 +182,7 @@ class ChangesSpec : BehaviorSpec({
 
             Then("IllegalArgumentException thrown") {
                 val exception = shouldThrow<IllegalArgumentException>(attempt)
-                exception.message shouldBe "Attempted mark new model [${newModel.id()}] as unchanged"
+                exception.message shouldBe "Attempted to register new model [${newModel.id()}] as unchanged"
             }
         }
 

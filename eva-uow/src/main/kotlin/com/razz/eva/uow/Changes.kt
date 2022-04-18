@@ -13,11 +13,8 @@ abstract class ChangesWithResult<R> {
 }
 
 internal class ChangesWithoutResult private constructor(
-    private val changes: Map<ModelId<out Comparable<*>>, Change>,
-    private val emptyChangesAllowed: Boolean = false
+    private val changes: Map<ModelId<out Comparable<*>>, Change>
 ) {
-
-    constructor(emptyChangesAllowed: Boolean) : this(emptyMap(), emptyChangesAllowed)
     constructor() : this(emptyMap())
 
     fun <MID : ModelId<out Comparable<*>>, E : ModelEvent<MID>, M : Model<MID, E>>
@@ -28,25 +25,23 @@ internal class ChangesWithoutResult private constructor(
 
     fun <MID : ModelId<out Comparable<*>>, E : ModelEvent<MID>, M : Model<MID, E>>
     withUpdated(model: M): ChangesWithoutResult {
-        if (model.isDirty()) {
-            val eventDrive = model.writeEvents(ModelEventDrive())
-            return changes(model, eventDrive.events(), ::Update)
-        } else require(emptyChangesAllowed) {
-            "Attempted to register unchanged model [${model.id()}] but empty changes were disallowed"
+        require(model.isDirty()) {
+            "Attempted to register unchanged model [${model.id()}] as changed"
         }
-        return this
+        val eventDrive = model.writeEvents(ModelEventDrive())
+        return changes(model, eventDrive.events(), ::Update)
     }
 
     fun <MID : ModelId<out Comparable<*>>, E : ModelEvent<MID>, M : Model<MID, E>>
     withUnchanged(model: M): ChangesWithoutResult {
-        require(!model.isDirty() && !model.isNew()) {
-            "Attempted mark ${if (model.isDirty()) "dirty" else "new"} model [${model.id()}] as unchanged"
+        require(model.isPersisted()) {
+            "Attempted to register ${if (model.isDirty()) "dirty" else "new"} model [${model.id()}] as unchanged"
         }
         return changes(model, emptyList()) { _, _ -> Noop }
     }
 
     fun <R> withResult(result: R): ChangesWithResult<R> {
-        check(emptyChangesAllowed || changes.isNotEmpty()) { "No changes to persist" }
+        require(changes.isNotEmpty()) { "No changes to persist" }
         return DefaultChangesWithResult(result, changes.values.toList())
     }
 
@@ -56,8 +51,7 @@ internal class ChangesWithoutResult private constructor(
             null -> ChangesWithoutResult(
                 LinkedHashMap(changes).apply {
                     put(model.id(), changer(model, modelEvents))
-                },
-                emptyChangesAllowed
+                }
             )
             else -> throw IllegalStateException(existingChangeExceptionMessage(model.id()))
         }
