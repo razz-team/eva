@@ -12,9 +12,9 @@ class ChangesDsl internal constructor(private var changes: ChangesWithoutResult)
         return model
     }
 
-    fun <MID, E, M> update(model: M, force: Boolean = false): M
+    fun <MID, E, M> update(model: M, required: Boolean = false): M
         where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
-        changes = when (force) {
+        changes = when (required) {
             true -> {
                 changes.withUpdated(model)
             }
