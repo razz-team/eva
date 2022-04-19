@@ -24,6 +24,8 @@ abstract class UnitOfWork<PRINCIPAL, PARAMS, RESULT>(
     // TODO do we actually need that ?
     protected val NO_CHANGES: ChangesWithResult<Unit> = DefaultChangesWithResult(Unit, emptyList())
 
+    protected fun noChanges() = NO_CHANGES
+
     // TODO do we actually need that ?
     protected fun <R> noChanges(result: R): ChangesWithResult<R> = DefaultChangesWithResult(result, emptyList())
 
