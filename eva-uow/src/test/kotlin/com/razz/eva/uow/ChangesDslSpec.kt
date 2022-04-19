@@ -26,6 +26,13 @@ internal abstract class DummyUow(clock: Clock) : UnitOfWork<TestPrincipal, Dummy
     }
 }
 
+internal abstract class DummyUnitUow(clock: Clock) : UnitOfWork<TestPrincipal, DummyUnitUow.Params, Unit>(clock) {
+    @Serializable
+    object Params : UowParams<Params> {
+        override fun serialization() = serializer()
+    }
+}
+
 class ChangesDslSpec : FunSpec({
 
     val now = millisUTC().instant()
@@ -133,7 +140,7 @@ class ChangesDslSpec : FunSpec({
         exception.message shouldBe "Attempted to register unchanged model [${model.id()}] as changed"
     }
 
-    test("Should throw exception when no models were added or updated") {
+    test("Should throw exception when no models were added or updated with result") {
 
         val uow = object : DummyUow(clock) {
             override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
@@ -147,6 +154,22 @@ class ChangesDslSpec : FunSpec({
                 FakeMemorizingPersisting(TestModel::class),
                 tracer = noopTracer()
             ).execute(DummyUow::class, TestPrincipal) { DummyUow.Params }
+        }
+        exception.message shouldBe "No changes to persist"
+    }
+
+    test("Should throw exception when no models were added or updated without result") {
+
+        val uow = object : DummyUnitUow(clock) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {}
+        }
+
+        val exception = shouldThrow<IllegalArgumentException> {
+            UnitOfWorkExecutor(
+                listOf(DummyUnitUow::class withFactory { uow }),
+                FakeMemorizingPersisting(TestModel::class),
+                tracer = noopTracer()
+            ).execute(DummyUnitUow::class, TestPrincipal) { DummyUnitUow.Params }
         }
         exception.message shouldBe "No changes to persist"
     }

@@ -67,9 +67,9 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                             principal: TestPrincipal,
                             params: Params,
                         ) = if (kotlin.coroutines.coroutineContext[PrimaryConnectionRequiredFlag] == null) {
-                            notChanged("null")
+                            noChanges("null")
                         } else {
-                            notChanged("not null")
+                            noChanges("not null")
                         }
                     }
                 }
@@ -103,7 +103,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                         override suspend fun tryPerform(
                             principal: TestPrincipal,
                             params: Params,
-                        ) = notChanged(clock.instant().toEpochMilli().toString())
+                        ) = noChanges(clock.instant().toEpochMilli().toString())
                     }
                 }
             )

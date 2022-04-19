@@ -62,8 +62,3 @@ internal class DefaultChanges<R>(
     override val result: R,
     override val toPersist: List<Change>
 ) : Changes<R>()
-
-internal object NoChanges : Changes<Unit>() {
-    override val result = Unit
-    override val toPersist = emptyList<Change>()
-}
