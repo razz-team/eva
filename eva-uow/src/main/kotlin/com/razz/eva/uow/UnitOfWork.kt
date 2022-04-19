@@ -21,10 +21,13 @@ abstract class UnitOfWork<PRINCIPAL, PARAMS, RESULT>(
 
     open suspend fun onFailure(params: PARAMS, ex: PersistenceException): RESULT = throw ex
 
-    protected val NO_CHANGES: ChangesWithResult<Unit> = NoChanges
+    // TODO do we actually need that ?
+    protected val NO_CHANGES: ChangesWithResult<Unit> = DefaultChangesWithResult(Unit, emptyList())
+
+    protected fun noChanges() = NO_CHANGES
 
     // TODO do we actually need that ?
-    protected fun <R> notChanged(result: R): ChangesWithResult<R> = DefaultChangesWithResult(result, emptyList())
+    protected fun <R> noChanges(result: R): ChangesWithResult<R> = DefaultChangesWithResult(result, emptyList())
 
     protected suspend fun changes(init: suspend ChangesDsl.() -> RESULT): ChangesWithResult<RESULT> {
         return ChangesDsl.changes(ChangesWithoutResult(), init)
