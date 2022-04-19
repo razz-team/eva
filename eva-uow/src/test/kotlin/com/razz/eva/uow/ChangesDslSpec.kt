@@ -44,7 +44,7 @@ class ChangesDslSpec : FunSpec({
             .activate()
 
         val uow = object : DummyUow(clock) {
-            override suspend fun tryPerform(principal: TestPrincipal, params: Params): ChangesWithResult<String> {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params): Changes<String> {
                 val changes = changes {
                     add(model0)
                     update(model1)
@@ -77,7 +77,7 @@ class ChangesDslSpec : FunSpec({
         val model = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1).activate()
 
         val uow = object : DummyUow(clock) {
-            override suspend fun tryPerform(principal: TestPrincipal, params: Params): ChangesWithResult<String> {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params): Changes<String> {
                 val changes = changes {
                     update(model)
                     "K P A C U B O"
@@ -102,7 +102,7 @@ class ChangesDslSpec : FunSpec({
         val model = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
 
         val uow = object : DummyUow(clock) {
-            override suspend fun tryPerform(principal: TestPrincipal, params: Params): ChangesWithResult<String> {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params): Changes<String> {
                 val changes = changes {
                     update(model)
                     "K P A C U B O"
@@ -178,7 +178,7 @@ class ChangesDslSpec : FunSpec({
         val model = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
 
         val uow = object : DummyUow(clock) {
-            override suspend fun tryPerform(principal: TestPrincipal, params: Params): ChangesWithResult<String> {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params): Changes<String> {
                 val changes = changes {
                     notChanged(model)
                     "K P A C U B O"

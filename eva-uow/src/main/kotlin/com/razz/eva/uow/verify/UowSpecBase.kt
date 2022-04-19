@@ -5,7 +5,7 @@ import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
 import com.razz.eva.uow.Add
 import com.razz.eva.uow.Change
-import com.razz.eva.uow.ChangesWithResult
+import com.razz.eva.uow.Changes
 import com.razz.eva.uow.Noop
 import com.razz.eva.uow.Update
 import java.util.*
@@ -18,7 +18,7 @@ open class UowSpecBase<R> private constructor(
 ) {
 
     internal constructor(
-        changes: ChangesWithResult<R>
+        changes: Changes<R>
     ) : this(
         result = changes.result,
         executionHistory = ArrayDeque(changes.toPersist.filter { it != Noop }),
