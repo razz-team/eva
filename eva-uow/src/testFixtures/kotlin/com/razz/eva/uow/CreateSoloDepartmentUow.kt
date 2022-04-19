@@ -39,7 +39,7 @@ class CreateSoloDepartmentUow(
     override suspend fun tryPerform(
         principal: TestPrincipal,
         params: Params
-    ): ChangesWithResult<OwnedDepartment> = changes {
+    ): Changes<OwnedDepartment> = changes {
         val existingDep: Department<*>? = departmentRepo.findByName(params.departmentName)
         val existingEmp: Employee? = employeeRepo.findByName(params.bossName)
         when (existingDep to existingEmp) {

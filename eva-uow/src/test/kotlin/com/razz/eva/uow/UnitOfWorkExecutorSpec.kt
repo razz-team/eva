@@ -186,7 +186,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                 every { rawUnitOfWork.configuration().retry } returns StaleRecordFixedRetry(1, ofMillis(100))
                 coEvery {
                     rawUnitOfWork.tryPerform(TestPrincipal, eq(params))
-                } returns DefaultChangesWithResult(department, listOf())
+                } returns DefaultChanges(department, listOf())
 
                 When("Principal executes UnitOfWork") {
                     val createdDepartment = uowx.execute(CreateDepartmentUow::class, TestPrincipal) { params }
@@ -204,7 +204,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                 every { retry.getNextDelay(eq(0), eq(ex)) } returns ofMillis(0)
                 coEvery {
                     rawUnitOfWork.tryPerform(TestPrincipal, eq(params))
-                } returns DefaultChangesWithResult(department, listOf())
+                } returns DefaultChanges(department, listOf())
                 coEvery {
                     persisting.persist(
                         "MockOfCreateDepartmentUow",
@@ -235,7 +235,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                 every { retry.getNextDelay(eq(1), eq(ex)) } returns null
                 coEvery {
                     rawUnitOfWork.tryPerform(TestPrincipal, eq(params))
-                } returns DefaultChangesWithResult(department, listOf())
+                } returns DefaultChanges(department, listOf())
                 coEvery {
                     persisting.persist(
                         "MockOfCreateDepartmentUow",
@@ -263,7 +263,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                 every { rawUnitOfWork.configuration() } returns UnitOfWork.Configuration.default()
                 coEvery {
                     rawUnitOfWork.tryPerform(TestPrincipal, eq(params))
-                } returns DefaultChangesWithResult(department, listOf())
+                } returns DefaultChanges(department, listOf())
                 coEvery {
                     persisting.persist(
                         "MockOfCreateDepartmentUow",
@@ -294,7 +294,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                 every { rawUnitOfWork.configuration() } returns UnitOfWork.Configuration.default()
                 coEvery {
                     rawUnitOfWork.tryPerform(TestPrincipal, eq(params))
-                } returns DefaultChangesWithResult(department, listOf())
+                } returns DefaultChanges(department, listOf())
                 coEvery {
                     persisting.persist(
                         "MockOfCreateDepartmentUow",
@@ -326,7 +326,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                 every { rawUnitOfWork.configuration() } returns UnitOfWork.Configuration.default()
                 coEvery {
                     rawUnitOfWork.tryPerform(TestPrincipal, eq(params))
-                } returns DefaultChangesWithResult(department, listOf())
+                } returns DefaultChanges(department, listOf())
                 coEvery {
                     persisting.persist(
                         "MockOfCreateDepartmentUow",
@@ -355,7 +355,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                 every { rawUnitOfWork.configuration() } returns UnitOfWork.Configuration.default()
                 coEvery {
                     rawUnitOfWork.tryPerform(TestPrincipal, eq(params))
-                } returns DefaultChangesWithResult(department, listOf())
+                } returns DefaultChanges(department, listOf())
                 coEvery {
                     persisting.persist(
                         "MockOfCreateDepartmentUow",
@@ -385,7 +385,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                 every { rawUnitOfWork.configuration() } returns UnitOfWork.Configuration.default()
                 coEvery {
                     rawUnitOfWork.tryPerform(TestPrincipal, eq(params))
-                } returns DefaultChangesWithResult(department, listOf())
+                } returns DefaultChanges(department, listOf())
                 coEvery {
                     persisting.persist(
                         "MockOfCreateDepartmentUow",

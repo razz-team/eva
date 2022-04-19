@@ -24,7 +24,7 @@ class InternalMobilityUow(
         override fun serialization() = serializer()
     }
 
-    override suspend fun tryPerform(principal: TestPrincipal, params: Params): ChangesWithResult<Unit> = changes {
+    override suspend fun tryPerform(principal: TestPrincipal, params: Params): Changes<Unit> = changes {
         var newDep = checkNotNull(departmentRepo.find(params.departmentId))
         val oldDeps = mutableMapOf<DepartmentId, Department<*>>()
         for (empId in params.employees) {

@@ -27,7 +27,7 @@ class CreateDepartmentUow(
         override fun serialization() = serializer()
     }
 
-    override suspend fun tryPerform(principal: TestPrincipal, params: Params): ChangesWithResult<OwnedDepartment> =
+    override suspend fun tryPerform(principal: TestPrincipal, params: Params): Changes<OwnedDepartment> =
         changes {
             addDepartment(params.boss, params.departmentName, params.ration)
         }

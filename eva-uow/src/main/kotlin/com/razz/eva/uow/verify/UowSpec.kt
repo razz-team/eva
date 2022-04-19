@@ -2,16 +2,16 @@ package com.razz.eva.uow.verify
 
 import com.razz.eva.domain.Model
 import com.razz.eva.domain.ModelEvent
-import com.razz.eva.uow.ChangesWithResult
+import com.razz.eva.uow.Changes
 
-infix fun <R> ChangesWithResult<R>.verifyInOrder(block: UowSpec<R>.() -> Unit) {
+infix fun <R> Changes<R>.verifyInOrder(block: UowSpec<R>.() -> Unit) {
     val spec = UowSpec(this)
     block(spec)
     spec.verifyEnd()
 }
 
 class UowSpec<R> internal constructor(
-    changes: ChangesWithResult<R>
+    changes: Changes<R>
 ) : UowSpecBase<R>(changes) {
 
     fun returnsEq(expected: R) = returns {

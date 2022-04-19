@@ -11,7 +11,7 @@ abstract class UnitOfWork<PRINCIPAL, PARAMS, RESULT>(
     private val configuration: Configuration = default()
 ) where PRINCIPAL : Principal<*>, PARAMS : UowParams<PARAMS>, RESULT : Any {
 
-    abstract suspend fun tryPerform(principal: PRINCIPAL, params: PARAMS): ChangesWithResult<RESULT>
+    abstract suspend fun tryPerform(principal: PRINCIPAL, params: PARAMS): Changes<RESULT>
 
     open fun name(): String = this.javaClass.simpleName
 
@@ -21,12 +21,12 @@ abstract class UnitOfWork<PRINCIPAL, PARAMS, RESULT>(
 
     open suspend fun onFailure(params: PARAMS, ex: PersistenceException): RESULT = throw ex
 
-    protected val NO_CHANGES: ChangesWithResult<Unit> = NoChanges
+    protected val NO_CHANGES: Changes<Unit> = NoChanges
 
     // TODO do we actually need that ?
-    protected fun <R> notChanged(result: R): ChangesWithResult<R> = DefaultChangesWithResult(result, emptyList())
+    protected fun <R> notChanged(result: R): Changes<R> = DefaultChanges(result, emptyList())
 
-    protected suspend fun changes(init: suspend ChangesDsl.() -> RESULT): ChangesWithResult<RESULT> {
+    protected suspend fun changes(init: suspend ChangesDsl.() -> RESULT): Changes<RESULT> {
         return ChangesDsl.changes(ChangesWithoutResult(), init)
     }
 

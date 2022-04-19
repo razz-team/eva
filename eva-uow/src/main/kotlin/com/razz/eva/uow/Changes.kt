@@ -7,7 +7,7 @@ import com.razz.eva.domain.ModelId
 private fun existingChangeExceptionMessage(modelId: ModelId<*>) =
     "Change for a given model [$modelId] was already registered"
 
-abstract class ChangesWithResult<R> {
+abstract class Changes<R> {
     internal abstract val result: R
     internal abstract val toPersist: List<Change>
 }
@@ -40,9 +40,9 @@ internal class ChangesWithoutResult private constructor(
         return changes(model, emptyList()) { _, _ -> Noop }
     }
 
-    fun <R> withResult(result: R): ChangesWithResult<R> {
+    fun <R> withResult(result: R): Changes<R> {
         require(changes.isNotEmpty()) { "No changes to persist" }
-        return DefaultChangesWithResult(result, changes.values.toList())
+        return DefaultChanges(result, changes.values.toList())
     }
 
     private fun <E : ModelEvent<MID>, M : Model<MID, E>, MID : ModelId<out Comparable<*>>>
@@ -58,12 +58,12 @@ internal class ChangesWithoutResult private constructor(
     }
 }
 
-internal class DefaultChangesWithResult<R>(
+internal class DefaultChanges<R>(
     override val result: R,
     override val toPersist: List<Change>
-) : ChangesWithResult<R>()
+) : Changes<R>()
 
-internal object NoChanges : ChangesWithResult<Unit>() {
+internal object NoChanges : Changes<Unit>() {
     override val result = Unit
     override val toPersist = emptyList<Change>()
 }

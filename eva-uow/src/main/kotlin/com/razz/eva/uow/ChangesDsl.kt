@@ -40,7 +40,7 @@ class ChangesDsl internal constructor(private var changes: ChangesWithoutResult)
             changes: ChangesWithoutResult,
             @Suppress("REDUNDANT_INLINE_SUSPEND_FUNCTION_TYPE")
             init: suspend ChangesDsl.() -> R
-        ): ChangesWithResult<R> {
+        ): Changes<R> {
             val dsl = ChangesDsl(changes)
             val res = init(dsl)
             return dsl.changes.withResult(res)
