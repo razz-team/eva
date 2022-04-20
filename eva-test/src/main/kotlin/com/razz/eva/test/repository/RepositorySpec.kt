@@ -5,9 +5,6 @@ import com.razz.eva.persistence.TransactionManager
 import com.razz.eva.persistence.executor.QueryExecutor
 import com.razz.eva.repository.TransactionalContext
 import com.razz.eva.repository.TransactionalContext.Companion.transactionalContext
-import io.kotest.common.ExperimentalKotest
-import io.kotest.core.config.AbstractProjectConfig
-import io.kotest.core.spec.SpecExecutionOrder.Random
 import io.kotest.core.spec.style.BehaviorSpec
 import org.jooq.DSLContext
 import java.time.Clock
@@ -37,16 +34,5 @@ abstract class RepositorySpec(
             block(context)
         }
         return txnManager.inTransaction(REQUIRE_NEW, txBlock)
-    }
-
-    object ProjectKotestConfig : AbstractProjectConfig() {
-
-        // this controls number of threads
-        override val parallelism = 2
-
-        @OptIn(ExperimentalKotest::class)
-        override val concurrentSpecs = 4
-
-        override val specExecutionOrder = Random
     }
 }

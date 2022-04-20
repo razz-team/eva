@@ -39,12 +39,6 @@ dependencies {
     testImplementation(libs.kotest_assertions_core)
     testImplementation(libs.kotest_assertions_json)
     testImplementation(libs.kotest_runner)
-
-    constraints {
-        implementation(libs.log4j) {
-            because("CVE-2021-44228: Log4j is vulnerable")
-        }
-    }
 }
 
 java.sourceCompatibility = versions.java
