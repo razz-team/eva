@@ -22,8 +22,12 @@ jobs:
       - name: Build project
         run: ./gradlew build
 
+      - run: echo "::set-output name=short::$(git rev-parse --short HEAD)"
+        id: git_sha
+
       - name: Publish to Maven snapshots
         run: ./gradlew publish
         env:
           SONATYPE_USER: ${{ secrets.SONATYPE_USER }}
           SONATYPE_PASS: ${{ secrets.SONATYPE_PASS }}
+          GITHUB_SHA: ${{ steps.git_sha.outputs.short }}
