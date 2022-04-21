@@ -47,8 +47,8 @@ class PersistenceSpec : PersistenceBaseSpec({
                 inner.inject(spanContext, format, carrier)
             }
         }
-        val queryExecutor = testModule.queryExecutor
-        val dslContext = testModule.dslContext
+        val queryExecutor = module.queryExecutor
+        val dslContext = module.dslContext
         val employeeRepo = EmployeeRepository(queryExecutor, dslContext)
         val departmentRepo = DepartmentRepository(queryExecutor, dslContext)
         val bubalehRepo = BubalehRepository(queryExecutor, dslContext)
@@ -61,18 +61,18 @@ class PersistenceSpec : PersistenceBaseSpec({
         )
 
         val eventRepository = JooqEventRepository(
-            queryExecutor = testModule.queryExecutor,
-            dslContext = testModule.dslContext,
+            queryExecutor = module.queryExecutor,
+            dslContext = module.dslContext,
             tracer = tracer
         )
         val persisting = Persisting(
-            transactionManager = testModule.transactionManager,
+            transactionManager = module.transactionManager,
             modelRepos = repos,
             eventRepository = eventRepository
         )
         val eventQueries = EventQueries(
-            queryExecutor = testModule.queryExecutor,
-            dslContext = testModule.dslContext
+            queryExecutor = module.queryExecutor,
+            dslContext = module.dslContext
         )
         val now = millisUTC().instant()
         val fixedClock = fixedUTC(now)

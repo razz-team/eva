@@ -37,8 +37,8 @@ class TransactionalSpec : PersistenceBaseSpec({
     val clock = fixedUTC(now)
 
     Given("Bootstrapped env with hacked persisting") {
-        val queryExecutor = testModule.queryExecutor
-        val dslContext = testModule.dslContext
+        val queryExecutor = module.queryExecutor
+        val dslContext = module.dslContext
         val employeeRepo = EmployeeRepository(queryExecutor, dslContext)
         val bubalehRepo = BubalehRepository(queryExecutor, dslContext)
         var preUpdateShakshouka: PreModifyCallback<UUID, ShakshoukaId, Shakshouka> = PreModifyCallback { }
@@ -52,10 +52,10 @@ class TransactionalSpec : PersistenceBaseSpec({
             Shakshouka::class hasRepo shakshoukaRepo
         )
         val eventPersisting = DummyEventRepository()
-        val persisting = Persisting(testModule.transactionManager, repos, eventPersisting)
+        val persisting = Persisting(module.transactionManager, repos, eventPersisting)
         var afterFailedTransaction: suspend () -> Unit = { }
         val hackedTxnManager = WithCtxConnectionTransactionManager(
-            wrapped = testModule.transactionManager,
+            wrapped = module.transactionManager,
             afterFailedTransaction = { afterFailedTransaction() }
         )
         val hackedPersisting = Persisting(hackedTxnManager, repos, eventPersisting)
@@ -158,7 +158,7 @@ class TransactionalSpec : PersistenceBaseSpec({
             preUpdateShakshouka = PreModifyCallback {
                 if (++updated == pocontre.headcount) {
                     preUpdateShakshouka = PreModifyCallback { }
-                    testModule.transactionManager.inTransaction(
+                    module.transactionManager.inTransaction(
                         ConnectionMode.REQUIRE_NEW,
                         suspend {
                             shakshoukaRepo.update(
@@ -252,7 +252,7 @@ class TransactionalSpec : PersistenceBaseSpec({
                 preUpdateDepartment = PreModifyCallback {
                     if (it.id() == pocontre.id()) {
                         preUpdateDepartment = PreModifyCallback { }
-                        testModule.transactionManager.inTransaction(
+                        module.transactionManager.inTransaction(
                             ConnectionMode.REQUIRE_NEW,
                             suspend {
                                 departmentRepo.update(

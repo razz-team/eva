@@ -16,6 +16,7 @@ import com.razz.eva.uow.params.UowParams
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import kotlinx.serialization.Serializable
 import java.time.Clock
 
@@ -37,6 +38,13 @@ class ChangesDslSpec : FunSpec({
 
     val now = millisUTC().instant()
     val clock = fixedUTC(now)
+
+    fun <UOW : DummyUow> uowx(uow: UOW) = UnitOfWorkExecutor(
+        factories = listOf(DummyUow::class withFactory { uow }),
+        persisting = FakeMemorizingPersisting(TestModel::class),
+        tracer = noopTracer(),
+        meterRegistry = SimpleMeterRegistry()
+    )
 
     test("Should return properly built ChangesWithResult when new model added and changed model updated") {
         val model0 = createdTestModel("MLG", 420).activate()
@@ -66,11 +74,7 @@ class ChangesDslSpec : FunSpec({
                 return changes
             }
         }
-        UnitOfWorkExecutor(
-            listOf(DummyUow::class withFactory { uow }),
-            FakeMemorizingPersisting(TestModel::class),
-            tracer = noopTracer()
-        ).execute(DummyUow::class, TestPrincipal) { DummyUow.Params }
+        uowx(uow).execute(DummyUow::class, TestPrincipal) { DummyUow.Params }
     }
 
     test("Should return properly built ChangesWithResult when changed model updated") {
@@ -91,11 +95,7 @@ class ChangesDslSpec : FunSpec({
                 return changes
             }
         }
-        UnitOfWorkExecutor(
-            listOf(DummyUow::class withFactory { uow }),
-            FakeMemorizingPersisting(TestModel::class),
-            tracer = noopTracer()
-        ).execute(DummyUow::class, TestPrincipal) { DummyUow.Params }
+        uowx(uow).execute(DummyUow::class, TestPrincipal) { DummyUow.Params }
     }
 
     test("Should return properly built ChangesWithResult when unchanged model updated") {
@@ -114,11 +114,7 @@ class ChangesDslSpec : FunSpec({
                 return changes
             }
         }
-        UnitOfWorkExecutor(
-            listOf(DummyUow::class withFactory { uow }),
-            FakeMemorizingPersisting(TestModel::class),
-            tracer = noopTracer()
-        ).execute(DummyUow::class, TestPrincipal) { DummyUow.Params }
+        uowx(uow).execute(DummyUow::class, TestPrincipal) { DummyUow.Params }
     }
 
     test("Should throw exception when unchanged model required updated") {
@@ -132,9 +128,10 @@ class ChangesDslSpec : FunSpec({
         }
         val exception = shouldThrow<IllegalArgumentException> {
             UnitOfWorkExecutor(
-                listOf(DummyUow::class withFactory { uow }),
-                FakeMemorizingPersisting(TestModel::class),
-                tracer = noopTracer()
+                factories = listOf(DummyUow::class withFactory { uow }),
+                persisting = FakeMemorizingPersisting(TestModel::class),
+                tracer = noopTracer(),
+                meterRegistry = SimpleMeterRegistry()
             ).execute(DummyUow::class, TestPrincipal) { DummyUow.Params }
         }
         exception.message shouldBe "Attempted to register unchanged model [${model.id()}] as changed"
@@ -149,11 +146,7 @@ class ChangesDslSpec : FunSpec({
         }
 
         val exception = shouldThrow<IllegalArgumentException> {
-            UnitOfWorkExecutor(
-                listOf(DummyUow::class withFactory { uow }),
-                FakeMemorizingPersisting(TestModel::class),
-                tracer = noopTracer()
-            ).execute(DummyUow::class, TestPrincipal) { DummyUow.Params }
+            uowx(uow).execute(DummyUow::class, TestPrincipal) { DummyUow.Params }
         }
         exception.message shouldBe "No changes to persist"
     }
@@ -166,9 +159,10 @@ class ChangesDslSpec : FunSpec({
 
         val exception = shouldThrow<IllegalArgumentException> {
             UnitOfWorkExecutor(
-                listOf(DummyUnitUow::class withFactory { uow }),
-                FakeMemorizingPersisting(TestModel::class),
-                tracer = noopTracer()
+                factories = listOf(DummyUnitUow::class withFactory { uow }),
+                persisting = FakeMemorizingPersisting(TestModel::class),
+                tracer = noopTracer(),
+                meterRegistry = SimpleMeterRegistry()
             ).execute(DummyUnitUow::class, TestPrincipal) { DummyUnitUow.Params }
         }
         exception.message shouldBe "No changes to persist"
@@ -190,10 +184,6 @@ class ChangesDslSpec : FunSpec({
                 return changes
             }
         }
-        UnitOfWorkExecutor(
-            listOf(DummyUow::class withFactory { uow }),
-            FakeMemorizingPersisting(TestModel::class),
-            tracer = noopTracer()
-        ).execute(DummyUow::class, TestPrincipal) { DummyUow.Params }
+        uowx(uow).execute(DummyUow::class, TestPrincipal) { DummyUow.Params }
     }
 })
