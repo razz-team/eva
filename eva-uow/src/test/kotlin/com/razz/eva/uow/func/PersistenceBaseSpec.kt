@@ -1,4 +1,4 @@
-package com.razz.eva.uow
+package com.razz.eva.uow.func
 
 import com.razz.eva.migrations.Migration.ModelsMigration
 import com.razz.eva.migrations.Migrations

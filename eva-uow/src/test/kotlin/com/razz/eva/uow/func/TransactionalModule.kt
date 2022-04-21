@@ -1,4 +1,4 @@
-package com.razz.eva.uow
+package com.razz.eva.uow.func
 
 import com.razz.eva.persistence.config.DatabaseConfig
 import com.razz.eva.persistence.config.ExecutorType

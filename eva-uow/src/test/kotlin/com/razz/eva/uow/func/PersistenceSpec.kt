@@ -1,4 +1,4 @@
-package com.razz.eva.uow
+package com.razz.eva.uow.func
 
 import com.razz.eva.IdempotencyKey.Companion.idempotencyKey
 import com.razz.eva.domain.Employee
@@ -12,6 +12,8 @@ import com.razz.eva.serialization.json.int
 import com.razz.eva.serialization.json.jsonObject
 import com.razz.eva.serialization.json.string
 import com.razz.eva.tracing.Tracing.withNewSpan
+import com.razz.eva.uow.CreateSoloDepartmentUow
+import com.razz.eva.uow.TestPrincipal
 import com.razz.eva.uow.UowEvent.UowName
 import io.kotest.matchers.shouldBe
 import io.opentracing.Tracer
