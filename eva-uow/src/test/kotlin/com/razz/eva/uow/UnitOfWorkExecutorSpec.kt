@@ -21,6 +21,7 @@ import com.razz.eva.uow.Retry.StaleRecordFixedRetry
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.matchers.shouldBe
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -77,7 +78,8 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
             val uowx = UnitOfWorkExecutor(
                 factories,
                 Persisting(WithCtxConnectionTransactionManager(), ModelRepos(), DummyEventRepository()),
-                noopTracer()
+                noopTracer(),
+                SimpleMeterRegistry()
             )
 
             When("UnitOfWorkExecutor executes Uow") {
@@ -124,7 +126,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                 }
                 val txnManager = WithCtxConnectionTransactionManager()
                 val uowx = UnitOfWorkExecutor(
-                    factories, Persisting(txnManager, ModelRepos(), eventRepo), noopTracer()
+                    factories, Persisting(txnManager, ModelRepos(), eventRepo), noopTracer(), SimpleMeterRegistry()
                 )
 
                 Then("Clock property wasn't called") {
@@ -156,7 +158,8 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                     UnitOfWorkExecutor(
                         persisting = mockk(),
                         factories = factories,
-                        tracer = noopTracer()
+                        tracer = noopTracer(),
+                        meterRegistry = SimpleMeterRegistry()
                     )
                 }
 
@@ -179,7 +182,8 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                 factories = listOf(
                     CreateDepartmentUow::class withFactory { unitOfWork }
                 ),
-                tracer = noopTracer()
+                tracer = noopTracer(),
+                meterRegistry = SimpleMeterRegistry()
             )
 
             And("UnitOfWork has one retry and returns result") {

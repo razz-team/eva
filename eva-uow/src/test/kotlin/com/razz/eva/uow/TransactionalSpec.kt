@@ -27,6 +27,7 @@ import com.razz.eva.uow.Clocks.fixedUTC
 import com.razz.eva.uow.Clocks.millisUTC
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import java.time.Instant.now
 import java.util.*
 import java.util.UUID.randomUUID
@@ -69,8 +70,8 @@ class TransactionalSpec : PersistenceBaseSpec({
             PartyHardUow::class withFactory { PartyHardUow(clock, departmentRepo, shakshoukaRepo, bubalehRepo) },
             InternalMobilityUow::class withFactory { InternalMobilityUow(clock, employeeRepo, departmentRepo) }
         )
-        val uows = UnitOfWorkExecutor(factories, persisting, noopTracer())
-        val hackedUows = UnitOfWorkExecutor(factories, hackedPersisting, noopTracer())
+        val uows = UnitOfWorkExecutor(factories, persisting, noopTracer(), SimpleMeterRegistry())
+        val hackedUows = UnitOfWorkExecutor(factories, hackedPersisting, noopTracer(), SimpleMeterRegistry())
 
         When("Principal performs CreateSoloDepartmentUow to create department with the boss") {
             val pocontre = uows.execute(CreateSoloDepartmentUow::class, TestPrincipal) {
