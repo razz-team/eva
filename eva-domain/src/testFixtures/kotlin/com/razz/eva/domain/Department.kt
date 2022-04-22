@@ -5,6 +5,8 @@ import com.razz.eva.domain.DepartmentEvent.BossChanged
 import com.razz.eva.domain.DepartmentEvent.EmployeeAdded
 import com.razz.eva.domain.DepartmentEvent.EmployeeRemoved
 import com.razz.eva.domain.DepartmentEvent.NameChanged
+import com.razz.eva.domain.DepartmentEvent.OwnedDepartmentCreated
+import com.razz.eva.domain.EntityState.NewState.Companion.newState
 import kotlinx.serialization.Contextual
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.buildJsonObject
@@ -171,6 +173,25 @@ sealed class Department<SELF : Department<SELF>>(
 
     override fun hashCode(): Int {
         return Objects.hash(id(), name, boss, headcount, ration)
+    }
+
+    companion object {
+        fun newDepartment(
+            name: String,
+            boss: EmployeeId,
+            headcount: Int,
+            ration: Ration
+        ): OwnedDepartment {
+            val depId = DepartmentId(randomUUID())
+            return OwnedDepartment(
+                id = depId,
+                name = name,
+                boss = boss,
+                headcount = headcount,
+                ration = ration,
+                entityState = newState(OwnedDepartmentCreated(depId, name, boss, 1, ration))
+            )
+        }
     }
 }
 

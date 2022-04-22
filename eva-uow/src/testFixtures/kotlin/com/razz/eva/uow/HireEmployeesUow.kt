@@ -16,7 +16,7 @@ import java.util.UUID.randomUUID
 class HireEmployeesUow(
     clock: Clock,
     private val departmentRepo: DepartmentRepository,
-) : UnitOfWork<TestPrincipal, Params, List<Employee>>(clock) {
+) : UnitOfWork<TestPrincipal, Params, List<Employee>>(clock, Configuration(retry = null)) {
 
     @Serializable
     data class Params(

@@ -1,6 +1,8 @@
 package com.razz.eva.domain
 
 import com.razz.eva.domain.EmployeeEvent.DepartmentChanged
+import com.razz.eva.domain.EmployeeEvent.EmployeeCreated
+import com.razz.eva.domain.EntityState.NewState.Companion.newState
 import kotlinx.serialization.Contextual
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.buildJsonObject
@@ -64,6 +66,25 @@ class Employee(
 
     override fun hashCode(): Int {
         return Objects.hash(id(), name, departmentId, email, ration)
+    }
+
+    companion object {
+        fun newEmployee(
+            name: Name,
+            departmentId: DepartmentId,
+            email: String,
+            ration: Ration,
+        ): Employee {
+            val empId = EmployeeId(UUID.randomUUID())
+            return Employee(
+                id = empId,
+                name = name,
+                departmentId = departmentId,
+                email = email,
+                ration = ration,
+                entityState = newState(EmployeeCreated(empId, name, departmentId, email, ration))
+            )
+        }
     }
 }
 
