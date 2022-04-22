@@ -33,6 +33,7 @@ import com.razz.eva.uow.ExecutionStep.TransactionStarted
 import com.razz.eva.uow.ExecutionStep.UowEventAdded
 import com.razz.eva.uow.Noop
 import com.razz.eva.uow.Persisting
+import com.razz.eva.uow.SpyRepo
 import com.razz.eva.uow.TestPrincipal
 import com.razz.eva.uow.UowEvent
 import com.razz.eva.uow.UowEvent.UowName

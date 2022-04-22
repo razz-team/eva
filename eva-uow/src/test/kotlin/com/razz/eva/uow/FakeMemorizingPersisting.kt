@@ -7,7 +7,6 @@ import com.razz.eva.repository.ModelRepository
 import com.razz.eva.repository.hasRepo
 import com.razz.eva.uow.ExecutionStep.TransactionFinished
 import com.razz.eva.uow.ExecutionStep.TransactionStarted
-import com.razz.eva.uow.func.SpyRepo
 import kotlin.reflect.KClass
 
 internal object FakeMemorizingPersisting {
