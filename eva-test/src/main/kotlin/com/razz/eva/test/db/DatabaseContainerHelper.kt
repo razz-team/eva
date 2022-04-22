@@ -33,7 +33,7 @@ class DatabaseContainerHelper private constructor(
 
     fun dbName() = dbName
 
-    fun dbHost() = db.containerIpAddress
+    fun dbHost() = db.host
 
     fun dbPort() = db.getMappedPort(PostgreSQLContainer.POSTGRESQL_PORT)
 
@@ -155,7 +155,7 @@ class DatabaseContainerHelper private constructor(
         private val localPools = mutableMapOf<String, HikariDataSource>()
 
         private fun jdbcUrl(dbName: String, db: PostgreDockerContainer): String {
-            return "jdbc:postgresql://${db.containerIpAddress}:" +
+            return "jdbc:postgresql://${db.host}:" +
                 "${db.getMappedPort(PostgreSQLContainer.POSTGRESQL_PORT)}/$dbName${db.additionalUrlParams}"
         }
 

@@ -50,7 +50,7 @@ tasks.compileKotlin {
     kotlinOptions {
         jvmTarget = versions.jvm
         allWarningsAsErrors = true
-        freeCompilerArgs = listOf("-Xopt-in=kotlin.RequiresOptIn")
+        freeCompilerArgs = listOf("-opt-in=kotlin.RequiresOptIn")
     }
 }
 
@@ -59,7 +59,7 @@ tasks.compileTestKotlin {
     targetCompatibility = versions.jvm
     kotlinOptions {
         jvmTarget = versions.jvm
-        freeCompilerArgs = listOf("-Xopt-in=kotlin.RequiresOptIn")
+        freeCompilerArgs = listOf("-opt-in=kotlin.RequiresOptIn")
     }
 }
 
