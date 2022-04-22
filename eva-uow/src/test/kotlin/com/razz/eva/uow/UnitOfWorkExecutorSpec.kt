@@ -19,18 +19,24 @@ import com.razz.eva.uow.Clocks.millisUTC
 import com.razz.eva.uow.CreateDepartmentUow.Params
 import com.razz.eva.uow.Retry.StaleRecordFixedRetry
 import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.core.spec.IsolationMode.InstancePerLeaf
 import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.matchers.shouldBe
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry
+import io.mockk.Called
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import java.time.Clock
 import java.time.Duration.ofMillis
 import java.time.Instant.ofEpochMilli
 import java.util.*
 
 class UnitOfWorkExecutorSpec : BehaviorSpec({
+
+    isolationMode = InstancePerLeaf
 
     val departmentId = randomDepartmentId()
     val bossId = EmployeeId(UUID.randomUUID())
@@ -77,7 +83,8 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
             val uowx = UnitOfWorkExecutor(
                 factories,
                 Persisting(WithCtxConnectionTransactionManager(), ModelRepos(), DummyEventRepository()),
-                noopTracer()
+                noopTracer(),
+                SimpleMeterRegistry()
             )
 
             When("UnitOfWorkExecutor executes Uow") {
@@ -124,7 +131,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                 }
                 val txnManager = WithCtxConnectionTransactionManager()
                 val uowx = UnitOfWorkExecutor(
-                    factories, Persisting(txnManager, ModelRepos(), eventRepo), noopTracer()
+                    factories, Persisting(txnManager, ModelRepos(), eventRepo), noopTracer(), SimpleMeterRegistry()
                 )
 
                 Then("Clock property wasn't called") {
@@ -156,7 +163,8 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                     UnitOfWorkExecutor(
                         persisting = mockk(),
                         factories = factories,
-                        tracer = noopTracer()
+                        tracer = noopTracer(),
+                        meterRegistry = SimpleMeterRegistry()
                     )
                 }
 
@@ -170,29 +178,67 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
             val unitOfWork = mockk<CreateDepartmentUow>()
             val rawUnitOfWork = unitOfWork as UnitOfWork<TestPrincipal, Params, OwnedDepartment>
             val persisting = mockk<Persisting>(relaxed = true)
+            val clock = fixedUTC(ofEpochMilli(0))
+
             every { unitOfWork.name() } returns "MockOfCreateDepartmentUow"
             every { rawUnitOfWork.configuration().supportsOutOfOrderPersisting } returns true
-            every { rawUnitOfWork.clock() } returns fixedUTC(ofEpochMilli(0))
+            every { rawUnitOfWork.clock() } returns clock
 
             val uowx = UnitOfWorkExecutor(
                 persisting = persisting,
                 factories = listOf(
                     CreateDepartmentUow::class withFactory { unitOfWork }
                 ),
-                tracer = noopTracer()
+                tracer = noopTracer(),
+                meterRegistry = SimpleMeterRegistry()
             )
 
             And("UnitOfWork has one retry and returns result") {
                 every { rawUnitOfWork.configuration().retry } returns StaleRecordFixedRetry(1, ofMillis(100))
+                val changes = DefaultChanges(department, listOf())
                 coEvery {
                     rawUnitOfWork.tryPerform(TestPrincipal, eq(params))
-                } returns DefaultChanges(department, listOf())
+                } returns changes
 
                 When("Principal executes UnitOfWork") {
                     val createdDepartment = uowx.execute(CreateDepartmentUow::class, TestPrincipal) { params }
 
                     Then("Correct result will be returned") {
                         createdDepartment shouldBe department
+                    }
+
+                    And("Changes are persisted") {
+                        coVerify {
+                            persisting.persist(
+                                uowName = "MockOfCreateDepartmentUow",
+                                params = params,
+                                principal = TestPrincipal,
+                                changes = changes.toPersist,
+                                clock = clock,
+                                uowSupportsOutOfOrderPersisting = true
+                            )
+                        }
+                    }
+                }
+            }
+
+            And("UnitOfWork throws some user exception") {
+                coEvery {
+                    rawUnitOfWork.tryPerform(TestPrincipal, eq(params))
+                } throws IllegalStateException("User exception")
+
+                When("Principal executes UnitOfWork") {
+                    val attempt = suspend {
+                        uowx.execute(CreateDepartmentUow::class, TestPrincipal) { params }
+                    }
+
+                    Then("Exception is returned") {
+                        val ex = shouldThrow<IllegalStateException> { attempt() }
+                        ex.message shouldBe "User exception"
+                    }
+
+                    And("No changes are persisted") {
+                        verify { persisting wasNot Called }
                     }
                 }
             }

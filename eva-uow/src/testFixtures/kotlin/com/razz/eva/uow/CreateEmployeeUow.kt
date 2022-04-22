@@ -1,5 +1,6 @@
 package com.razz.eva.uow
 
+import com.razz.eva.IdempotencyKey
 import com.razz.eva.domain.DepartmentId
 import com.razz.eva.domain.Employee
 import com.razz.eva.domain.EmployeeEvent.EmployeeCreated
@@ -21,10 +22,10 @@ class CreateEmployeeUow(
     @Serializable
     data class Params(
         val departmentId: DepartmentId,
-        val departmentName: String,
         val name: Name,
         val email: String,
-        val ration: Ration
+        val ration: Ration,
+        override val idempotencyKey: IdempotencyKey
     ) : UowParams<Params> {
         override fun serialization() = serializer()
     }

@@ -1,16 +1,15 @@
 package com.razz.eva.uow
 
+import com.razz.eva.metrics.timerBuilder
 import com.razz.eva.persistence.PersistenceException
 import com.razz.eva.persistence.PrimaryConnectionRequiredFlag
-import com.razz.eva.uow.UnitOfWorkExecutor.ClassToUow
-import com.razz.eva.uow.params.UowParams
-import com.razz.eva.metrics.timerBuilder
 import com.razz.eva.tracing.ActiveSpanElement
 import com.razz.eva.tracing.Tracing
 import com.razz.eva.tracing.Tracing.PERFORM
 import com.razz.eva.tracing.Tracing.PERSIST
+import com.razz.eva.uow.UnitOfWorkExecutor.ClassToUow
+import com.razz.eva.uow.params.UowParams
 import io.micrometer.core.instrument.MeterRegistry
-import io.micrometer.core.instrument.logging.LoggingMeterRegistry
 import io.opentracing.Span
 import io.opentracing.Tracer
 import io.opentracing.tag.Tags.ERROR
@@ -35,7 +34,7 @@ class UnitOfWorkExecutor(
     factories: List<ClassToUow<*, *, *, *>>,
     private val persisting: Persisting,
     private val tracer: Tracer,
-    private val meterRegistry: MeterRegistry = LoggingMeterRegistry()
+    private val meterRegistry: MeterRegistry
 ) {
 
     class ClassToUow<PRINCIPAL, PARAMS, RESULT, UOW> internal constructor(

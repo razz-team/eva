@@ -85,7 +85,7 @@ class UnitOfWorkDemoSpec : UowBehaviorSpec({
                 }
             }
 
-            Then("Models should be updated and Unit should be returned") {
+            And("Models should be updated and Unit should be returned") {
                 changes verifyInOrder {
                     updates<Employee> {
                         departmentId shouldBe newDepId
