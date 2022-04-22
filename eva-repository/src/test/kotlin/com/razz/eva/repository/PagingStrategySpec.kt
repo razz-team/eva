@@ -65,7 +65,7 @@ class PagingStrategySpec : BehaviorSpec({
                             "bubalehs"."record_created_at", 
                             "bubalehs"."version" 
                             from "bubalehs" 
-                            where "bubalehs"."state" = 'SERVED' 
+                            where "bubalehs"."state" = 'SERVED'::"bubalehs_state"
                             order by "bubalehs"."produced_on" desc, "bubalehs"."id" 
                             fetch next 1 rows only
                             """.trimIndent().replace(Regex("\\s+"), " ")
@@ -104,7 +104,7 @@ class PagingStrategySpec : BehaviorSpec({
                             "bubalehs"."version" 
                             from "bubalehs" 
                             where 
-                            ("bubalehs"."state" = 'SERVED' 
+                            ("bubalehs"."state" = 'SERVED'::"bubalehs_state"
                             and ("bubalehs"."produced_on" < timestamp '${Timestamp.from(maxTimestamp)}' 
                             or ("bubalehs"."produced_on" = timestamp '${Timestamp.from(maxTimestamp)}' 
                             and "bubalehs"."id" > 'a5e15308-3a8d-462b-b96c-6f1137e30f0d'))) 

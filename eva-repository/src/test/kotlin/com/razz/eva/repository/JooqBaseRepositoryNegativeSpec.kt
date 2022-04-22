@@ -107,7 +107,7 @@ class JooqBaseRepositoryNegativeSpec : BehaviorSpec({
                              '${boss.id}',
                              1,
                              'BUBALEH',
-                             'OWNED',
+                             'OWNED'::"departments_state",
                              timestamp '$recordCreatedAt',
                              timestamp '$recordCreatedAt',
                              1)
@@ -147,7 +147,7 @@ class JooqBaseRepositoryNegativeSpec : BehaviorSpec({
                             "boss" = '${boss.id}',
                             "headcount" = 1,
                             "ration" = 'BUBALEH',
-                            "state" = 'OWNED',
+                            "state" = 'OWNED'::"departments_state",
                             "record_updated_at" = timestamp '$recordUpdatedAt',
                             "version" = 2
                             where ("departments"."id" = '${dep.id().id}' and "departments"."version" = 1)
