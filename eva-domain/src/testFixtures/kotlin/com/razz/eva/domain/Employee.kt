@@ -73,7 +73,7 @@ class Employee(
             name: Name,
             departmentId: DepartmentId,
             email: String,
-            ration: Ration,
+            ration: Ration
         ): Employee {
             val empId = EmployeeId(UUID.randomUUID())
             return Employee(
