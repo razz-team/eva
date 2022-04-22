@@ -8,15 +8,21 @@ import com.razz.eva.domain.EntityState.NewState.Companion.newState
 import com.razz.eva.domain.Name
 import com.razz.eva.repository.DepartmentRepository
 import com.razz.eva.uow.HireEmployeesUow.Params
+import com.razz.eva.uow.Retry.StaleRecordFixedRetry
 import com.razz.eva.uow.params.UowParams
 import kotlinx.serialization.Serializable
 import java.time.Clock
+import java.time.Duration
 import java.util.UUID.randomUUID
 
 class HireEmployeesUow(
     clock: Clock,
     private val departmentRepo: DepartmentRepository,
-) : UnitOfWork<TestPrincipal, Params, List<Employee>>(clock, Configuration(retry = null)) {
+    retries: Int
+) : UnitOfWork<TestPrincipal, Params, List<Employee>>(
+    clock,
+    Configuration(retry = StaleRecordFixedRetry(retries, Duration.ofMillis(100)))
+) {
 
     @Serializable
     data class Params(

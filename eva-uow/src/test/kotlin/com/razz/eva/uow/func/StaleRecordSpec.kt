@@ -9,39 +9,47 @@ import com.razz.eva.persistence.PersistenceException.StaleRecordException
 import com.razz.eva.uow.HireEmployeesUow
 import com.razz.eva.uow.TestPrincipal
 import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.core.spec.IsolationMode.InstancePerLeaf
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
 import java.util.UUID.randomUUID
+import kotlin.random.Random.Default.nextInt
 
 class StaleRecordSpec : PersistenceBaseSpec({
+
+    isolationMode = InstancePerLeaf
 
     Given("Models exist") {
         val department = module.writableRepository.add(
             newDepartment(
-                name = "stale_dep",
+                name = "stale_dep${nextInt(100)}",
                 boss = EmployeeId(randomUUID()),
                 headcount = 1,
                 ration = SHAKSHOUKA
             )
         )
 
-        var updatedOutOfUow = false
         And("Model will be updated before uow transaction is completed") {
+            val employeeOutOfUow = newEmployee(
+                name = Name("Igor", "Dmitri${nextInt(100)}"),
+                departmentId = department.id(),
+                email = "igor.dmitri${nextInt(100)}@razz.com",
+                ration = SHAKSHOUKA
+            )
+
+            var updatedOutOfUow = false
             coEvery {
                 module.departmentPreUpdate.invoke(match { it.id() == department.id() })
             } coAnswers {
-                val newEmployee = newEmployee(
-                    name = Name("Fake", "Dmitri"),
-                    departmentId = department.id(),
-                    email = "fake@razz.com",
-                    ration = SHAKSHOUKA
-                )
                 if (!updatedOutOfUow) {
                     updatedOutOfUow = true
-                    module.writableRepository.update(
-                        checkNotNull(module.departmentRepo.find(department.id()))
-                            .addEmployee(newEmployee)
-                    )
+                    module.writableRepository.apply {
+                        add(employeeOutOfUow)
+                        update(
+                            checkNotNull(module.departmentRepo.find(department.id()))
+                                .addEmployee(employeeOutOfUow)
+                        )
+                    }
                 }
             }
 
@@ -57,7 +65,24 @@ class StaleRecordSpec : PersistenceBaseSpec({
 
                 Then("Uow fails and changes are not applied") {
                     shouldThrow<StaleRecordException> { attempt() }
+
                     module.departmentRepo.find(department.id())?.headcount shouldBe 2
+                    module.employeeRepo.findByName(Name("Nik", "Dennis")) shouldBe null
+                }
+            }
+
+            When("Principal performs retriable uow") {
+                module.uowxRetries.execute(HireEmployeesUow::class, TestPrincipal) {
+                    HireEmployeesUow.Params(
+                        department.id(),
+                        listOf(Name("Ser", "Pryt"))
+                    )
+                }
+
+                Then("Uow is completed and changes are applied") {
+                    module.departmentRepo.find(department.id())?.headcount shouldBe 3
+                    module.employeeRepo.findByName(Name("Ser", "Pryt"))?.departmentId shouldBe department.id()
+                    module.employeeRepo.find(employeeOutOfUow.id())?.departmentId shouldBe department.id()
                 }
             }
         }

@@ -12,19 +12,14 @@ import com.razz.eva.repository.EventQueries
 import com.razz.eva.repository.JooqEventRepository
 import com.razz.eva.repository.ModelRepos
 import com.razz.eva.repository.PreModifyCallback
-import com.razz.eva.repository.ShakshoukaRepository
 import com.razz.eva.repository.hasRepo
 import com.razz.eva.test.repository.WritableModelRepository
 import com.razz.eva.tracing.Tracing.notReportingTracer
 import com.razz.eva.uow.Clocks.fixedUTC
 import com.razz.eva.uow.Clocks.millisUTC
-import com.razz.eva.uow.CookUow
-import com.razz.eva.uow.CreateDepartmentUow
 import com.razz.eva.uow.CreateEmployeeUow
 import com.razz.eva.uow.CreateSoloDepartmentUow
 import com.razz.eva.uow.HireEmployeesUow
-import com.razz.eva.uow.InternalMobilityUow
-import com.razz.eva.uow.PartyHardUow
 import com.razz.eva.uow.Persisting
 import com.razz.eva.uow.UnitOfWorkExecutor
 import com.razz.eva.uow.withFactory
@@ -45,7 +40,6 @@ class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
     val employeeRepo = EmployeeRepository(queryExecutor, dslContext)
     val departmentRepo = DepartmentRepository(queryExecutor, dslContext, departmentPreUpdate)
     val bubalehRepo = BubalehRepository(queryExecutor, dslContext)
-    val shakshoukaRepo = ShakshoukaRepository(queryExecutor, dslContext)
 
     val repos = ModelRepos(
         Department::class hasRepo departmentRepo,
@@ -59,10 +53,12 @@ class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
         modelRepos = repos
     )
 
+    val tracer = TestTracer(notReportingTracer())
+
     val eventRepository = JooqEventRepository(
         queryExecutor = queryExecutor,
         dslContext = dslContext,
-        tracer = notReportingTracer()
+        tracer = tracer
     )
 
     val eventQueries = EventQueries(
@@ -75,8 +71,6 @@ class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
         modelRepos = repos,
         eventRepository = eventRepository
     )
-
-    val tracer = TestTracer(notReportingTracer())
 
     val uowx = UnitOfWorkExecutor(
         factories = factories(clock),
@@ -92,10 +86,18 @@ class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
         meterRegistry = SimpleMeterRegistry()
     )
 
+    val uowxRetries = UnitOfWorkExecutor(
+        factories = listOf(
+            HireEmployeesUow::class withFactory {
+                HireEmployeesUow(clock, departmentRepo, retries = 1)
+            }
+        ),
+        persisting = persisting,
+        tracer = tracer,
+        meterRegistry = SimpleMeterRegistry()
+    )
+
     fun factories(clock: Clock) = listOf(
-        CreateDepartmentUow::class withFactory {
-            CreateDepartmentUow(clock, departmentRepo)
-        },
         CreateEmployeeUow::class withFactory {
             CreateEmployeeUow(clock, departmentRepo)
         },
@@ -103,16 +105,7 @@ class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
             CreateSoloDepartmentUow(clock, employeeRepo, departmentRepo)
         },
         HireEmployeesUow::class withFactory {
-            HireEmployeesUow(clock, departmentRepo)
-        },
-        CookUow::class withFactory {
-            CookUow(clock, employeeRepo)
-        },
-        PartyHardUow::class withFactory {
-            PartyHardUow(clock, departmentRepo, shakshoukaRepo, bubalehRepo)
-        },
-        InternalMobilityUow::class withFactory {
-            InternalMobilityUow(clock, employeeRepo, departmentRepo)
+            HireEmployeesUow(clock, departmentRepo, retries = 0)
         }
     )
 }

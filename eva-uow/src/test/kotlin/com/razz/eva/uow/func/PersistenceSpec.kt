@@ -95,7 +95,7 @@ class PersistenceSpec : PersistenceBaseSpec({
                 uowEvent.modelEvents[0].second shouldBe parseToJsonElement(
                     """
                     {
-                    "X-B3-SpanId":"${module.tracer.lastSpanId}",
+                    "X-B3-SpanId":"${module.tracer.traceToSpan["0000000007654321"]}",
                     "X-B3-Sampled":"1",
                     "X-B3-TraceId":"0000000007654321",
                     "X-B3-ParentSpanId":"0000000001234567"
@@ -118,7 +118,7 @@ class PersistenceSpec : PersistenceBaseSpec({
                 uowEvent.modelEvents[1].second shouldBe parseToJsonElement(
                     """
                     {
-                    "X-B3-SpanId":"${module.tracer.lastSpanId}",
+                    "X-B3-SpanId":"${module.tracer.traceToSpan["0000000007654321"]}",
                     "X-B3-Sampled":"1",
                     "X-B3-TraceId":"0000000007654321",
                     "X-B3-ParentSpanId":"0000000001234567"
