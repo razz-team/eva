@@ -15,7 +15,7 @@ import com.razz.eva.test.db.DatabaseContainerHelper
 
 abstract class PersistenceBaseSpec(
     body: FunctionalSpec<TestModule>.() -> Unit
-) : FunctionalSpec<TestModule>({ TestModule(dbConfig) }, body) {
+) : FunctionalSpec<TestModule>({ sharedModule }, body) {
 
     companion object {
         private val DB = DatabaseContainerHelper.create("eva")
@@ -36,6 +36,8 @@ abstract class PersistenceBaseSpec(
         val migrations = Migrations(migrationConfig, ModelsMigration("com/razz/eva/test/db")).apply {
             start()
         }
+
+        val sharedModule = TestModule(dbConfig)
 
         val executorType: ExecutorType
             get() = System
