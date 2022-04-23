@@ -12,7 +12,6 @@ import com.razz.eva.persistence.config.ExecutorType
 import com.razz.eva.persistence.config.JdbcURL
 import com.razz.eva.persistence.config.MaxPoolSize
 import com.razz.eva.test.db.DatabaseContainerHelper
-import java.lang.Runtime.getRuntime
 
 abstract class PersistenceBaseSpec(
     body: FunctionalSpec<TestModule>.() -> Unit
@@ -39,14 +38,6 @@ abstract class PersistenceBaseSpec(
         }
 
         val sharedModule = TestModule(dbConfig)
-
-        init {
-            getRuntime().addShutdownHook(
-                Thread {
-                    sharedModule.close()
-                }
-            )
-        }
 
         val executorType: ExecutorType
             get() = System

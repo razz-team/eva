@@ -20,7 +20,7 @@ import java.util.*
 class ShakshoukaRepository(
     queryExecutor: QueryExecutor,
     dslContext: DSLContext,
-    preUpdate: PreModifyCallback<UUID, ShakshoukaId, Shakshouka> = PreModifyCallback { }
+    preUpdate: PreModifyCallback<UUID, ShakshoukaId, Shakshouka> = PreModifyCallback()
 ) : HackedRepository<
     UUID, ShakshoukaId, Shakshouka, ShakshoukaEvent, ShakshoukasRecord, ShakshoukasState
     >(

@@ -11,7 +11,6 @@ import com.razz.eva.uow.TestPrincipal
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.IsolationMode.InstancePerLeaf
 import io.kotest.matchers.shouldBe
-import io.mockk.coEvery
 import java.util.UUID.randomUUID
 import kotlin.random.Random.Default.nextInt
 
@@ -38,9 +37,7 @@ class StaleRecordSpec : PersistenceBaseSpec({
             )
 
             var updatedOutOfUow = false
-            coEvery {
-                module.departmentPreUpdate.invoke(match { it.id() == department.id() })
-            } coAnswers {
+            module.departmentPreUpdate.onPreUpdate(department.id()) {
                 if (!updatedOutOfUow) {
                     updatedOutOfUow = true
                     module.writableRepository.apply {

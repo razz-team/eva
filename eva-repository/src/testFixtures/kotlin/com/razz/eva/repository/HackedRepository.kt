@@ -11,8 +11,17 @@ import org.jooq.DSLContext
 import org.jooq.Table
 import kotlin.coroutines.EmptyCoroutineContext
 
-fun interface PreModifyCallback<ID : Comparable<ID>, MID : ModelId<ID>, M : Model<MID, *>> {
-    suspend operator fun invoke(model: M)
+class PreModifyCallback<ID : Comparable<ID>, MID : ModelId<ID>, M : Model<MID, *>> : suspend (M) -> Unit {
+
+    private val actions = mutableMapOf<MID, suspend () -> Unit>()
+
+    fun onPreUpdate(modelId: MID, action: suspend () -> Unit) {
+        actions[modelId] = action
+    }
+
+    override suspend fun invoke(model: M) {
+        actions[model.id()]?.invoke()
+    }
 }
 
 abstract class HackedRepository<ID, MID, M, ME, R, S>(

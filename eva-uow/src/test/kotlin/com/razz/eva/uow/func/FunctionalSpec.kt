@@ -11,5 +11,11 @@ abstract class FunctionalSpec<M : PersistenceModule>(
 
     init {
         body()
+
+        Runtime.getRuntime().addShutdownHook(
+            Thread {
+                module.close()
+            }
+        )
     }
 }
