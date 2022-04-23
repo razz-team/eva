@@ -24,7 +24,6 @@ import com.razz.eva.uow.Persisting
 import com.razz.eva.uow.UnitOfWorkExecutor
 import com.razz.eva.uow.withFactory
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
-import io.mockk.mockk
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant.now
@@ -35,7 +34,7 @@ class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
     val now = millisUTC().instant()
     val clock = fixedUTC(now)
 
-    val departmentPreUpdate = mockk<PreModifyCallback<UUID, DepartmentId, Department<*>>>(relaxed = true)
+    var departmentPreUpdate = PreModifyCallback<UUID, DepartmentId, Department<*>>()
 
     val employeeRepo = EmployeeRepository(queryExecutor, dslContext)
     val departmentRepo = DepartmentRepository(queryExecutor, dslContext, departmentPreUpdate)

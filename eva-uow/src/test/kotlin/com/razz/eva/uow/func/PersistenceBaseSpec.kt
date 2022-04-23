@@ -12,11 +12,10 @@ import com.razz.eva.persistence.config.ExecutorType
 import com.razz.eva.persistence.config.JdbcURL
 import com.razz.eva.persistence.config.MaxPoolSize
 import com.razz.eva.test.db.DatabaseContainerHelper
-import java.lang.Runtime.getRuntime
 
 abstract class PersistenceBaseSpec(
     body: FunctionalSpec<TestModule>.() -> Unit
-) : FunctionalSpec<TestModule>({ sharedModule }, body) {
+) : FunctionalSpec<TestModule>({ TestModule(dbConfig) }, body) {
 
     companion object {
         private val DB = DatabaseContainerHelper.create("eva")
@@ -36,16 +35,6 @@ abstract class PersistenceBaseSpec(
         )
         val migrations = Migrations(migrationConfig, ModelsMigration("com/razz/eva/test/db")).apply {
             start()
-        }
-
-        val sharedModule = TestModule(dbConfig)
-
-        init {
-            getRuntime().addShutdownHook(
-                Thread {
-                    sharedModule.close()
-                }
-            )
         }
 
         val executorType: ExecutorType

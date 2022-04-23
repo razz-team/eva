@@ -20,7 +20,7 @@ import java.util.*
 class DepartmentRepository(
     queryExecutor: QueryExecutor,
     dslContext: DSLContext,
-    preUpdate: PreModifyCallback<UUID, DepartmentId, Department<*>> = PreModifyCallback { }
+    preUpdate: PreModifyCallback<UUID, DepartmentId, Department<*>> = PreModifyCallback()
 ) : HackedRepository<
     UUID, DepartmentId, Department<*>, DepartmentEvent, DepartmentsRecord, DepartmentsState
     >(
