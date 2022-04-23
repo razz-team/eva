@@ -34,7 +34,7 @@ class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
     val now = millisUTC().instant()
     val clock = fixedUTC(now)
 
-    var departmentPreUpdate = PreModifyCallback<UUID, DepartmentId, Department<*>>()
+    val departmentPreUpdate = PreModifyCallback<UUID, DepartmentId, Department<*>>()
 
     val employeeRepo = EmployeeRepository(queryExecutor, dslContext)
     val departmentRepo = DepartmentRepository(queryExecutor, dslContext, departmentPreUpdate)
