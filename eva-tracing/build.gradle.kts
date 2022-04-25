@@ -5,6 +5,7 @@ plugins {
 
 dependencies {
     api(libs.opentracing_api)
+    api(libs.opentracing_noop)
     api(libs.micrometer)
     implementation(libs.jaeger_client)
     implementation(libs.jaeger_micrometer)

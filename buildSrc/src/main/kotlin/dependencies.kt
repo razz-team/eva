@@ -45,6 +45,7 @@ object libs {
     val logback_jackson = "ch.qos.logback.contrib:logback-jackson:${versions.logback_json}"
     val micrometer = "io.micrometer:micrometer-core:${versions.micrometer}"
     val opentracing_api = "io.opentracing:opentracing-api:${versions.opentracing}"
+    val opentracing_noop = "io.opentracing:opentracing-noop:${versions.opentracing}"
     val flyway = "org.flywaydb:flyway-core:${versions.flywaydb}"
     val postgres = "org.postgresql:postgresql:${versions.postgresql}"
     val vertx_pg = "io.vertx:vertx-pg-client:${versions.vertx}"

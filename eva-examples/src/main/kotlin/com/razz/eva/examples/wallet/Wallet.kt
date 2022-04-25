@@ -1,4 +1,4 @@
-package com.razz.eva.examples.basic
+package com.razz.eva.examples.wallet
 
 import com.razz.eva.domain.EntityState
 import com.razz.eva.domain.Model
@@ -36,7 +36,7 @@ sealed class WalletEvent : ModelEvent<Wallet.Id> {
     }
 }
 
-class Wallet private constructor(
+class Wallet constructor(
     id: Id,
     val currency: Currency,
     val amount: ULong,
