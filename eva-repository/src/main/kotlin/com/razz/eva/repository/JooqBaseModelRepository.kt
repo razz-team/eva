@@ -105,8 +105,7 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
             queryExecutor.executeStore(
                 dslContext = dslContext,
                 jooqQuery = insertQuery,
-                fields = table.fields().asList(),
-                recordType = table.recordType
+                table = table
             )
         }.singleOrNull()
 
@@ -137,8 +136,7 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
             queryExecutor.executeStore(
                 dslContext = dslContext,
                 jooqQuery = insertQuery,
-                fields = table.fields().asList(),
-                recordType = table.recordType
+                table = table
             )
         }
 
@@ -165,8 +163,7 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
             queryExecutor.executeStore(
                 dslContext = dslContext,
                 jooqQuery = updateQuery,
-                fields = table.fields().asList(),
-                recordType = table.recordType
+                table = table
             )
         }.getSingle(this::fromRecord) { throw IllegalStateException("Too many rows updated") }.second
 
@@ -210,8 +207,7 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
             queryExecutor.executeStore(
                 dslContext = dslContext,
                 jooqQuery = updateQuery,
-                fields = table.fields().asList(),
-                recordType = table.recordType
+                table = table
             )
         }
 
@@ -359,8 +355,7 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
         return queryExecutor.executeSelect(
             dslContext = dslContext,
             jooqQuery = select,
-            fields = select.fields().asList(),
-            recordType = select.recordType
+            table = select.asTable()
         )
     }
 

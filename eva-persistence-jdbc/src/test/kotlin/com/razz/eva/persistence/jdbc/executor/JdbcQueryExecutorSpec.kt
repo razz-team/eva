@@ -13,7 +13,6 @@ import io.mockk.mockk
 import io.mockk.spyk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.jooq.Record
 import org.jooq.SQLDialect.POSTGRES
 import org.jooq.impl.DSL
 import org.jooq.impl.DSL.table
@@ -41,8 +40,7 @@ class JdbcQueryExecutorSpec : BehaviorSpec({
                 jdbcExecutor.executeSelect(
                     dslContext,
                     select,
-                    listOf(),
-                    Record::class.java
+                    DSL.table("cool_table")
                 )
 
                 Then("Connection was acquired and released on delegate provider") {
@@ -66,8 +64,7 @@ class JdbcQueryExecutorSpec : BehaviorSpec({
                     jdbcExecutor.executeStore(
                         dslContext,
                         store,
-                        listOf(),
-                        Record::class.java
+                        DSL.table("cool_table")
                     )
                 }
 
@@ -95,8 +92,7 @@ class JdbcQueryExecutorSpec : BehaviorSpec({
                     jdbcExecutor.executeSelect(
                         dslContext,
                         select,
-                        listOf(),
-                        Record::class.java
+                        DSL.table("cool_table")
                     )
                 }
 
@@ -120,8 +116,7 @@ class JdbcQueryExecutorSpec : BehaviorSpec({
                     jdbcExecutor.executeStore(
                         dslContext,
                         store,
-                        listOf(),
-                        Record::class.java
+                        DSL.table("cool_table")
                     )
                 }
 

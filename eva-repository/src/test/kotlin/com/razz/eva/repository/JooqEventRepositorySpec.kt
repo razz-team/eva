@@ -132,8 +132,7 @@ class JooqEventRepositorySpec : BehaviorSpec({
                                         )
                                     )
                                 },
-                            UOW_EVENTS.fields().asList(),
-                            UOW_EVENTS.recordType
+                            UOW_EVENTS
                         ),
                         StoreExecuted(
                             dslContext,
@@ -186,8 +185,7 @@ class JooqEventRepositorySpec : BehaviorSpec({
                                         }
                                     )
                                 },
-                            MODEL_EVENTS.fields().asList(),
-                            MODEL_EVENTS.recordType
+                            MODEL_EVENTS
                         )
                     )
                 }
@@ -259,8 +257,7 @@ class JooqEventRepositorySpec : BehaviorSpec({
                                         )
                                     )
                                 },
-                            UOW_EVENTS.fields().asList(),
-                            UOW_EVENTS.recordType
+                            UOW_EVENTS
                         )
                     )
                 }
@@ -315,8 +312,7 @@ class JooqEventRepositorySpec : BehaviorSpec({
                                         }
                                     )
                                 },
-                            UOW_EVENTS.fields().asList(),
-                            UOW_EVENTS.recordType
+                            UOW_EVENTS
                         )
                     )
                 }

@@ -74,8 +74,7 @@ class EventQueries(
         return queryExecutor.executeSelect(
             dslContext = dslContext,
             jooqQuery = selectQuery,
-            fields = UOW_EVENTS.fields().asList(),
-            recordType = UowEventsRecord::class.java
+            table = UOW_EVENTS
         ).single()
     }
 
@@ -85,8 +84,7 @@ class EventQueries(
         return queryExecutor.executeSelect(
             dslContext = dslContext,
             jooqQuery = selectQuery,
-            fields = MODEL_EVENTS.fields().asList(),
-            recordType = ModelEventsRecord::class.java
+            table = MODEL_EVENTS
         )
     }
 }
