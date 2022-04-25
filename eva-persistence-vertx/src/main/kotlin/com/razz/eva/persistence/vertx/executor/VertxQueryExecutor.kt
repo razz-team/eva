@@ -10,13 +10,13 @@ import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.impl.ArrayTuple
 import org.jooq.Converter
 import org.jooq.DSLContext
-import org.jooq.Field
 import org.jooq.JSON
 import org.jooq.JSONB
 import org.jooq.Query
 import org.jooq.Record
 import org.jooq.Select
 import org.jooq.StoreQuery
+import org.jooq.Table
 import org.jooq.exception.DataAccessException
 import org.jooq.impl.SQLDataType
 import java.time.Instant
@@ -31,11 +31,10 @@ class VertxQueryExecutor(
     override suspend fun <R : Record> executeSelect(
         dslContext: DSLContext,
         jooqQuery: Select<R>,
-        fields: List<Field<*>>,
-        recordType: Class<out R>
+        table: Table<R>
     ): List<R> {
         return transactionManager.withConnection { connection ->
-            val rows = executeQuery(connection, dslContext, jooqQuery, fields, recordType)
+            val rows = executeQuery(connection, dslContext, jooqQuery, table)
             rows.toList()
         }
     }
@@ -43,12 +42,11 @@ class VertxQueryExecutor(
     override suspend fun <R : Record> executeStore(
         dslContext: DSLContext,
         jooqQuery: StoreQuery<R>,
-        fields: List<Field<*>>,
-        recordType: Class<out R>
+        table: Table<R>
     ): List<R> {
         return transactionManager.inTransaction(REQUIRE_EXISTING) { connection ->
             jooqQuery.setReturning()
-            val rows = executeQuery(connection, dslContext, jooqQuery, fields, recordType)
+            val rows = executeQuery(connection, dslContext, jooqQuery, table)
             rows.toList()
         }
     }
@@ -57,10 +55,9 @@ class VertxQueryExecutor(
         connection: PgConnection,
         dslContext: DSLContext,
         jooqQuery: Query,
-        fields: List<Field<*>>,
-        recordType: Class<out R>
-    ) = connection.preparedQuery(dslContext.renderNamedParams(jooqQuery)).mapping {
-        convertRowToRecord(dslContext, it, fields, recordType)
+        table: Table<R>
+    ) = connection.preparedQuery(dslContext.renderNamedParams(jooqQuery)).mapping { row ->
+        convertRowToRecord(dslContext, row, table)
     }.execute(bindParams(dslContext, jooqQuery)).await()
 
     private fun bindParams(
@@ -82,12 +79,12 @@ class VertxQueryExecutor(
         }
     )
 
-    private fun <R : Record?> convertRowToRecord(
+    private fun <R : Record> convertRowToRecord(
         dslContext: DSLContext,
         row: Row,
-        fields: List<Field<*>>,
-        recordType: Class<out R>
+        table: Table<R>
     ): R {
+        val fields = table.fields()
         val values = arrayOfNulls<Any>(fields.size)
         for (i in fields.indices) {
             val field = fields[i]
@@ -104,10 +101,10 @@ class VertxQueryExecutor(
             }
         }
 
-        val record = dslContext.newRecord(fields)
+        val record = dslContext.newRecord(table)
         record.fromArray(*values)
         record.changed(false)
-        return record.into(recordType)
+        return record.into(table)
     }
 
     override fun getExceptionMessage(e: DataAccessException): String? = null

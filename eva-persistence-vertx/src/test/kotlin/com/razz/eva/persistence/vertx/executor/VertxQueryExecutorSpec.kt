@@ -20,7 +20,6 @@ import io.vertx.sqlclient.RowSet
 import io.vertx.sqlclient.impl.ArrayTuple
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.jooq.Record
 import org.jooq.SQLDialect.POSTGRES
 import org.jooq.impl.DSL
 import java.util.function.Function
@@ -65,8 +64,7 @@ class VertxQueryExecutorSpec : BehaviorSpec({
                 vertxExecutor.executeSelect(
                     dslContext,
                     select,
-                    listOf(),
-                    Record::class.java
+                    DSL.table("cool_table")
                 )
 
                 Then("Connection was acquired and released on delegate provider") {
@@ -90,8 +88,7 @@ class VertxQueryExecutorSpec : BehaviorSpec({
                     vertxExecutor.executeStore(
                         dslContext,
                         store,
-                        listOf(),
-                        Record::class.java
+                        DSL.table("cool_table")
                     )
                 }
 
@@ -119,8 +116,7 @@ class VertxQueryExecutorSpec : BehaviorSpec({
                     vertxExecutor.executeSelect(
                         dslContext,
                         select,
-                        listOf(),
-                        Record::class.java
+                        DSL.table("cool_table")
                     )
                 }
 
@@ -144,8 +140,7 @@ class VertxQueryExecutorSpec : BehaviorSpec({
                     vertxExecutor.executeStore(
                         dslContext,
                         store,
-                        listOf(),
-                        Record::class.java
+                        DSL.table("cool_table")
                     )
                 }
 

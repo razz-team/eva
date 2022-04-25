@@ -3,11 +3,11 @@ package com.razz.eva.persistence.executor
 import com.razz.eva.persistence.executor.FakeMemorizingQueryExecutor.ExecutionStep.SelectExecuted
 import com.razz.eva.persistence.executor.FakeMemorizingQueryExecutor.ExecutionStep.StoreExecuted
 import org.jooq.DSLContext
-import org.jooq.Field
 import org.jooq.Record
 import org.jooq.SQLDialect.POSTGRES
 import org.jooq.Select
 import org.jooq.StoreQuery
+import org.jooq.Table
 import org.jooq.TableRecord
 import org.jooq.conf.ParamType.INLINED
 import org.jooq.exception.DataAccessException
@@ -36,25 +36,23 @@ class FakeMemorizingQueryExecutor(
     override suspend fun <R : Record> executeSelect(
         dslContext: DSLContext,
         jooqQuery: Select<R>,
-        fields: List<Field<*>>,
-        recordType: Class<out R>
+        table: Table<R>
     ): List<R> {
-        executions += SelectExecuted(dslContext, jooqQuery, fields, recordType)
+        executions += SelectExecuted(dslContext, jooqQuery, table)
         return DSL.using(MockConnection(MockProvider(queries)), POSTGRES, dslContext.settings())
             .fetch(jooqQuery.getSQL(INLINED))
-            .into(recordType)
+            .into(table)
     }
 
     override suspend fun <R : Record> executeStore(
         dslContext: DSLContext,
         jooqQuery: StoreQuery<R>,
-        fields: List<Field<*>>,
-        recordType: Class<out R>
+        table: Table<R>
     ): List<R> {
-        executions += StoreExecuted(dslContext, jooqQuery, fields, recordType)
+        executions += StoreExecuted(dslContext, jooqQuery, table)
         return DSL.using(MockConnection(MockProvider(queries)), POSTGRES, dslContext.settings())
             .fetch(jooqQuery.getSQL(INLINED))
-            .into(recordType)
+            .into(table)
     }
 
     sealed class ExecutionStep {
@@ -62,15 +60,13 @@ class FakeMemorizingQueryExecutor(
         data class StoreExecuted(
             val dslContext: DSLContext,
             val jooqQuery: StoreQuery<out Record>,
-            val fields: List<Field<*>>,
-            val recordType: Class<out Record>
+            val table: Table<out Record>
         ) : ExecutionStep()
 
         data class SelectExecuted(
             val dslContext: DSLContext,
             val jooqQuery: Select<out Record>,
-            val fields: List<Field<*>>,
-            val recordType: Class<out Record>
+            val table: Table<out Record>
         ) : ExecutionStep()
     }
 

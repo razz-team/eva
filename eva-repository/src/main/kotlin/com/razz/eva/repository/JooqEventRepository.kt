@@ -46,8 +46,7 @@ class JooqEventRepository(
         queryExecutor.executeSelect(
             dslContext = dslContext,
             jooqQuery = select,
-            fields = select.fields().asList(),
-            recordType = select.recordType
+            table = select.asTable()
         ).firstOrNull()
     }
 
@@ -137,8 +136,7 @@ class JooqEventRepository(
         queryExecutor.executeStore(
             dslContext = dslContext,
             jooqQuery = query,
-            fields = table.fields().asList(),
-            recordType = table.recordType
+            table = table
         )
     }
 }
