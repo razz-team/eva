@@ -17,8 +17,8 @@ dependencies {
     api(project(eva.eva_domain))
     api(project(eva.eva_events))
     api(project(eva.eva_tracing))
+    api(project(eva.eva_persistence))
     implementation(project(eva.eva_repository))
-    implementation(project(eva.eva_persistence))
 
     testImplementation(project(eva.eva_migrations))
     testImplementation(project(eva.eva_persistence))
