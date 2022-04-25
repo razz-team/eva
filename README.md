@@ -151,11 +151,9 @@ class WalletRepository(
 }
 ```
 
-### Run it
+### Configure it
 We have unit of work and repository, so we can set up everything together.
 In this example we are going to use JDBC implementation for our transactional manager.
-> Please don't forget to create tables for your models and table for storing events.
-You can find script to create event's table [here](eva-events-db-schema/src/main/resources/com/razz/eva/events/db)
 ```kotlin
 class WalletModule(databaseConfig: DatabaseConfig) {
 
@@ -197,6 +195,21 @@ class WalletModule(databaseConfig: DatabaseConfig) {
         )
     )
 }
+```
+
+### Run it!
+> Please don't forget to create tables for your models and table for storing events.
+You can find script to create event's table [here](eva-events-db-schema/src/main/resources/com/razz/eva/events/db)
+
+```kotlin
+    val module = WalletModule(config)
+    val principal = ServicePrincipal(Principal.Id("eva-id"), Principal.Name("eva"))
+    module.uowx.execute(CreateWalletUow::class, principal) {
+        CreateWalletUow.Params(
+            id = "45dfd599-4d62-47f1-8e47-a779df4f6bbc",
+            currency = "USD"
+        )
+    }
 ```
 
 ## Features
