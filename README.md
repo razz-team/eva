@@ -118,6 +118,23 @@ class CreateWalletUow(
     }
 }
 ```
+In this example we return noChanges in case model with such id already exists, otherwise we create new model and using ChangesDsl we **add** new model.
+
+
+You can also update your models in scope of unit of work - 
+```kotlin
+    changes {
+        update(wallet.deposit(amount))    
+    }
+```
+By default, **update** allows passing model with no changes (model was not updated after calling *deposit()* method).
+Sometimes it can lead to some inconsistency in your domain logic - you expected model to be changed, but it wasn't.
+You can force verification for your model, that it was changed in scope of your unit of work:
+```kotlin
+    changes {
+        update(wallet.deposit(amount), required = true)    
+    }
+```
 
 ### Repository
 To persist our model we need to add repository for it.
@@ -125,6 +142,14 @@ We use [jOOQ](https://www.jooq.org/) to have a type-safe DB querying.
 You need to generate jOOQ tables/records based on your DB schema to have a type-safe mapping of your model to DB record.
 You can use different Gradle plugins to generate jOOQ tables, f.e. check this [plugin](https://github.com/etiennestuder/gradle-jooq-plugin). 
 
+When you create tables for your models you need to add next fields to your schema, so we can persist your model properly - 
+```sql
+  record_updated_at         TIMESTAMP      NOT NULL            ,
+  record_created_at         TIMESTAMP      NOT NULL            ,
+  version                   BIGINT         NOT NULL
+```
+
+After you created DB schema for you data, we can implement Repository for your model.
 ```kotlin
 class WalletRepository(
     queryExecutor: QueryExecutor,
@@ -204,7 +229,8 @@ You can find script to create event's table [here](eva-events-db-schema/src/main
 ```kotlin
     val module = WalletModule(config)
     val principal = ServicePrincipal(Principal.Id("eva-id"), Principal.Name("eva"))
-    module.uowx.execute(CreateWalletUow::class, principal) {
+    
+    val createdWallet = module.uowx.execute(CreateWalletUow::class, principal) {
         CreateWalletUow.Params(
             id = "45dfd599-4d62-47f1-8e47-a779df4f6bbc",
             currency = "USD"

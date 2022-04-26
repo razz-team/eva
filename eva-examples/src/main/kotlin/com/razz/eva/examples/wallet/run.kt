@@ -22,7 +22,8 @@ fun main(args: Array<String>) = runBlocking {
     )
     val module = WalletModule(config)
     val principal = ServicePrincipal(Principal.Id("eva-id"), Principal.Name("eva"))
-    module.uowx.execute(CreateWalletUow::class, principal) {
+
+    val createdWallet = module.uowx.execute(CreateWalletUow::class, principal) {
         CreateWalletUow.Params(
             id = "45dfd599-4d62-47f1-8e47-a779df4f6bbc",
             currency = "USD"
