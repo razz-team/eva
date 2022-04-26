@@ -2,6 +2,9 @@ package com.razz.eva.examples.wallet
 
 import com.razz.eva.domain.EntityState.NewState.Companion.newState
 import com.razz.eva.examples.wallet.CreateWalletUow.Params
+import com.razz.eva.persistence.PersistenceException
+import com.razz.eva.persistence.PersistenceException.ModelRecordConstraintViolationException
+import com.razz.eva.persistence.PersistenceException.UniqueModelRecordViolationException
 import com.razz.eva.uow.Changes
 import com.razz.eva.uow.ServicePrincipal
 import com.razz.eva.uow.UnitOfWork
@@ -18,6 +21,12 @@ class CreateWalletUow(
     @Serializable
     data class Params(val id: String, val currency: String) : UowParams<Params> {
         override fun serialization() = serializer()
+    }
+
+    override suspend fun onFailure(params: Params, ex: PersistenceException): Wallet = when(ex) {
+        is UniqueModelRecordViolationException -> checkNotNull(queries.find(Wallet.Id(UUID.fromString(params.id))))
+        is ModelRecordConstraintViolationException -> throw IllegalArgumentException("${params.currency} is invalid")
+        else -> throw ex
     }
 
     override suspend fun tryPerform(principal: ServicePrincipal, params: Params): Changes<Wallet> {

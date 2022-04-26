@@ -248,7 +248,35 @@ You can find script to create event's table [here](eva-events-db-schema/src/main
 ### Paging
 
 ### Error handling
+One day you are going face a lot of concurrent unit of works.
+It leads to concurrent modification of same models. But our units of work are transactional, so we guarantee consistency of your models.
+In case of concurrent modification unit of work throws [StaleRecordException](eva-persistence/src/main/kotlin/com/razz/eva/persistence/PersistenceException.kt).
+By default, we will do a one retry for such kind of exception, but you can change this strategy
+```kotlin
+val configuration = UnitOfWork.Configuration(
+    retry = StaleRecordFixedRetry(attempts = 3, staleRecordDelay = Duration.ofMillis(100))
+)
 
+class CreateWalletUow(
+    private val queries: WalletQueries,
+    clock: Clock
+) : UnitOfWork<ServicePrincipal, Params, Wallet>(clock, configuration = configuration) {
+```
+
+Your database schema can also have some constraints, f.e. unique index. We don't want you to deal with such kind of exception out of your unit of work.
+You can intercept these exceptions and throw your business exception or return some fallback result.
+
+In our `CreateWalletUow` we check if wallet with same id already exists.
+But we can face situation, when wallet with same id was created during unit of work execution.
+Let's intercept this error and return already created wallet. We also can handle DB constraint and throw some more meaningful exception.
+
+```kotlin
+override suspend fun onFailure(params: Params, ex: PersistenceException): Wallet = when(ex) {
+    is UniqueModelRecordViolationException -> checkNotNull(queries.find(Wallet.Id(UUID.fromString(params.id))))
+    is ModelRecordConstraintViolationException -> throw IllegalArgumentException("${params.currency} is invalid")
+    else -> throw ex
+}
+```
 
 ### Tracing and Monitoring
 If you care about your system performance - you want to collect some metrics, so you can create alerts and investigate poor performance.
