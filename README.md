@@ -244,6 +244,25 @@ You can find script to create event's table [here](eva-events-db-schema/src/main
 ...
 
 ### Unit of work validation
+After you wrote your first unit of work, you probably want to ask - how I can test it?
+
+We provide verification DSL, so you can write unit tests and verify results of your unit of work.
+Use `verifyInOrder` function to start verification process.
+```kotlin
+    CreateWalletUow(queries, clock).tryPerform(principal, params) verifyInOrder {
+        adds<Wallet> { model -> ... }
+        addsEq(expectedModel)
+        
+        updates<Wallet> { model -> ... }
+        updatesEq(expectedModel)
+
+        emits<WalletEvent> { event -> ... }
+        emitsEq(expectedEvent)
+    
+        returns { result -> ... }
+    }
+```
+You can check some examples [here](eva-uow/src/test/kotlin/com/razz/eva/uow/UnitOfWorkDemoSpec.kt)
 
 ### Idempotency
 

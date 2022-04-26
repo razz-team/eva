@@ -30,4 +30,5 @@ fun main(vararg args: String) = runBlocking {
             currency = "USD"
         )
     }
+    CreateWalletUow(queries, clock).tryPerform(principal, params) ver
 }

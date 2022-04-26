@@ -23,12 +23,6 @@ class CreateWalletUow(
         override fun serialization() = serializer()
     }
 
-    override suspend fun onFailure(params: Params, ex: PersistenceException): Wallet = when (ex) {
-        is UniqueModelRecordViolationException -> checkNotNull(queries.find(Wallet.Id(UUID.fromString(params.id))))
-        is ModelRecordConstraintViolationException -> throw IllegalArgumentException("${params.currency} is invalid")
-        else -> throw ex
-    }
-
     override suspend fun tryPerform(principal: ServicePrincipal, params: Params): Changes<Wallet> {
         val walletId = Wallet.Id(UUID.fromString(params.id))
         val wallet = queries.find(walletId)
@@ -48,5 +42,11 @@ class CreateWalletUow(
                 add(newWallet)
             }
         }
+    }
+
+    override suspend fun onFailure(params: Params, ex: PersistenceException): Wallet = when (ex) {
+        is UniqueModelRecordViolationException -> checkNotNull(queries.find(Wallet.Id(UUID.fromString(params.id))))
+        is ModelRecordConstraintViolationException -> throw IllegalArgumentException("${params.currency} is invalid")
+        else -> throw ex
     }
 }
