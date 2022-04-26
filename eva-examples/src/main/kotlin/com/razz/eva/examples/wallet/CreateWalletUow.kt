@@ -23,7 +23,7 @@ class CreateWalletUow(
         override fun serialization() = serializer()
     }
 
-    override suspend fun onFailure(params: Params, ex: PersistenceException): Wallet = when(ex) {
+    override suspend fun onFailure(params: Params, ex: PersistenceException): Wallet = when (ex) {
         is UniqueModelRecordViolationException -> checkNotNull(queries.find(Wallet.Id(UUID.fromString(params.id))))
         is ModelRecordConstraintViolationException -> throw IllegalArgumentException("${params.currency} is invalid")
         else -> throw ex

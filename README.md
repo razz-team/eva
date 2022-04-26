@@ -243,6 +243,8 @@ You can find script to create event's table [here](eva-events-db-schema/src/main
 ### Event sourcing
 ...
 
+### Unit of work validation
+
 ### Idempotency
 
 ### Paging

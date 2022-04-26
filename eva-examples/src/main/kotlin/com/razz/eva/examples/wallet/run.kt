@@ -11,7 +11,8 @@ import com.razz.eva.uow.Principal
 import com.razz.eva.uow.ServicePrincipal
 import kotlinx.coroutines.runBlocking
 
-fun main(args: Array<String>) = runBlocking {
+@Suppress("UNUSED_PARAMETER", "UNUSED_VARIABLE")
+fun main(vararg args: String) = runBlocking {
     val config = DatabaseConfig(
         nodes = listOf(DbNodeAddress("localhost", 5432)),
         name = DbName("eva-examples"),
