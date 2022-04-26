@@ -5,11 +5,11 @@ plugins {
 
 dependencies {
     api(libs.hikari)
+    api(libs.kotlin_coroutines)
 
     api(project(eva.eva_persistence))
 
     implementation(libs.kotlin_stdlib)
-    implementation(libs.kotlin_coroutines)
 
     implementation(libs.postgres)
     implementation(libs.jooq)
