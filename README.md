@@ -266,6 +266,7 @@ You can check some examples [here](eva-uow/src/test/kotlin/com/razz/eva/uow/Unit
 
 ### Idempotency
 
+
 ### Paging
 
 ### Error handling
@@ -318,8 +319,58 @@ In this example we use [Prometheus](https://prometheus.io/) and [Jaeger](https:/
     )
 ```
 
-### Async persistence
+### Non-blocking persistence
+In the begging we suggested you to add *eva-persistence-jdbc* to your dependencies and explained how to configure **JdbcTransactionManager**.
+Under the hood it uses classic _blocking_ [Java JDBC driver](https://docs.oracle.com/javase/tutorial/jdbc/basics/processingsqlstatements.html).
 
+
+But we also ship non-blocking version of *TransactionManager* - **VertxTransactionManager**, based on [Vert.x](https://vertx.io/docs/vertx-pg-client/java/).
+Add this implementation to your dependencies
+```kotlin
+    implementation("team.razz.eva:eva-persistence-vertx:$eva_version")
+```
+
+Configuration:
+```kotlin
+val transactionManager = VertxTransactionManager(
+    primaryProvider = PgPoolConnectionProvider(
+        poolProvider(primaryConfig, true, meterRegistry)
+    ),
+    replicaProvider = PgPoolConnectionProvider(
+        poolProvider(replicaConfig, false, meterRegistry)
+    )
+)
+val queryExecutor = VertxQueryExecutor(transactionManager)
+
+private fun poolProvider(config: DatabaseConfig, isPrimary: Boolean, meterRegistry: MeterRegistry): PgPool {
+    val vertx = vertx(
+        VertxOptions()
+            .setMetricsOptions(
+                MicrometerMetricsOptions()
+                    .setMicrometerRegistry(meterRegistry)
+                    .setLabels(setOf(POOL_NAME, POOL_TYPE, REMOTE, NAMESPACE))
+                    .setEnabled(true)
+            )
+    )
+    check(config.nodes.size == 1 || !isPrimary) {
+        "Primary pool must be configured with single db node"
+    }
+    val options = config.nodes.map { node ->
+        PgConnectOptions().apply {
+            cachePreparedStatements = true
+            preparedStatementCacheMaxSize = 2048
+            preparedStatementCacheSqlFilter = Predicate { sql -> sql.length < 10_000 }
+            pipeliningLimit = 256
+            user = config.user.toString()
+            password = config.password.showPassword()
+            host = node.host()
+            database = config.name.toString()
+            port = node.port()
+        }
+    }
+    return PgPool.pool(vertx, options, PoolOptions().apply { maxSize = config.maxPoolSize.value() })
+}
+```
 
 # License
 Eva is distributed under the terms of the Apache License (Version 2.0). See [license file](LICENSE) for details.
