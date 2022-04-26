@@ -29,11 +29,13 @@ sealed class WalletEvent : ModelEvent<Wallet.Id> {
     data class Created(
         override val modelId: Wallet.Id,
         val currency: Currency,
-        val amount: ULong
+        val amount: ULong,
+        val expireAt: Instant
     ) : WalletEvent(), ModelCreatedEvent<Wallet.Id> {
         override fun integrationEvent() = buildJsonObject {
             put("currency", currency.currencyCode)
             put("amount", amount.toLong())
+            put("expireAt", expireAt.epochSecond)
         }
     }
 
@@ -53,19 +55,21 @@ sealed class WalletEvent : ModelEvent<Wallet.Id> {
 Define model and methods that changes model's state.
 On any model's modification we should raise an event about it.
 ```kotlin
-class Wallet constructor(
+class Wallet(
     id: Id,
     val currency: Currency,
     val amount: ULong,
+    val expireAt: Instant,
     entityState: EntityState<Id, WalletEvent>
 ) : Model<Wallet.Id, WalletEvent>(id, entityState) {
-    
+
     data class Id(override val id: UUID) : ModelId<UUID>
-    
+
     fun deposit(toDeposit: ULong) = Wallet(
         amount = amount - toDeposit,
         currency = currency,
         id = id(),
+        expireAt = expireAt,
         entityState = entityState()
             .raiseEvent(WalletEvent.Deposit(id(), amount, toDeposit))
     )
@@ -99,22 +103,27 @@ class CreateWalletUow(
     override suspend fun tryPerform(principal: ServicePrincipal, params: Params): Changes<Wallet> {
         val walletId = Wallet.Id(UUID.fromString(params.id))
         val wallet = queries.find(walletId)
-        
+
         return if (wallet != null) {
             noChanges(wallet)
         } else {
             val amount = ULong.MIN_VALUE
             val currency = Currency.getInstance(params.currency)
+            val expireAt = clock.instant().plus(timeToExpire)
             val newWallet = Wallet(
                 id = walletId,
                 currency = currency,
                 amount = amount,
-                entityState = newState(WalletEvent.Created(walletId, currency, amount))
+                expireAt = expireAt,
+                entityState = newState(WalletEvent.Created(walletId, currency, amount, expireAt))
             )
             changes {
                 add(newWallet)
             }
         }
+    }
+    companion object {
+        private val timeToExpire = Duration.ofDays(600)
     }
 }
 ```
@@ -157,11 +166,12 @@ class WalletRepository(
 ) : WalletQueries, JooqBaseModelRepository<UUID, Wallet.Id, Wallet, WalletEvent, WalletRecord>(
     queryExecutor = queryExecutor,
     dslContext = dslContext,
-    table = Tables.WALLET
+    table = WALLET
 ) {
     override fun toRecord(model: Wallet) = WalletRecord().apply {
         currency = model.currency.currencyCode
         amount = model.amount.toLong()
+        expireAt = model.expireAt
     }
 
     override fun fromRecord(
@@ -171,6 +181,7 @@ class WalletRepository(
         id = Wallet.Id(record.id),
         currency = Currency.getInstance(record.currency),
         amount = record.amount.toULong(),
+        expireAt = record.expireAt,
         entityState = entityState
     )
 }
@@ -285,6 +296,35 @@ Idempotency key can be shipped as a standalone artifact outside your service, if
 ```
 
 ### Paging
+Out of the box Eva supports paging for your data, when it is not possible to return all results in one request.
+First, you need to add paging module to your dependencies:
+```kotlin
+    implementation("team.razz.eva:eva-paging:$eva_version")
+```
+Second, you need to define your [PagingStrategy](eva-repository/src/main/kotlin/com/razz/eva/repository/PagingStrategy.kt). For now, we support paging by some timestamp only.
+```kotlin
+    object WalletPaging : PagingStrategy<UUID, Wallet.Id, Wallet, Wallet, WalletRecord>(Wallet::class) {
+
+        override fun tableTimestamp() = WALLET.EXPIRE_AT
+    
+        override fun tableId() = WALLET.ID
+    
+        override fun tableOffset(modelOffset: ModelOffset) = UUID.fromString(modelOffset)
+    
+        override fun modelTimestamp(model: Wallet) = model.expireAt
+    
+        override fun modelOffset(model: Wallet) = model.id().stringValue()
+    }
+```
+Now we can implement method in our repository to get pages.
+```kotlin
+    suspend fun wallets(currency: Currency, page: TimestampPage) = findPage(
+        condition = WALLET.CURRENCY.eq(currency.currencyCode),
+        page = page,
+        pagingStrategy = WalletPaging
+    )
+```
+That's all! This method returns object of [PagedList](eva-paging/src/main/kotlin/com/razz/eva/paging/PagedList.kt). It provides a part of your requested results and the next page to query the next part of results.
 
 ### Error handling
 One day you are going face a lot of concurrent unit of works.

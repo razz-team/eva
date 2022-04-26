@@ -7,6 +7,7 @@ import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import java.time.Instant
 import java.util.*
 
 sealed class WalletEvent : ModelEvent<Wallet.Id> {
@@ -16,11 +17,13 @@ sealed class WalletEvent : ModelEvent<Wallet.Id> {
     data class Created(
         override val modelId: Wallet.Id,
         val currency: Currency,
-        val amount: ULong
+        val amount: ULong,
+        val expireAt: Instant
     ) : WalletEvent(), ModelCreatedEvent<Wallet.Id> {
         override fun integrationEvent() = buildJsonObject {
             put("currency", currency.currencyCode)
             put("amount", amount.toLong())
+            put("expireAt", expireAt.epochSecond)
         }
     }
 
@@ -36,10 +39,11 @@ sealed class WalletEvent : ModelEvent<Wallet.Id> {
     }
 }
 
-class Wallet constructor(
+class Wallet(
     id: Id,
     val currency: Currency,
     val amount: ULong,
+    val expireAt: Instant,
     entityState: EntityState<Id, WalletEvent>
 ) : Model<Wallet.Id, WalletEvent>(id, entityState) {
 
@@ -49,6 +53,7 @@ class Wallet constructor(
         amount = amount - toDeposit,
         currency = currency,
         id = id(),
+        expireAt = expireAt,
         entityState = entityState()
             .raiseEvent(WalletEvent.Deposit(id(), amount, toDeposit))
     )

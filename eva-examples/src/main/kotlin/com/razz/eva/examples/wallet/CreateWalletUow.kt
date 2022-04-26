@@ -11,6 +11,7 @@ import com.razz.eva.uow.UnitOfWork
 import com.razz.eva.uow.params.UowParams
 import kotlinx.serialization.Serializable
 import java.time.Clock
+import java.time.Duration
 import java.util.*
 
 class CreateWalletUow(
@@ -32,11 +33,13 @@ class CreateWalletUow(
         } else {
             val amount = ULong.MIN_VALUE
             val currency = Currency.getInstance(params.currency)
+            val expireAt = clock.instant().plus(timeToExpire)
             val newWallet = Wallet(
                 id = walletId,
                 currency = currency,
                 amount = amount,
-                entityState = newState(WalletEvent.Created(walletId, currency, amount))
+                expireAt = expireAt,
+                entityState = newState(WalletEvent.Created(walletId, currency, amount, expireAt))
             )
             changes {
                 add(newWallet)
@@ -48,5 +51,9 @@ class CreateWalletUow(
         is UniqueModelRecordViolationException -> checkNotNull(queries.find(Wallet.Id(UUID.fromString(params.id))))
         is ModelRecordConstraintViolationException -> throw IllegalArgumentException("${params.currency} is invalid")
         else -> throw ex
+    }
+
+    companion object {
+        private val timeToExpire = Duration.ofDays(600)
     }
 }
