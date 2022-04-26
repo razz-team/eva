@@ -265,7 +265,24 @@ Use `verifyInOrder` function to start verification process.
 You can check some examples [here](eva-uow/src/test/kotlin/com/razz/eva/uow/UnitOfWorkDemoSpec.kt)
 
 ### Idempotency
+Sometimes something goes wrong, your service doesn't respond within deadline. You want to make a retry, but you are afraid of creating duplicates or new unnecessary models, so your DB becomes inconsistent.
 
+To prevent it people use [idempotency key](https://stripe.com/docs/api/idempotent_requests) pattern.
+Unit of work allows you to define idempotency key in params, so you can safely make retries.
+```kotlin
+    @Serializable
+    data class Params(
+        val id: String,
+        val currency: String,
+        override val idempotencyKey: IdempotencyKey
+    ) : UowParams<Params> {
+        override fun serialization() = serializer()
+    }
+```
+Idempotency key can be shipped as a standalone artifact outside your service, if you f.e. want to pass it via http request.
+```kotlin
+    implementation("team.razz.eva:eva-idempotency-key:$eva_version")
+```
 
 ### Paging
 
