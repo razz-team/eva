@@ -249,35 +249,15 @@ You can find script to create event's table [here](eva-events-db-schema/src/main
 
 ### Error handling
 
+
 ### Tracing and Monitoring
 If you care about your system performance - you want to collect some metrics, so you can create alerts and investigate poor performance.
 We allow you to collect some metrics via [Micrometer framework](https://micrometer.io/) and do instrumentation with [Opentracing](https://opentracing.io/).
 Both frameworks provide you interfaces, and you can choose your own implementation, how you want to collect metrics.
 In this example we use [Prometheus](https://prometheus.io/) and [Jaeger](https://www.jaegertracing.io/) implementations.
-
+> Don't forget to add Jaeger and Prometheus dependencies to your project
 ```kotlin
     val meterRegistry = PrometheusMeterRegistry(DEFAULT)
-
-    fun tracer(serviceName: String): Tracer = tracer(serviceName, Metrics(meterRegistry), UdpSender())
-    
-    fun tracer(serviceName: String, metrics: Metrics, sender: Sender): Tracer {
-        val b3Codec = B3TextMapCodec.Builder().build()
-        return JaegerTracer.Builder(serviceName)
-            .registerInjector(Format.Builtin.HTTP_HEADERS, b3Codec)
-            .registerExtractor(Format.Builtin.HTTP_HEADERS, b3Codec)
-            .registerInjector(Format.Builtin.TEXT_MAP, b3Codec)
-            .registerExtractor(Format.Builtin.TEXT_MAP, b3Codec)
-            .withReporter(
-                RemoteReporter
-                    .Builder()
-                    .withMaxQueueSize(1000)
-                    .withMetrics(metrics)
-                    .withSender(sender)
-                    .build()
-            )
-            .withSampler(ConstSampler(true))
-            .build()
-    }
 
     val uowx: UnitOfWorkExecutor = UnitOfWorkExecutor(
         persisting = persisting,
