@@ -52,7 +52,7 @@ sealed class WalletEvent : ModelEvent<Wallet.Id> {
 }
 ```
 
-Define model and methods that changes model's state.
+Define a model and methods that change model's state.
 On any model's modification we should raise an event about it.
 ```kotlin
 class Wallet(
@@ -77,7 +77,7 @@ class Wallet(
 ```
 
 ### Unit of work
-Let's create queries interface, so we can query our existing models
+We need *queries* interface, so we can query our existing models
 ```kotlin
 interface WalletQueries {
     suspend fun find(id: Wallet.Id): Wallet?
@@ -87,7 +87,7 @@ Now we can write our first unit of work.
 In our framework unit of work stands for Command in CQRS pattern.
 You can read more about CQRS [here](https://docs.microsoft.com/en-us/azure/architecture/patterns/cqrs) and [here](https://martinfowler.com/bliki/CQRS.html).
 Unit of work is a transactional operation.
-In our example unit of work creates new model with provided id or returns an existing one.
+Here the unit of work either returns an existing wallet by ID or creates a new one and returns it.
 
 ```kotlin
 class CreateWalletUow(
@@ -149,7 +149,10 @@ You can force verification for your model, that it was changed in scope of your 
 To persist our model we need to add repository for it.
 We use [jOOQ](https://www.jooq.org/) to have a type-safe DB querying.
 You need to generate jOOQ tables/records based on your DB schema to have a type-safe mapping of your model to DB record.
-You can use different Gradle plugins to generate jOOQ tables, f.e. check this [plugin](https://github.com/etiennestuder/gradle-jooq-plugin). 
+You can use different Gradle plugins to generate jOOQ tables, f.e. check this [plugin](https://github.com/etiennestuder/gradle-jooq-plugin).
+
+Your generated records should extend [BaseEntityRecord](eva-jooq/src/main/kotlin/com/razz/jooq/record/BaseEntityRecord.kt).
+To achieve it use [jOOQ matcher strategies](https://www.jooq.org/doc/latest/manual/code-generation/codegen-matcherstrategy/).
 
 When you create tables for your models you need to add next fields to your schema, so we can persist your model properly - 
 ```sql
