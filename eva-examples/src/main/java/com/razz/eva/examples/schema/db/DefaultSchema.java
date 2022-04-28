@@ -4,6 +4,7 @@
 package com.razz.eva.examples.schema.db;
 
 
+import com.razz.eva.examples.schema.db.tables.User;
 import com.razz.eva.examples.schema.db.tables.Wallet;
 import org.jooq.Catalog;
 import org.jooq.Table;
@@ -36,6 +37,11 @@ public class DefaultSchema extends SchemaImpl {
     public static final DefaultSchema DEFAULT_SCHEMA = new DefaultSchema();
 
     /**
+     * The table <code>user</code>.
+     */
+    public final User USER = User.USER;
+
+    /**
      * The table <code>wallet</code>.
      */
     public final Wallet WALLET = Wallet.WALLET;
@@ -56,6 +62,7 @@ public class DefaultSchema extends SchemaImpl {
     @Override
     public final List<Table<?>> getTables() {
         return Arrays.asList(
+            User.USER,
             Wallet.WALLET
         );
     }

@@ -4,6 +4,7 @@
 package com.razz.eva.examples.schema.db;
 
 
+import com.razz.eva.examples.schema.db.tables.User;
 import com.razz.eva.examples.schema.db.tables.Wallet;
 
 import javax.annotation.processing.Generated;
@@ -22,6 +23,11 @@ import javax.annotation.processing.Generated;
 )
 @SuppressWarnings({ "all", "unchecked", "rawtypes" })
 public class Tables {
+
+    /**
+     * The table <code>user</code>.
+     */
+    public static final User USER = User.USER;
 
     /**
      * The table <code>wallet</code>.

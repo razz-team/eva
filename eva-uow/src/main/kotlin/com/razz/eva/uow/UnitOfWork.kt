@@ -1,15 +1,15 @@
 package com.razz.eva.uow
 
 import com.razz.eva.persistence.PersistenceException
+import com.razz.eva.uow.BaseUnitOfWork.Configuration.Companion.default
 import com.razz.eva.uow.Retry.StaleRecordFixedRetry.Companion.DEFAULT
-import com.razz.eva.uow.UnitOfWork.Configuration.Companion.default
 import com.razz.eva.uow.params.UowParams
 import java.time.Clock
 
-abstract class UnitOfWork<PRINCIPAL, PARAMS, RESULT>(
+abstract class BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, C>(
     protected val clock: Clock,
     private val configuration: Configuration = default()
-) where PRINCIPAL : Principal<*>, PARAMS : UowParams<PARAMS>, RESULT : Any {
+) where PRINCIPAL : Principal<*>, PARAMS : UowParams<PARAMS>, RESULT : Any, C : Any {
 
     abstract suspend fun tryPerform(principal: PRINCIPAL, params: PARAMS): Changes<RESULT>
 
@@ -29,9 +29,7 @@ abstract class UnitOfWork<PRINCIPAL, PARAMS, RESULT>(
     // TODO do we actually need that ?
     protected fun <R> noChanges(result: R): Changes<R> = DefaultChanges(result, emptyList())
 
-    protected suspend fun changes(init: suspend ChangesDsl.() -> RESULT): Changes<RESULT> {
-        return ChangesDsl.changes(ChangesWithoutResult(), init)
-    }
+    protected abstract suspend fun changes(init: suspend C.() -> RESULT): Changes<RESULT>
 
     data class Configuration(
         val retry: Retry? = DEFAULT,
@@ -40,5 +38,16 @@ abstract class UnitOfWork<PRINCIPAL, PARAMS, RESULT>(
         companion object {
             fun default() = Configuration()
         }
+    }
+}
+
+abstract class UnitOfWork<PRINCIPAL, PARAMS, RESULT>(
+    clock: Clock,
+    configuration: Configuration = default()
+) : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, ChangesDsl>(clock, configuration)
+    where PRINCIPAL : Principal<*>, PARAMS : UowParams<PARAMS>, RESULT : Any {
+
+    final override suspend fun changes(init: suspend ChangesDsl.() -> RESULT): Changes<RESULT> {
+        return ChangesDsl.changes(ChangesWithoutResult(), init)
     }
 }

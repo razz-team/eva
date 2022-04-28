@@ -306,7 +306,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
             }
 
             And("UnitOfWork has one retry and Persisting throws StaleRecordException constantly") {
-                every { rawUnitOfWork.configuration() } returns UnitOfWork.Configuration.default()
+                every { rawUnitOfWork.configuration() } returns BaseUnitOfWork.Configuration.default()
                 coEvery {
                     rawUnitOfWork.tryPerform(TestPrincipal, eq(params))
                 } returns DefaultChanges(department, listOf())
@@ -337,7 +337,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                 "UnitOfWork has one retry, has custom exception mapping " +
                     "and Persisting throws StaleRecordException constantly"
             ) {
-                every { rawUnitOfWork.configuration() } returns UnitOfWork.Configuration.default()
+                every { rawUnitOfWork.configuration() } returns BaseUnitOfWork.Configuration.default()
                 coEvery {
                     rawUnitOfWork.tryPerform(TestPrincipal, eq(params))
                 } returns DefaultChanges(department, listOf())
@@ -369,7 +369,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
 
             And("Persisting throws UniqueModelRecordViolationException constantly") {
                 val ex = UniqueModelRecordViolationException(depId, "DEPARTMENTS", "легендарный_певец_Бока_idx")
-                every { rawUnitOfWork.configuration() } returns UnitOfWork.Configuration.default()
+                every { rawUnitOfWork.configuration() } returns BaseUnitOfWork.Configuration.default()
                 coEvery {
                     rawUnitOfWork.tryPerform(TestPrincipal, eq(params))
                 } returns DefaultChanges(department, listOf())
@@ -398,7 +398,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
 
             And("Persisting throws ModelRecordConstraintViolationException constantly") {
                 val ex = ModelRecordConstraintViolationException(depId, "DEPARTMENTS", "популярный_певец_Жока_idx")
-                every { rawUnitOfWork.configuration() } returns UnitOfWork.Configuration.default()
+                every { rawUnitOfWork.configuration() } returns BaseUnitOfWork.Configuration.default()
                 coEvery {
                     rawUnitOfWork.tryPerform(TestPrincipal, eq(params))
                 } returns DefaultChanges(department, listOf())
@@ -428,7 +428,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
             And("Persisting throws UniqueModelRecordViolationException and UnitOfWork return result on failure") {
                 val resultModel = mockk<OwnedDepartment>()
                 val ex = UniqueModelRecordViolationException(depId, "DEPARTMENTS", "легендарный_певец_Бока_idx")
-                every { rawUnitOfWork.configuration() } returns UnitOfWork.Configuration.default()
+                every { rawUnitOfWork.configuration() } returns BaseUnitOfWork.Configuration.default()
                 coEvery {
                     rawUnitOfWork.tryPerform(TestPrincipal, eq(params))
                 } returns DefaultChanges(department, listOf())
