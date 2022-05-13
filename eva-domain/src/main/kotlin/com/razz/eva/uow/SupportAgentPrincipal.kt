@@ -1,11 +1,13 @@
 package com.razz.eva.uow
 
 import com.razz.eva.uow.Principal.Id
+import com.razz.eva.uow.Principal.Name
 
 class SupportAgentPrincipal(
-    override val id: Id<String>,
-    override val name: Principal.Name
+    override val id: Id<String>
 ) : Principal<String> {
+
+    override val name = Name("SupportAgent")
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
