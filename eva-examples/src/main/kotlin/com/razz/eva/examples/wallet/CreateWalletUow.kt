@@ -6,7 +6,6 @@ import com.razz.eva.persistence.PersistenceException
 import com.razz.eva.persistence.PersistenceException.ModelRecordConstraintViolationException
 import com.razz.eva.persistence.PersistenceException.UniqueModelRecordViolationException
 import com.razz.eva.uow.Changes
-import com.razz.eva.uow.ServicePrincipal
 import com.razz.eva.uow.UnitOfWork
 import com.razz.eva.uow.params.UowParams
 import kotlinx.serialization.Serializable

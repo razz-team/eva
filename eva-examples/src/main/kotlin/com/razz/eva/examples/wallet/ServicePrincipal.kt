@@ -1,8 +1,9 @@
-package com.razz.eva.uow
+package com.razz.eva.examples.wallet
 
+import com.razz.eva.uow.Principal
 import com.razz.eva.uow.Principal.Id
 
-class SupportAgentPrincipal(
+class ServicePrincipal(
     override val id: Id<String>,
     override val name: Principal.Name
 ) : Principal<String> {
@@ -11,7 +12,7 @@ class SupportAgentPrincipal(
         if (this === other) return true
         if (javaClass != other?.javaClass) return false
 
-        other as SupportAgentPrincipal
+        other as ServicePrincipal
 
         if (id != other.id) return false
         if (name != other.name) return false
@@ -23,5 +24,9 @@ class SupportAgentPrincipal(
         var result = id.hashCode()
         result = 31 * result + name.hashCode()
         return result
+    }
+
+    companion object Factory {
+        fun byName(name: String) = ServicePrincipal(Id(name), Principal.Name(name))
     }
 }

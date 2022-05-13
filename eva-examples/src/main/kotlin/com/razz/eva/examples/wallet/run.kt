@@ -8,7 +8,6 @@ import com.razz.eva.persistence.config.DbUser
 import com.razz.eva.persistence.config.ExecutorType
 import com.razz.eva.persistence.config.MaxPoolSize
 import com.razz.eva.uow.Principal
-import com.razz.eva.uow.ServicePrincipal
 import kotlinx.coroutines.runBlocking
 
 @Suppress("UNUSED_PARAMETER", "UNUSED_VARIABLE")
