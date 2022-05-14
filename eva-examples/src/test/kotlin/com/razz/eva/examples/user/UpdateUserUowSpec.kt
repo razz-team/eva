@@ -2,6 +2,7 @@ package com.razz.eva.examples.user
 
 import com.razz.eva.domain.EntityState.PersistentState.Companion.persistentState
 import com.razz.eva.domain.Version.Companion.V1
+import com.razz.eva.examples.uow.ServicePrincipal
 import com.razz.eva.examples.user.User.Address
 import com.razz.eva.examples.user.User.Factory.existingUser
 import com.razz.eva.examples.user.User.FirstName
@@ -10,7 +11,6 @@ import com.razz.eva.examples.user.UserEvent.UserFirstNameChanged
 import com.razz.eva.examples.user.UserEvent.UserLastNameChanged
 import com.razz.eva.test.uow.UowBehaviorSpec
 import com.razz.eva.uow.Principal
-import com.razz.eva.uow.ServicePrincipal
 import com.razz.eva.uow.verify.verifyInOrder
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
