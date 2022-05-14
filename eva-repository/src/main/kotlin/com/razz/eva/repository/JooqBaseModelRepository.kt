@@ -101,7 +101,7 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
             "Can insert only new model"
         }
         val insertQuery = prepareQuery(context, model, dslContext.insertQuery(table))
-        val added = wrapException(model, table) {
+        val added = wrapException(model) {
             queryExecutor.executeStore(
                 dslContext = dslContext,
                 jooqQuery = insertQuery,
@@ -132,7 +132,7 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
             query.newRecord()
             prepareQuery(context, model, query)
         }
-        val added = wrapException(models.first(), table) {
+        val added = wrapException(models.first()) {
             queryExecutor.executeStore(
                 dslContext = dslContext,
                 jooqQuery = insertQuery,
@@ -159,7 +159,7 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
             "Can update only dirty model"
         }
         val updateQuery = prepareUpdate(model, prepareQuery(context, model, dslContext.updateQuery(table)))
-        val updated = wrapException(model, table) {
+        val updated = wrapException(model) {
             queryExecutor.executeStore(
                 dslContext = dslContext,
                 jooqQuery = updateQuery,
@@ -203,7 +203,7 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
             addFrom(DSL.values(*records).`as`(VALUES_ALIAS, *VALUES_ROW))
         }.let(::prepareUpdate)
 
-        val updated = wrapException(models.first(), table) {
+        val updated = wrapException(models.first()) {
             queryExecutor.executeStore(
                 dslContext = dslContext,
                 jooqQuery = updateQuery,
@@ -368,16 +368,16 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
         }
     }
 
-    private inline fun <R : Record, ME : M> wrapException(model: ME, table: Table<R>, block: () -> List<R>) = try {
+    private inline fun <R : Record, ME : M> wrapException(model: ME, block: () -> List<R>) = try {
         block()
     } catch (e: DataAccessException) {
         when {
             e.sqlState() == PgHelpers.PG_UNIQUE_VIOLATION -> {
-                val constraintName = PgHelpers.extractUniqueConstraintName(queryExecutor, this.table, e)
+                val constraintName = PgHelpers.extractUniqueConstraintName(queryExecutor, table, e)
                 throw PersistenceException.UniqueModelRecordViolationException(model.id(), table.name, constraintName)
             }
             e.sqlStateClass() == SQLStateClass.C23_INTEGRITY_CONSTRAINT_VIOLATION -> {
-                val constraintName = PgHelpers.extractConstraintName(queryExecutor, this.table, e)
+                val constraintName = PgHelpers.extractConstraintName(queryExecutor, table, e)
                 throw PersistenceException.ModelRecordConstraintViolationException(
                     model.id(),
                     table.name,
