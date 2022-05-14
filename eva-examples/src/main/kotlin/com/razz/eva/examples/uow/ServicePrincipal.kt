@@ -1,4 +1,4 @@
-package com.razz.eva.examples.wallet
+package com.razz.eva.examples.uow
 
 import com.razz.eva.uow.Principal
 import com.razz.eva.uow.Principal.Id
