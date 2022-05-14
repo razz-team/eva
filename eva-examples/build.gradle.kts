@@ -8,4 +8,6 @@ dependencies {
     implementation(project(eva.eva_persistence_jdbc))
 
     implementation(project(eva.eva_paging))
+
+    testImplementation(project(eva.eva_test))
 }

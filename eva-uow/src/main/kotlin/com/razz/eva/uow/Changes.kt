@@ -12,7 +12,7 @@ abstract class Changes<R> {
     internal abstract val toPersist: List<Change>
 }
 
-internal class ChangesWithoutResult private constructor(
+class ChangesWithoutResult private constructor(
     private val changes: Map<ModelId<out Comparable<*>>, Change>
 ) {
     constructor() : this(emptyMap())
