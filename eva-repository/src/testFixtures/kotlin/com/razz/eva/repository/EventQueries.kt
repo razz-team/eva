@@ -7,13 +7,12 @@ import com.razz.eva.events.IntegrationModelEvent.EventName
 import com.razz.eva.events.IntegrationModelEvent.ModelId
 import com.razz.eva.events.IntegrationModelEvent.ModelName
 import com.razz.eva.events.IntegrationModelEvent.UowId
+import com.razz.eva.events.UowEvent
 import com.razz.eva.events.db.tables.ModelEvents.MODEL_EVENTS
 import com.razz.eva.events.db.tables.UowEvents.UOW_EVENTS
 import com.razz.eva.events.db.tables.records.ModelEventsRecord
 import com.razz.eva.events.db.tables.records.UowEventsRecord
 import com.razz.eva.persistence.executor.QueryExecutor
-import com.razz.eva.uow.UowEvent
-import com.razz.eva.uow.UowEvent.UowName
 import com.razz.eva.serialization.json.JsonFormat.json
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -29,7 +28,7 @@ class EventQueries(
 
     data class PersistedUowEvent(
         val id: UowEvent.Id,
-        val uowName: UowName,
+        val uowName: UowEvent.UowName,
         val principalId: String,
         val principalName: String,
         val modelEvents: List<Pair<IntegrationModelEvent, JsonObject>>,
@@ -56,7 +55,7 @@ class EventQueries(
 
         return PersistedUowEvent(
             id = UowEvent.Id(uowEvent.id),
-            uowName = UowName(uowEvent.name),
+            uowName = UowEvent.UowName(uowEvent.name),
             principalId = uowEvent.principalId,
             principalName = uowEvent.principalName,
             occurredAt = uowEvent.occurredAt,

@@ -35,8 +35,8 @@ import com.razz.eva.uow.Noop
 import com.razz.eva.uow.Persisting
 import com.razz.eva.uow.SpyRepo
 import com.razz.eva.uow.TestPrincipal
-import com.razz.eva.uow.UowEvent
-import com.razz.eva.uow.UowEvent.UowName
+import com.razz.eva.events.UowEvent
+import com.razz.eva.events.UowEvent.UowName
 import com.razz.eva.uow.params.UowParams
 import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.matchers.maps.shouldHaveSize
@@ -135,7 +135,7 @@ class PersistingSpec : BehaviorSpec({
 
         val eventsRepo = object : EventRepository {
 
-            override suspend fun <P : UowParams<P>> add(uowEvent: UowEvent<P>) {
+            override suspend fun add(uowEvent: UowEvent) {
                 history.add(UowEventAdded(uowEvent))
             }
         }

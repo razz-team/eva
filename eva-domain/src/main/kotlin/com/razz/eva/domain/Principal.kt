@@ -1,4 +1,4 @@
-package com.razz.eva.uow
+package com.razz.eva.domain
 
 interface Principal<T> {
 

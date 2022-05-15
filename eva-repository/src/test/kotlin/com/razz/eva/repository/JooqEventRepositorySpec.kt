@@ -7,15 +7,16 @@ import com.razz.eva.domain.EmployeeEvent.EmployeeCreated
 import com.razz.eva.domain.EmployeeId
 import com.razz.eva.domain.Name
 import com.razz.eva.domain.Ration
+import com.razz.eva.events.UowEvent
+import com.razz.eva.events.UowEvent.ModelEventId
+import com.razz.eva.events.UowEvent.UowName
 import com.razz.eva.events.db.tables.ModelEvents.MODEL_EVENTS
 import com.razz.eva.events.db.tables.UowEvents.UOW_EVENTS
 import com.razz.eva.events.db.tables.records.ModelEventsRecord
 import com.razz.eva.events.db.tables.records.UowEventsRecord
 import com.razz.eva.persistence.executor.FakeMemorizingQueryExecutor
 import com.razz.eva.persistence.executor.FakeMemorizingQueryExecutor.ExecutionStep.StoreExecuted
-import com.razz.eva.uow.UowEvent
-import com.razz.eva.uow.UowEvent.ModelEventId
-import com.razz.eva.uow.UowEvent.UowName
+import com.razz.eva.serialization.json.JsonFormat.json
 import com.razz.eva.uow.params.UowParams
 import com.razz.eva.tracing.Tracing.notReportingTracer
 import com.razz.eva.tracing.Tracing.withNewSpan
@@ -61,6 +62,7 @@ class JooqEventRepositorySpec : BehaviorSpec({
 
         And("Unit of Work Event") {
             val depId = randomDepartmentId()
+            val params = Params(1, "Nik", IdempotencyKey.random())
             val uowEvent = UowEvent(
                 id = UowEvent.Id.random(),
                 uowName = UowName("TestUow"),
@@ -80,7 +82,8 @@ class JooqEventRepositorySpec : BehaviorSpec({
                         Ration.SHAKSHOUKA
                     )
                 ),
-                params = Params(1, "Nik", IdempotencyKey.random()),
+                idempotencyKey = params.idempotencyKey,
+                params = json.encodeToJsonElement(params.serialization(), params),
                 occurredAt = now
             )
 
@@ -115,7 +118,7 @@ class JooqEventRepositorySpec : BehaviorSpec({
                                         UowEventsRecord(
                                             uowEvent.id.uuidValue(),
                                             uowEvent.uowName.toString(),
-                                            uowEvent.params.idempotencyKey.stringValue(),
+                                            uowEvent.idempotencyKey?.stringValue(),
                                             "TEST_PRINCIPAL",
                                             "THIS_IS_SINGLETON",
                                             now,
@@ -125,7 +128,7 @@ class JooqEventRepositorySpec : BehaviorSpec({
                                                 {
                                                     "id":1,
                                                     "name":"Nik",
-                                                    "idempotencyKey":"${uowEvent.params.idempotencyKey.stringValue()}"
+                                                    "idempotencyKey":"${uowEvent.idempotencyKey?.stringValue()}"
                                                 }
                                                 """
                                             ).toString()
@@ -200,12 +203,14 @@ class JooqEventRepositorySpec : BehaviorSpec({
         val eventRepo = JooqEventRepository(queryExecutor, dslContext, tracer)
 
         And("Unit of Work Event without model events") {
+            val params = Params(1, "Nik", IdempotencyKey.random())
             val uowEvent = UowEvent(
                 id = UowEvent.Id(randomUUID()),
                 uowName = UowName("TestUow"),
                 principal = TestPrincipal,
                 modelEvents = emptyMap(),
-                params = Params(1, "Nik", IdempotencyKey.random()),
+                idempotencyKey = params.idempotencyKey,
+                params = json.encodeToJsonElement(params.serialization(), params),
                 occurredAt = now
             )
 
@@ -240,7 +245,7 @@ class JooqEventRepositorySpec : BehaviorSpec({
                                         UowEventsRecord(
                                             uowEvent.id.uuidValue(),
                                             uowEvent.uowName.toString(),
-                                            uowEvent.params.idempotencyKey.stringValue(),
+                                            uowEvent.idempotencyKey?.stringValue(),
                                             "TEST_PRINCIPAL",
                                             "THIS_IS_SINGLETON",
                                             now,
@@ -250,7 +255,7 @@ class JooqEventRepositorySpec : BehaviorSpec({
                                                 {
                                                     "id":1,
                                                     "name":"Nik",
-                                                    "idempotencyKey":"${uowEvent.params.idempotencyKey.stringValue()}"
+                                                    "idempotencyKey":"${uowEvent.idempotencyKey?.stringValue()}"
                                                 }
                                                 """
                                             ).toString()
@@ -272,12 +277,14 @@ class JooqEventRepositorySpec : BehaviorSpec({
         val eventRepo = JooqEventRepository(queryExecutor, dslContext, tracer)
 
         And("Unit of Work Event without model events") {
+            val params = Params(1, "Nik", IdempotencyKey.random())
             val uowEvent = UowEvent(
                 id = UowEvent.Id(randomUUID()),
                 uowName = UowName("TestUow"),
                 principal = TestPrincipal,
                 modelEvents = emptyMap(),
-                params = Params(1, "Nik", IdempotencyKey.random()),
+                idempotencyKey = params.idempotencyKey,
+                params = json.encodeToJsonElement(params.serialization(), params),
                 occurredAt = now
             )
 
@@ -294,18 +301,18 @@ class JooqEventRepositorySpec : BehaviorSpec({
                                         UowEventsRecord().apply {
                                             id = uowEvent.id.uuidValue()
                                             name = uowEvent.uowName.toString()
-                                            idempotencyKey = uowEvent.params.idempotencyKey.stringValue()
+                                            idempotencyKey = uowEvent.idempotencyKey?.stringValue()
                                             principalName = "TEST_PRINCIPAL"
                                             principalId = "THIS_IS_SINGLETON"
                                             occurredAt = now
                                             modelEvents = uowEvent
                                                 .modelEvents.map { (id, _) -> id.uuidValue() }.toTypedArray()
-                                            params = parseToJsonElement(
+                                            this.params = parseToJsonElement(
                                                 """
                                                 {
                                                     "id":1,
                                                     "name":"Nik",
-                                                    "idempotencyKey":"${uowEvent.params.idempotencyKey.stringValue()}"
+                                                    "idempotencyKey":"${uowEvent.idempotencyKey?.stringValue()}"
                                                 }
                                                 """
                                             ).toString()

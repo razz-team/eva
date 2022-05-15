@@ -1,8 +1,8 @@
 package com.razz.eva.uow
 
-import com.razz.eva.uow.Principal
-import com.razz.eva.uow.Principal.Id
-import com.razz.eva.uow.Principal.Name
+import com.razz.eva.domain.Principal
+import com.razz.eva.domain.Principal.Id
+import com.razz.eva.domain.Principal.Name
 
 object TestPrincipal : Principal<String> {
 

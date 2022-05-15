@@ -1,5 +1,6 @@
 package com.razz.eva.uow
 
+import com.razz.eva.domain.Principal
 import com.razz.eva.metrics.timerBuilder
 import com.razz.eva.persistence.PersistenceException
 import com.razz.eva.persistence.PrimaryConnectionRequiredFlag

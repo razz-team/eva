@@ -1,17 +1,20 @@
-package com.razz.eva.uow
+package com.razz.eva.events
 
+import com.razz.eva.IdempotencyKey
 import com.razz.eva.domain.ModelEvent
-import com.razz.eva.uow.params.UowParams
+import com.razz.eva.domain.Principal
+import kotlinx.serialization.json.JsonElement
 import java.time.Instant
 import java.util.*
 import java.util.UUID.randomUUID
 
-data class UowEvent<Params : UowParams<Params>>(
+data class UowEvent(
     val id: Id,
     val uowName: UowName,
     val principal: Principal<*>,
     val modelEvents: Map<ModelEventId, ModelEvent<*>>,
-    val params: Params,
+    val idempotencyKey: IdempotencyKey?,
+    val params: JsonElement,
     val occurredAt: Instant,
 ) {
     @JvmInline

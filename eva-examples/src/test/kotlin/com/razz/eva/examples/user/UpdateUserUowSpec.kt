@@ -10,7 +10,7 @@ import com.razz.eva.examples.user.User.LastName
 import com.razz.eva.examples.user.UserEvent.UserFirstNameChanged
 import com.razz.eva.examples.user.UserEvent.UserLastNameChanged
 import com.razz.eva.test.uow.UowBehaviorSpec
-import com.razz.eva.uow.Principal
+import com.razz.eva.domain.Principal
 import com.razz.eva.uow.verify.verifyInOrder
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery

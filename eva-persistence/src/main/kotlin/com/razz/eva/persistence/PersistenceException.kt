@@ -2,7 +2,7 @@ package com.razz.eva.persistence
 
 import com.razz.eva.IdempotencyKey
 import com.razz.eva.domain.ModelId
-import com.razz.eva.uow.UowEvent
+import java.util.UUID
 
 sealed class PersistenceException(message: String) : RuntimeException(message) {
 
@@ -16,12 +16,12 @@ sealed class PersistenceException(message: String) : RuntimeException(message) {
     )
 
     class UniqueUowEventRecordViolationException(
-        val uowId: UowEvent.Id,
-        val uowName: UowEvent.UowName,
+        val uowId: UUID,
+        val uowName: String,
         val idempotencyKey: IdempotencyKey?,
         val constraintName: String?
     ) : PersistenceException(
-        "Uniqueness of [$uowName] [${uowId.uuidValue()}] ${idempotencyKey?.let { ": [${it.stringValue()}]" }}" +
+        "Uniqueness of [$uowName] [$uowId] ${idempotencyKey?.let { ": [${it.stringValue()}]" }}" +
             " violated ${constraintName?.let { ": [$it]" }}"
     )
 

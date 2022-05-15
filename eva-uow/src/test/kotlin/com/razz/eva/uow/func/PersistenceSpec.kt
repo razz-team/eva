@@ -14,7 +14,7 @@ import com.razz.eva.serialization.json.string
 import com.razz.eva.tracing.Tracing.withNewSpan
 import com.razz.eva.uow.CreateSoloDepartmentUow
 import com.razz.eva.uow.TestPrincipal
-import com.razz.eva.uow.UowEvent.UowName
+import com.razz.eva.events.UowEvent.UowName
 import io.kotest.matchers.shouldBe
 import io.opentracing.Tracer
 import io.opentracing.propagation.Format

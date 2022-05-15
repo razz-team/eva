@@ -1,5 +1,7 @@
 package com.razz.eva.uow
 
+import com.razz.eva.domain.Principal
+import com.razz.eva.events.UowEvent
 import com.razz.eva.persistence.ConnectionMode.REQUIRE_NEW
 import com.razz.eva.persistence.TransactionManager
 import com.razz.eva.repository.EventRepository
@@ -9,8 +11,9 @@ import com.razz.eva.repository.TransactionalContext.Companion.transactionalConte
 import com.razz.eva.uow.PersistingAccumulator.Factory.newPersistingAccumulator
 import com.razz.eva.uow.PersistingMode.PARALLEL_OUT_OF_ORDER
 import com.razz.eva.uow.PersistingMode.SEQUENTIAL_FIFO
-import com.razz.eva.uow.UowEvent.ModelEventId
-import com.razz.eva.uow.UowEvent.UowName
+import com.razz.eva.events.UowEvent.ModelEventId
+import com.razz.eva.events.UowEvent.UowName
+import com.razz.eva.serialization.json.JsonFormat.json
 import com.razz.eva.uow.params.UowParams
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
@@ -42,7 +45,8 @@ class Persisting(
                 uowName = UowName(uowName),
                 principal = principal,
                 modelEvents = events.associateBy { ModelEventId.random() },
-                params = params,
+                idempotencyKey = params.idempotencyKey,
+                params = json.encodeToJsonElement(params.serialization(), params),
                 occurredAt = startedAt
             )
         }
@@ -51,7 +55,7 @@ class Persisting(
     private suspend fun inTransaction(
         clock: Clock,
         uowSupportsOutOfOrderPersisting: Boolean,
-        block: (ModelPersisting, Instant) -> UowEvent<*>
+        block: (ModelPersisting, Instant) -> UowEvent
     ) {
         val persistingMode = if (transactionManager.supportsPipelining() && uowSupportsOutOfOrderPersisting) {
             PARALLEL_OUT_OF_ORDER
@@ -70,7 +74,7 @@ class Persisting(
 
     private suspend fun flush(
         accumulator: PersistingAccumulator,
-        uowEvent: UowEvent<*>,
+        uowEvent: UowEvent,
         context: TransactionalContext,
         mode: PersistingMode
     ): Unit = when (mode) {
