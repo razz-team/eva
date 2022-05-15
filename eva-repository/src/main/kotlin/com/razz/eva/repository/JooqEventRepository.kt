@@ -1,6 +1,8 @@
 package com.razz.eva.repository
 
 import com.razz.eva.domain.ModelEvent
+import com.razz.eva.events.UowEvent
+import com.razz.eva.events.UowEvent.ModelEventId
 import com.razz.eva.events.db.tables.ModelEvents.MODEL_EVENTS
 import com.razz.eva.events.db.tables.UowEvents.UOW_EVENTS
 import com.razz.eva.events.db.tables.records.ModelEventsRecord
@@ -10,9 +12,6 @@ import com.razz.eva.persistence.executor.QueryExecutor
 import com.razz.eva.repository.Fake.FakeModelEvent
 import com.razz.eva.repository.PgHelpers.PG_UNIQUE_VIOLATION
 import com.razz.eva.repository.PgHelpers.extractUniqueConstraintName
-import com.razz.eva.uow.UowEvent
-import com.razz.eva.uow.UowEvent.ModelEventId
-import com.razz.eva.uow.params.UowParams
 import com.razz.eva.serialization.json.JsonFormat.json
 import com.razz.eva.tracing.ActiveSpanElement
 import io.opentracing.Tracer
@@ -51,7 +50,7 @@ class JooqEventRepository(
     }
 
     private fun toMERecord(
-        uowEvent: UowEvent<*>,
+        uowEvent: UowEvent,
         eventId: ModelEventId,
         modelEvent: ModelEvent<*>
     ): ModelEventsRecord {
@@ -66,22 +65,22 @@ class JooqEventRepository(
         }
     }
 
-    private fun <P : UowParams<P>> toUERecord(uowEvent: UowEvent<P>): UowEventsRecord {
+    private fun toUERecord(uowEvent: UowEvent): UowEventsRecord {
         return UowEventsRecord().apply {
             id = uowEvent.id.uuidValue()
             name = uowEvent.uowName.toString()
-            idempotencyKey = uowEvent.params.idempotencyKey?.stringValue()
+            idempotencyKey = uowEvent.idempotencyKey?.stringValue()
             principalId = uowEvent.principal.id.toString()
             principalName = uowEvent.principal.name.toString()
             occurredAt = uowEvent.occurredAt
             modelEvents = uowEvent.modelEvents
                 .map { (id, _) -> id.uuidValue() }
                 .toTypedArray()
-            params = json.encodeToString(uowEvent.params.serialization(), uowEvent.params)
+            params = json.encodeToString(uowEvent.params)
         }
     }
 
-    override suspend fun <P : UowParams<P>> add(uowEvent: UowEvent<P>) {
+    override suspend fun add(uowEvent: UowEvent) {
         try {
             insert(
                 dslContext.insertQuery(UOW_EVENTS).apply {
@@ -97,9 +96,9 @@ class JooqEventRepository(
                 else -> throw e
             }
             throw UniqueUowEventRecordViolationException(
-                uowEvent.id,
-                uowEvent.uowName,
-                uowEvent.params.idempotencyKey,
+                uowEvent.id.uuidValue(),
+                uowEvent.uowName.stringValue(),
+                uowEvent.idempotencyKey,
                 constraintName
             )
         }

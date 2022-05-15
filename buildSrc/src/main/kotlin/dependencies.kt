@@ -11,7 +11,6 @@ object versions {
     val jaeger = "1.8.0"
     val micrometer = "1.9.0"
     val detekt = "1.20.0"
-    val shadow_jar_plugin = "7.0.0"
     val logback_json = "0.1.5"
     val kotlin_logging = "2.1.21"
     val jackson = "2.13.3"
@@ -62,6 +61,5 @@ object libs {
     val micrometer_prometheus = "io.micrometer:micrometer-registry-prometheus:${versions.micrometer}"
 
     val detekt_plugin = "io.gitlab.arturbosch.detekt:detekt-gradle-plugin:${versions.detekt}"
-    val shadow_jar_plugin = "gradle.plugin.com.github.jengelman.gradle.plugins:shadow:${versions.shadow_jar_plugin}"
     val kotlin_plugin = "org.jetbrains.kotlin:kotlin-gradle-plugin:${versions.kotlin}"
 }

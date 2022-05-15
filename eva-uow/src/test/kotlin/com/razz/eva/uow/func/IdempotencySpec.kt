@@ -8,7 +8,6 @@ import com.razz.eva.persistence.PersistenceException.UniqueUowEventRecordViolati
 import com.razz.eva.uow.CreateEmployeeUow
 import com.razz.eva.uow.CreateSoloDepartmentUow
 import com.razz.eva.uow.TestPrincipal
-import com.razz.eva.uow.UowEvent.UowName
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 
@@ -61,7 +60,7 @@ class IdempotencySpec : PersistenceBaseSpec({
                     val ex = shouldThrow<UniqueUowEventRecordViolationException> {
                         attempt()
                     }
-                    ex.uowName shouldBe UowName("CreateSoloDepartmentUow")
+                    ex.uowName shouldBe "CreateSoloDepartmentUow"
                     ex.idempotencyKey shouldBe idempotencyKey
 
                     And("New department should not be created") {

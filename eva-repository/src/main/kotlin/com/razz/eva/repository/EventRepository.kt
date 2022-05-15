@@ -1,11 +1,10 @@
 package com.razz.eva.repository
 
-import com.razz.eva.uow.UowEvent
-import com.razz.eva.uow.params.UowParams
+import com.razz.eva.events.UowEvent
 
 interface EventRepository {
 
     suspend fun warmup() {}
 
-    suspend fun <P : UowParams<P>> add(uowEvent: UowEvent<P>)
+    suspend fun add(uowEvent: UowEvent)
 }

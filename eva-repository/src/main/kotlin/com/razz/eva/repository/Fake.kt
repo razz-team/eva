@@ -1,17 +1,16 @@
 package com.razz.eva.repository
 
+import com.razz.eva.IdempotencyKey
 import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
-import com.razz.eva.uow.Principal
-import com.razz.eva.uow.UowEvent
-import com.razz.eva.uow.UowEvent.ModelEventId
-import com.razz.eva.uow.UowEvent.UowName
-import com.razz.eva.uow.params.UowParams
-import kotlinx.serialization.Serializable
+import com.razz.eva.domain.Principal
+import com.razz.eva.events.UowEvent
+import com.razz.eva.events.UowEvent.UowName
+import com.razz.eva.events.UowEvent.ModelEventId
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import java.time.Instant.now
-import java.util.*
+import java.util.UUID
 import java.util.UUID.randomUUID
 
 internal object Fake {
@@ -33,14 +32,6 @@ internal object Fake {
         override val id: UUID = randomUUID()
     }
 
-    @Serializable
-    object FakeParams : UowParams<FakeParams> {
-
-        val id = FakeId
-
-        override fun serialization() = serializer()
-    }
-
     object FakePrincipal : Principal<UUID> {
         override val id = Principal.Id(randomUUID())
 
@@ -52,7 +43,10 @@ internal object Fake {
         uowName = UowName("Fake"),
         principal = FakePrincipal,
         modelEvents = mapOf(FakeModelEvent.eventId to FakeModelEvent),
-        params = FakeParams,
+        idempotencyKey = IdempotencyKey.random(),
+        params = buildJsonObject {
+            put("id", FakeId.id.toString())
+        },
         occurredAt = now()
     )
 }

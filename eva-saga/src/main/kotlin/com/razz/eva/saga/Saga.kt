@@ -2,7 +2,7 @@ package com.razz.eva.saga
 
 import com.razz.eva.saga.Saga.Intermediary
 import com.razz.eva.saga.Saga.Terminal
-import com.razz.eva.uow.Principal
+import com.razz.eva.domain.Principal
 import kotlin.reflect.KClass
 
 abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>

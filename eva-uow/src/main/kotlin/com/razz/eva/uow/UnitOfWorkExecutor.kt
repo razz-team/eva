@@ -1,5 +1,6 @@
 package com.razz.eva.uow
 
+import com.razz.eva.domain.Principal
 import com.razz.eva.metrics.timerBuilder
 import com.razz.eva.persistence.PersistenceException
 import com.razz.eva.persistence.PrimaryConnectionRequiredFlag
@@ -8,7 +9,6 @@ import com.razz.eva.tracing.Tracing
 import com.razz.eva.tracing.Tracing.PERFORM
 import com.razz.eva.tracing.Tracing.PERSIST
 import com.razz.eva.uow.UnitOfWorkExecutor.ClassToUow
-import com.razz.eva.uow.params.UowParams
 import io.micrometer.core.instrument.MeterRegistry
 import io.opentracing.Span
 import io.opentracing.Tracer

@@ -1,7 +1,7 @@
 package com.razz.eva.examples.uow
 
-import com.razz.eva.uow.Principal
-import com.razz.eva.uow.Principal.Id
+import com.razz.eva.domain.Principal
+import com.razz.eva.domain.Principal.Id
 
 class ServicePrincipal(
     override val id: Id<String>,

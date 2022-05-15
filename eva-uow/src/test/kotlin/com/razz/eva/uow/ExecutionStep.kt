@@ -2,6 +2,7 @@ package com.razz.eva.uow
 
 import com.razz.eva.domain.Model
 import com.razz.eva.domain.ModelId
+import com.razz.eva.events.UowEvent
 import com.razz.eva.persistence.ConnectionMode
 import com.razz.eva.repository.TransactionalContext
 
@@ -31,5 +32,5 @@ sealed class ExecutionStep {
         val model: List<M>
     ) : ExecutionStep()
 
-    data class UowEventAdded(val uowEvent: UowEvent<*>) : ExecutionStep()
+    data class UowEventAdded(val uowEvent: UowEvent) : ExecutionStep()
 }

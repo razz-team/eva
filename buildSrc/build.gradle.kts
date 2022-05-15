@@ -25,7 +25,6 @@ tasks.compileKotlin {
 
 dependencies {
     implementation(libs.kotlin_serialization)
-    implementation(libs.shadow_jar_plugin)
     implementation(libs.detekt_plugin)
     implementation(libs.kotlin_plugin)
 }
