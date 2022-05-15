@@ -17,7 +17,7 @@ import com.razz.eva.events.db.tables.records.UowEventsRecord
 import com.razz.eva.persistence.executor.FakeMemorizingQueryExecutor
 import com.razz.eva.persistence.executor.FakeMemorizingQueryExecutor.ExecutionStep.StoreExecuted
 import com.razz.eva.serialization.json.JsonFormat.json
-import com.razz.eva.uow.params.UowParams
+import com.razz.eva.uow.UowParams
 import com.razz.eva.tracing.Tracing.notReportingTracer
 import com.razz.eva.tracing.Tracing.withNewSpan
 import io.kotest.core.spec.style.BehaviorSpec

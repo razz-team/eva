@@ -8,6 +8,7 @@ import com.razz.eva.events.IntegrationModelEvent.ModelId
 import com.razz.eva.events.IntegrationModelEvent.ModelName
 import com.razz.eva.events.IntegrationModelEvent.UowId
 import com.razz.eva.events.UowEvent
+import com.razz.eva.events.UowEvent.UowName
 import com.razz.eva.events.db.tables.ModelEvents.MODEL_EVENTS
 import com.razz.eva.events.db.tables.UowEvents.UOW_EVENTS
 import com.razz.eva.events.db.tables.records.ModelEventsRecord
@@ -28,7 +29,7 @@ class EventQueries(
 
     data class PersistedUowEvent(
         val id: UowEvent.Id,
-        val uowName: UowEvent.UowName,
+        val uowName: UowName,
         val principalId: String,
         val principalName: String,
         val modelEvents: List<Pair<IntegrationModelEvent, JsonObject>>,
@@ -55,7 +56,7 @@ class EventQueries(
 
         return PersistedUowEvent(
             id = UowEvent.Id(uowEvent.id),
-            uowName = UowEvent.UowName(uowEvent.name),
+            uowName = UowName(uowEvent.name),
             principalId = uowEvent.principalId,
             principalName = uowEvent.principalName,
             occurredAt = uowEvent.occurredAt,

@@ -37,7 +37,7 @@ import com.razz.eva.uow.SpyRepo
 import com.razz.eva.uow.TestPrincipal
 import com.razz.eva.events.UowEvent
 import com.razz.eva.events.UowEvent.UowName
-import com.razz.eva.uow.params.UowParams
+import com.razz.eva.uow.UowParams
 import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.matchers.maps.shouldHaveSize
 import io.kotest.matchers.should

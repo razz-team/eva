@@ -2,6 +2,7 @@ package com.razz.eva.repository
 
 import com.razz.eva.domain.ModelEvent
 import com.razz.eva.events.UowEvent
+import com.razz.eva.events.UowEvent.ModelEventId
 import com.razz.eva.events.db.tables.ModelEvents.MODEL_EVENTS
 import com.razz.eva.events.db.tables.UowEvents.UOW_EVENTS
 import com.razz.eva.events.db.tables.records.ModelEventsRecord
@@ -50,7 +51,7 @@ class JooqEventRepository(
 
     private fun toMERecord(
         uowEvent: UowEvent,
-        eventId: UowEvent.ModelEventId,
+        eventId: ModelEventId,
         modelEvent: ModelEvent<*>
     ): ModelEventsRecord {
         return ModelEventsRecord().apply {

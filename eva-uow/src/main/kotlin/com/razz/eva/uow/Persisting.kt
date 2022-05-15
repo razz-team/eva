@@ -14,7 +14,6 @@ import com.razz.eva.uow.PersistingMode.SEQUENTIAL_FIFO
 import com.razz.eva.events.UowEvent.ModelEventId
 import com.razz.eva.events.UowEvent.UowName
 import com.razz.eva.serialization.json.JsonFormat.json
-import com.razz.eva.uow.params.UowParams
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import java.time.Clock

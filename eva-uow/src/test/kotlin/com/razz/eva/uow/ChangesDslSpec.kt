@@ -12,7 +12,6 @@ import com.razz.eva.domain.Version.Companion.V1
 import com.razz.eva.tracing.Tracing.noopTracer
 import com.razz.eva.uow.Clocks.fixedUTC
 import com.razz.eva.uow.Clocks.millisUTC
-import com.razz.eva.uow.params.UowParams
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe

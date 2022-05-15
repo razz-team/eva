@@ -4,7 +4,6 @@ import com.razz.eva.domain.Principal
 import com.razz.eva.persistence.PersistenceException
 import com.razz.eva.uow.BaseUnitOfWork.Configuration.Companion.default
 import com.razz.eva.uow.Retry.StaleRecordFixedRetry.Companion.DEFAULT
-import com.razz.eva.uow.params.UowParams
 import java.time.Clock
 
 abstract class BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, C>(
