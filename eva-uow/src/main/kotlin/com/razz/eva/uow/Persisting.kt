@@ -1,6 +1,7 @@
 package com.razz.eva.uow
 
 import com.razz.eva.domain.Principal
+import com.razz.eva.events.EventPublisher
 import com.razz.eva.events.UowEvent
 import com.razz.eva.persistence.ConnectionMode.REQUIRE_NEW
 import com.razz.eva.persistence.TransactionManager
@@ -23,8 +24,18 @@ import java.util.UUID.randomUUID
 class Persisting(
     private val transactionManager: TransactionManager<*>,
     private val modelRepos: ModelRepos,
-    private val eventRepository: EventRepository
+    private val eventRepository: EventRepository,
+    private val eventPublisher: EventPublisher
 ) {
+    constructor(
+        transactionManager: TransactionManager<*>,
+        modelRepos: ModelRepos,
+        eventRepository: EventRepository
+    ) : this(transactionManager, modelRepos, eventRepository, NoopEventPublisher)
+
+    private object NoopEventPublisher : EventPublisher {
+        override suspend fun publish(uowEvent: UowEvent) = Unit
+    }
 
     internal suspend fun <PARAMS : UowParams<PARAMS>> persist(
         uowName: String,
@@ -34,7 +45,7 @@ class Persisting(
         clock: Clock,
         uowSupportsOutOfOrderPersisting: Boolean
     ) {
-        inTransaction(clock, uowSupportsOutOfOrderPersisting) { persisting, startedAt ->
+        val uowEvent = inTransaction(clock, uowSupportsOutOfOrderPersisting) { persisting, startedAt ->
             val events = changes.flatMap(Change::modelEvents)
             changes.forEach { change ->
                 change.persist(persisting)
@@ -49,13 +60,14 @@ class Persisting(
                 occurredAt = startedAt
             )
         }
+        eventPublisher.publish(uowEvent)
     }
 
     private suspend fun inTransaction(
         clock: Clock,
         uowSupportsOutOfOrderPersisting: Boolean,
         block: (ModelPersisting, Instant) -> UowEvent
-    ) {
+    ): UowEvent {
         val persistingMode = if (transactionManager.supportsPipelining() && uowSupportsOutOfOrderPersisting) {
             PARALLEL_OUT_OF_ORDER
         } else {
@@ -69,6 +81,7 @@ class Persisting(
                 flush(persisting, uowEvent, transactionalContext(clock.instant()), persistingMode)
             }
         )
+        return uowEvent
     }
 
     private suspend fun flush(
