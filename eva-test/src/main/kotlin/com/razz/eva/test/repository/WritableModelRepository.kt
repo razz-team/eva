@@ -17,10 +17,10 @@ class WritableModelRepository(
 ) {
 
     suspend fun <R> inTransaction(
-        startedAt: Instant,
+        rxStartedAt: Instant,
         block: suspend (context: TransactionalContext) -> R
     ): R {
-        val context = TransactionalContext.transactionalContext(startedAt)
+        val context = TransactionalContext.transactionalContext(rxStartedAt)
         val txBlock: suspend () -> R = {
             block(context)
         }
@@ -29,17 +29,17 @@ class WritableModelRepository(
 
     suspend fun <ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>, M : Model<ID, E>> add(
         model: M,
-        startedAt: Instant = clock.instant()
+        rxStartedAt: Instant = clock.instant()
     ): M =
-        inTransaction(startedAt) {
+        inTransaction(rxStartedAt) {
             modelRepos.repoFor(model).add(it, model)
         }
 
     suspend fun <ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>, M : Model<ID, E>> update(
         model: M,
-        startedAt: Instant = clock.instant()
+        rxStartedAt: Instant = clock.instant()
     ): M =
-        inTransaction(startedAt) {
+        inTransaction(rxStartedAt) {
             modelRepos.repoFor(model).update(it, model)
         }
 }
