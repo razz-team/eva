@@ -14,6 +14,7 @@ import com.razz.eva.domain.Name
 import com.razz.eva.domain.Ration.BUBALEH
 import com.razz.eva.domain.TestModel.Factory.existingCreatedTestModel
 import com.razz.eva.domain.Version.Companion.V1
+import com.razz.eva.events.EventPublisher
 import com.razz.eva.persistence.ConnectionMode.REQUIRE_NEW
 import com.razz.eva.persistence.DummyConnection
 import com.razz.eva.persistence.WithCtxConnectionTransactionManager
@@ -37,6 +38,7 @@ import com.razz.eva.uow.SpyRepo
 import com.razz.eva.uow.TestPrincipal
 import com.razz.eva.events.UowEvent
 import com.razz.eva.events.UowEvent.UowName
+import com.razz.eva.uow.ExecutionStep.UowEventPublished
 import com.razz.eva.uow.UowParams
 import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.matchers.maps.shouldHaveSize
@@ -134,16 +136,22 @@ class PersistingSpec : BehaviorSpec({
         )
 
         val eventsRepo = object : EventRepository {
-
             override suspend fun add(uowEvent: UowEvent) {
                 history.add(UowEventAdded(uowEvent))
+            }
+        }
+
+        val eventPublisher = object : EventPublisher {
+            override suspend fun publish(uowEvent: UowEvent) {
+                history.add(UowEventPublished(uowEvent))
             }
         }
 
         val persisting = Persisting(
             transactionManager = txnManager,
             modelRepos = repos,
-            eventRepository = eventsRepo
+            eventRepository = eventsRepo,
+            eventPublisher = eventPublisher
         )
 
         val now = now()
@@ -185,7 +193,7 @@ class PersistingSpec : BehaviorSpec({
                         " with context created from configured clock"
                 ) {
                     history should {
-                        it.size shouldBe 6
+                        it.size shouldBe 7
                         it[0] shouldBe TransactionStarted(REQUIRE_NEW)
                         it[1] shouldBe ModelsUpdated(transactionalContext(now), listOf(boss1, boss2))
                         it[2] shouldBe ModelsUpdated(transactionalContext(now), listOf(department3))
@@ -216,6 +224,31 @@ class PersistingSpec : BehaviorSpec({
                             }
                         }
                         it[5] shouldBe TransactionFinished(REQUIRE_NEW)
+                        it[6] should { eh ->
+                            eh.shouldBeTypeOf<UowEventPublished>()
+                            eh.uowEvent.occurredAt shouldBe now
+                            eh.uowEvent.uowName shouldBe UowName("Hoba")
+                            eh.uowEvent.modelEvents.values.toList() should { vals ->
+                                vals.size shouldBe 5
+                                vals[0] shouldBe OwnedDepartmentCreated(
+                                    departmentId = departmentId1,
+                                    name = "KazahDepartment 1",
+                                    headcount = 1,
+                                    ration = BUBALEH,
+                                    boss = bossId1
+                                )
+                                vals[1] shouldBe DepartmentChanged(bossId1, oldDepId, departmentId1)
+                                vals[2] shouldBe BossChanged(departmentId3, bossId3, bossId2)
+                                vals[3] shouldBe OwnedDepartmentCreated(
+                                    departmentId = departmentId2,
+                                    name = "KazahDepartment 2",
+                                    headcount = 1,
+                                    ration = BUBALEH,
+                                    boss = bossId2
+                                )
+                                vals[4] shouldBe DepartmentChanged(bossId2, oldDepId, departmentId2)
+                            }
+                        }
                     }
                 }
             }
@@ -232,7 +265,7 @@ class PersistingSpec : BehaviorSpec({
                         " with context created from configured clock"
                 ) {
                     history should {
-                        it.size shouldBe 8
+                        it.size shouldBe 9
                         it[0] shouldBe TransactionStarted(REQUIRE_NEW)
                         it[1] shouldBe ModelAdded(transactionalContext(now), department1)
                         it[2] shouldBe ModelUpdated(transactionalContext(now), boss1)
@@ -265,6 +298,31 @@ class PersistingSpec : BehaviorSpec({
                             }
                         }
                         it[7] shouldBe TransactionFinished(REQUIRE_NEW)
+                        it[8] should { eh ->
+                            eh.shouldBeTypeOf<UowEventPublished>()
+                            eh.uowEvent.occurredAt shouldBe now
+                            eh.uowEvent.uowName shouldBe UowName("Hoba")
+                            eh.uowEvent.modelEvents.values.toList() should { vals ->
+                                vals.size shouldBe 5
+                                vals[0] shouldBe OwnedDepartmentCreated(
+                                    departmentId = departmentId1,
+                                    name = "KazahDepartment 1",
+                                    headcount = 1,
+                                    ration = BUBALEH,
+                                    boss = bossId1
+                                )
+                                vals[1] shouldBe DepartmentChanged(bossId1, oldDepId, departmentId1)
+                                vals[2] shouldBe BossChanged(departmentId3, bossId3, bossId2)
+                                vals[3] shouldBe OwnedDepartmentCreated(
+                                    departmentId = departmentId2,
+                                    name = "KazahDepartment 2",
+                                    headcount = 1,
+                                    ration = BUBALEH,
+                                    boss = bossId2
+                                )
+                                vals[4] shouldBe DepartmentChanged(bossId2, oldDepId, departmentId2)
+                            }
+                        }
                     }
                 }
             }
@@ -294,7 +352,7 @@ class PersistingSpec : BehaviorSpec({
                             " with context created from configured clock"
                     ) {
                         history should {
-                            it.size shouldBe 3
+                            it.size shouldBe 4
                             it[0] shouldBe TransactionStarted(REQUIRE_NEW)
                             it[1] should { eh ->
                                 eh.shouldBeTypeOf<UowEventAdded>()
@@ -303,6 +361,12 @@ class PersistingSpec : BehaviorSpec({
                                 eh.uowEvent.modelEvents shouldHaveSize 0
                             }
                             it[2] shouldBe TransactionFinished(REQUIRE_NEW)
+                            it[3] should { eh ->
+                                eh.shouldBeTypeOf<UowEventPublished>()
+                                eh.uowEvent.occurredAt shouldBe now
+                                eh.uowEvent.uowName shouldBe UowName("Hoba")
+                                eh.uowEvent.modelEvents shouldHaveSize 0
+                            }
                         }
                     }
                 }
