@@ -92,7 +92,7 @@ private suspend fun validateResult(chan: Channel<Result>) {
 }
 
 private fun consumer(matcher: suspend (IntegrationModelEvent) -> Unit): Pair<Channel<Result>, EventConsumer> {
-    val chan = Channel<Result> { }
+    val chan = Channel<Result>(capacity = 100) { }
     return chan to object : EventConsumer {
         override val modelName = IntegrationModelEvent.ModelName("TestModel")
         override val eventNames = setOf(IntegrationModelEvent.EventName("TestModelEvent"))
