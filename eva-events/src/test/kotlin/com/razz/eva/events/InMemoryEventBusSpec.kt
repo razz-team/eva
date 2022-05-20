@@ -7,7 +7,10 @@ import com.razz.eva.domain.Principal
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
+import kotlin.time.DurationUnit
+import kotlin.time.toDuration
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import java.time.Instant
@@ -91,7 +94,9 @@ object TestModelEvent : ModelEvent<TestModelId> {
     override val modelName = "TestModel"
 }
 private suspend fun validateResult(chan: Channel<Result>) {
-    when (val res = chan.receive()) {
+    when (val res = withTimeout(5.toDuration(DurationUnit.SECONDS)) {
+        chan.receive()
+    }) {
         is Result.Error -> throw res.e
         Result.Ok -> {}
     }
