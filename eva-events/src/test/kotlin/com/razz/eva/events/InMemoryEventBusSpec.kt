@@ -5,7 +5,10 @@ import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
 import com.razz.eva.domain.Principal
 import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.common.ExperimentalKotest
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.core.test.TestScope
+import io.kotest.engine.test.logging.warn
 import io.kotest.matchers.shouldBe
 import kotlin.time.DurationUnit
 import kotlin.time.toDuration
@@ -16,6 +19,7 @@ import kotlinx.serialization.json.put
 import java.time.Instant
 import java.util.*
 
+@OptIn(ExperimentalKotest::class)
 class InMemoryEventBusSpec : FunSpec({
 
     test("Not started event bus does not accept events") {
@@ -46,8 +50,13 @@ class InMemoryEventBusSpec : FunSpec({
         val bus = InMemoryEventBus(listOf(consumer)).apply {
             start()
         }
+        this@test.warn {
+            "____PUBLISHING____: " + uowEvent.id
+        }
         bus.publish(uowEvent)
-        println("____VALIDATING____: " + uowEvent.id)
+        this@test.warn {
+            "____VALIDATING____: " + uowEvent.id
+        }
         validateResult(chan)
     }
 })
@@ -92,23 +101,30 @@ private suspend fun validateResult(chan: Channel<Result>) {
     }
 }
 
-private fun consumer(matcher: suspend (IntegrationModelEvent) -> Unit): Pair<Channel<Result>, EventConsumer> {
+@OptIn(ExperimentalKotest::class)
+private fun TestScope.consumer(matcher: suspend (IntegrationModelEvent) -> Unit): Pair<Channel<Result>, EventConsumer> {
     val chan = Channel<Result>(capacity = 100) { }
     return chan to object : EventConsumer {
         override val modelName = IntegrationModelEvent.ModelName("TestModel")
         override val eventNames = setOf(IntegrationModelEvent.EventName("TestModelEvent"))
         override suspend fun consume(event: IntegrationModelEvent) {
             try {
-                println("____CONSUMING____: " + event.id)
+                this@consumer.warn {
+                    "____CONSUMING____: " + event.id
+                }
                 matcher(event)
                 chan.send(Result.Ok)
-                println("____CONSUMED____: " + event.id)
+                this@consumer.warn {
+                    "____CONSUMED____: " + event.id
+                }
             } catch (e: Throwable) {
                 chan.send(Result.Error(e))
-                println("____FAILED TO CONSUME____: " + event.id)
+                this@consumer.warn {
+                    "____FAILED TO CONSUME____: " + event.id
+                }
             }
         }
     }
 }
 
-private fun consumer() = consumer { }.second
+private fun TestScope.consumer() = consumer { }.second
