@@ -35,31 +35,6 @@ class InMemoryEventBusSpec : FunSpec({
         shouldThrow<IllegalStateException> { startedAndClosed.publish(uowEvent()) }
     }
 
-    test("Event bus distributes event to consumer") {
-        val uowEvent = uowEvent()
-        val (modelEventId, modelEvent) = uowEvent.modelEvents.entries.first()
-        val (chan, consumer) = consumer { event ->
-            event.eventName.toString() shouldBe modelEvent.eventName()
-            event.id.toUUID() shouldBe modelEventId.uuidValue()
-            event.modelId.stringValue() shouldBe modelEvent.modelId.stringValue()
-            event.occurredAt shouldBe uowEvent.occurredAt
-            event.modelName.toString() shouldBe modelEvent.modelName
-            event.uowId.toUUID() shouldBe uowEvent.id.uuidValue()
-            event.payload shouldBe modelEvent.integrationEvent()
-        }
-        val bus = InMemoryEventBus(listOf(consumer)).apply {
-            start()
-        }
-        this@test.warn {
-            "____PUBLISHING____: " + uowEvent.id
-        }
-        bus.publish(uowEvent)
-        this@test.warn {
-            "____VALIDATING____: " + uowEvent.id
-        }
-        validateResult(chan)
-    }
-
     test("Test channel lol") {
         val chan = Channel<Result>(capacity = 100) { }
         chan.send(Result.Ok)
@@ -99,7 +74,7 @@ private fun uowEvent(vararg modelEvents: TestModelEvent = arrayOf(TestModelEvent
     occurredAt = Instant.now()
 )
 
-private suspend fun validateResult(chan: Channel<Result>) {
+suspend fun validateResult(chan: Channel<Result>) {
     when (val res = withTimeout(5.toDuration(DurationUnit.SECONDS)) {
         chan.receive()
     }) {

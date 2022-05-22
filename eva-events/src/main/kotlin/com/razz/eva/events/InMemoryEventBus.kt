@@ -44,7 +44,7 @@ class InMemoryEventBus(
 
     override suspend fun publish(uowEvent: UowEvent) {
         if (consumingJob?.isActive != true) {
-            throw IllegalStateException("Event bus was closed or was not started and cant accept new events")
+            throw IllegalStateException("Event bus was closed or was not started and can't accept new events")
         }
         uowEvent.modelEvents.forEach { (id, event) ->
             val integrationEvent = IntegrationModelEvent(
