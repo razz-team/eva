@@ -45,13 +45,7 @@ class InMemoryEventBusSpec : FunSpec({
         ).apply {
             start()
         }
-        println(
-            "____PUBLISHING____: " + uowEvent.id
-        )
         bus.publish(uowEvent)
-        println(
-            "____VALIDATING____: " + uowEvent.id
-        )
         validateResult(chan)
     }
 
@@ -70,13 +64,7 @@ class InMemoryEventBusSpec : FunSpec({
         ).apply {
             start()
         }
-        println(
-            "____PUBLISHING____: " + uowEvent.id
-        )
         bus.publish(uowEvent)
-        println(
-            "____VALIDATING____: " + uowEvent.id
-        )
         validateResult(chan0)
         validateResult(chan1)
     }
@@ -101,13 +89,7 @@ class InMemoryEventBusSpec : FunSpec({
         ).apply {
             start()
         }
-        println(
-            "____PUBLISHING____: " + uowEvent.id
-        )
         bus.publish(uowEvent)
-        println(
-            "____VALIDATING____: " + uowEvent.id
-        )
         validateResult(chan0)
         validateResult(chan1)
         validateResult(chan2)
@@ -193,19 +175,10 @@ private fun consumer(
         override val eventNames = setOf(IntegrationModelEvent.EventName(modelEvent.eventName()))
         override suspend fun consume(event: IntegrationModelEvent) {
             try {
-                println(
-                    "____CONSUMING____: " + event.id
-                )
                 matcher(event)
                 chan.send(Result.Ok)
-                println(
-                    "____CONSUMED____: " + event.id
-                )
             } catch (e: Throwable) {
                 chan.send(Result.Error(e))
-                println(
-                    "____FAILED TO CONSUME____: " + event.id
-                )
             }
         }
     }
