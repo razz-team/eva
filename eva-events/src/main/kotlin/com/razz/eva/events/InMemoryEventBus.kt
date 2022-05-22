@@ -27,8 +27,14 @@ class InMemoryEventBus(
         .groupByTo(mutableMapOf(), { (name, _) -> name }, { (_, consumer) -> consumer })
 
     fun start() {
+        consumerMap.entries.forEach { (k, _) ->
+            println("____KEY____: $k")
+        }
         consumingJob = CoroutineScope(context).launch {
             flow.collect { event ->
+                println(
+                    "____COLLECTING____ (${EventKey(event.eventName, event.modelName)}): " + event.id
+                )
                 if (isActive) {
                     try {
                         consumerMap[EventKey(event.eventName, event.modelName)]?.forEach { consumer ->
@@ -57,6 +63,9 @@ class InMemoryEventBus(
                 payload = event.integrationEvent()
             )
             flow.emit(integrationEvent)
+            println(
+                "____PUBLISHED____: " + uowEvent.id
+            )
         }
     }
 
