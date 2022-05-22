@@ -59,6 +59,13 @@ class InMemoryEventBusSpec : FunSpec({
         }
         validateResult(chan)
     }
+
+    test("Test channel lol") {
+        val chan = Channel<Result>(capacity = 100) { }
+        chan.send(Result.Ok)
+        val res = chan.receive()
+        res shouldBe Result.Ok
+    }
 })
 
 sealed interface Result {
