@@ -1,7 +1,7 @@
 package com.razz.eva.events
 
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.ExecutorCoroutineDispatcher
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.channels.BufferOverflow
@@ -16,7 +16,7 @@ class InMemoryEventBus(
     consumers: List<EventConsumer>,
     extraBufferCapacity: Int = 100,
     onBufferOverflow: BufferOverflow = BufferOverflow.SUSPEND,
-    private val context: ExecutorCoroutineDispatcher = newSingleThreadExecutor().asCoroutineDispatcher()
+    private val context: CoroutineDispatcher = newSingleThreadExecutor().asCoroutineDispatcher()
 ) : EventPublisher, Closeable {
 
     private val logger = KotlinLogging.logger {}

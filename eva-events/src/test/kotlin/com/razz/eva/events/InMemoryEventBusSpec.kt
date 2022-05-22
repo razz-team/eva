@@ -9,12 +9,14 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import kotlin.time.DurationUnit
 import kotlin.time.toDuration
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import java.time.Instant
 import java.util.*
+import java.util.concurrent.Executor
 
 class InMemoryEventBusSpec : FunSpec({
 
@@ -37,7 +39,10 @@ class InMemoryEventBusSpec : FunSpec({
         val (chan, consumer) = consumer(modelEvent) { event ->
             matchConsumed(event, modelEvent, modelEventId, uowEvent)
         }
-        val bus = InMemoryEventBus(listOf(consumer)).apply {
+        val bus = InMemoryEventBus(
+            consumers = listOf(consumer),
+            context = Executor(Runnable::run).asCoroutineDispatcher()
+        ).apply {
             start()
         }
         println(
@@ -59,7 +64,10 @@ class InMemoryEventBusSpec : FunSpec({
         val (chan1, consumer1) = consumer(modelEvent) { event ->
             matchConsumed(event, modelEvent, modelEventId, uowEvent)
         }
-        val bus = InMemoryEventBus(listOf(consumer0, consumer1)).apply {
+        val bus = InMemoryEventBus(
+            consumers = listOf(consumer0, consumer1),
+            context = Executor(Runnable::run).asCoroutineDispatcher()
+        ).apply {
             start()
         }
         println(
@@ -87,7 +95,10 @@ class InMemoryEventBusSpec : FunSpec({
         val (chan2, consumer2) = consumer(modelEvent2) { event ->
             matchConsumed(event, modelEvent2, modelEventId2, uowEvent)
         }
-        val bus = InMemoryEventBus(listOf(consumer0, consumer1, consumer2)).apply {
+        val bus = InMemoryEventBus(
+            consumers = listOf(consumer0, consumer1, consumer2),
+            context = Executor(Runnable::run).asCoroutineDispatcher()
+        ).apply {
             start()
         }
         println(
