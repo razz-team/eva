@@ -60,11 +60,39 @@ class InMemoryEventBusSpec : FunSpec({
         validateResult(chan)
     }
 
-    test("Test channel lol") {
-        val chan = Channel<Result>(capacity = 100) { }
-        chan.send(Result.Ok)
-        val res = chan.receive()
-        res shouldBe Result.Ok
+    test("Event bus distributes event to all interested consumers") {
+        val uowEvent = uowEvent()
+        val (modelEventId, modelEvent) = uowEvent.modelEvents.entries.first()
+        val (chan0, consumer0) = consumer { event ->
+            event.eventName.toString() shouldBe modelEvent.eventName()
+            event.id.toUUID() shouldBe modelEventId.uuidValue()
+            event.modelId.stringValue() shouldBe modelEvent.modelId.stringValue()
+            event.occurredAt shouldBe uowEvent.occurredAt
+            event.modelName.toString() shouldBe modelEvent.modelName
+            event.uowId.toUUID() shouldBe uowEvent.id.uuidValue()
+            event.payload shouldBe modelEvent.integrationEvent()
+        }
+        val (chan1, consumer1) = consumer { event ->
+            event.eventName.toString() shouldBe modelEvent.eventName()
+            event.id.toUUID() shouldBe modelEventId.uuidValue()
+            event.modelId.stringValue() shouldBe modelEvent.modelId.stringValue()
+            event.occurredAt shouldBe uowEvent.occurredAt
+            event.modelName.toString() shouldBe modelEvent.modelName
+            event.uowId.toUUID() shouldBe uowEvent.id.uuidValue()
+            event.payload shouldBe modelEvent.integrationEvent()
+        }
+        val bus = InMemoryEventBus(listOf(consumer0, consumer1)).apply {
+            start()
+        }
+        this@test.warn {
+            "____PUBLISHING____: " + uowEvent.id
+        }
+        bus.publish(uowEvent)
+        this@test.warn {
+            "____VALIDATING____: " + uowEvent.id
+        }
+        validateResult(chan0)
+        validateResult(chan1)
     }
 })
 
