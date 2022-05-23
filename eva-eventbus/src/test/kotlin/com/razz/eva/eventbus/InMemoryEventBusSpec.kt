@@ -1,9 +1,12 @@
-package com.razz.eva.events
+package com.razz.eva.eventbus
 
 import com.razz.eva.IdempotencyKey
 import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
 import com.razz.eva.domain.Principal
+import com.razz.eva.events.EventConsumer
+import com.razz.eva.events.IntegrationModelEvent
+import com.razz.eva.events.UowEvent
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
@@ -116,30 +119,30 @@ sealed interface Result {
     data class Error(val e: Throwable) : Result
 }
 
-object TestPrincipal : Principal<UUID> {
+private object TestPrincipal : Principal<UUID> {
     override val id = Principal.Id(UUID.randomUUID())
     override val name = Principal.Name("TestPrincipal")
 }
 
-object TestModelId0 : ModelId<String> {
+private object TestModelId0 : ModelId<String> {
     override val id = "TestModelId0"
 }
 
-object TestModelId1 : ModelId<String> {
+private object TestModelId1 : ModelId<String> {
     override val id = "TestModelId0"
 }
 
-object TestModelEvent0 : ModelEvent<TestModelId0> {
+private object TestModelEvent0 : ModelEvent<TestModelId0> {
     override val modelId = TestModelId0
     override val modelName = "TestModel0"
 }
 
-object TestModelEvent1 : ModelEvent<TestModelId1> {
+private object TestModelEvent1 : ModelEvent<TestModelId1> {
     override val modelId = TestModelId1
     override val modelName = "TestModel1"
 }
 
-object TestModelEvent2 : ModelEvent<TestModelId1> {
+private object TestModelEvent2 : ModelEvent<TestModelId1> {
     override val modelId = TestModelId1
     override val modelName = "TestModel1"
 }

@@ -20,6 +20,7 @@ fun DependencyHandler.project(module: eva) = this.project(moduleName(module))
 
 interface eva {
     object eva_domain : eva
+    object eva_eventbus : eva
     object eva_events : eva
     object eva_events_db_schema : eva
     object eva_jooq : eva
