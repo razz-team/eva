@@ -33,4 +33,6 @@ sealed class ExecutionStep {
     ) : ExecutionStep()
 
     data class UowEventAdded(val uowEvent: UowEvent) : ExecutionStep()
+
+    data class UowEventPublished(val uowEvent: UowEvent) : ExecutionStep()
 }
