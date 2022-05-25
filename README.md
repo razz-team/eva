@@ -255,7 +255,21 @@ You can find script to create event's table [here](eva-events-db-schema/src/main
 ## Features
 
 ### Event sourcing
-...
+
+#### Transactional outbox 
+Eva employs [outbox pattern](https://microservices.io/patterns/data/transactional-outbox.html) for event distribution. In short: events are written to the same database and in the same transaction with models. Same transactional guarantees applied to both models and events. Events schema and migrations are provided by eva, you can find sql sources [here](/eva-events-db-schema/src/main/resources/com/razz/eva/events/db/V001__create_events.sql) and persistence logic [here](eva-repository/src/main/kotlin/com/razz/eva/repository/JooqEventRepository.kt). Eva is not in charge of further distribution of such events, however there are several opensource frameworks available, for instance [Kafka Connect](https://docs.confluent.io/platform/current/connect/index.html) and [Debezium](https://debezium.io/documentation/reference/2.0/tutorial.html).
+
+#### Custom event publisher
+When desired, events can be published through custom implementation of [EventPublisher](eva-events/src/main/kotlin/com/razz/eva/events/EventPublisher.kt). This publisher has to be passed to `Persisting` as optional parameter like demonstrated below:
+```kotlin
+val persisting: Persisting = Persisting(
+    transactionManager = persistenceModule.transactionManager,
+    modelRepos = repositoryModule.modelRepos,
+    eventRepository = eventRepository,
+    eventPublisher = eventPublisher
+)
+```
+Events are passed to the publisher out of the scope of transaction once models are persisted. If persisting of models fails, no events are passed to the publisher. Publisher failure does not affect models persisting. Eva provides simple in-memory [eventbus](eva-eventbus/src/main/kotlin/com/razz/eva/eventbus/InMemoryEventBus.kt) implementation for your convenience. This eventbus implements `Publisher` interface and accepts multiple `EventConsumer`s to which it distributes published events. This implementation provides fifo guarantees for published events and does not provide any guarantees regarding distribution resilience. We strongly suggest to follow `transactional outbox` approach if at-least-once event delivery is a requirement. 
 
 ### Unit of work validation
 After you wrote your first unit of work, you probably want to ask - how I can test it?
