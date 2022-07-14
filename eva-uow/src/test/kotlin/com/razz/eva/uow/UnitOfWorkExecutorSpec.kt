@@ -14,6 +14,7 @@ import com.razz.eva.persistence.PrimaryConnectionRequiredFlag
 import com.razz.eva.persistence.WithCtxConnectionTransactionManager
 import com.razz.eva.repository.ModelRepos
 import com.razz.eva.tracing.Tracing.noopTracer
+import com.razz.eva.uow.BaseUnitOfWork.Configuration
 import com.razz.eva.uow.Clocks.fixedUTC
 import com.razz.eva.uow.Clocks.millisUTC
 import com.razz.eva.uow.CreateDepartmentUow.Params
@@ -194,7 +195,8 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
             )
 
             And("UnitOfWork has one retry and returns result") {
-                every { rawUnitOfWork.configuration().retry } returns StaleRecordFixedRetry(1, ofMillis(100))
+                every { rawUnitOfWork.configuration() } returns
+                    Configuration(StaleRecordFixedRetry(1, ofMillis(100)), true)
                 val changes = DefaultChanges(department, listOf())
                 coEvery {
                     rawUnitOfWork.tryPerform(TestPrincipal, eq(params))
@@ -246,7 +248,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
             And("UnitOfWork has one retry and persisting saves result on second attempt") {
                 val retry = mockk<StaleRecordFixedRetry>()
                 val ex = StaleRecordException(depId)
-                every { rawUnitOfWork.configuration().retry } returns retry
+                every { rawUnitOfWork.configuration() } returns Configuration(retry, true)
                 every { retry.getNextDelay(eq(0), eq(ex)) } returns ofMillis(0)
                 coEvery {
                     rawUnitOfWork.tryPerform(TestPrincipal, eq(params))
@@ -261,14 +263,14 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                         true
                     )
                 } throws ex andThen Unit
-                coEvery { rawUnitOfWork.onFailure(eq(params), any()) } throws ex
+                coEvery { rawUnitOfWork.onFailure(eq(params), eq(ex)) } throws ex
 
                 When("Principal executes UnitOfWork") {
                     val createdDepartment = uowx.execute(CreateDepartmentUow::class, TestPrincipal) { params }
 
                     Then("Correct result will be returned") {
                         createdDepartment shouldBe department
-                        coVerify(exactly = 1) { retry.getNextDelay(0, ex) }
+                        coVerify(exactly = 1) { retry.getNextDelay(eq(0), eq(ex)) }
                     }
                 }
             }
@@ -276,7 +278,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
             And("UnitOfWork has one retry and returns onFailure result on second attempt") {
                 val retry = mockk<StaleRecordFixedRetry>()
                 val ex = StaleRecordException(depId)
-                every { rawUnitOfWork.configuration().retry } returns retry
+                every { rawUnitOfWork.configuration() } returns Configuration(retry, true)
                 every { retry.getNextDelay(eq(0), eq(ex)) } returns ofMillis(0)
                 every { retry.getNextDelay(eq(1), eq(ex)) } returns null
                 coEvery {
@@ -292,7 +294,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                         true
                     )
                 } throws ex andThenThrows ex
-                coEvery { rawUnitOfWork.onFailure(eq(params), any()) } returns department
+                coEvery { rawUnitOfWork.onFailure(eq(params), eq(ex)) } returns department
 
                 When("Principal executes UnitOfWork") {
                     val createdDepartment = uowx.execute(CreateDepartmentUow::class, TestPrincipal) { params }
@@ -306,7 +308,8 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
             }
 
             And("UnitOfWork has one retry and Persisting throws StaleRecordException constantly") {
-                every { rawUnitOfWork.configuration() } returns BaseUnitOfWork.Configuration.default()
+                val ex = StaleRecordException(depId)
+                every { rawUnitOfWork.configuration() } returns Configuration.default()
                 coEvery {
                     rawUnitOfWork.tryPerform(TestPrincipal, eq(params))
                 } returns DefaultChanges(department, listOf())
@@ -319,8 +322,8 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                         fixedUTC(ofEpochMilli(0)),
                         false
                     )
-                } throws StaleRecordException(depId)
-                coEvery { rawUnitOfWork.onFailure(eq(params), any()) } throws StaleRecordException(depId)
+                } throws ex
+                coEvery { rawUnitOfWork.onFailure(eq(params), eq(ex)) } throws StaleRecordException(depId)
 
                 When("Principal executes UnitOfWork") {
                     val execution = suspend {
@@ -337,7 +340,8 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                 "UnitOfWork has one retry, has custom exception mapping " +
                     "and Persisting throws StaleRecordException constantly"
             ) {
-                every { rawUnitOfWork.configuration() } returns BaseUnitOfWork.Configuration.default()
+                val ex = StaleRecordException(depId)
+                every { rawUnitOfWork.configuration() } returns Configuration.default()
                 coEvery {
                     rawUnitOfWork.tryPerform(TestPrincipal, eq(params))
                 } returns DefaultChanges(department, listOf())
@@ -350,9 +354,9 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                         fixedUTC(ofEpochMilli(0)),
                         false
                     )
-                } throws StaleRecordException(depId)
+                } throws ex
                 coEvery {
-                    rawUnitOfWork.onFailure(eq(params), any())
+                    rawUnitOfWork.onFailure(eq(params), eq(ex))
                 } throws IllegalStateException("${depId.id} priunil")
 
                 When("Principal executes UnitOfWork") {
@@ -369,7 +373,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
 
             And("Persisting throws UniqueModelRecordViolationException constantly") {
                 val ex = UniqueModelRecordViolationException(depId, "DEPARTMENTS", "легендарный_певец_Бока_idx")
-                every { rawUnitOfWork.configuration() } returns BaseUnitOfWork.Configuration.default()
+                every { rawUnitOfWork.configuration() } returns Configuration.default()
                 coEvery {
                     rawUnitOfWork.tryPerform(TestPrincipal, eq(params))
                 } returns DefaultChanges(department, listOf())
@@ -383,7 +387,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                         false
                     )
                 } throws ex
-                coEvery { rawUnitOfWork.onFailure(eq(params), any()) } throws ex
+                coEvery { rawUnitOfWork.onFailure(eq(params), eq(ex)) } throws ex
 
                 When("Principal executes UnitOfWork") {
                     val execution = suspend {
@@ -398,7 +402,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
 
             And("Persisting throws ModelRecordConstraintViolationException constantly") {
                 val ex = ModelRecordConstraintViolationException(depId, "DEPARTMENTS", "популярный_певец_Жока_idx")
-                every { rawUnitOfWork.configuration() } returns BaseUnitOfWork.Configuration.default()
+                every { rawUnitOfWork.configuration() } returns Configuration.default()
                 coEvery {
                     rawUnitOfWork.tryPerform(TestPrincipal, eq(params))
                 } returns DefaultChanges(department, listOf())
@@ -412,7 +416,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                         false
                     )
                 } throws ex
-                coEvery { rawUnitOfWork.onFailure(eq(params), any()) } throws ex
+                coEvery { rawUnitOfWork.onFailure(eq(params), eq(ex)) } throws ex
 
                 When("Principal executes UnitOfWork") {
                     val execution = suspend {
@@ -428,7 +432,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
             And("Persisting throws UniqueModelRecordViolationException and UnitOfWork return result on failure") {
                 val resultModel = mockk<OwnedDepartment>()
                 val ex = UniqueModelRecordViolationException(depId, "DEPARTMENTS", "легендарный_певец_Бока_idx")
-                every { rawUnitOfWork.configuration() } returns BaseUnitOfWork.Configuration.default()
+                every { rawUnitOfWork.configuration() } returns Configuration.default()
                 coEvery {
                     rawUnitOfWork.tryPerform(TestPrincipal, eq(params))
                 } returns DefaultChanges(department, listOf())
@@ -442,7 +446,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                         false
                     )
                 } throws ex
-                coEvery { rawUnitOfWork.onFailure(eq(params), any()) } returns resultModel
+                coEvery { rawUnitOfWork.onFailure(eq(params), eq(ex)) } returns resultModel
 
                 When("Principal executes UnitOfWork") {
                     val result = uowx.execute(CreateDepartmentUow::class, TestPrincipal) { params }

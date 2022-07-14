@@ -95,7 +95,7 @@ class JooqBaseRepositoryPositiveSpec : BehaviorSpec({
                              '${boss.id}',
                              1,
                              'BUBALEH',
-                             'OWNED'::"departments_state",
+                             cast('OWNED' as "departments_state"),
                              timestamp '$recordCreatedAt',
                              timestamp '$recordCreatedAt',
                              1)
@@ -135,7 +135,7 @@ class JooqBaseRepositoryPositiveSpec : BehaviorSpec({
                             "boss" = '${boss.id}',
                             "headcount" = 1,
                             "ration" = 'BUBALEH',
-                            "state" = 'OWNED'::"departments_state",
+                            "state" = cast('OWNED' as "departments_state"),
                             "record_updated_at" = timestamp '$recordUpdatedAt',
                             "version" = 2
                             where ("departments"."id" = '${dep.id().id}' and "departments"."version" = 1)

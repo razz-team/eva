@@ -113,7 +113,7 @@ class JooqBaseRepositoryBatchingSpec : BehaviorSpec({
                              '${boss.id}',
                              1,
                              'BUBALEH',
-                             'OWNED'::"departments_state",
+                             cast('OWNED' as "departments_state"),
                              timestamp '$recordCreatedAt',
                              timestamp '$recordCreatedAt',
                              1)
@@ -176,7 +176,7 @@ class JooqBaseRepositoryBatchingSpec : BehaviorSpec({
                               '${boss1.id}',
                               1,
                               'BUBALEH',
-                              'OWNED'::"departments_state",
+                              cast('OWNED' as "departments_state"),
                               timestamp '$recordCreatedAt',
                               timestamp '$recordCreatedAt',
                               1),
@@ -185,7 +185,7 @@ class JooqBaseRepositoryBatchingSpec : BehaviorSpec({
                               '${boss2.id}',
                               1,
                               'SHAKSHOUKA',
-                              'OWNED'::"departments_state",
+                              cast('OWNED' as "departments_state"),
                               timestamp '$recordCreatedAt',
                               timestamp '$recordCreatedAt',
                               1)
@@ -239,7 +239,7 @@ class JooqBaseRepositoryBatchingSpec : BehaviorSpec({
                             "boss" = '${boss.id}',
                             "headcount" = 1,
                             "ration" = 'BUBALEH',
-                            "state" = 'OWNED'::"departments_state",
+                            "state" = cast('OWNED' as "departments_state"),
                             "record_updated_at" = timestamp '$recordUpdatedAt',
                             "version" = 2
                             where ("departments"."id" = '${dep1.id().id}' and "departments"."version" = 1)
@@ -334,7 +334,7 @@ class JooqBaseRepositoryBatchingSpec : BehaviorSpec({
                                 cast('${boss1.id}' as uuid),
                                 cast(1 as int),
                                 cast('BUBALEH' as text),
-                                cast('OWNED'::"departments_state" as "departments_state"),
+                                cast(cast('OWNED' as "departments_state") as "departments_state"),
                                 cast(timestamp '$recordUpdatedAt' as timestamp(6)),
                                 cast(2 as bigint)),
                                     
@@ -343,7 +343,7 @@ class JooqBaseRepositoryBatchingSpec : BehaviorSpec({
                                 cast('${boss2.id}' as uuid),
                                 cast(1 as int),
                                 cast('SHAKSHOUKA' as text),
-                                cast('OWNED'::"departments_state" as "departments_state"),
+                                cast(cast('OWNED' as "departments_state") as "departments_state"),
                                 cast(timestamp '$recordUpdatedAt' as timestamp(6)),
                                 cast(2 as bigint)))
                                 
