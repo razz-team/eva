@@ -45,8 +45,8 @@ java.sourceCompatibility = versions.java
 java.targetCompatibility = versions.java
 
 tasks.compileKotlin {
-    sourceCompatibility = versions.jvm
-    targetCompatibility = versions.jvm
+//    sourceCompatibility = versions.jvm
+//    targetCompatibility = versions.jvm
     kotlinOptions {
         jvmTarget = versions.jvm
         allWarningsAsErrors = true
@@ -55,8 +55,8 @@ tasks.compileKotlin {
 }
 
 tasks.compileTestKotlin {
-    sourceCompatibility = versions.jvm
-    targetCompatibility = versions.jvm
+//    sourceCompatibility = versions.jvm
+//    targetCompatibility = versions.jvm
     kotlinOptions {
         jvmTarget = versions.jvm
         freeCompilerArgs = listOf("-opt-in=kotlin.RequiresOptIn")
