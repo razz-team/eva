@@ -125,16 +125,14 @@ class DatabaseContainerHelper private constructor(
                     " -c wal_init_zero=off" +
                     " -c full_page_writes=off" +
                     " -c checkpoint_timeout=1d" +
-                    " -c max_wal_size=2GB" +
-                    " -c max_connections=300" +
-                    " -c shared_buffers=512MB" +
-                    " -c temp_buffers=32MB" +
-                    " -c wal_buffers=32MB" +
-                    " -c seq_page_cost=0.01" +
-                    " -c random_page_cost=0.01" +
-                    " -c effective_cache_size=64MB" +
-                    " -c maintenance_work_mem=512MB" +
-                    " -c work_mem=64MB"
+                    " -c max_wal_size=1GB" +
+                    " -c max_connections=50" +
+                    " -c shared_buffers=256MB" +
+                    " -c wal_buffers=7864kB" +
+                    " -c effective_cache_size=768MB" +
+                    " -c effective_io_concurrency=200" +
+                    " -c maintenance_work_mem=64MB" +
+                    " -c work_mem=5242kB"
             )
             .withTmpFs(mapOf("/var/lib/postgresql/data" to "rw"))
             .withReuse(true)
