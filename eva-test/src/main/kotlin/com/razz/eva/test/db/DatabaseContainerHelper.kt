@@ -132,10 +132,10 @@ class DatabaseContainerHelper private constructor(
                     " -c effective_io_concurrency=200" +
                     " -c maintenance_work_mem=128MB" +
                     " -c work_mem=1310kB" +
-                    " -c max_worker_processes = 2" +
-                    " -c max_parallel_workers_per_gather = 1" +
-                    " -c max_parallel_workers = 2" +
-                    " -c max_parallel_maintenance_workers = 1"
+                    " -c max_worker_processes=2" +
+                    " -c max_parallel_workers_per_gather=1" +
+                    " -c max_parallel_workers=2" +
+                    " -c max_parallel_maintenance_workers=1"
             )
             .withTmpFs(mapOf("/var/lib/postgresql/data" to "rw"))
             .withReuse(true)
