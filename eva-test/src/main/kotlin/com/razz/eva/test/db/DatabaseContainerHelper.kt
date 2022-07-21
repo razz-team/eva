@@ -157,13 +157,13 @@ class DatabaseContainerHelper private constructor(
                 "${db.getMappedPort(PostgreSQLContainer.POSTGRESQL_PORT)}/$dbName${db.additionalUrlParams}"
         }
 
-        fun localPool(dbName: String, hikariPoolSize: Int) = synchronized(this) {
+        fun localPool(dbName: String, size: Int) = synchronized(this) {
             localPools.getOrPut(dbName) {
                 HikariConfig().run {
                     jdbcUrl = jdbcUrl(dbName, pgContainer)
                     username = "test"
                     password = "test"
-                    maximumPoolSize = hikariPoolSize
+                    maximumPoolSize = size
                     initializationFailTimeout = -1
                     HikariDataSource(this)
                 }
