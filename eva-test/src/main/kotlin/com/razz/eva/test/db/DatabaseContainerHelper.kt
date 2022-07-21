@@ -17,6 +17,7 @@ import org.testcontainers.utility.DockerImageName as TestcontainersDockerImageNa
 class DatabaseContainerHelper private constructor(
     dbPrefix: String,
     private val db: PostgreDockerContainer,
+    private val hikariPoolSize: Int = 1
 ) : Closeable {
     private val logger = KotlinLogging.logger {}
 
@@ -45,7 +46,7 @@ class DatabaseContainerHelper private constructor(
 
     fun password(): String = db.password
 
-    private fun localConn() = localPool(dbName).connection
+    private fun localConn() = localPool(dbName, hikariPoolSize).connection
 
     private fun createDb() = try {
         managementPool.connection.use { conn ->
@@ -157,13 +158,13 @@ class DatabaseContainerHelper private constructor(
                 "${db.getMappedPort(PostgreSQLContainer.POSTGRESQL_PORT)}/$dbName${db.additionalUrlParams}"
         }
 
-        fun localPool(dbName: String) = synchronized(this) {
+        fun localPool(dbName: String, hikariPoolSize: Int) = synchronized(this) {
             localPools.getOrPut(dbName) {
                 HikariConfig().run {
                     jdbcUrl = jdbcUrl(dbName, pgContainer)
                     username = "test"
                     password = "test"
-                    maximumPoolSize = 10
+                    maximumPoolSize = hikariPoolSize
                     initializationFailTimeout = -1
                     HikariDataSource(this)
                 }
