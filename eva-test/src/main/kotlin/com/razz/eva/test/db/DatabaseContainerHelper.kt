@@ -16,8 +16,7 @@ import org.testcontainers.utility.DockerImageName as TestcontainersDockerImageNa
 
 class DatabaseContainerHelper private constructor(
     dbPrefix: String,
-    private val db: PostgreDockerContainer,
-    private val hikariPoolSize: Int = 1
+    private val db: PostgreDockerContainer
 ) : Closeable {
     private val logger = KotlinLogging.logger {}
 
@@ -46,7 +45,7 @@ class DatabaseContainerHelper private constructor(
 
     fun password(): String = db.password
 
-    private fun localConn() = localPool(dbName, hikariPoolSize).connection
+    private fun localConn() = localPool(dbName, 1).connection
 
     private fun createDb() = try {
         managementPool.connection.use { conn ->

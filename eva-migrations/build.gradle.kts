@@ -8,4 +8,5 @@ dependencies {
 
     implementation(libs.kotlin_stdlib)
     implementation(libs.flyway)
+    implementation(libs.hikari)
 }
