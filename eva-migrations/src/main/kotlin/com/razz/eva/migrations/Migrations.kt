@@ -2,6 +2,8 @@ package com.razz.eva.migrations
 
 import com.razz.eva.migrations.Migration.EventsMigration
 import com.razz.eva.migrations.Migration.ModelsMigration
+import com.zaxxer.hikari.HikariConfig
+import com.zaxxer.hikari.HikariDataSource
 import org.flywaydb.core.Flyway
 
 class Migrations(
@@ -25,9 +27,14 @@ class Migrations(
             // default behavior may change in flyaway 9
             // .ignoreFutureMigrations(true)
             .dataSource(
-                config.jdbcURL.toString(),
-                config.ddlUser.toString(),
-                config.ddlPassword.showPassword()
+                HikariDataSource(
+                    HikariConfig().apply {
+                        jdbcUrl = config.jdbcURL.toString()
+                        username = config.ddlUser.toString()
+                        password = config.ddlPassword.showPassword()
+                        maximumPoolSize = 1
+                    }
+                )
             )
             .schemas(migration.schema.toString())
             .locations(migration.classpathLocation())

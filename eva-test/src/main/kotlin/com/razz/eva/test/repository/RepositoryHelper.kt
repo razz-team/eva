@@ -23,7 +23,10 @@ import org.jooq.conf.Settings
 import org.jooq.impl.DSL
 import java.util.function.Predicate
 
-open class RepositoryHelper(migrationPath: String, createPartman: Boolean = false) {
+open class RepositoryHelper(
+    migrationPath: String,
+    createPartman: Boolean = false
+) {
 
     companion object {
         val executorType: ExecutorType
@@ -33,6 +36,8 @@ open class RepositoryHelper(migrationPath: String, createPartman: Boolean = fals
                 ?.getOrNull()
                 ?: ExecutorType.JDBC
     }
+
+    open val hikariPoolSize = 1
 
     internal val dslContext = DSL.using(
         SQLDialect.POSTGRES,
@@ -61,7 +66,7 @@ open class RepositoryHelper(migrationPath: String, createPartman: Boolean = fals
     }
 
     private fun jdbcEngine(): Pair<TransactionManager<*>, QueryExecutor> {
-        val pool = localPool(db.dbName())
+        val pool = localPool(db.dbName(), hikariPoolSize)
         val provider = HikariPoolConnectionProvider(pool)
         val jdbcManager = JdbcTransactionManager(provider, provider)
         return jdbcManager to JdbcQueryExecutor(jdbcManager)
@@ -91,7 +96,7 @@ open class RepositoryHelper(migrationPath: String, createPartman: Boolean = fals
 
     private fun flywayProvider(dbName: String, migration: Migration): Flyway {
         return Flyway.configure()
-            .dataSource(localPool(dbName))
+            .dataSource(localPool(dbName, 1))
             .schemas(migration.schema.toString())
             .locations(migration.classpathLocation())
             .load()
