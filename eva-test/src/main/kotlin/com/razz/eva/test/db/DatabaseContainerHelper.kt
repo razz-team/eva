@@ -45,7 +45,7 @@ class DatabaseContainerHelper private constructor(
 
     fun password(): String = db.password
 
-    private fun localConn() = localPool(dbName, 1).connection
+    private fun localConn() = localPool(dbName, 4).connection
 
     private fun createDb() = try {
         managementPool.connection.use { conn ->
@@ -108,7 +108,7 @@ class DatabaseContainerHelper private constructor(
     companion object {
 
         private val DB_NAME_FORMAT = "[a-z0-9_]+".toRegex()
-        private const val memoryInBytes = 1L * 1024 * 1024 * 1024
+        private const val memoryInBytes = 2L * 1024 * 1024 * 1024
 
         // 5 cpu = 2 for db; 1 cpu = 1 for db; 16 cpu = 4 for db
         private val cpuCount = ceil(getRuntime().availableProcessors() / 4.0).toLong()
@@ -119,20 +119,23 @@ class DatabaseContainerHelper private constructor(
             .withPassword("test")
             .withCommand(
                 "-c fsync=off" +
+                    " -c full_page_writes=off" +
                     " -c synchronous_commit=off" +
                     " -c wal_level=minimal" +
-                    " -c max_wal_senders=0" +
-                    " -c wal_init_zero=off" +
-                    " -c full_page_writes=off" +
                     " -c checkpoint_timeout=1d" +
-                    " -c max_wal_size=1GB" +
-                    " -c max_connections=50" +
-                    " -c shared_buffers=256MB" +
-                    " -c wal_buffers=7864kB" +
-                    " -c effective_cache_size=768MB" +
+                    " -c wal_init_zero=off" +
+                    " -c max_wal_senders=0" +
+                    " -c max_connections=200" +
+                    " -c shared_buffers=512MB" +
+                    " -c wal_buffers=16MB" +
+                    " -c effective_cache_size=1536MB" +
                     " -c effective_io_concurrency=200" +
-                    " -c maintenance_work_mem=64MB" +
-                    " -c work_mem=5242kB"
+                    " -c maintenance_work_mem=128MB" +
+                    " -c work_mem=1310kB" +
+                    " -c max_worker_processes = 2" +
+                    " -c max_parallel_workers_per_gather = 1" +
+                    " -c max_parallel_workers = 2" +
+                    " -c max_parallel_maintenance_workers = 1"
             )
             .withTmpFs(mapOf("/var/lib/postgresql/data" to "rw"))
             .withReuse(true)

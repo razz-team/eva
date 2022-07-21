@@ -37,7 +37,7 @@ open class RepositoryHelper(
                 ?: ExecutorType.JDBC
     }
 
-    open val hikariPoolSize = 1
+    open val hikariPoolSize = 4
 
     internal val dslContext = DSL.using(
         SQLDialect.POSTGRES,
@@ -96,7 +96,7 @@ open class RepositoryHelper(
 
     private fun flywayProvider(dbName: String, migration: Migration): Flyway {
         return Flyway.configure()
-            .dataSource(localPool(dbName, 1))
+            .dataSource(localPool(dbName, 4))
             .schemas(migration.schema.toString())
             .locations(migration.classpathLocation())
             .load()
