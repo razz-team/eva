@@ -34,12 +34,15 @@ class InMemoryEventBus(
         consumingJob = CoroutineScope(context).launch {
             flow.collect { event ->
                 if (isActive) {
-                    try {
-                        consumerMap[EventKey(event.eventName, event.modelName)]?.forEach { consumer ->
+                    consumerMap[EventKey(event.eventName, event.modelName)]?.forEach { consumer ->
+                        try {
                             consumer.consume(event)
+                        } catch (e: Exception) {
+                            logger.error(e) {
+                                "Unable to consume event [${event.eventName}]:[${event.id}] " +
+                                    "by consumer [${consumer::class.simpleName}]"
+                            }
                         }
-                    } catch (e: Exception) {
-                        logger.error(e) { "Unable to consume event [${event.eventName}]:[${event.id}]" }
                     }
                 }
             }
