@@ -15,4 +15,5 @@ dependencies {
     implementation(libs.vertx_kotlin_coroutines)
     implementation(libs.ongres_scram)
     implementation(libs.jooq)
+    implementation(libs.jooq_postgres)
 }

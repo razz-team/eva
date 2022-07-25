@@ -19,6 +19,7 @@ import org.jooq.StoreQuery
 import org.jooq.Table
 import org.jooq.exception.DataAccessException
 import org.jooq.impl.SQLDataType
+import org.jooq.postgres.extensions.types.Inet
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -70,6 +71,7 @@ class VertxQueryExecutor(
                 is JSONB -> Json.decodeValue(value.data())
                 is Instant -> LocalDateTime.ofInstant(value, UTC)
                 is LocalDate -> value
+                is Inet -> io.vertx.pgclient.data.Inet().setAddress(value.address()).setNetmask(value.prefix())
                 else -> {
                     @Suppress("UNCHECKED_CAST")
                     val converter = bound.converter as Converter<Any, Any>
@@ -88,11 +90,15 @@ class VertxQueryExecutor(
         val values = arrayOfNulls<Any>(fields.size)
         for (i in fields.indices) {
             val field = fields[i]
-            values[i] = when (field.dataType.sqlDataType) {
-                SQLDataType.JSON -> row.getJson(i)?.let { JSON.json(it.toString()) }
-                SQLDataType.JSONB -> row.getJson(i)?.let { JSONB.jsonb(it.toString()) }
-                SQLDataType.TIMESTAMP -> row.getLocalDateTime(i)?.toInstant(UTC)
-                SQLDataType.DATE -> row.getLocalDate(i)
+            values[i] = when {
+                field.dataType.sqlDataType == SQLDataType.JSON -> row.getJson(i)?.let { JSON.json(it.toString()) }
+                field.dataType.sqlDataType == SQLDataType.JSONB -> row.getJson(i)?.let { JSONB.jsonb(it.toString()) }
+                field.dataType.sqlDataType == SQLDataType.TIMESTAMP -> row.getLocalDateTime(i)?.toInstant(UTC)
+                field.dataType.sqlDataType == SQLDataType.DATE -> row.getLocalDate(i)
+                field.dataType.sqlDataType == SQLDataType.NUMERIC -> row.getBigDecimal(i)
+                field.type == Inet::class.java -> (row.getValue(i) as? io.vertx.pgclient.data.Inet)?.let {
+                    Inet.inet(it.address, it.netmask)
+                }
                 else -> {
                     @Suppress("UNCHECKED_CAST")
                     val converter = field.converter as Converter<Any, Any>
