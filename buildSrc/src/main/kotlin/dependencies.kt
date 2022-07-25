@@ -41,6 +41,7 @@ object libs {
     val kotest_framework = "io.kotest:kotest-framework-api:${versions.kotest}"
     val hikari = "com.zaxxer:HikariCP:${versions.hikari}"
     val jooq = "org.jooq:jooq:${versions.jooq}"
+    val jooq_postgres = "org.jooq:jooq-postgres-extensions:${versions.jooq}"
     val jackson_bom = "com.fasterxml.jackson:jackson-bom:${versions.jackson}"
     val jaeger_client = "io.jaegertracing:jaeger-client:${versions.jaeger}"
     val jaeger_micrometer = "io.jaegertracing:jaeger-micrometer:${versions.jaeger}"
