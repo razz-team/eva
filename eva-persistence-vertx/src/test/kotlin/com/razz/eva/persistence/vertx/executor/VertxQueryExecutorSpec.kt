@@ -29,6 +29,7 @@ class VertxQueryExecutorSpec : BehaviorSpec({
     val dslContext = DSL.using(POSTGRES)
     val select = DSL.using(POSTGRES).selectFrom("SELECT * FROM table")
     val store = DSL.using(POSTGRES).updateQuery(DSL.table("table"))
+    val delete = DSL.using(POSTGRES).deleteQuery(DSL.table("table"))
 
     Given("Vertx query executor with connection provider") {
         val connectionProvider = mockk<PgPoolConnectionProvider>(relaxed = true)
@@ -44,6 +45,7 @@ class VertxQueryExecutorSpec : BehaviorSpec({
                                     every { hasNext() } returns false
                                 }
                             }
+                            every { size() } returns 0
                         }
                     )
                 }
@@ -52,6 +54,7 @@ class VertxQueryExecutorSpec : BehaviorSpec({
         val connection = mockk<PgConnection>(relaxed = true) {
             every { preparedQuery(dslContext.renderNamedParams(select)) } answers { preparedQueryMock }
             every { preparedQuery(dslContext.renderNamedParams(store)) } answers { preparedQueryMock }
+            every { preparedQuery(dslContext.renderNamedParams(delete)) } answers { preparedQueryMock }
         }
 
         And("Connection from provider") {
@@ -64,7 +67,7 @@ class VertxQueryExecutorSpec : BehaviorSpec({
                 vertxExecutor.executeSelect(
                     dslContext,
                     select,
-                    DSL.table("cool_table")
+                    DSL.table("cool_table"),
                 )
 
                 Then("Connection was acquired and released on delegate provider") {
@@ -88,7 +91,36 @@ class VertxQueryExecutorSpec : BehaviorSpec({
                     vertxExecutor.executeStore(
                         dslContext,
                         store,
-                        DSL.table("cool_table")
+                        DSL.table("cool_table"),
+                    )
+                }
+
+                Then("Exception thrown saying there is context missing") {
+                    val ex = shouldThrow<IllegalStateException> { storeRun() }
+                    ex.message shouldBe "Required existing connection"
+                }
+                And("Connection was not acquired and was not released on delegate provider") {
+                    coVerify(exactly = 0) {
+                        connectionProvider.acquire()
+                        connectionProvider.release(connection)
+                    }
+                }
+            }
+        }
+
+        And("Another connection from provider") {
+            clearMocks(connectionProvider, answers = false)
+            clearMocks(connection, answers = false)
+            clearMocks(vertxTransactionManager, answers = false)
+            coEvery { connectionProvider.acquire() } coAnswers { connection }
+
+            When("Principal calls execute store without context") {
+
+                val storeRun = suspend {
+                    vertxExecutor.executeDelete(
+                        dslContext,
+                        delete,
+                        DSL.table("cool_table"),
                     )
                 }
 
@@ -116,7 +148,7 @@ class VertxQueryExecutorSpec : BehaviorSpec({
                     vertxExecutor.executeSelect(
                         dslContext,
                         select,
-                        DSL.table("cool_table")
+                        DSL.table("cool_table"),
                     )
                 }
 
@@ -140,7 +172,31 @@ class VertxQueryExecutorSpec : BehaviorSpec({
                     vertxExecutor.executeStore(
                         dslContext,
                         store,
-                        DSL.table("cool_table")
+                        DSL.table("cool_table"),
+                    )
+                }
+
+                Then("Connection was not acquired and was not released on delegate provider") {
+                    coVerify(exactly = 0) {
+                        connectionProvider.release(connection)
+                        connectionProvider.acquire()
+                    }
+                }
+            }
+        }
+
+        And("Another connection from context") {
+            clearMocks(connectionProvider, answers = false)
+            clearMocks(connection, answers = false)
+            clearMocks(vertxTransactionManager, answers = false)
+
+            When("Principal calls execute delete with context") {
+
+                withContext(Dispatchers.IO + VertxConnectionElement(connection)) {
+                    vertxExecutor.executeDelete(
+                        dslContext,
+                        delete,
+                        DSL.table("cool_table"),
                     )
                 }
 

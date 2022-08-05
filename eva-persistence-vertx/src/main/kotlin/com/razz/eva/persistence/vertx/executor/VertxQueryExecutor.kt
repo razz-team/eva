@@ -7,9 +7,11 @@ import io.vertx.core.json.Json
 import io.vertx.kotlin.coroutines.await
 import io.vertx.pgclient.PgConnection
 import io.vertx.sqlclient.Row
+import io.vertx.sqlclient.RowSet
 import io.vertx.sqlclient.impl.ArrayTuple
 import org.jooq.Converter
 import org.jooq.DSLContext
+import org.jooq.DeleteQuery
 import org.jooq.JSON
 import org.jooq.JSONB
 import org.jooq.Query
@@ -32,7 +34,7 @@ class VertxQueryExecutor(
     override suspend fun <R : Record> executeSelect(
         dslContext: DSLContext,
         jooqQuery: Select<R>,
-        table: Table<R>
+        table: Table<R>,
     ): List<R> {
         return transactionManager.withConnection { connection ->
             val rows = executeQuery(connection, dslContext, jooqQuery, table)
@@ -43,7 +45,7 @@ class VertxQueryExecutor(
     override suspend fun <R : Record> executeStore(
         dslContext: DSLContext,
         jooqQuery: StoreQuery<R>,
-        table: Table<R>
+        table: Table<R>,
     ): List<R> {
         return transactionManager.inTransaction(REQUIRE_EXISTING) { connection ->
             jooqQuery.setReturning()
@@ -52,19 +54,30 @@ class VertxQueryExecutor(
         }
     }
 
+    override suspend fun <R : Record> executeDelete(
+        dslContext: DSLContext,
+        jooqQuery: DeleteQuery<R>,
+        table: Table<R>,
+    ): Int {
+        return transactionManager.inTransaction(REQUIRE_EXISTING) { connection ->
+            jooqQuery.setReturning()
+            executeQuery(connection, dslContext, jooqQuery, table).size()
+        }
+    }
+
     private suspend inline fun <R : Record> executeQuery(
         connection: PgConnection,
         dslContext: DSLContext,
         jooqQuery: Query,
-        table: Table<R>
-    ) = connection.preparedQuery(dslContext.renderNamedParams(jooqQuery)).mapping { row ->
+        table: Table<R>,
+    ): RowSet<R> = connection.preparedQuery(dslContext.renderNamedParams(jooqQuery)).mapping { row ->
         convertRowToRecord(dslContext, row, table)
     }.execute(bindParams(dslContext, jooqQuery)).await()
 
     private fun bindParams(
         dslContext: DSLContext,
-        jooqQuery: Query
-    ) = ArrayTuple(
+        jooqQuery: Query,
+    ): ArrayTuple = ArrayTuple(
         dslContext.extractParams(jooqQuery).values.filterNot { it.isInline }.map { bound ->
             when (val value = bound.value) {
                 is JSON -> Json.decodeValue(value.data())

@@ -15,6 +15,8 @@ import com.razz.eva.tracing.Tracing.withNewSpan
 import com.razz.eva.uow.CreateSoloDepartmentUow
 import com.razz.eva.uow.TestPrincipal
 import com.razz.eva.events.UowEvent.UowName
+import com.razz.eva.persistence.ConnectionMode.REQUIRE_NEW
+import com.razz.eva.test.schema.Tables
 import io.kotest.matchers.shouldBe
 import io.opentracing.Tracer
 import io.opentracing.propagation.Format
@@ -34,6 +36,7 @@ class PersistenceSpec : PersistenceBaseSpec({
             ration = SHAKSHOUKA,
             idempotencyKey = idempotencyKey
         )
+        lateinit var boss: Employee
 
         When("Principal performs uow with span") {
             val span = { tracer: Tracer ->
@@ -53,7 +56,6 @@ class PersistenceSpec : PersistenceBaseSpec({
             val mobileboys = withNewSpan(module.tracer, span) {
                 module.uowx.execute(CreateSoloDepartmentUow::class, TestPrincipal) { params }
             }
-            lateinit var boss: Employee
 
             Then("New model persisted") {
                 boss = module.employeeRepo.findByDepartment(mobileboys.id()).single()
@@ -125,6 +127,23 @@ class PersistenceSpec : PersistenceBaseSpec({
                     }
                     """
                 )
+            }
+        }
+
+        When("Principal performs delete on query executor") {
+            module.transactionManager.inTransaction(REQUIRE_NEW) { _ ->
+                module.queryExecutor.executeDelete(
+                    module.dslContext,
+                    module.dslContext.deleteQuery(Tables.EMPLOYEES).apply {
+                        addConditions(Tables.EMPLOYEES.ID.eq(boss.id().id))
+                    },
+                    Tables.EMPLOYEES,
+                )
+            }
+
+            Then("New model persisted") {
+                val deletedBoss = module.employeeRepo.find(boss.id())
+                deletedBoss shouldBe null
             }
         }
     }
