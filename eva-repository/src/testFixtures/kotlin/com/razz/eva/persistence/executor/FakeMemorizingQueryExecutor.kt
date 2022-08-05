@@ -1,8 +1,10 @@
 package com.razz.eva.persistence.executor
 
+import com.razz.eva.persistence.executor.FakeMemorizingQueryExecutor.ExecutionStep.DeleteExecuted
 import com.razz.eva.persistence.executor.FakeMemorizingQueryExecutor.ExecutionStep.SelectExecuted
 import com.razz.eva.persistence.executor.FakeMemorizingQueryExecutor.ExecutionStep.StoreExecuted
 import org.jooq.DSLContext
+import org.jooq.DeleteQuery
 import org.jooq.Record
 import org.jooq.SQLDialect.POSTGRES
 import org.jooq.Select
@@ -36,7 +38,7 @@ class FakeMemorizingQueryExecutor(
     override suspend fun <R : Record> executeSelect(
         dslContext: DSLContext,
         jooqQuery: Select<R>,
-        table: Table<R>
+        table: Table<R>,
     ): List<R> {
         executions += SelectExecuted(dslContext, jooqQuery, table)
         return DSL.using(MockConnection(MockProvider(queries)), POSTGRES, dslContext.settings())
@@ -47,7 +49,7 @@ class FakeMemorizingQueryExecutor(
     override suspend fun <R : Record> executeStore(
         dslContext: DSLContext,
         jooqQuery: StoreQuery<R>,
-        table: Table<R>
+        table: Table<R>,
     ): List<R> {
         executions += StoreExecuted(dslContext, jooqQuery, table)
         return DSL.using(MockConnection(MockProvider(queries)), POSTGRES, dslContext.settings())
@@ -55,18 +57,33 @@ class FakeMemorizingQueryExecutor(
             .into(table)
     }
 
+    override suspend fun <R : Record> executeDelete(
+        dslContext: DSLContext,
+        jooqQuery: DeleteQuery<R>,
+        table: Table<R>,
+    ): Int {
+        executions += DeleteExecuted(dslContext, jooqQuery)
+        return DSL.using(MockConnection(MockProvider(queries)), POSTGRES, dslContext.settings())
+            .execute(jooqQuery.getSQL(INLINED))
+    }
+
     sealed class ExecutionStep {
 
         data class StoreExecuted(
             val dslContext: DSLContext,
             val jooqQuery: StoreQuery<out Record>,
-            val table: Table<out Record>
+            val table: Table<out Record>,
         ) : ExecutionStep()
 
         data class SelectExecuted(
             val dslContext: DSLContext,
             val jooqQuery: Select<out Record>,
-            val table: Table<out Record>
+            val table: Table<out Record>,
+        ) : ExecutionStep()
+
+        data class DeleteExecuted(
+            val dslContext: DSLContext,
+            val jooqQuery: DeleteQuery<out Record>,
         ) : ExecutionStep()
     }
 

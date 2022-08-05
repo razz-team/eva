@@ -4,6 +4,7 @@ import com.razz.eva.persistence.ConnectionMode.REQUIRE_EXISTING
 import com.razz.eva.persistence.executor.QueryExecutor
 import com.razz.eva.persistence.jdbc.JdbcTransactionManager
 import org.jooq.DSLContext
+import org.jooq.DeleteQuery
 import org.jooq.Param
 import org.jooq.Query
 import org.jooq.Record
@@ -21,7 +22,7 @@ class JdbcQueryExecutor(
     override suspend fun <R : Record> executeSelect(
         dslContext: DSLContext,
         jooqQuery: Select<R>,
-        table: Table<R>
+        table: Table<R>,
     ): List<R> {
         return transactionManager.withConnection { connection ->
             DSL.using(connection, dslContext.settings())
@@ -32,7 +33,7 @@ class JdbcQueryExecutor(
     override suspend fun <R : Record> executeStore(
         dslContext: DSLContext,
         jooqQuery: StoreQuery<R>,
-        table: Table<R>
+        table: Table<R>,
     ): List<R> {
         jooqQuery.setReturning()
         return transactionManager.inTransaction(REQUIRE_EXISTING) { connection ->
@@ -41,10 +42,22 @@ class JdbcQueryExecutor(
         }
     }
 
+    override suspend fun <R : Record> executeDelete(
+        dslContext: DSLContext,
+        jooqQuery: DeleteQuery<R>,
+        table: Table<R>,
+    ): Int {
+        jooqQuery.setReturning()
+        return transactionManager.inTransaction(REQUIRE_EXISTING) { connection ->
+            DSL.using(connection, dslContext.settings())
+                .preparedQuery(jooqQuery, table).size
+        }
+    }
+
     @Suppress("UNCHECKED_CAST")
     private fun <R : Record> DSLContext.preparedQuery(
         jooqQuery: Query,
-        table: Table<R>
+        table: Table<R>,
     ): List<R> = resultQuery(
         render(jooqQuery),
         *extractParams(jooqQuery)
