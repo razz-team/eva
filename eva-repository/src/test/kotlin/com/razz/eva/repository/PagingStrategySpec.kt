@@ -8,8 +8,9 @@ import com.razz.eva.test.schema.tables.Bubalehs.BUBALEHS
 import com.razz.eva.test.schema.tables.records.BubalehsRecord
 import com.razz.eva.paging.BasicPagedList
 import com.razz.eva.paging.ModelOffset
+import com.razz.eva.paging.Page
+import com.razz.eva.paging.Page.Factory.firstPage
 import com.razz.eva.paging.Size
-import com.razz.eva.paging.TimestampPage
 import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.matchers.shouldBe
 import org.jooq.SQLDialect.POSTGRES
@@ -23,13 +24,20 @@ import java.util.*
 
 class PagingStrategySpec : BehaviorSpec({
 
-    class ServedBubalehPagingStrategy : PagingStrategy<UUID, BubalehId, Bubaleh, Bubaleh.Served, BubalehsRecord>(
+    class ServedBubalehPagingStrategy : PagingStrategy<
+        UUID,
+        BubalehId,
+        Bubaleh,
+        Bubaleh.Served,
+        Instant,
+        BubalehsRecord
+        >(
         Bubaleh.Served::class
     ) {
-        override fun tableTimestamp(): TableField<BubalehsRecord, Instant> = BUBALEHS.PRODUCED_ON
+        override fun tablePivot(): TableField<BubalehsRecord, Instant> = BUBALEHS.PRODUCED_ON
         override fun tableId(): TableField<BubalehsRecord, UUID> = BUBALEHS.ID
         override fun tableOffset(modelOffset: ModelOffset) = UUID.fromString(modelOffset)
-        override fun modelTimestamp(model: Bubaleh.Served) = model.producedOn
+        override fun modelPivot(model: Bubaleh.Served) = model.producedOn
         override fun modelOffset(model: Bubaleh.Served) = model.id().stringValue()
     }
 
@@ -42,7 +50,7 @@ class PagingStrategySpec : BehaviorSpec({
             val strategy = ServedBubalehPagingStrategy()
 
             And("First page") {
-                val page = TimestampPage.First(size)
+                val page = firstPage<Instant>(size)
 
                 And("Selection step") {
                     val step = DSL.using(POSTGRES)
@@ -76,8 +84,8 @@ class PagingStrategySpec : BehaviorSpec({
 
             And("Next page") {
                 val maxTimestamp = clock.instant()
-                val page = TimestampPage.Next(
-                    maxTimestamp = maxTimestamp,
+                val page = Page.Next(
+                    maxPivot = maxTimestamp,
                     modelIdOffset = "a5e15308-3a8d-462b-b96c-6f1137e30f0d",
                     size = size
                 )
@@ -126,8 +134,8 @@ class PagingStrategySpec : BehaviorSpec({
                     Then("Paged list is correct") {
                         pagedList shouldBe BasicPagedList(
                             result,
-                            TimestampPage.Next(
-                                maxTimestamp = model.producedOn,
+                            Page.Next(
+                                maxPivot = model.producedOn,
                                 modelIdOffset = model.id().stringValue(),
                                 size = size
                             )

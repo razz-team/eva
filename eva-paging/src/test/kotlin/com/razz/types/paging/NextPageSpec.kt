@@ -1,7 +1,8 @@
 package com.razz.types.paging
 
+import com.razz.eva.paging.Page
+import com.razz.eva.paging.Page.Factory.firstPage
 import com.razz.eva.paging.Size
-import com.razz.eva.paging.TimestampPage
 import com.razz.eva.paging.nextPage
 import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.matchers.shouldBe
@@ -16,7 +17,7 @@ class NextPageSpec : BehaviorSpec({
     )
 
     Given("A previous page with some size") {
-        val prevPage = TimestampPage.First(Size(2))
+        val prevPage = firstPage<Instant>(Size(2))
 
         And("Result is empty") {
             val result = listOf<User>()
@@ -37,8 +38,8 @@ class NextPageSpec : BehaviorSpec({
                 val nextPage = result.nextPage(prevPage, { it.timestamp }, { it.name })
 
                 Then("Next page is returned") {
-                    nextPage shouldBe TimestampPage.Next(
-                        maxTimestamp = now.minusSeconds(10),
+                    nextPage shouldBe Page.Next(
+                        maxPivot = now.minusSeconds(10),
                         modelIdOffset = "Ilya",
                         size = prevPage.size
                     )

@@ -1,8 +1,8 @@
 package com.razz.types.paging
 
 import com.razz.eva.paging.AbstractPagedList
+import com.razz.eva.paging.Page
 import com.razz.eva.paging.Size
-import com.razz.eva.paging.TimestampPage
 import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.matchers.shouldBe
 import java.time.Instant
@@ -17,8 +17,8 @@ class PagedListSpec : BehaviorSpec({
         val timestamp: Instant
     )
 
-    class UserPagedList(list: List<User>, pageSize: Size) : AbstractPagedList<User>(list, pageSize) {
-        override fun maxTimestamp(item: User) = item.timestamp
+    class UserPagedList(list: List<User>, pageSize: Size) : AbstractPagedList<User, Instant>(list, pageSize) {
+        override fun maxPivot(item: User) = item.timestamp
         override fun offset(item: User) = item.name
     }
 
@@ -45,8 +45,8 @@ class PagedListSpec : BehaviorSpec({
                 val nextPage = result.nextPage()
 
                 Then("Next page is returned") {
-                    nextPage shouldBe TimestampPage.Next(
-                        maxTimestamp = now.minusSeconds(10),
+                    nextPage shouldBe Page.Next(
+                        maxPivot = now.minusSeconds(10),
                         modelIdOffset = "Ilya",
                         size = pageSize
                     )
