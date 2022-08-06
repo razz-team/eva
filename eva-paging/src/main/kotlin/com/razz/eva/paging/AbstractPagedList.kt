@@ -5,7 +5,7 @@ abstract class AbstractPagedList<I, P>(
     private val pageSize: Size
 ) : PagedList<I, P>, List<I> by list {
 
-    protected abstract fun maxPivot(item: I): P
+    protected abstract fun maxOrdering(item: I): P
 
     protected abstract fun offset(item: I): ModelOffset
 
@@ -13,7 +13,7 @@ abstract class AbstractPagedList<I, P>(
         return if (list.size >= pageSize.intValue() && list.isNotEmpty()) {
             val lastElement = list.last()
             Page.Next(
-                maxPivot = maxPivot(lastElement),
+                maxOrdering = maxOrdering(lastElement),
                 modelIdOffset = offset(lastElement),
                 size = pageSize
             )

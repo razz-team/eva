@@ -34,10 +34,10 @@ class PagingStrategySpec : BehaviorSpec({
         >(
         Bubaleh.Served::class
     ) {
-        override fun tablePivot(): TableField<BubalehsRecord, Instant> = BUBALEHS.PRODUCED_ON
+        override fun tableOrdering(): TableField<BubalehsRecord, Instant> = BUBALEHS.PRODUCED_ON
         override fun tableId(): TableField<BubalehsRecord, UUID> = BUBALEHS.ID
         override fun tableOffset(modelOffset: ModelOffset) = UUID.fromString(modelOffset)
-        override fun modelPivot(model: Bubaleh.Served) = model.producedOn
+        override fun modelOrdering(model: Bubaleh.Served) = model.producedOn
         override fun modelOffset(model: Bubaleh.Served) = model.id().stringValue()
     }
 
@@ -85,7 +85,7 @@ class PagingStrategySpec : BehaviorSpec({
             And("Next page") {
                 val maxTimestamp = clock.instant()
                 val page = Page.Next(
-                    maxPivot = maxTimestamp,
+                    maxOrdering = maxTimestamp,
                     modelIdOffset = "a5e15308-3a8d-462b-b96c-6f1137e30f0d",
                     size = size
                 )
@@ -135,7 +135,7 @@ class PagingStrategySpec : BehaviorSpec({
                         pagedList shouldBe BasicPagedList(
                             result,
                             Page.Next(
-                                maxPivot = model.producedOn,
+                                maxOrdering = model.producedOn,
                                 modelIdOffset = model.id().stringValue(),
                                 size = size
                             )

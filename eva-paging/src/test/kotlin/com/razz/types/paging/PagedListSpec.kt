@@ -18,7 +18,7 @@ class PagedListSpec : BehaviorSpec({
     )
 
     class UserPagedList(list: List<User>, pageSize: Size) : AbstractPagedList<User, Instant>(list, pageSize) {
-        override fun maxPivot(item: User) = item.timestamp
+        override fun maxOrdering(item: User) = item.timestamp
         override fun offset(item: User) = item.name
     }
 
@@ -46,7 +46,7 @@ class PagedListSpec : BehaviorSpec({
 
                 Then("Next page is returned") {
                     nextPage shouldBe Page.Next(
-                        maxPivot = now.minusSeconds(10),
+                        maxOrdering = now.minusSeconds(10),
                         modelIdOffset = "Ilya",
                         size = pageSize
                     )

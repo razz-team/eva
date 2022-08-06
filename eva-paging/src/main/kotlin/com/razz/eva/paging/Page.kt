@@ -17,7 +17,7 @@ sealed class Page<P> {
 
     abstract fun withMinSize(size: Size): Page<P>
 
-    fun next(maxPivot: P, modelIdOffset: ModelOffset): Next<P> = Next(maxPivot, modelIdOffset, size)
+    fun next(maxOrdering: P, modelIdOffset: ModelOffset): Next<P> = Next(maxOrdering, modelIdOffset, size)
 
     @Serializable
     @SerialName("first")
@@ -32,9 +32,9 @@ sealed class Page<P> {
     @SerialName("next")
     data class Next<P>(
         /**
-         * Return records with pivot less or equal to this value
+         * Return records with ordering field less or equal to this value
          */
-        val maxPivot: @Contextual P,
+        val maxOrdering: @Contextual P,
         /**
          * Return records with id less than provided id
          */
@@ -53,7 +53,7 @@ sealed class Page<P> {
 
 fun <E, P> List<E>.nextPage(
     prevPage: Page<P>,
-    maxPivot: (E) -> P,
+    maxOrdering: (E) -> P,
     offset: (E) -> ModelOffset
 ): Page.Next<P>? {
     return if (size < prevPage.sizeValue() || isEmpty()) {
@@ -61,7 +61,7 @@ fun <E, P> List<E>.nextPage(
     } else {
         val lastElement = last()
         Page.Next(
-            maxPivot = maxPivot(lastElement),
+            maxOrdering = maxOrdering(lastElement),
             modelIdOffset = offset(lastElement),
             size = prevPage.size
         )

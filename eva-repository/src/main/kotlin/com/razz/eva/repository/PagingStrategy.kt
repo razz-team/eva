@@ -22,23 +22,23 @@ abstract class PagingStrategy<ID, MID, M, S, P, R>(
         P : Comparable<P>,
         R : Record {
 
-    protected abstract fun tablePivot(): TableField<R, P>
+    protected abstract fun tableOrdering(): TableField<R, P>
 
     protected abstract fun tableId(): TableField<R, ID>
 
     protected abstract fun tableOffset(modelOffset: ModelOffset): ID
 
-    protected abstract fun modelPivot(model: S): P
+    protected abstract fun modelOrdering(model: S): P
 
     protected abstract fun modelOffset(model: S): ModelOffset
 
     internal fun select(
         step: SelectOrderByStep<R>,
         page: Page<P>
-    ): Select<R> = step.orderBy(tablePivot().desc(), tableId())
+    ): Select<R> = step.orderBy(tableOrdering().desc(), tableId())
         .apply {
             if (page is Page.Next<P>) {
-                seek(page.maxPivot, tableOffset(page.modelIdOffset))
+                seek(page.maxOrdering, tableOffset(page.modelIdOffset))
             }
         }
         .limit(page.sizeValue())
@@ -51,7 +51,7 @@ abstract class PagingStrategy<ID, MID, M, S, P, R>(
     private fun nextPage(list: List<S>, pageSize: Size) = if (list.size >= pageSize.intValue() && list.isNotEmpty()) {
         val lastElement = list.last()
         Page.Next(
-            maxPivot = modelPivot(lastElement),
+            maxOrdering = modelOrdering(lastElement),
             modelIdOffset = modelOffset(lastElement),
             size = pageSize
         )
