@@ -1,6 +1,6 @@
 package com.razz.eva.paging
 
-abstract class AbstractPagedList<I, P>(
+abstract class AbstractPagedList<I, P : Comparable<P>>(
     private val list: List<I>,
     private val pageSize: Size
 ) : PagedList<I, P>, List<I> by list {

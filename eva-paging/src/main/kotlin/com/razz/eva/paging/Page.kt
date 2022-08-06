@@ -7,7 +7,7 @@ import kotlinx.serialization.Serializable
 typealias ModelOffset = String
 
 @Serializable
-sealed class Page<P> {
+sealed class Page<P : Comparable<P>> {
     /**
      * Return less or equal number of records
      */
@@ -21,7 +21,7 @@ sealed class Page<P> {
 
     @Serializable
     @SerialName("first")
-    data class First<P>(
+    data class First<P : Comparable<P>>(
         override val size: Size
     ) : Page<P>() {
 
@@ -30,7 +30,7 @@ sealed class Page<P> {
 
     @Serializable
     @SerialName("next")
-    data class Next<P>(
+    data class Next<P : Comparable<P>>(
         /**
          * Return records with ordering field less or equal to this value
          */
@@ -47,11 +47,11 @@ sealed class Page<P> {
     }
 
     companion object Factory {
-        fun <P> firstPage(size: Size): First<P> = First(size)
+        fun <P : Comparable<P>> firstPage(size: Size): First<P> = First(size)
     }
 }
 
-fun <E, P> List<E>.nextPage(
+fun <E, P : Comparable<P>> List<E>.nextPage(
     prevPage: Page<P>,
     maxOrdering: (E) -> P,
     offset: (E) -> ModelOffset
