@@ -1,21 +1,21 @@
 package com.razz.eva.migrations
 
-import com.razz.eva.migrations.Migration.EventsMigration
-import com.razz.eva.migrations.Migration.ModelsMigration
+import com.razz.eva.migrations.Migration.Factory.EventsMigration
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
 import org.flywaydb.core.Flyway
 
 class Migrations(
     config: MigrationsDatabaseConfig,
-    modelsMigration: ModelsMigration
+    mainMigration: Migration,
+    vararg otherMigrations: Migration = arrayOf(EventsMigration),
 ) {
-    private val flywayModels: Flyway = flywayProvider(config, modelsMigration)
-    private val flywayEvents: Flyway = flywayProvider(config, EventsMigration)
+    private val flywayMigrators: List<Flyway> = listOf(mainMigration, *otherMigrations).map { migration ->
+        flywayProvider(config, migration)
+    }
 
     fun start() {
-        flywayModels.migrate()
-        flywayEvents.migrate()
+        flywayMigrators.forEach(Flyway::migrate)
     }
 
     companion object {

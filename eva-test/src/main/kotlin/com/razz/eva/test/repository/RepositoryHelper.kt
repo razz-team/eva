@@ -1,7 +1,7 @@
 package com.razz.eva.test.repository
 
 import com.razz.eva.migrations.Migration
-import com.razz.eva.migrations.Migration.ModelsMigration
+import com.razz.eva.migrations.Migration.Factory.modelsMigration
 import com.razz.eva.persistence.TransactionManager
 import com.razz.eva.persistence.config.ExecutorType
 import com.razz.eva.persistence.executor.QueryExecutor
@@ -54,7 +54,7 @@ open class RepositoryHelper(
     )
 
     init {
-        val modelsMigration = ModelsMigration(migrationPath)
+        val modelsMigration = modelsMigration(migrationPath)
         db.createSchemas(createPartman)
         flywayProvider(db.dbName(), modelsMigration).migrate()
         val (txnManager, queryExecutor) = when (executorType) {
