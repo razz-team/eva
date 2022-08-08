@@ -1,9 +1,11 @@
 package com.razz.eva.migrations
 
-sealed class DbSchema(private val schema: String) {
+data class DbSchema(private val schema: String) {
 
     override fun toString() = schema
 
-    object ModelsSchema : DbSchema("public")
-    object EventsSchema : DbSchema("events")
+    companion object Factory {
+        val ModelsSchema = DbSchema("public")
+        val EventsSchema = DbSchema("events")
+    }
 }

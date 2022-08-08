@@ -1,6 +1,6 @@
 package com.razz.eva.migrations
 
-sealed class Migration(private val path: String, val schema: DbSchema) {
+data class Migration(val path: String, val schema: DbSchema) {
 
     fun classpathLocation() = "classpath:$path"
 
@@ -11,11 +11,14 @@ sealed class Migration(private val path: String, val schema: DbSchema) {
         ]
     """.trimIndent()
 
-    class ModelsMigration(path: String) : Migration(path, DbSchema.ModelsSchema) {
-        init {
-            check(!path.contains("events"))
-        }
-    }
+    companion object Factory {
 
-    object EventsMigration : Migration("com/razz/eva/events/db", DbSchema.EventsSchema)
+        fun modelsMigration(path: String): Migration {
+            check(!path.contains("events"))
+            check(!path.contains("locks"))
+            return Migration(path, DbSchema.ModelsSchema)
+        }
+
+        val EventsMigration = Migration("com/razz/eva/events/db", DbSchema.EventsSchema)
+    }
 }

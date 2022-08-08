@@ -1,6 +1,6 @@
 package com.razz.eva.uow.func
 
-import com.razz.eva.migrations.Migration.ModelsMigration
+import com.razz.eva.migrations.Migration.Factory.modelsMigration
 import com.razz.eva.migrations.Migrations
 import com.razz.eva.migrations.MigrationsDatabaseConfig
 import com.razz.eva.persistence.config.DatabaseConfig
@@ -33,7 +33,7 @@ abstract class PersistenceBaseSpec(
             ddlUser = DbUser(DB.username()),
             ddlPassword = DbPassword(DB.password())
         )
-        val migrations = Migrations(migrationConfig, ModelsMigration("com/razz/eva/test/db")).apply {
+        val migrations = Migrations(migrationConfig, modelsMigration("com/razz/eva/test/db")).apply {
             start()
         }
 
