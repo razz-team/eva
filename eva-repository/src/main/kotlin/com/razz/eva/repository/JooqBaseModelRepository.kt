@@ -6,11 +6,11 @@ import com.razz.eva.domain.Model
 import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
 import com.razz.eva.domain.Version.Companion.version
+import com.razz.eva.paging.Page
 import com.razz.eva.persistence.PersistenceException
 import com.razz.eva.persistence.executor.QueryExecutor
 import com.razz.jooq.record.BaseEntityRecord
 import com.razz.eva.paging.PagedList
-import com.razz.eva.paging.TimestampPage
 import io.vertx.pgclient.PgException
 import org.jooq.Condition
 import org.jooq.DSLContext
@@ -291,11 +291,11 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
      *
      * (timestamp, id) > (X, Y) is equivalent to (timestamp > X) OR ((timestamp = X) AND (id > Y))
      */
-    protected suspend fun <S : M> findPage(
+    protected suspend fun <S : M, P : Comparable<P>> findPage(
         condition: Condition,
-        page: TimestampPage,
-        pagingStrategy: PagingStrategy<ID, MID, M, S, R>
-    ): PagedList<S> {
+        page: Page<P>,
+        pagingStrategy: PagingStrategy<ID, MID, M, S, P, R>
+    ): PagedList<S, P> {
         val list = findAll(
             dslContext.selectFrom(table)
                 .where(condition)
@@ -304,9 +304,9 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
         return pagingStrategy.pagedList(list, page.size)
     }
 
-    private fun <S : M> SelectConditionStep<R>.page(
-        page: TimestampPage,
-        pagingStrategy: PagingStrategy<ID, MID, M, S, R>
+    private fun <S : M, P : Comparable<P>> SelectConditionStep<R>.page(
+        page: Page<P>,
+        pagingStrategy: PagingStrategy<ID, MID, M, S, P, R>
     ) = pagingStrategy.select(this, page)
 
     protected suspend fun findAllWhere(

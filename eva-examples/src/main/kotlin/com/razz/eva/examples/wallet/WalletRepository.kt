@@ -3,10 +3,11 @@ package com.razz.eva.examples.wallet
 import com.razz.eva.domain.EntityState.PersistentState
 import com.razz.eva.examples.schema.db.Tables.WALLET
 import com.razz.eva.examples.schema.db.tables.records.WalletRecord
-import com.razz.eva.paging.TimestampPage
+import com.razz.eva.paging.Page
 import com.razz.eva.persistence.executor.QueryExecutor
 import com.razz.eva.repository.JooqBaseModelRepository
 import org.jooq.DSLContext
+import java.time.Instant
 import java.util.*
 
 class WalletRepository(
@@ -34,7 +35,7 @@ class WalletRepository(
         entityState = entityState
     )
 
-    suspend fun wallets(currency: Currency, page: TimestampPage) = findPage(
+    suspend fun wallets(currency: Currency, page: Page<Instant>) = findPage(
         condition = WALLET.CURRENCY.eq(currency.currencyCode),
         page = page,
         pagingStrategy = WalletPaging

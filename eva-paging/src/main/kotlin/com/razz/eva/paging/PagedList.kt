@@ -1,6 +1,6 @@
 package com.razz.eva.paging
 
-interface PagedList<I> : List<I> {
+interface PagedList<I, P : Comparable<P>> : List<I> {
 
-    fun nextPage(): TimestampPage.Next?
+    fun nextPage(): Page.Next<P>?
 }
