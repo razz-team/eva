@@ -15,7 +15,6 @@ data class Migration(val path: String, val schema: DbSchema) {
 
         fun modelsMigration(path: String): Migration {
             check(!path.contains("events"))
-            check(!path.contains("locks"))
             return Migration(path, DbSchema.ModelsSchema)
         }
 
