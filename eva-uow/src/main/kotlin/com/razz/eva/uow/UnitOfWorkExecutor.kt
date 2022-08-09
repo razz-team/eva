@@ -26,7 +26,7 @@ infix fun <PRINCIPAL, PARAMS, RESULT, UOW> KClass<UOW>.withFactory(
     factory: () -> UOW
 ) where PRINCIPAL : Principal<*>,
         PARAMS : UowParams<PARAMS>,
-        UOW : UnitOfWork<PRINCIPAL, PARAMS, RESULT>,
+        UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *>,
         RESULT : Any =
     ClassToUow(this, factory)
 
@@ -41,7 +41,7 @@ class UnitOfWorkExecutor(
         internal val uowClass: KClass<UOW>,
         internal val uowFactory: () -> UOW
     ) where PRINCIPAL : Principal<*>,
-            UOW : UnitOfWork<PRINCIPAL, PARAMS, RESULT>,
+            UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *>,
             PARAMS : UowParams<PARAMS>,
             RESULT : Any
 
@@ -56,7 +56,7 @@ class UnitOfWorkExecutor(
         params: () -> PARAMS
     ): RESULT where PRINCIPAL : Principal<*>,
                     PARAMS : UowParams<PARAMS>,
-                    UOW : UnitOfWork<PRINCIPAL, PARAMS, RESULT> {
+                    UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *> {
         val startTime = System.nanoTime()
         val activeSpan = coroutineContext[ActiveSpanElement]?.span
         if (activeSpan == null) {
@@ -123,7 +123,7 @@ class UnitOfWorkExecutor(
         .register(meterRegistry)
 
     @Suppress("UNCHECKED_CAST")
-    private fun <PRINCIPAL : Principal<*>, PARAMS, RESULT, UOW : UnitOfWork<PRINCIPAL, PARAMS, RESULT>>
+    private fun <PRINCIPAL : Principal<*>, PARAMS, RESULT, UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *>>
     create(target: KClass<UOW>): UOW {
         val factory = classToFactory[target] ?: throw UowFactoryNotFoundException(target)
         return (factory as () -> UOW)()
