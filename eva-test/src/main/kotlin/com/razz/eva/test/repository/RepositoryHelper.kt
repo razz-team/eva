@@ -1,7 +1,7 @@
 package com.razz.eva.test.repository
 
+import com.razz.eva.migrations.DbSchema
 import com.razz.eva.migrations.Migration
-import com.razz.eva.migrations.Migration.Factory.modelsMigration
 import com.razz.eva.persistence.TransactionManager
 import com.razz.eva.persistence.config.ExecutorType
 import com.razz.eva.persistence.executor.QueryExecutor
@@ -25,7 +25,9 @@ import java.util.function.Predicate
 
 open class RepositoryHelper(
     migrationPath: String,
-    createPartman: Boolean = false
+    createPartman: Boolean = false,
+    trimmedPackagePrefix: String = "com/razz/",
+    schema: DbSchema = DbSchema.ModelsSchema
 ) {
 
     companion object {
@@ -39,22 +41,22 @@ open class RepositoryHelper(
 
     open val hikariPoolSize = 4
 
-    internal val dslContext = DSL.using(
+    val dslContext = DSL.using(
         SQLDialect.POSTGRES,
         Settings().withRenderNamedParamPrefix("$").withParamType(ParamType.NAMED)
     )
-    internal val txnManager: TransactionManager<*>
-    internal val queryExecutor: QueryExecutor
+    val txnManager: TransactionManager<*>
+    val queryExecutor: QueryExecutor
 
     private val db = DatabaseContainerHelper.create(
         migrationPath
-            .replace("com/razz/", "")
+            .replace(trimmedPackagePrefix, "")
             .replace("/db", "")
             .replace("/", "") + "_repo_test"
     )
 
     init {
-        val modelsMigration = modelsMigration(migrationPath)
+        val modelsMigration = Migration(migrationPath, schema)
         db.createSchemas(createPartman)
         flywayProvider(db.dbName(), modelsMigration).migrate()
         val (txnManager, queryExecutor) = when (executorType) {

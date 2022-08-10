@@ -28,6 +28,7 @@ dependencies {
     testImplementation(project(eva.eva_test))
     testImplementation(project(eva.eva_serialization))
     testImplementation(testFixtures(project(eva.eva_domain)))
+    testImplementation(testFixtures(project(eva.eva_uow)))
     testImplementation(testFixtures(project(eva.eva_repository)))
     testImplementation(testFixtures(project(eva.eva_persistence)))
 

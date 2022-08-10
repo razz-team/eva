@@ -9,7 +9,7 @@ import com.razz.eva.uow.ExecutionStep.TransactionFinished
 import com.razz.eva.uow.ExecutionStep.TransactionStarted
 import kotlin.reflect.KClass
 
-internal object FakeMemorizingPersisting {
+object FakeMemorizingPersisting {
 
     operator fun invoke(vararg uows: KClass<out Model<*, *>>): Persisting {
         val history = mutableListOf<ExecutionStep>()
