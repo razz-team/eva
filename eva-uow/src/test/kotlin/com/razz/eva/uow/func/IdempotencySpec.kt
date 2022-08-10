@@ -62,11 +62,11 @@ class IdempotencySpec : PersistenceBaseSpec({
                     }
                     ex.uowName shouldBe "CreateSoloDepartmentUow"
                     ex.idempotencyKey shouldBe idempotencyKey
+                }
 
-                    And("New department should not be created") {
-                        val dep = module.departmentRepo.findByName("new android boys")
-                        dep shouldBe null
-                    }
+                And("New department should not be created") {
+                    val dep = module.departmentRepo.findByName("new android boys")
+                    dep shouldBe null
                 }
             }
 

@@ -139,7 +139,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                     tickingClock.instant() shouldBe ofEpochMilli(0)
                 }
 
-                When("UnitOfWorkExecutor executes Uow") {
+                And("UnitOfWorkExecutor executes Uow") {
                     val observedMilli = uowx.execute(DummyUow::class, TestPrincipal) { DummyUow.Params }
 
                     Then("Uow observed frozen clock twice") {
