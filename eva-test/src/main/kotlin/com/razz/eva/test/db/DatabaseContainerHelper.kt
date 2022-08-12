@@ -113,7 +113,7 @@ class DatabaseContainerHelper private constructor(
         // 5 cpu = 2 for db; 1 cpu = 1 for db; 16 cpu = 4 for db
         private val cpuCount = ceil(getRuntime().availableProcessors() / 4.0).toLong()
 
-        private val pgContainer = PostgreDockerContainer(PostgrePartmanImage13)
+        private val pgContainer = PostgreDockerContainer(PostgrePartmanImage14)
             .withDatabaseName("test")
             .withUsername("test")
             .withPassword("test")
@@ -189,5 +189,5 @@ sealed class DockerImageName(internal val value: String) {
     fun toTestcontainers(): TestcontainersDockerImageName = TestcontainersDockerImageName.parse(this.value)
         .asCompatibleSubstituteFor("postgres")
 
-    object PostgrePartmanImage13 : DockerImageName("alecx/testdb_pg13:v1.0-amd64")
+    object PostgrePartmanImage14 : DockerImageName("alecx/testdb_pg14:v1.0-amd64")
 }
