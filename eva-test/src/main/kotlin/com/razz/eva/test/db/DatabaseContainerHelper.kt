@@ -1,6 +1,6 @@
 package com.razz.eva.test.db
 
-import com.razz.eva.test.db.DockerImageName.PostgrePartmanImage13
+import com.razz.eva.test.db.DockerImageName.PostgrePartmanImage14
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
 import mu.KotlinLogging
