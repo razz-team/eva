@@ -1,20 +1,26 @@
-package com.razz.eva.examples.uow
+package com.razz.eva.examples.composition.uow
 
 import com.razz.eva.uow.BaseUnitOfWork
 import com.razz.eva.uow.BaseUnitOfWork.Configuration.Companion.default
 import com.razz.eva.uow.Changes
 import com.razz.eva.uow.ChangesWithoutResult
 import com.razz.eva.domain.Principal
+import com.razz.eva.uow.ChangesDsl
 import com.razz.eva.uow.UowParams
 import java.time.Clock
 
 abstract class CustomUnitOfWork<PRINCIPAL, PARAMS, RESULT>(
     clock: Clock,
+    private val head: CustomChangesDsl? = null,
     configuration: Configuration = default()
 ) : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, CustomChangesDsl>(clock, configuration)
     where PRINCIPAL : Principal<*>, PARAMS : UowParams<PARAMS>, RESULT : Any {
 
     final override suspend fun changes(init: suspend CustomChangesDsl.() -> RESULT): Changes<RESULT> {
-        return CustomChangesDsl.changes(ChangesWithoutResult(), init)
+        return if (head == null) {
+            CustomChangesDsl.changes(ChangesWithoutResult(), init)
+        } else {
+            CustomChangesDsl.append(head, init)
+        }
     }
 }

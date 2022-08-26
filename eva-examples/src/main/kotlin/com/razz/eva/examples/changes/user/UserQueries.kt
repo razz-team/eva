@@ -1,4 +1,4 @@
-package com.razz.eva.examples.user
+package com.razz.eva.examples.changes.user
 
 interface UserQueries {
 

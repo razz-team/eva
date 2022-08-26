@@ -1,4 +1,4 @@
-package com.razz.eva.examples.uow
+package com.razz.eva.examples.composition.uow
 
 import com.razz.eva.domain.Model
 import com.razz.eva.domain.ModelEvent
@@ -20,34 +20,6 @@ class CustomChangesDsl internal constructor(private var changes: ChangesWithoutR
         return model
     }
 
-    class ChainOfUpdatesDsl<MID, E, M> internal constructor(private var acc: M)
-        where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
-
-        fun also(modelMutator: M.() -> M?): M {
-            acc = acc.modelMutator() ?: acc
-            return acc
-        }
-    }
-
-    fun <MID, E, M> updateIfChanged(model: M, init: ChainOfUpdatesDsl<MID, E, M>.() -> M): M?
-        where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
-        val dsl = ChainOfUpdatesDsl(model)
-        val res = dsl.init()
-        return if (res === model) {
-            changes = changes.withUnchanged(model)
-            null
-        } else {
-            changes = changes.withUpdated(res)
-            res
-        }
-    }
-
-    fun <MID, E, M> notChanged(model: M): M
-        where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
-        changes = changes.withUnchanged(model)
-        return model
-    }
-
     companion object {
         internal suspend inline fun <R> changes(
             changes: ChangesWithoutResult,
@@ -57,6 +29,14 @@ class CustomChangesDsl internal constructor(private var changes: ChangesWithoutR
             val dsl = CustomChangesDsl(changes)
             val res = init(dsl)
             return dsl.changes.withResult(res)
+        }
+
+        internal suspend fun <R> append(
+            head: CustomChangesDsl,
+            init: suspend CustomChangesDsl.() -> R
+        ): Changes<R> {
+            val res = init(head)
+            return head.changes.withResult(res)
         }
     }
 }

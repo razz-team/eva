@@ -1,11 +1,11 @@
-package com.razz.eva.examples.user
+package com.razz.eva.examples.changes.user
 
 import com.razz.eva.domain.EntityState.PersistentState
 import com.razz.eva.examples.schema.db.Tables.USER
 import com.razz.eva.examples.schema.db.tables.records.UserRecord
-import com.razz.eva.examples.user.User.Factory.existingUser
-import com.razz.eva.examples.user.User.Id
-import com.razz.eva.examples.user.UserQueries.UserNotFoundException
+import com.razz.eva.examples.changes.user.User.Factory.existingUser
+import com.razz.eva.examples.changes.user.User.Id
+import com.razz.eva.examples.changes.user.UserQueries.UserNotFoundException
 import com.razz.eva.persistence.executor.QueryExecutor
 import com.razz.eva.repository.JooqBaseModelRepository
 import org.jooq.DSLContext

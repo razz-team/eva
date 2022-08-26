@@ -2,15 +2,18 @@ package com.razz.eva.examples.user
 
 import com.razz.eva.domain.EntityState.PersistentState.Companion.persistentState
 import com.razz.eva.domain.Version.Companion.V1
-import com.razz.eva.examples.uow.ServicePrincipal
-import com.razz.eva.examples.user.User.Address
-import com.razz.eva.examples.user.User.Factory.existingUser
-import com.razz.eva.examples.user.User.FirstName
-import com.razz.eva.examples.user.User.LastName
-import com.razz.eva.examples.user.UserEvent.UserFirstNameChanged
-import com.razz.eva.examples.user.UserEvent.UserLastNameChanged
+import com.razz.eva.examples.ServicePrincipal
+import com.razz.eva.examples.changes.user.User.Address
+import com.razz.eva.examples.changes.user.User.Factory.existingUser
+import com.razz.eva.examples.changes.user.User.FirstName
+import com.razz.eva.examples.changes.user.User.LastName
+import com.razz.eva.examples.changes.user.UserEvent.UserFirstNameChanged
+import com.razz.eva.examples.changes.user.UserEvent.UserLastNameChanged
 import com.razz.eva.test.uow.UowBehaviorSpec
 import com.razz.eva.domain.Principal
+import com.razz.eva.examples.changes.user.UpdateUserUow
+import com.razz.eva.examples.changes.user.User
+import com.razz.eva.examples.changes.user.UserQueries
 import com.razz.eva.uow.verify.verifyInOrder
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery

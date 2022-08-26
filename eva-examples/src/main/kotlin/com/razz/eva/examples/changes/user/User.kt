@@ -1,4 +1,4 @@
-package com.razz.eva.examples.user
+package com.razz.eva.examples.changes.user
 
 import com.razz.eva.domain.EntityState
 import com.razz.eva.domain.EntityState.NewState.Companion.newState
@@ -6,14 +6,14 @@ import com.razz.eva.domain.Model
 import com.razz.eva.domain.ModelCreatedEvent
 import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
-import com.razz.eva.examples.user.User.Address
-import com.razz.eva.examples.user.User.FirstName
-import com.razz.eva.examples.user.User.Id
-import com.razz.eva.examples.user.User.LastName
-import com.razz.eva.examples.user.UserEvent.UserAddressChanged
-import com.razz.eva.examples.user.UserEvent.UserCreated
-import com.razz.eva.examples.user.UserEvent.UserFirstNameChanged
-import com.razz.eva.examples.user.UserEvent.UserLastNameChanged
+import com.razz.eva.examples.changes.user.User.Address
+import com.razz.eva.examples.changes.user.User.FirstName
+import com.razz.eva.examples.changes.user.User.Id
+import com.razz.eva.examples.changes.user.User.LastName
+import com.razz.eva.examples.changes.user.UserEvent.UserAddressChanged
+import com.razz.eva.examples.changes.user.UserEvent.UserCreated
+import com.razz.eva.examples.changes.user.UserEvent.UserFirstNameChanged
+import com.razz.eva.examples.changes.user.UserEvent.UserLastNameChanged
 import kotlinx.serialization.Contextual
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.buildJsonObject
