@@ -1,7 +1,7 @@
 package com.razz.eva.examples.wallet
 
 import com.razz.eva.domain.EntityState.NewState.Companion.newState
-import com.razz.eva.examples.uow.ServicePrincipal
+import com.razz.eva.examples.ServicePrincipal
 import com.razz.eva.examples.wallet.CreateWalletUow.Params
 import com.razz.eva.persistence.PersistenceException
 import com.razz.eva.persistence.PersistenceException.ModelRecordConstraintViolationException

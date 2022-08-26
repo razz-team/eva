@@ -1,4 +1,4 @@
-package com.razz.eva.examples.uow
+package com.razz.eva.examples
 
 import com.razz.eva.domain.Principal
 import com.razz.eva.domain.Principal.Id

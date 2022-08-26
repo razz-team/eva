@@ -1,4 +1,4 @@
-package com.razz.eva.examples.uow
+package com.razz.eva.examples.changes.uow
 
 import com.razz.eva.uow.BaseUnitOfWork
 import com.razz.eva.uow.BaseUnitOfWork.Configuration.Companion.default

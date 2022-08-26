@@ -1,6 +1,6 @@
 package com.razz.eva.examples.wallet
 
-import com.razz.eva.examples.uow.ServicePrincipal
+import com.razz.eva.examples.ServicePrincipal
 import com.razz.eva.persistence.config.DatabaseConfig
 import com.razz.eva.persistence.config.DbName
 import com.razz.eva.persistence.config.DbNodeAddress
