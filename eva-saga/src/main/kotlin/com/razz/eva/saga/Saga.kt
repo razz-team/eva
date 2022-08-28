@@ -16,38 +16,51 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>
 
     sealed interface Step<SAGA>
         where SAGA : Saga<*, *, out Intermediary<SAGA>, out Terminal<SAGA>, SAGA>
+
     interface Intermediary<SAGA> : Step<SAGA>
         where SAGA : Saga<*, *, out Intermediary<SAGA>, out Terminal<SAGA>, SAGA>
+
     interface Terminal<SAGA> : Step<SAGA>
         where SAGA : Saga<*, *, out Intermediary<SAGA>, out Terminal<SAGA>, SAGA>
 
     protected abstract suspend fun init(principal: PRINCIPAL, params: PARAMS): Step<SELF>
 
-    protected abstract fun next(principal: PRINCIPAL, currentStep: IS): suspend () -> Step<SELF>
+    protected abstract suspend fun next(principal: PRINCIPAL, currentStep: IS): Step<SELF>
 
-    protected open suspend fun onException(e: Exception): TS? = throw e
+    protected open suspend fun onException(
+        e: Exception,
+        principal: PRINCIPAL,
+        params: PARAMS,
+        currentStep: IS?
+    ): TS? = throw e
 
-    suspend fun resume(principal: PRINCIPAL, params: PARAMS): TS = try {
-        val initial = init(principal, params)
-        run(principal, setOf(initial::class), initial)
-    } catch (e: Exception) {
-        onException(e) ?: resume(principal, params)
+    suspend fun resume(principal: PRINCIPAL, params: PARAMS): TS {
+        val initial = try {
+            init(principal, params)
+        } catch (e: Exception) {
+            onException(e, principal, params, null) ?: resume(principal, params)
+        }
+        return run(principal, params, setOf(initial::class), initial)
     }
 
     @Suppress("UNCHECKED_CAST")
     private suspend fun run(
         principal: PRINCIPAL,
+        params: PARAMS,
         trail: Set<KClass<out Step<SELF>>>,
         step: Step<SELF>
-    ): TS {
-        return when (step) {
-            is Intermediary<*> -> next(principal, step as IS)().let {
-                checkThatNot(it::class in trail) {
-                    SagaHaltException(it as IS)
+    ): TS = try {
+        when (step) {
+            is Intermediary<*> -> {
+                val nextStep = next(principal, step as IS)
+                if (nextStep::class in trail) {
+                    throw SagaHaltException(nextStep as IS)
                 }
-                run(principal, trail + it::class, it)
+                run(principal, params, trail + nextStep::class, nextStep)
             }
             is Terminal<*> -> step as TS
         }
+    } catch (e: Exception) {
+        onException(e, principal, params, step as IS) ?: resume(principal, params)
     }
 }
