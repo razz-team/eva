@@ -16,10 +16,8 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>
 
     sealed interface Step<SAGA>
         where SAGA : Saga<*, *, out Intermediary<SAGA>, out Terminal<SAGA>, SAGA>
-
     interface Intermediary<SAGA> : Step<SAGA>
         where SAGA : Saga<*, *, out Intermediary<SAGA>, out Terminal<SAGA>, SAGA>
-
     interface Terminal<SAGA> : Step<SAGA>
         where SAGA : Saga<*, *, out Intermediary<SAGA>, out Terminal<SAGA>, SAGA>
 
