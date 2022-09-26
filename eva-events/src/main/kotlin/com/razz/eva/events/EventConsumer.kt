@@ -15,6 +15,4 @@ interface EventConsumer {
     val eventNames: Set<EventName>
 
     suspend fun consume(event: IntegrationModelEvent)
-
-    fun id(groupId: String) = ConsumerId("$groupId-${this::class.java.simpleName}")
 }
