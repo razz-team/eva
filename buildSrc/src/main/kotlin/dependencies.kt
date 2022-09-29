@@ -35,7 +35,7 @@ object libs {
     val kotlin_coroutines = "org.jetbrains.kotlinx:kotlinx-coroutines-core:${versions.kotlin_coroutines}"
     val kotlinx_serialization = "org.jetbrains.kotlinx:kotlinx-serialization-core-jvm"
     val kotlinx_serialization_json = "org.jetbrains.kotlinx:kotlinx-serialization-json:${versions.kotlin_serialization_json}"
-    val kotest_runner = "io.kotest:kotest-runner-junit5:${versions.kotest}"
+    val kotest_runner = "io.kotest:kotest-runner-junit5-jvm:${versions.kotest}"
     val kotest_assertions_json = "io.kotest:kotest-assertions-json-jvm:${versions.kotest}"
     val kotest_assertions_core = "io.kotest:kotest-assertions-core-jvm:${versions.kotest}"
     val kotest_framework = "io.kotest:kotest-framework-api:${versions.kotest}"

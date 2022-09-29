@@ -32,7 +32,7 @@ class Migrations(
                         jdbcUrl = config.jdbcURL.toString()
                         username = config.ddlUser.toString()
                         password = config.ddlPassword.showPassword()
-                        maximumPoolSize = 1
+                        maximumPoolSize = 2 // need at least two for pg advisory lock and ddl connection
                     }
                 )
             )

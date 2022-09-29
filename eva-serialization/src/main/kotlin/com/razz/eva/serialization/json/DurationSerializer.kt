@@ -9,7 +9,7 @@ import java.time.Duration
 
 object DurationSerializer : KSerializer<Duration> {
 
-    override val descriptor = PrimitiveSerialDescriptor("Duration", STRING)
+    override val descriptor = PrimitiveSerialDescriptor("DurationString", STRING)
 
     override fun deserialize(decoder: Decoder): Duration = Duration.parse(decoder.decodeString())
 
