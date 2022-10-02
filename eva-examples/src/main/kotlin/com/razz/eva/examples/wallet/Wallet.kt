@@ -5,6 +5,8 @@ import com.razz.eva.domain.Model
 import com.razz.eva.domain.ModelCreatedEvent
 import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
+import kotlinx.serialization.Contextual
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import java.time.Instant
@@ -47,7 +49,8 @@ class Wallet(
     entityState: EntityState<Id, WalletEvent>
 ) : Model<Wallet.Id, WalletEvent>(id, entityState) {
 
-    data class Id(override val id: UUID) : ModelId<UUID>
+    @Serializable
+    data class Id(override val id: @Contextual UUID) : ModelId<UUID>
 
     fun deposit(toDeposit: ULong) = Wallet(
         amount = amount - toDeposit,

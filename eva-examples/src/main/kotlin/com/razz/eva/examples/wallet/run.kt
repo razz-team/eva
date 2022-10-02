@@ -1,5 +1,6 @@
 package com.razz.eva.examples.wallet
 
+import com.razz.eva.domain.Principal
 import com.razz.eva.examples.ServicePrincipal
 import com.razz.eva.persistence.config.DatabaseConfig
 import com.razz.eva.persistence.config.DbName
@@ -8,7 +9,7 @@ import com.razz.eva.persistence.config.DbPassword
 import com.razz.eva.persistence.config.DbUser
 import com.razz.eva.persistence.config.ExecutorType
 import com.razz.eva.persistence.config.MaxPoolSize
-import com.razz.eva.domain.Principal
+import com.razz.eva.uow.ModelParams
 import kotlinx.coroutines.runBlocking
 
 @Suppress("UNUSED_PARAMETER", "UNUSED_VARIABLE")
@@ -30,4 +31,13 @@ fun main(vararg args: String) = runBlocking {
             currency = "USD"
         )
     }
+
+    val updatedWallet = module.uowx.execute(DepositWalletUow::class, principal, ModelParams {
+        DepositWalletUow.Params(
+            modelParam(createdWallet) { id -> requireNotNull(module.walletRepo.find(id)) },
+            1337U,
+        )
+    })
+
+    println(updatedWallet.amount)
 }
