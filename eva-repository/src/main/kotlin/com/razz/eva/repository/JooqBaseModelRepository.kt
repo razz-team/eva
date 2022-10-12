@@ -32,13 +32,13 @@ import java.time.Instant
 abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
     private val queryExecutor: QueryExecutor,
     private val dslContext: DSLContext,
-    private val table: Table<R>,
+    protected val table: Table<R>,
     @Suppress("UNCHECKED_CAST")
-    private val tableId: TableField<R, ID> = requireNotNull(table.primaryKey).fields.single() as TableField<R, ID>,
+    protected val tableId: TableField<R, ID> = requireNotNull(table.primaryKey).fields.single() as TableField<R, ID>,
     @Suppress("UNCHECKED_CAST")
     private val version: TableField<R, Long> = table.recordVersion as TableField<R, Long>,
     @Suppress("UNCHECKED_CAST")
-    private val createdAt: TableField<R, Instant> = table.field("record_created_at") as TableField<R, Instant>
+    protected val createdAt: TableField<R, Instant> = table.field("record_created_at") as TableField<R, Instant>
 ) : ModelRepository<ID, MID, M>
     where ID : Comparable<ID>,
           MID : ModelId<ID>,
