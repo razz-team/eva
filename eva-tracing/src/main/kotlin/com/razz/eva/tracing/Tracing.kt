@@ -2,17 +2,14 @@ package com.razz.eva.tracing
 
 import io.jaegertracing.internal.JaegerTracer
 import io.jaegertracing.internal.metrics.Metrics
-import io.jaegertracing.internal.metrics.NoopMetricsFactory
 import io.jaegertracing.internal.propagation.B3TextMapCodec
 import io.jaegertracing.internal.reporters.RemoteReporter
 import io.jaegertracing.internal.samplers.ConstSampler
-import io.jaegertracing.internal.senders.NoopSender
 import io.jaegertracing.micrometer.MicrometerMetricsFactory
 import io.jaegertracing.spi.Sender
 import io.jaegertracing.thrift.internal.senders.UdpSender
 import io.opentracing.Span
 import io.opentracing.Tracer
-import io.opentracing.noop.NoopTracer
 import io.opentracing.noop.NoopTracerFactory
 import io.opentracing.propagation.Format
 import io.opentracing.tag.StringTag
