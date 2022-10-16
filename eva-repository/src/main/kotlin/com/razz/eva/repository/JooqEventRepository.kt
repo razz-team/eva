@@ -103,11 +103,13 @@ class JooqEventRepository(
             )
         }
 
-        val tracingContext = coroutineContext[ActiveSpanElement]?.span?.context()?.let {
-            mutableMapOf<String, String>().apply {
-                tracer.inject(it, Format.Builtin.TEXT_MAP, TextMapAdapter(this))
+        val tracingContext = kotlin.runCatching {
+            coroutineContext[ActiveSpanElement]?.span?.context()?.let {
+                mutableMapOf<String, String>().apply {
+                    tracer.inject(it, Format.Builtin.TEXT_MAP, TextMapAdapter(this))
+                }
             }
-        }
+        }.getOrNull()
         val modelEventRs = uowEvent.modelEvents.map { (id, event) ->
             toMERecord(
                 uowEvent = uowEvent,
