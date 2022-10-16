@@ -2,9 +2,11 @@ package com.razz.eva.tracing
 
 import io.jaegertracing.internal.JaegerTracer
 import io.jaegertracing.internal.metrics.Metrics
+import io.jaegertracing.internal.metrics.NoopMetricsFactory
 import io.jaegertracing.internal.propagation.B3TextMapCodec
 import io.jaegertracing.internal.reporters.RemoteReporter
 import io.jaegertracing.internal.samplers.ConstSampler
+import io.jaegertracing.internal.senders.NoopSender
 import io.jaegertracing.micrometer.MicrometerMetricsFactory
 import io.jaegertracing.spi.Sender
 import io.jaegertracing.thrift.internal.senders.UdpSender
@@ -60,7 +62,8 @@ object Tracing {
         val TOPIC_NAME = StringTag("event.topic")
     }
 
-    fun noopTracer(): Tracer = notReportingTracer()
+    fun noopTracer(): Tracer = NoopTracerFactory.create()
 
-    fun notReportingTracer(): Tracer = NoopTracerFactory.create()
+    fun notReportingTracer(serviceName: String = "spec"): Tracer =
+        tracer(serviceName, Metrics(NoopMetricsFactory()), NoopSender())
 }
