@@ -12,6 +12,7 @@ import io.jaegertracing.spi.Sender
 import io.jaegertracing.thrift.internal.senders.UdpSender
 import io.opentracing.Span
 import io.opentracing.Tracer
+import io.opentracing.noop.NoopTracerFactory
 import io.opentracing.propagation.Format
 import io.opentracing.tag.StringTag
 import kotlinx.coroutines.CoroutineScope
@@ -61,7 +62,7 @@ object Tracing {
         val TOPIC_NAME = StringTag("event.topic")
     }
 
-    fun noopTracer(): Tracer = notReportingTracer()
+    fun noopTracer(): Tracer = NoopTracerFactory.create()
 
     fun notReportingTracer(serviceName: String = "spec"): Tracer =
         tracer(serviceName, Metrics(NoopMetricsFactory()), NoopSender())
