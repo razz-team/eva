@@ -10,6 +10,7 @@ import com.razz.eva.tracing.Tracing.PERFORM
 import com.razz.eva.tracing.Tracing.PERSIST
 import com.razz.eva.uow.UnitOfWorkExecutor.ClassToUow
 import io.micrometer.core.instrument.MeterRegistry
+import io.micrometer.core.instrument.Timer
 import io.opentracing.Span
 import io.opentracing.Tracer
 import io.opentracing.tag.Tags.ERROR
@@ -51,8 +52,8 @@ class UnitOfWorkExecutor(
     }
 
     suspend fun <PRINCIPAL, PARAMS, RESULT, UOW> execute(
-        target: KClass<UOW>,
         principal: PRINCIPAL,
+        uowFactory: () -> UOW,
         params: () -> PARAMS
     ): RESULT where PRINCIPAL : Principal<*>,
                     PARAMS : UowParams<PARAMS>,
@@ -62,13 +63,18 @@ class UnitOfWorkExecutor(
         if (activeSpan == null) {
             logger.warn { "No active span found in uow context, check tracing configuration" }
         }
-        val name = target.java.simpleName
-        val timer = createTimer(name)
-        val uowSpan = tracer.buildSpan(name).asChildOf(activeSpan).withTag(Tracing.Tags.UOW_NAME, name).start()
+        lateinit var timer: Timer
+        lateinit var uowSpan: Span
+        lateinit var name: String
         try {
             var currentAttempt = 0
             while (true) {
-                val uow = create(target)
+                val uow = uowFactory()
+                if (currentAttempt == 0) {
+                    name = uow.name()
+                    timer = createTimer(name)
+                    uowSpan = tracer.buildSpan(name).asChildOf(activeSpan).withTag(Tracing.Tags.UOW_NAME, name).start()
+                }
                 val constructedParams = params()
                 val performSpan = buildPerformSpan(name, uowSpan)
                 val changes = withContext(ActiveSpanElement(performSpan) + PrimaryConnectionRequiredFlag) {
@@ -110,6 +116,16 @@ class UnitOfWorkExecutor(
             timer.record(elapsedTime, NANOSECONDS)
             uowSpan.finish()
         }
+    }
+
+    suspend fun <PRINCIPAL, PARAMS, RESULT, UOW> execute(
+        target: KClass<UOW>,
+        principal: PRINCIPAL,
+        params: () -> PARAMS
+    ): RESULT where PRINCIPAL : Principal<*>,
+                    PARAMS : UowParams<PARAMS>,
+                    UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *> {
+        return execute(principal, { create(target) }, params)
     }
 
     private suspend fun Retry?.shouldRetry(currentAttempt: Int, ex: PersistenceException): Boolean =

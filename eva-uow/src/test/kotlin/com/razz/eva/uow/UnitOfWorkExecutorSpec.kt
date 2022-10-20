@@ -153,6 +153,34 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
             }
         }
 
+        And("Ad hoc factory") {
+            val factory = {
+                object : DummyUow(frozenClock()) {
+                    override suspend fun tryPerform(
+                        principal: TestPrincipal,
+                        params: Params,
+                    ) = noChanges("Success")
+                }
+            }
+
+            When("UnitOfWorkExecutor created without factories") {
+                val uowx = UnitOfWorkExecutor(
+                    listOf(),
+                    Persisting(WithCtxConnectionTransactionManager(), ModelRepos(), DummyEventRepository()),
+                    noopTracer(),
+                    SimpleMeterRegistry(),
+                )
+
+                And("UnitOfWorkExecutor executes Uow") {
+                    val result = uowx.execute(TestPrincipal, factory) { DummyUow.Params }
+
+                    Then("Result should be Success") {
+                        result shouldBe "Success"
+                    }
+                }
+            }
+        }
+
         And("Two ClassToUow with the same key") {
             val factories = listOf(
                 CreateDepartmentUow::class withFactory { mockk() },
