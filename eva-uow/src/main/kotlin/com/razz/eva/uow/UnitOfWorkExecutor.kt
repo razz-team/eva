@@ -61,7 +61,7 @@ class UnitOfWorkExecutor(
         val startTime = System.nanoTime()
         val activeSpan = coroutineContext[ActiveSpanElement]?.span
         if (activeSpan == null) {
-            logger.warn { "No active span found in uow context, check tracing configuration" }
+            logger.debug { "No active span found in uow context, check tracing configuration" }
         }
         lateinit var timer: Timer
         lateinit var uowSpan: Span
