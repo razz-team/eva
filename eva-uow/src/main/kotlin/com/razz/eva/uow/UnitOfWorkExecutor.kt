@@ -63,8 +63,8 @@ class UnitOfWorkExecutor(
         if (activeSpan == null) {
             logger.debug { "No active span found in uow context, check tracing configuration" }
         }
-        lateinit var timer: Timer
-        lateinit var uowSpan: Span
+        var timer: Timer? = null
+        var uowSpan: Span? = null
         lateinit var name: String
         try {
             var currentAttempt = 0
@@ -98,7 +98,7 @@ class UnitOfWorkExecutor(
                     )
                 } catch (e: PersistenceException) {
                     val config = uow.configuration()
-                    uowSpan.log("persistence-exception")
+                    uowSpan?.log("persistence-exception")
                     if (config.retry.shouldRetry(currentAttempt, e)) {
                         currentAttempt += 1
                         logger.warn { "Retrying UnitOfWork: ${uow.name()}. Attempt: $currentAttempt" }
@@ -113,8 +113,8 @@ class UnitOfWorkExecutor(
         } finally {
             val endTime = System.nanoTime()
             val elapsedTime = endTime - startTime
-            timer.record(elapsedTime, NANOSECONDS)
-            uowSpan.finish()
+            timer?.record(elapsedTime, NANOSECONDS)
+            uowSpan?.finish()
         }
     }
 
