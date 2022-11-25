@@ -16,8 +16,7 @@ object PgHelpers {
         }
     }
 
-    @Suppress("UNUSED_PARAMETER")
-    fun extractConstraintName(queryExecutor: QueryExecutor, table: Table<*>, e: DataAccessException): String? {
+    fun extractConstraintName(queryExecutor: QueryExecutor, e: DataAccessException): String? {
         return queryExecutor.getConstraintName(e)
     }
 }
