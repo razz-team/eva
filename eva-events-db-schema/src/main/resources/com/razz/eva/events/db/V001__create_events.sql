@@ -123,7 +123,7 @@ COMMENT ON TABLE model_events IS 'PARTITIONED';
 
 ALTER SEQUENCE model_events_incremental_query_id_seq OWNED BY model_events.incremental_query_id;
 
-CREATE INDEX model_events_inserted_at_idx on events.model_events (inserted_at);
+CREATE INDEX model_events_inserted_at_idx on model_events (inserted_at);
 
 -- By date part
 DO $body$
