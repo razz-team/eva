@@ -51,7 +51,7 @@ open class RepositoryHelper(
     private val db = DatabaseContainerHelper.create(
         migrationPath
             .replace(trimmedPackagePrefix, "")
-            .replace("/com/razz/eva/events/db", "")
+            .replace("/db", "")
             .replace("/", "") + "_repo_test"
     )
 
