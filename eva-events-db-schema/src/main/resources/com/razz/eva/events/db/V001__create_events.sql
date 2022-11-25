@@ -1,4 +1,4 @@
-CREATE SEQUENCE uow_events_incremental_query_id_seq AS INTEGER;
+CREATE SEQUENCE uow_events_incremental_query_id_seq AS BIGINT;
 
 CREATE TABLE events.uow_events (
   id                    UUID                NOT NULL,
@@ -10,7 +10,7 @@ CREATE TABLE events.uow_events (
   inserted_at           TIMESTAMP           NOT NULL DEFAULT LOCALTIMESTAMP,
   model_events          UUID[]              NOT NULL,
   params                TEXT                NOT NULL DEFAULT '{}',
-  incremental_query_id  BIGINT              NOT NULL DEFAULT nextval('events.uow_events_incremental_query_id_seq')
+  incremental_query_id  BIGINT              NOT NULL DEFAULT nextval('uow_events_incremental_query_id_seq')
 ) PARTITION BY RANGE(inserted_at);
 
 ALTER SEQUENCE uow_events_incremental_query_id_seq OWNED BY uow_events.incremental_query_id;
@@ -82,7 +82,7 @@ BEGIN
 END;
 $body$;
 
-CREATE SEQUENCE model_events_incremental_query_id_seq AS INTEGER;
+CREATE SEQUENCE model_events_incremental_query_id_seq AS BIGINT;
 
 CREATE TABLE model_events (
   id                    UUID                NOT NULL,
