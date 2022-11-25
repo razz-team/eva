@@ -66,7 +66,7 @@ class JdbcQueryExecutor(
             .toTypedArray()
     ).coerce(table).fetch()
 
-    override fun getExceptionMessage(e: DataAccessException): String? {
-        return e.getCause(PSQLException::class.java)?.message
+    override fun getConstraintName(e: DataAccessException): String? {
+        return e.getCause(PSQLException::class.java)?.serverErrorMessage?.constraint
     }
 }

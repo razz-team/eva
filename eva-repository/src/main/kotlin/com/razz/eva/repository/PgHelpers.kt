@@ -8,12 +8,16 @@ object PgHelpers {
     const val PG_UNIQUE_VIOLATION = "23505"
 
     fun extractUniqueConstraintName(queryExecutor: QueryExecutor, table: Table<*>, e: DataAccessException): String? {
-        val message = queryExecutor.getExceptionMessage(e)
-        return message?.findAnyOf(table.indexes.filter { it.unique }.map { it.name }.toSet())?.second
+        val constraintName = queryExecutor.getConstraintName(e)
+        return if (table.comment == "PARTITIONED") {
+            constraintName
+        } else {
+            table.indexes.firstOrNull { it.unique && it.name == constraintName }?.name
+        }
     }
 
+    @Suppress("UNUSED_PARAMETER")
     fun extractConstraintName(queryExecutor: QueryExecutor, table: Table<*>, e: DataAccessException): String? {
-        val message = queryExecutor.getExceptionMessage(e)
-        return message?.findAnyOf(table.checks.map { it.name }.toSet())?.second
+        return queryExecutor.getConstraintName(e)
     }
 }

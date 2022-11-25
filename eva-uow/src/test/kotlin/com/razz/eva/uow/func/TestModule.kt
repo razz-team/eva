@@ -5,6 +5,7 @@ import com.razz.eva.domain.Department
 import com.razz.eva.domain.DepartmentId
 import com.razz.eva.domain.Employee
 import com.razz.eva.persistence.config.DatabaseConfig
+import com.razz.eva.persistence.executor.QueryExecutor
 import com.razz.eva.repository.BubalehRepository
 import com.razz.eva.repository.DepartmentRepository
 import com.razz.eva.repository.EmployeeRepository
@@ -24,6 +25,14 @@ import com.razz.eva.uow.Persisting
 import com.razz.eva.uow.UnitOfWorkExecutor
 import com.razz.eva.uow.withFactory
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
+import org.jooq.DSLContext
+import org.jooq.Field
+import org.jooq.Record
+import org.jooq.StoreQuery
+import org.jooq.Table
+import org.jooq.impl.DSL
+import org.jooq.impl.SQLDataType
+import java.sql.Timestamp
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant.now
@@ -78,9 +87,34 @@ class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
         meterRegistry = SimpleMeterRegistry()
     )
 
+    private val patchingQueryExecutor = object : QueryExecutor by queryExecutor {
+        override suspend fun <R : Record> executeStore(
+            dslContext: DSLContext,
+            jooqQuery: StoreQuery<R>,
+            table: Table<R>
+        ): List<R> {
+            if (table.name == "uow_events") {
+                val occurredAtParam = jooqQuery.getParam("6") as Field<Timestamp>
+                jooqQuery.addValue(
+                    DSL.field("inserted_at", SQLDataType.TIMESTAMP),
+                    occurredAtParam,
+                )
+            }
+            return queryExecutor.executeStore(dslContext, jooqQuery, table)
+        }
+    }
+
     val uowxInFuture = UnitOfWorkExecutor(
         factories = factories(fixedUTC(now() + Duration.ofDays(6))),
-        persisting = persisting,
+        persisting = Persisting(
+            transactionManager = transactionManager,
+            modelRepos = repos,
+            eventRepository = JooqEventRepository(
+                queryExecutor = patchingQueryExecutor,
+                dslContext = dslContext,
+                tracer = tracer
+            )
+        ),
         tracer = tracer,
         meterRegistry = SimpleMeterRegistry()
     )

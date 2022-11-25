@@ -28,5 +28,5 @@ interface QueryExecutor {
         table: Table<R>,
     ): Int
 
-    fun getExceptionMessage(e: DataAccessException): String?
+    fun getConstraintName(e: DataAccessException): String?
 }

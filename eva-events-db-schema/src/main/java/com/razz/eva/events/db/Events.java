@@ -38,12 +38,12 @@ public class Events extends SchemaImpl {
     public static final Events EVENTS = new Events();
 
     /**
-     * The table <code>events.model_events</code>.
+     * PARTITIONED
      */
     public final ModelEvents MODEL_EVENTS = ModelEvents.MODEL_EVENTS;
 
     /**
-     * The table <code>events.uow_events</code>.
+     * PARTITIONED
      */
     public final UowEvents UOW_EVENTS = UowEvents.UOW_EVENTS;
 

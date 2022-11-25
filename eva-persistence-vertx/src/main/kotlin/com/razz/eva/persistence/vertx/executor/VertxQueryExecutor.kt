@@ -126,5 +126,5 @@ class VertxQueryExecutor(
         return record.into(table)
     }
 
-    override fun getExceptionMessage(e: DataAccessException): String? = null
+    override fun getConstraintName(e: DataAccessException): String? = null
 }

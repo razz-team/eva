@@ -26,12 +26,12 @@ import javax.annotation.processing.Generated;
 public class Tables {
 
     /**
-     * The table <code>events.model_events</code>.
+     * PARTITIONED
      */
     public static final ModelEvents MODEL_EVENTS = ModelEvents.MODEL_EVENTS;
 
     /**
-     * The table <code>events.uow_events</code>.
+     * PARTITIONED
      */
     public static final UowEvents UOW_EVENTS = UowEvents.UOW_EVENTS;
 
