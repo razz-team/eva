@@ -85,6 +85,7 @@ class DatabaseContainerHelper private constructor(
                 CREATE EXTENSION IF NOT EXISTS pg_trgm;
                 CREATE EXTENSION IF NOT EXISTS unaccent;
                 CREATE EXTENSION IF NOT EXISTS hstore;
+                CREATE EXTENSION IF NOT EXISTS fuzzystrmatch;
             """.trimIndent()
         check(statement.isNotBlank())
         localConn().use { conn ->
