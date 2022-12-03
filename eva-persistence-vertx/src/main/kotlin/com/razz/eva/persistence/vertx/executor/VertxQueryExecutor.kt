@@ -104,8 +104,8 @@ class VertxQueryExecutor(
         for (i in fields.indices) {
             val field = fields[i]
             values[i] = when {
-                field.dataType.sqlDataType == SQLDataType.JSON -> row.getJson(i)?.let { JSON.json(it.toString()) }
-                field.dataType.sqlDataType == SQLDataType.JSONB -> row.getJson(i)?.let { JSONB.jsonb(it.toString()) }
+                field.dataType.sqlDataType == SQLDataType.JSON -> row.getJson(i)?.let { JSON.json(Json.encode(it)) }
+                field.dataType.sqlDataType == SQLDataType.JSONB -> row.getJson(i)?.let { JSONB.jsonb(Json.encode(it)) }
                 field.dataType.sqlDataType == SQLDataType.TIMESTAMP -> row.getLocalDateTime(i)?.toInstant(UTC)
                 field.dataType.sqlDataType == SQLDataType.DATE -> row.getLocalDate(i)
                 field.dataType.sqlDataType == SQLDataType.NUMERIC -> row.getBigDecimal(i)
