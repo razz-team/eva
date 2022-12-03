@@ -15,8 +15,6 @@ java.sourceCompatibility = versions.java
 java.targetCompatibility = versions.java
 
 tasks.compileKotlin {
-    sourceCompatibility = versions.jvm
-    targetCompatibility = versions.jvm
     kotlinOptions {
         languageVersion = versions.kotlin
         jvmTarget = versions.jvm

@@ -15,8 +15,6 @@ java.sourceCompatibility = VERSION_17
 java.targetCompatibility = VERSION_17
 
 tasks.compileKotlin {
-    sourceCompatibility = "17"
-    targetCompatibility = "17"
     kotlinOptions {
         jvmTarget = "17"
     }
