@@ -17,7 +17,7 @@ import com.razz.eva.test.schema.tables.records.DepartmentsRecord
 import org.jooq.DSLContext
 import java.util.*
 
-class DepartmentRepository(
+open class DepartmentRepository(
     queryExecutor: QueryExecutor,
     dslContext: DSLContext,
     preUpdate: PreModifyCallback<UUID, DepartmentId, Department<*>> = PreModifyCallback()

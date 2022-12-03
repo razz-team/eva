@@ -261,7 +261,7 @@ formatting:
     active: false
     autoCorrect: true
   Filename:
-    active: true
+    active: false
   FinalNewline:
     active: true
     autoCorrect: true
@@ -282,7 +282,7 @@ formatting:
     active: true
     autoCorrect: true
   MultiLineIfElse:
-    active: true
+    active: false
     autoCorrect: true
   NoBlankLineBeforeRbrace:
     active: true

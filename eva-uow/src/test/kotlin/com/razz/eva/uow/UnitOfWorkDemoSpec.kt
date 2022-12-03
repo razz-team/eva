@@ -22,8 +22,8 @@ import java.util.UUID.randomUUID
 
 class UnitOfWorkDemoSpec : UowBehaviorSpec({
 
-    val employeeRepo = mockk<EmployeeRepository>()
-    val departmentRepo = mockk<DepartmentRepository>()
+    val employeeRepo = mockk<EmployeeRepository>(relaxed = true)
+    val departmentRepo = mockk<DepartmentRepository>(relaxed = true)
 
     Given("New cool department and old lame department") {
         val newDepId = randomDepartmentId()
