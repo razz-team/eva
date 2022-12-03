@@ -377,7 +377,7 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
                 throw PersistenceException.UniqueModelRecordViolationException(model.id(), table.name, constraintName)
             }
             e.sqlStateClass() == SQLStateClass.C23_INTEGRITY_CONSTRAINT_VIOLATION -> {
-                val constraintName = PgHelpers.extractConstraintName(queryExecutor, table, e)
+                val constraintName = PgHelpers.extractConstraintName(queryExecutor, e)
                 throw PersistenceException.ModelRecordConstraintViolationException(
                     model.id(),
                     table.name,

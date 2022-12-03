@@ -10,6 +10,9 @@ import com.razz.eva.uow.CreateSoloDepartmentUow
 import com.razz.eva.uow.TestPrincipal
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
+import java.time.Duration
+import java.time.ZoneOffset.UTC
+import java.time.format.DateTimeFormatter
 
 class IdempotencySpec : PersistenceBaseSpec({
 
@@ -43,6 +46,38 @@ class IdempotencySpec : PersistenceBaseSpec({
                 }
             }
 
+            When("Principal runs same uow with same idempotency key") {
+                val attempt = suspend {
+                    module.uowx.execute(CreateSoloDepartmentUow::class, TestPrincipal) {
+                        CreateSoloDepartmentUow.Params(
+                            bossName = Name("Ilia", "Voitcekhovskii"),
+                            bossEmail = "ilia.v@razz.team",
+                            departmentName = "new android boys",
+                            ration = BUBALEH,
+                            idempotencyKey = idempotencyKey
+                        )
+                    }
+                }
+
+                Then("Exception is thrown") {
+                    val ex = shouldThrow<UniqueUowEventRecordViolationException> {
+                        attempt()
+                    }
+                    ex.uowName shouldBe "CreateSoloDepartmentUow"
+                    val fmt = DateTimeFormatter.ofPattern("yyyy_MM_dd").withZone(UTC)
+                    val partitionSubName = fmt.format(sharedModule.clock.instant())
+                    ex.constraintName shouldBe "uow_events_p${partitionSubName}_name_idempotency_key_idx"
+                    // ^ trigger and unique index are reporting different constraints
+                    // we are checking index constraint here
+                    ex.idempotencyKey shouldBe idempotencyKey
+                }
+
+                And("New department should not be created") {
+                    val dep = module.departmentRepo.findByName("new android boys")
+                    dep shouldBe null
+                }
+            }
+
             When("Principal runs same uow in future with same idempotency key") {
                 val attempt = suspend {
                     module.uowxInFuture.execute(CreateSoloDepartmentUow::class, TestPrincipal) {
@@ -61,6 +96,11 @@ class IdempotencySpec : PersistenceBaseSpec({
                         attempt()
                     }
                     ex.uowName shouldBe "CreateSoloDepartmentUow"
+                    val fmt = DateTimeFormatter.ofPattern("yyyy_MM_dd").withZone(UTC)
+                    val partitionSubName = fmt.format(sharedModule.clock.instant() + Duration.ofDays(5))
+                    ex.constraintName shouldBe "uow_events_p${partitionSubName}_name_idempotency_key_idx"
+                    // ^ trigger and unique index are reporting different constraints
+                    // we are checking trigger constraint here
                     ex.idempotencyKey shouldBe idempotencyKey
                 }
 

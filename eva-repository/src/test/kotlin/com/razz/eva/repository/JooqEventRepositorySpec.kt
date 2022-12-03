@@ -115,15 +115,16 @@ class JooqEventRepositorySpec : BehaviorSpec({
                             dslContext.insertQuery(UOW_EVENTS)
                                 .also {
                                     it.setRecord(
-                                        UowEventsRecord(
-                                            uowEvent.id.uuidValue(),
-                                            uowEvent.uowName.toString(),
-                                            uowEvent.idempotencyKey?.stringValue(),
-                                            "TEST_PRINCIPAL",
-                                            "THIS_IS_SINGLETON",
-                                            now,
-                                            uowEvent.modelEvents.map { (id, _) -> id.uuidValue() }.toTypedArray(),
-                                            parseToJsonElement(
+                                        UowEventsRecord().apply {
+                                            this.id = uowEvent.id.uuidValue()
+                                            this.name = uowEvent.uowName.toString()
+                                            this.idempotencyKey = uowEvent.idempotencyKey?.stringValue()
+                                            this.principalName = "TEST_PRINCIPAL"
+                                            this.principalId = "THIS_IS_SINGLETON"
+                                            this.occurredAt = now
+                                            this.modelEvents = uowEvent
+                                                .modelEvents.map { (id, _) -> id.uuidValue() }.toTypedArray()
+                                            this.params = parseToJsonElement(
                                                 """
                                                 {
                                                     "id":1,
@@ -132,7 +133,7 @@ class JooqEventRepositorySpec : BehaviorSpec({
                                                 }
                                                 """
                                             ).toString()
-                                        )
+                                        }
                                     )
                                 },
                             UOW_EVENTS
@@ -143,15 +144,15 @@ class JooqEventRepositorySpec : BehaviorSpec({
                                 .also {
                                     it.addRecord(
                                         with(uowEvent.modelEvents.entries.first()) {
-                                            ModelEventsRecord(
-                                                key.uuidValue(),
-                                                uowEvent.id.uuidValue(),
-                                                value.modelId.id.toString(),
-                                                value.eventName(),
-                                                value.modelName,
-                                                now,
-                                                value.integrationEvent().toString(),
-                                                parseToJsonElement(
+                                            ModelEventsRecord().apply {
+                                                this.id = key.uuidValue()
+                                                this.uowId = uowEvent.id.uuidValue()
+                                                this.modelId = value.modelId.id.toString()
+                                                this.name = value.eventName()
+                                                this.modelName = value.modelName
+                                                this.occurredAt = now
+                                                this.payload = value.integrationEvent().toString()
+                                                this.tracingContext = parseToJsonElement(
                                                     """
                                                     {
                                                         "X-B3-TraceId":"0000000007654321",
@@ -161,20 +162,20 @@ class JooqEventRepositorySpec : BehaviorSpec({
                                                     }
                                                     """
                                                 ).toString()
-                                            )
+                                            }
                                         }
                                     )
                                     it.addRecord(
                                         with(uowEvent.modelEvents.entries.last()) {
-                                            ModelEventsRecord(
-                                                key.uuidValue(),
-                                                uowEvent.id.uuidValue(),
-                                                value.modelId.id.toString(),
-                                                value.eventName(),
-                                                value.modelName,
-                                                now,
-                                                value.integrationEvent().toString(),
-                                                parseToJsonElement(
+                                            ModelEventsRecord().apply {
+                                                this.id = key.uuidValue()
+                                                this.uowId = uowEvent.id.uuidValue()
+                                                this.modelId = value.modelId.id.toString()
+                                                this.name = value.eventName()
+                                                this.modelName = value.modelName
+                                                this.occurredAt = now
+                                                this.payload = value.integrationEvent().toString()
+                                                this.tracingContext = parseToJsonElement(
                                                     """
                                                     {
                                                         "X-B3-TraceId":"0000000007654321",
@@ -184,7 +185,7 @@ class JooqEventRepositorySpec : BehaviorSpec({
                                                     }
                                                     """
                                                 ).toString()
-                                            )
+                                            }
                                         }
                                     )
                                 },
@@ -242,15 +243,16 @@ class JooqEventRepositorySpec : BehaviorSpec({
                             dslContext.insertQuery(UOW_EVENTS)
                                 .also {
                                     it.setRecord(
-                                        UowEventsRecord(
-                                            uowEvent.id.uuidValue(),
-                                            uowEvent.uowName.toString(),
-                                            uowEvent.idempotencyKey?.stringValue(),
-                                            "TEST_PRINCIPAL",
-                                            "THIS_IS_SINGLETON",
-                                            now,
-                                            uowEvent.modelEvents.map { (id, _) -> id.uuidValue() }.toTypedArray(),
-                                            parseToJsonElement(
+                                        UowEventsRecord().apply {
+                                            this.id = uowEvent.id.uuidValue()
+                                            this.name = uowEvent.uowName.toString()
+                                            this.idempotencyKey = uowEvent.idempotencyKey?.stringValue()
+                                            this.principalName = "TEST_PRINCIPAL"
+                                            this.principalId = "THIS_IS_SINGLETON"
+                                            this.occurredAt = now
+                                            this.modelEvents = uowEvent
+                                                .modelEvents.map { (id, _) -> id.uuidValue() }.toTypedArray()
+                                            this.params = parseToJsonElement(
                                                 """
                                                 {
                                                     "id":1,
@@ -259,7 +261,7 @@ class JooqEventRepositorySpec : BehaviorSpec({
                                                 }
                                                 """
                                             ).toString()
-                                        )
+                                        }
                                     )
                                 },
                             UOW_EVENTS
