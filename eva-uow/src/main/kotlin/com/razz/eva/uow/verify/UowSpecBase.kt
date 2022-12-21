@@ -47,7 +47,7 @@ open class UowSpecBase<R> private constructor(
         return model
     }
 
-    protected fun <M : Model<*, *>> verifyUpdated(verify: (M) -> Unit) {
+    protected fun <M : Model<*, *>> verifyUpdated(verify: (M) -> Unit): M {
         val model = when (val next = checkNotNull(executionHistory.pollFirst()) { "Expecting [Update] got nothing" }) {
             is Update<*, *, *> -> {
                 next.persist(peekingPersisting)
@@ -57,6 +57,7 @@ open class UowSpecBase<R> private constructor(
         }
         @Suppress("UNCHECKED_CAST")
         verify(model as M)
+        return model
     }
 
     protected fun <E : ModelEvent<out ModelId<out Comparable<*>>>> verifyEmitted(verify: (E) -> Unit) {

@@ -38,8 +38,8 @@ class UowSpec<R> internal constructor(
         }
     }
 
-    fun <M : Model<*, *>> updates(verify: M.() -> Unit) {
-        verifyUpdated(verify)
+    fun <M : Model<*, *>> updates(verify: M.() -> Unit): M {
+        return verifyUpdated(verify)
     }
 
     fun <E : ModelEvent<*>> emitsEq(expected: E) {
