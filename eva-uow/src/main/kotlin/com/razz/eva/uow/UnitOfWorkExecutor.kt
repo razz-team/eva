@@ -106,6 +106,9 @@ class UnitOfWorkExecutor(
                     }
                     persistSpan.finishWithError(e)
                     return uow.onFailure(constructedParams, e)
+                } catch (e: Exception) {
+                    persistSpan.finishWithError(e)
+                    throw e
                 }
                 persistSpan.finish()
                 return changes.result
