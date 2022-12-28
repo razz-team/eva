@@ -5,8 +5,7 @@ data class Migration(val path: String, val schema: DbSchema, val additionalPaths
     constructor(path: String, schema: DbSchema, vararg additionalPaths: String) :
         this(path, schema, additionalPaths.toList())
 
-    fun classpathLocation() = (listOf(path) + additionalPaths)
-        .joinToString(prefix = "classpath:", separator = ",classpath:")
+    fun classpathLocations() = (listOf(path) + additionalPaths).map { "classpath:${it}" }
 
     override fun toString() = """
         Migration[
