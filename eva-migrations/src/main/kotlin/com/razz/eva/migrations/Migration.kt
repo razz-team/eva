@@ -20,7 +20,7 @@ data class Migration(val path: String, val schema: DbSchema, val additionalPaths
         fun modelsMigration(path: String, vararg additionalPaths: String): Migration {
             check(!path.contains("events"))
             check(additionalPaths.all { !it.contains("events") })
-            return Migration(path, DbSchema.ModelsSchema)
+            return Migration(path, DbSchema.ModelsSchema, additionalPaths.toList())
         }
 
         val EventsMigration = Migration("com/razz/eva/events/db", DbSchema.EventsSchema)
