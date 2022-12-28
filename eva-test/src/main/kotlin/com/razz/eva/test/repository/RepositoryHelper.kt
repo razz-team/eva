@@ -100,7 +100,7 @@ open class RepositoryHelper(
         return Flyway.configure()
             .dataSource(localPool(dbName, 4))
             .schemas(migration.schema.toString())
-            .locations(migration.classpathLocation())
+            .locations(*migration.classpathLocations().toTypedArray())
             .load()
     }
 }

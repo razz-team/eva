@@ -37,7 +37,7 @@ class Migrations(
                 )
             )
             .schemas(migration.schema.toString())
-            .locations(migration.classpathLocation())
+            .locations(*migration.classpathLocations().toTypedArray())
             .load()
     }
 }
