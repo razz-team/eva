@@ -44,7 +44,18 @@ abstract class PagingStrategy<ID, MID, M, S, P, R>(
         .limit(page.sizeValue())
 
     internal fun pagedList(list: List<M>, pageSize: Size): PagedList<S, P> {
-        val filtered = list.filterIsInstance(modelClass.java)
+        @Suppress("UNCHECKED_CAST")
+        val filtered = list.map {
+            if (modelClass.java.isInstance(it)) {
+                it as S
+            } else {
+                throw IllegalStateException(
+                    "Model ${it.id()} has ${it.javaClass.simpleName} type, " +
+                        "while it should have ${modelClass.simpleName} type"
+                )
+            }
+        }
+
         return BasicPagedList(filtered, nextPage(filtered, pageSize))
     }
 

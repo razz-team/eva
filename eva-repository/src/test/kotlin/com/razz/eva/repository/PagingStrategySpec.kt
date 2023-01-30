@@ -1,16 +1,18 @@
 package com.razz.eva.repository
 
 import com.razz.eva.domain.Bubaleh
+import com.razz.eva.domain.BubalehFixtures.aConsumedBubaleh
 import com.razz.eva.domain.BubalehFixtures.aServedBubaleh
 import com.razz.eva.domain.BubalehId
-import com.razz.eva.test.schema.enums.BubalehsState.SERVED
-import com.razz.eva.test.schema.tables.Bubalehs.BUBALEHS
-import com.razz.eva.test.schema.tables.records.BubalehsRecord
 import com.razz.eva.paging.BasicPagedList
 import com.razz.eva.paging.ModelOffset
 import com.razz.eva.paging.Page
 import com.razz.eva.paging.Page.Factory.firstPage
 import com.razz.eva.paging.Size
+import com.razz.eva.test.schema.enums.BubalehsState.SERVED
+import com.razz.eva.test.schema.tables.Bubalehs.BUBALEHS
+import com.razz.eva.test.schema.tables.records.BubalehsRecord
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.matchers.shouldBe
 import org.jooq.SQLDialect.POSTGRES
@@ -140,6 +142,24 @@ class PagingStrategySpec : BehaviorSpec({
                                 size = size
                             )
                         )
+                    }
+                }
+            }
+
+            And("Selection has models of different type") {
+                val model = aServedBubaleh()
+                val anotherModel = aConsumedBubaleh(
+                    id = BubalehId.fromString("401b9b20-db2d-463b-a4ed-0840a18dcb52")
+                )
+                val result = listOf(anotherModel, model)
+
+                When("Principal wraps selection result to paged list") {
+                    val attempt = { strategy.pagedList(result, size) }
+
+                    Then("Exception is returned") {
+                        val ex = shouldThrow<IllegalStateException>(attempt)
+                        ex.message shouldBe "Model 401b9b20-db2d-463b-a4ed-0840a18dcb52 has Consumed type, " +
+                            "while it should have Served type"
                     }
                 }
             }
