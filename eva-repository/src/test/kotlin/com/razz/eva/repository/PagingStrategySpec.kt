@@ -41,6 +41,7 @@ class PagingStrategySpec : BehaviorSpec({
         override fun tableOffset(modelOffset: ModelOffset) = UUID.fromString(modelOffset)
         override fun modelOrdering(model: Bubaleh.Served) = model.producedOn
         override fun modelOffset(model: Bubaleh.Served) = model.id().stringValue()
+        override fun failOnWrongModel(): Boolean = true
     }
 
     val clock = Clock.systemUTC()
