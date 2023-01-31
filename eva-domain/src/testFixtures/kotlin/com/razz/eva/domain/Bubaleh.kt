@@ -6,7 +6,13 @@ import com.razz.eva.domain.BubalehState.SERVED
 import java.time.Instant
 import java.util.*
 
-data class BubalehId(override val id: UUID) : ModelId<UUID>
+data class BubalehId(override val id: UUID) : ModelId<UUID> {
+    override fun toString(): String = id.toString()
+
+    companion object {
+        fun fromString(id: String) = BubalehId(UUID.fromString(id))
+    }
+}
 
 enum class BubalehTaste { SWEET, SWEEEET, VERY_SWEET }
 

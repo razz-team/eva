@@ -7,11 +7,11 @@ import com.razz.eva.paging.ModelOffset
 import com.razz.eva.paging.Page
 import com.razz.eva.paging.PagedList
 import com.razz.eva.paging.Size
-import kotlin.reflect.KClass
 import org.jooq.Record
 import org.jooq.Select
 import org.jooq.SelectOrderByStep
 import org.jooq.TableField
+import kotlin.reflect.KClass
 
 abstract class PagingStrategy<ID, MID, M, S, P, R>(
     private val modelClass: KClass<S>
@@ -32,6 +32,8 @@ abstract class PagingStrategy<ID, MID, M, S, P, R>(
 
     protected abstract fun modelOffset(model: S): ModelOffset
 
+    protected open fun failOnWrongModel(): Boolean = false
+
     internal fun select(
         step: SelectOrderByStep<R>,
         page: Page<P>
@@ -44,7 +46,20 @@ abstract class PagingStrategy<ID, MID, M, S, P, R>(
         .limit(page.sizeValue())
 
     internal fun pagedList(list: List<M>, pageSize: Size): PagedList<S, P> {
-        val filtered = list.filterIsInstance(modelClass.java)
+        @Suppress("UNCHECKED_CAST")
+        val filtered = list.mapNotNull {
+            if (modelClass.java.isInstance(it)) {
+                it as S
+            } else if (failOnWrongModel()) {
+                error(
+                    "Model ${it.id()} has ${it.javaClass.simpleName} type, " +
+                        "while it should have ${modelClass.simpleName} type"
+                )
+            } else {
+                null
+            }
+        }
+
         return BasicPagedList(filtered, nextPage(filtered, pageSize))
     }
 

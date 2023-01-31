@@ -27,4 +27,19 @@ object BubalehFixtures {
         volume = volume,
         persistentState(V1)
     )
+
+    fun aConsumedBubaleh(
+        id: BubalehId = BubalehId(randomUUID()),
+        employeeId: EmployeeId = EmployeeId(randomUUID()),
+        taste: BubalehTaste = SWEET,
+        producedOn: Instant = clock.instant(),
+        volume: BubalehBottleVol = THIRTY_THREE
+    ) = Bubaleh.Consumed(
+        id,
+        employeeId = employeeId,
+        taste = taste,
+        producedOn = producedOn,
+        volume = volume,
+        persistentState(V1)
+    )
 }
