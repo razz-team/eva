@@ -33,6 +33,7 @@ dependencies {
 
     api(libs.kotlinx_serialization)
     api(libs.kotlinx_serialization_json)
+    api(libs.kotlin_coroutines)
 
     testImplementation(platform(libs.testcontainers_bom))
     testImplementation(libs.mockk)
