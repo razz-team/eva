@@ -1,8 +1,8 @@
 package com.razz.eva.paging
 
-data class BasicPagedList<I, P : Comparable<P>>(
-    private val list: List<I>,
-    private val nextPage: Page.Next<P>?
-) : PagedList<I, P>, List<I> by list {
-    override fun nextPage(): Page.Next<P>? = nextPage
+data class BasicPagedList<Element, OrderBy : Comparable<OrderBy>>(
+    private val list: List<Element>,
+    private val nextPage: Page.Next<OrderBy>?
+) : PagedList<Element, OrderBy>, List<Element> by list {
+    override fun nextPage(): Page.Next<OrderBy>? = nextPage
 }

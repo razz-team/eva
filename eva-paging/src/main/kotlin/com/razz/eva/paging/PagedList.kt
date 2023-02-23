@@ -1,6 +1,6 @@
 package com.razz.eva.paging
 
-interface PagedList<I, P : Comparable<P>> : List<I> {
+interface PagedList<Element, OrderBy : Comparable<OrderBy>> : List<Element> {
 
-    fun nextPage(): Page.Next<P>?
+    fun nextPage(): Page.Next<OrderBy>?
 }
