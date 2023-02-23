@@ -1,9 +1,9 @@
 package com.razz.eva.paging
 
-class TransformablePagedList<Element, OrderBy : Comparable<OrderBy>, Transformed>(
-    private val pagedList: PagedList<Element, OrderBy>,
-    private val transformation: Function1<Element, Transformed?>
-) : PagedList<Element, OrderBy> by pagedList {
+class TransformablePagedList<ELEMENT, ORDER_BY : Comparable<ORDER_BY>, TRANSFORMED>(
+    private val pagedList: PagedList<ELEMENT, ORDER_BY>,
+    private val transformation: Function1<ELEMENT, TRANSFORMED?>
+) : PagedList<ELEMENT, ORDER_BY> by pagedList {
 
     fun transform() = pagedList.mapNotNull(transformation)
 }
