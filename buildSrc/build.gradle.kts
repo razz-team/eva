@@ -1,5 +1,5 @@
 plugins {
-    kotlin("jvm") version "1.6.21"
+    kotlin("jvm") version "1.8.10"
     `java-gradle-plugin`
     `kotlin-dsl`
     `kotlin-dsl-precompiled-script-plugins`
@@ -11,12 +11,15 @@ repositories {
     gradlePluginPortal()
 }
 
-java.sourceCompatibility = versions.java
-java.targetCompatibility = versions.java
+//java.sourceCompatibility = versions.java
+//java.targetCompatibility = versions.java
+tasks.compileJava {
+    options.release.set(versions.java.majorVersion.toInt())
+}
 
 tasks.compileKotlin {
     kotlinOptions {
-        languageVersion = versions.kotlin
+        languageVersion = "1.8"
         jvmTarget = versions.jvm
     }
 }

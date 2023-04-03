@@ -92,7 +92,7 @@ class JooqEventRepository(
             val constraintName = when {
                 e is DataAccessException && e.sqlState() == PG_UNIQUE_VIOLATION ->
                     extractUniqueConstraintName(queryExecutor, UOW_EVENTS, e)
-                e is PgException && e.code == PG_UNIQUE_VIOLATION -> e.constraint
+                e is PgException && e.sqlState == PG_UNIQUE_VIOLATION -> e.constraint
                 else -> throw e
             }
             throw UniqueUowEventRecordViolationException(

@@ -16,12 +16,6 @@ tasks.test {
     }
 }
 
-tasks.compileTestFixturesKotlin {
-    kotlinOptions {
-        jvmTarget = versions.jvm
-    }
-}
-
 apply<ProjectsPlugin>()
 
 dependencies {
@@ -41,8 +35,11 @@ dependencies {
     testImplementation(libs.kotest_runner)
 }
 
-java.sourceCompatibility = versions.java
-java.targetCompatibility = versions.java
+//java.sourceCompatibility = versions.java
+//java.targetCompatibility = versions.java
+tasks.compileJava {
+    options.release.set(versions.java.majorVersion.toInt())
+}
 
 tasks.compileKotlin {
     kotlinOptions {
@@ -59,6 +56,12 @@ tasks.compileTestKotlin {
     }
 }
 
+tasks.compileTestFixturesKotlin {
+    kotlinOptions {
+        jvmTarget = versions.jvm
+    }
+}
+
 tasks.jar {
     isPreserveFileTimestamps = false
     isReproducibleFileOrder = true
@@ -67,10 +70,14 @@ tasks.jar {
 detekt {
     parallel = true
     config = files("$rootDir/buildSrc/src/main/resources/detekt-config.yml")
+}
+
+tasks.detekt {
+    jvmTarget = "18" //versions.jvm
     reports {
-        html.enabled = false
-        xml.enabled = false
-        txt.enabled = false
-        sarif.enabled = false
+        html.required.set(false)
+        xml.required.set(false)
+        txt.required.set(false)
+        sarif.required.set(false)
     }
 }
