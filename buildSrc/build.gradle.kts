@@ -11,8 +11,6 @@ repositories {
     gradlePluginPortal()
 }
 
-//java.sourceCompatibility = versions.java
-//java.targetCompatibility = versions.java
 tasks.compileJava {
     options.release.set(versions.java.majorVersion.toInt())
 }
