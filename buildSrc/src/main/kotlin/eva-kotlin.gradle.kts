@@ -73,7 +73,7 @@ detekt {
 }
 
 tasks.detekt {
-    jvmTarget = "18" //versions.jvm
+    jvmTarget = "18" // detekt is not ready for 19
     reports {
         html.required.set(false)
         xml.required.set(false)

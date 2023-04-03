@@ -64,5 +64,5 @@ object libs {
     val micrometer_prometheus = "io.micrometer:micrometer-registry-prometheus:${versions.micrometer}"
 
     val detekt_plugin = "io.gitlab.arturbosch.detekt:detekt-gradle-plugin:${versions.detekt}"
-    val kotlin_plugin = "org.jetbrains.kotlin:kotlin-gradle-plugin:1.8.10"
+    val kotlin_plugin = "org.jetbrains.kotlin:kotlin-gradle-plugin:${versions.kotlin}"
 }
