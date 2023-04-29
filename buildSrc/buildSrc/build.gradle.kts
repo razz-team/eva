@@ -9,6 +9,10 @@ sourceSets.main {
     }
 }
 
+tasks.compileJava {
+    options.release.set(19)
+}
+
 tasks.compileKotlin {
     kotlinOptions {
         jvmTarget = "19"
