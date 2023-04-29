@@ -9,6 +9,8 @@ sourceSets.main {
     }
 }
 
+java.sourceCompatibility = JavaVersion.VERSION_19
+java.targetCompatibility = JavaVersion.VERSION_19
 tasks.compileJava {
     options.release.set(19)
 }
