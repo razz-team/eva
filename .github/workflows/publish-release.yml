@@ -26,8 +26,8 @@ jobs:
 
       - uses: actions/setup-java@v3
         with:
-          java-version: '17'
-          distribution: 'adopt'
+          java-version: '19'
+          distribution: 'temurin'
 
       - name: Publish to Github Packages
         run: ./gradlew publish
