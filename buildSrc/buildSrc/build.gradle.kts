@@ -1,5 +1,3 @@
-import org.gradle.api.JavaVersion.VERSION_17
-
 plugins {
     `kotlin-dsl`
 }
@@ -11,11 +9,14 @@ sourceSets.main {
     }
 }
 
-java.sourceCompatibility = VERSION_17
-java.targetCompatibility = VERSION_17
+java.sourceCompatibility = JavaVersion.VERSION_19
+java.targetCompatibility = JavaVersion.VERSION_19
+tasks.compileJava {
+    options.release.set(19)
+}
 
 tasks.compileKotlin {
     kotlinOptions {
-        jvmTarget = "17"
+        jvmTarget = "19"
     }
 }

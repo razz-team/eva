@@ -120,7 +120,7 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
         when {
             models.isEmpty() -> throw IllegalArgumentException("No models provided for insert")
             models.size == 1 -> {
-                // just for optimization sake, this version is capable of handling single record update
+                // just for optimization's sake, this version is capable of handling single record update
                 add(context, models.first())
                 return
             }
@@ -388,9 +388,9 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
         }
     } catch (e: PgException) {
         when {
-            e.code == PgHelpers.PG_UNIQUE_VIOLATION ->
+            e.sqlState == PgHelpers.PG_UNIQUE_VIOLATION ->
                 throw PersistenceException.UniqueModelRecordViolationException(model.id(), table.name, e.constraint)
-            SQLStateClass.fromCode(e.code) == SQLStateClass.C23_INTEGRITY_CONSTRAINT_VIOLATION ->
+            SQLStateClass.fromCode(e.sqlState) == SQLStateClass.C23_INTEGRITY_CONSTRAINT_VIOLATION ->
                 throw PersistenceException.ModelRecordConstraintViolationException(model.id(), table.name, e.constraint)
             else -> throw PersistenceException.ModelPersistingGenericException(model.id(), e)
         }
