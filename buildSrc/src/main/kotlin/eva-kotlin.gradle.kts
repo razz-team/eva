@@ -39,7 +39,6 @@ dependencies {
 tasks.compileJava {
     options.release.set(versions.java.majorVersion.toInt())
 }
-
 tasks.compileKotlin {
     kotlinOptions {
         jvmTarget = versions.jvm
@@ -48,6 +47,9 @@ tasks.compileKotlin {
     }
 }
 
+tasks.compileTestJava {
+    options.release.set(versions.java.majorVersion.toInt())
+}
 tasks.compileTestKotlin {
     kotlinOptions {
         jvmTarget = versions.jvm
@@ -55,6 +57,10 @@ tasks.compileTestKotlin {
     }
 }
 
+tasks.compileTestFixturesJava {
+    enabled = false
+    options.release.set(versions.java.majorVersion.toInt())
+}
 tasks.compileTestFixturesKotlin {
     kotlinOptions {
         jvmTarget = versions.jvm
