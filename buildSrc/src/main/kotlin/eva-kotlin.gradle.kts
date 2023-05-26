@@ -58,7 +58,7 @@ tasks.compileTestKotlin {
 }
 
 tasks.compileTestFixturesJava {
-    enabled = false
+    enabled = true
     options.release.set(versions.java.majorVersion.toInt())
 }
 tasks.compileTestFixturesKotlin {
