@@ -19,9 +19,9 @@ import org.jooq.SQLDialect.POSTGRES
 import org.jooq.TableField
 import org.jooq.conf.ParamType.INLINED
 import org.jooq.impl.DSL
-import java.sql.Timestamp
-import java.time.Clock
 import java.time.Instant
+import java.time.ZoneOffset.UTC
+import java.time.format.DateTimeFormatter
 import java.util.*
 
 class PagingStrategySpec : BehaviorSpec({
@@ -43,8 +43,6 @@ class PagingStrategySpec : BehaviorSpec({
         override fun modelOffset(model: Bubaleh.Served) = model.id().stringValue()
         override fun failOnWrongModel(): Boolean = true
     }
-
-    val clock = Clock.systemUTC()
 
     Given("Page size") {
         val size = Size(1)
@@ -86,12 +84,14 @@ class PagingStrategySpec : BehaviorSpec({
             }
 
             And("Next page") {
-                val maxTimestamp = clock.instant()
+                val maxTimestamp = Instant.parse("2023-06-20T15:54:30.123Z")
                 val page = Page.Next(
                     maxOrdering = maxTimestamp,
                     modelIdOffset = "a5e15308-3a8d-462b-b96c-6f1137e30f0d",
                     size = size
                 )
+                val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS").withZone(UTC)
+                val renderedTimestamp = formatter.format(maxTimestamp)
 
                 And("Selection step") {
                     val step = DSL.using(POSTGRES)
@@ -116,8 +116,8 @@ class PagingStrategySpec : BehaviorSpec({
                             from "bubalehs" 
                             where 
                             ("bubalehs"."state" = cast('SERVED' as "bubalehs_state")
-                            and ("bubalehs"."produced_on" < timestamp '${Timestamp.from(maxTimestamp)}' 
-                            or ("bubalehs"."produced_on" = timestamp '${Timestamp.from(maxTimestamp)}' 
+                            and ("bubalehs"."produced_on" < timestamp '$renderedTimestamp' 
+                            or ("bubalehs"."produced_on" = timestamp '$renderedTimestamp' 
                             and "bubalehs"."id" > 'a5e15308-3a8d-462b-b96c-6f1137e30f0d'))) 
                             order by "bubalehs"."produced_on" desc, "bubalehs"."id" 
                             fetch next 1 rows only
