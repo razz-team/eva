@@ -19,7 +19,6 @@ import org.jooq.SQLDialect.POSTGRES
 import org.jooq.TableField
 import org.jooq.conf.ParamType.INLINED
 import org.jooq.impl.DSL
-import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset.UTC
 import java.time.format.DateTimeFormatter
@@ -44,8 +43,6 @@ class PagingStrategySpec : BehaviorSpec({
         override fun modelOffset(model: Bubaleh.Served) = model.id().stringValue()
         override fun failOnWrongModel(): Boolean = true
     }
-
-    val clock = Clock.systemUTC()
 
     Given("Page size") {
         val size = Size(1)
@@ -87,7 +84,7 @@ class PagingStrategySpec : BehaviorSpec({
             }
 
             And("Next page") {
-                val maxTimestamp = clock.instant()
+                val maxTimestamp = Instant.parse("2023-06-20T15:54:30.123Z")
                 val page = Page.Next(
                     maxOrdering = maxTimestamp,
                     modelIdOffset = "a5e15308-3a8d-462b-b96c-6f1137e30f0d",
