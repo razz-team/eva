@@ -14,8 +14,8 @@ class InstantConverter : Converter<Timestamp, Instant> {
     }
 
     override fun to(instant: Instant?): Timestamp? {
-        val localDateTime = LocalDateTime.ofInstant(instant, UTC)
-        return Timestamp.valueOf(localDateTime)
+        val localDateTime = instant?.let { LocalDateTime.ofInstant(it, UTC) }
+        return localDateTime?.let(Timestamp::valueOf)
     }
 
     override fun fromType(): Class<Timestamp> {

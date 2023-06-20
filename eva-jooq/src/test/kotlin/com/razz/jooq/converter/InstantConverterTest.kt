@@ -15,6 +15,11 @@ class InstantConverterTest : FunSpec({
         timestampWithMillis.nanos shouldBe 123_000_000
     }
 
+    test("Should handle nulls") {
+        converter.to(null) shouldBe null
+        converter.from(null) shouldBe null
+    }
+
     test("Zone should not be changed") {
         val instant = Instant.parse("2022-06-04T15:54:30.123Z")
         val timestamp = converter.to(instant)
