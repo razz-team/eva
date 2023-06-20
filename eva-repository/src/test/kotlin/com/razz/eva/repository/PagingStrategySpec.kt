@@ -93,7 +93,7 @@ class PagingStrategySpec : BehaviorSpec({
                     modelIdOffset = "a5e15308-3a8d-462b-b96c-6f1137e30f0d",
                     size = size
                 )
-                val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSSSS").withZone(UTC)
+                val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS").withZone(UTC)
                 val renderedTimestamp = formatter.format(maxTimestamp)
 
                 And("Selection step") {
