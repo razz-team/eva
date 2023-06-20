@@ -3,15 +3,19 @@ package com.razz.jooq.converter
 import org.jooq.Converter
 import java.sql.Timestamp
 import java.time.Instant
+import java.time.LocalDateTime
+import java.time.ZoneOffset.UTC
 
 class InstantConverter : Converter<Timestamp, Instant> {
 
     override fun from(timestamp: Timestamp?): Instant? {
-        return timestamp?.toInstant()
+        val localDateTime = timestamp?.toLocalDateTime()
+        return localDateTime?.toInstant(UTC)
     }
 
     override fun to(instant: Instant?): Timestamp? {
-        return instant?.let(Timestamp::from)
+        val localDateTime = LocalDateTime.ofInstant(instant, UTC)
+        return Timestamp.valueOf(localDateTime)
     }
 
     override fun fromType(): Class<Timestamp> {
