@@ -5,8 +5,9 @@ import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
 import com.razz.eva.uow.Changes
 import com.razz.eva.uow.ChangesWithoutResult
+import com.razz.eva.uow.ResultCarry
 
-class CustomChangesDsl internal constructor(private var changes: ChangesWithoutResult) {
+class CustomChangesDsl internal constructor(private var changes: ChangesWithoutResult) : ResultCarry {
 
     fun <MID, E, M> add(model: M): M
         where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {

@@ -6,6 +6,10 @@ import com.razz.eva.uow.BaseUnitOfWork.Configuration.Companion.default
 import com.razz.eva.uow.Retry.StaleRecordFixedRetry.Companion.DEFAULT
 import java.time.Clock
 
+interface ResultCarry {
+    fun <R> Changes<R>.result(): R = this.result
+}
+
 abstract class BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, C>(
     protected val clock: Clock,
     private val configuration: Configuration = default()

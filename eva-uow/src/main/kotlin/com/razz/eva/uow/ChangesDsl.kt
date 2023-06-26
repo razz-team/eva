@@ -4,7 +4,7 @@ import com.razz.eva.domain.Model
 import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
 
-class ChangesDsl internal constructor(private var changes: ChangesWithoutResult) {
+class ChangesDsl internal constructor(private var changes: ChangesWithoutResult) : ResultCarry {
 
     fun <MID, E, M> add(model: M): M
         where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
