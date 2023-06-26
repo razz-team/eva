@@ -25,9 +25,10 @@ import java.util.function.Predicate
 
 open class RepositoryHelper(
     migrationPath: String,
+    additionalMigrationPaths: List<String> = emptyList(),
     createPartman: Boolean = false,
     trimmedPackagePrefix: String = "com/razz/",
-    schema: DbSchema = DbSchema.ModelsSchema
+    schema: DbSchema = DbSchema.ModelsSchema,
 ) {
 
     companion object {
@@ -56,7 +57,7 @@ open class RepositoryHelper(
     )
 
     init {
-        val modelsMigration = Migration(migrationPath, schema)
+        val modelsMigration = Migration(migrationPath, schema, additionalMigrationPaths)
         db.createSchemas(createPartman)
         flywayProvider(db.dbName(), modelsMigration).migrate()
         val (txnManager, queryExecutor) = when (executorType) {
