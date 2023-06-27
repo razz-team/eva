@@ -31,6 +31,8 @@ abstract class BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, C>(
 
     protected abstract suspend fun changes(init: suspend C.() -> RESULT): Changes<RESULT>
 
+    protected fun <R> Changes<R>.result(): R = this.result
+
     data class Configuration(
         val retry: Retry? = DEFAULT,
         val supportsOutOfOrderPersisting: Boolean = false
