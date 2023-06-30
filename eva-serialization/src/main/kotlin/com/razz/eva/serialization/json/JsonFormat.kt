@@ -22,6 +22,7 @@ object JsonFormat {
             contextual(ZoneIdSerializer)
             contextual(InstantMillisSerializer)
             contextual(LocalDateSerializer)
+            contextual(YearSerializer)
             contextual(LocalDateTimeSecondsSerializer)
             contextual(URLSerializer)
             contextual(DurationSerializer)
