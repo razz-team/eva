@@ -18,6 +18,7 @@ dependencies {
     implementation(libs.kotest_framework)
     implementation(libs.postgres)
     implementation(libs.kotest_runner)
+    implementation(libs.mockk)
     implementation(libs.hikari)
     implementation(libs.testcontainers)
     implementation(libs.testcontainers_postgres)
