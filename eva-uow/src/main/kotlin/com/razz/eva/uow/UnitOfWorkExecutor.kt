@@ -23,6 +23,10 @@ import java.util.concurrent.TimeUnit.NANOSECONDS
 import kotlin.coroutines.coroutineContext
 import kotlin.reflect.KClass
 
+data class InstantiationContext internal constructor(
+    internal val attempt: Int,
+)
+
 infix fun <PRINCIPAL, PARAMS, RESULT, UOW> KClass<UOW>.withFactory(
     factory: () -> UOW
 ) where PRINCIPAL : Principal<*>,
@@ -54,7 +58,7 @@ class UnitOfWorkExecutor(
     suspend fun <PRINCIPAL, PARAMS, RESULT, UOW> execute(
         principal: PRINCIPAL,
         uowFactory: () -> UOW,
-        params: () -> PARAMS
+        params: InstantiationContext.() -> PARAMS
     ): RESULT where PRINCIPAL : Principal<*>,
                     PARAMS : UowParams<PARAMS>,
                     UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *> {
@@ -75,7 +79,7 @@ class UnitOfWorkExecutor(
                     timer = createTimer(name)
                     uowSpan = tracer.buildSpan(name).asChildOf(activeSpan).withTag(Tracing.Tags.UOW_NAME, name).start()
                 }
-                val constructedParams = params()
+                val constructedParams = params(InstantiationContext(currentAttempt))
                 val performSpan = buildPerformSpan(name, uowSpan)
                 val changes = withContext(ActiveSpanElement(performSpan) + PrimaryConnectionRequiredFlag) {
                     try {
@@ -124,7 +128,7 @@ class UnitOfWorkExecutor(
     suspend fun <PRINCIPAL, PARAMS, RESULT, UOW> execute(
         target: KClass<UOW>,
         principal: PRINCIPAL,
-        params: () -> PARAMS
+        params: InstantiationContext.() -> PARAMS
     ): RESULT where PRINCIPAL : Principal<*>,
                     PARAMS : UowParams<PARAMS>,
                     UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *> {
