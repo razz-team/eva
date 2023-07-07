@@ -40,9 +40,9 @@ class CheckoutUow(
                 else v + 1
             }
         }
-        DebitAccountUow(accountQueries, clock, this)
+        this merge DebitAccountUow(accountQueries, clock, this)
             .tryPerform(principal, DebitAccountUow.Params(params.accountId, totalAmount))
-        ReduceInventoryUow(inventoryQueries, clock, this)
+        merge(ReduceInventoryUow(inventoryQueries, clock, this))
             .tryPerform(principal, ReduceInventoryUow.Params(params.inventoryId, items))
         update(cart.checkout()).id()
     }
