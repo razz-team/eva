@@ -16,8 +16,8 @@ object ArrayDSL {
 
 object JsonDSL {
 
-    fun jsonbContainsKey(field: Field<JSONB>, key: String) =
-        DSL.field("{0} ? {1}", Boolean::class.java, field, key)
+    fun jsonbContainsKeys(field: Field<JSONB>, vararg keys: String) =
+        DSL.condition("jsonb_exists_all({0}, {1}::text[])", field, array(keys))
 
     fun jsonbStringEq(field: Field<JSONB>, name: String, value: String) =
         DSL.field("{0}->>{1}", String::class.java, field, name).eq(value)
