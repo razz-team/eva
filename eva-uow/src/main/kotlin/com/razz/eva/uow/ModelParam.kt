@@ -10,7 +10,7 @@ import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
 
 @Serializable(with = Serializer::class)
-class ModelParam<MID : ModelId<*>, M : Model<MID, *>> private constructor(
+class ModelParam<MID : ModelId<out Comparable<*>>, M : Model<MID, *>> private constructor(
     private var model: M?,
     private val id: MID,
     private val modelQueries: suspend (MID) -> M
@@ -31,7 +31,7 @@ class ModelParam<MID : ModelId<*>, M : Model<MID, *>> private constructor(
         }
     }
 
-    class Serializer<MID : ModelId<*>, M : Model<MID, *>>(
+    class Serializer<MID : ModelId<out Comparable<*>>, M : Model<MID, *>>(
         private val idSerializer: KSerializer<MID>,
         @Suppress("unused") private val modelNoopSerializer: KSerializer<M>,
     ) : KSerializer<ModelParam<MID, *>> {
@@ -43,7 +43,7 @@ class ModelParam<MID : ModelId<*>, M : Model<MID, *>> private constructor(
 
     companion object Factory {
 
-        fun <MID : ModelId<*>, M : Model<MID, *>> InstantiationContext.modelParam(
+        fun <MID : ModelId<out Comparable<*>>, M : Model<MID, *>> InstantiationContext.modelParam(
             model: M,
             modelQueries: suspend (MID) -> M,
         ): ModelParam<MID, M> {
@@ -55,14 +55,14 @@ class ModelParam<MID : ModelId<*>, M : Model<MID, *>> private constructor(
             return modelParam
         }
 
-        fun <MID : ModelId<*>, M : Model<MID, *>> modelParam(
+        fun <MID : ModelId<out Comparable<*>>, M : Model<MID, *>> modelParam(
             model: M,
             modelQueries: suspend (MID) -> M,
         ): ModelParam<MID, M> {
             return ModelParam(model, modelQueries)
         }
 
-        fun <MID : ModelId<*>, M : Model<MID, *>> idModelParam(
+        fun <MID : ModelId<out Comparable<*>>, M : Model<MID, *>> idModelParam(
             modelId: MID,
             modelQueries: suspend (MID) -> M,
         ): ModelParam<MID, M> {
