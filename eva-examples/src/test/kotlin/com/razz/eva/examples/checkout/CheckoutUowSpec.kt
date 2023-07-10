@@ -27,6 +27,7 @@ class CheckoutUowSpec : UowBehaviorSpec({
     Given("Existing cart, inventory and account") {
         val cart = existingCart(
             items = listOf(CartItem("iphone-silver-256", 999), CartItem("iphone-gold-256", 999)),
+            paidFrom = null,
             state = SHOPPING,
             entityState = persistentState(V1),
         )
@@ -96,6 +97,7 @@ class CheckoutUowSpec : UowBehaviorSpec({
                                 }
                                 updates<Cart> {
                                     this.id() shouldBe cart.id()
+                                    this.paidFrom shouldBe account.id()
                                     this.state shouldBe CHECKED_OUT
                                 }
                                 emits<CartCheckedOut> {

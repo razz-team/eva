@@ -1,9 +1,8 @@
 package com.razz.eva.examples.composition.account
 
 import com.razz.eva.examples.ServicePrincipal
-import com.razz.eva.examples.composition.uow.CustomUnitOfWork
 import com.razz.eva.examples.composition.account.DebitAccountUow.Params
-import com.razz.eva.examples.composition.uow.CustomChangesDsl
+import com.razz.eva.uow.UnitOfWork
 import com.razz.eva.uow.UowParams
 import kotlinx.serialization.Serializable
 import java.time.Clock
@@ -11,8 +10,7 @@ import java.time.Clock
 class DebitAccountUow(
     private val accountQueries: (Account.Id) -> Account,
     clock: Clock,
-    head: CustomChangesDsl,
-) : CustomUnitOfWork<ServicePrincipal, Params, Account.Id>(clock, head) {
+) : UnitOfWork<ServicePrincipal, Params, Account.Id>(clock) {
 
     @Serializable
     data class Params(

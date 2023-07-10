@@ -23,7 +23,7 @@ import com.razz.eva.repository.ModelRepos
 import com.razz.eva.repository.ModelRepository
 import com.razz.eva.repository.TransactionalContext.Companion.transactionalContext
 import com.razz.eva.repository.hasRepo
-import com.razz.eva.uow.ChangesWithoutResult
+import com.razz.eva.uow.ChangesAccumulator
 import com.razz.eva.uow.ExecutionStep
 import com.razz.eva.uow.ExecutionStep.ModelAdded
 import com.razz.eva.uow.ExecutionStep.ModelUpdated
@@ -167,7 +167,7 @@ class PersistingSpec : BehaviorSpec({
                     uowName = "Hoba",
                     params = params,
                     principal = TestPrincipal,
-                    changes = ChangesWithoutResult()
+                    changes = ChangesAccumulator()
                         .withAdded(department1)
                         .withUpdated(boss1)
                         .withUnchanged(existingCreatedTestModel(param1 = "a", param2 = 1L))
@@ -339,9 +339,26 @@ class PersistingSpec : BehaviorSpec({
                         params = params,
                         principal = TestPrincipal,
                         changes = listOf(
-                            Noop,
-                            Noop,
-                            Noop
+                            Noop(
+                                OwnedDepartment(
+                                    id = departmentId1,
+                                    name = "KazahDepartment 1",
+                                    headcount = 1,
+                                    ration = BUBALEH,
+                                    boss = bossId1,
+                                    entityState = persistentState(V1),
+                                )
+                            ),
+                            Noop(
+                                OwnedDepartment(
+                                    id = departmentId2,
+                                    name = "KazahDepartment 2",
+                                    headcount = 1,
+                                    ration = BUBALEH,
+                                    boss = bossId2,
+                                    entityState = persistentState(V1),
+                                )
+                            ),
                         ),
                         clock = clock,
                         uowSupportsOutOfOrderPersisting = outOfOrder
