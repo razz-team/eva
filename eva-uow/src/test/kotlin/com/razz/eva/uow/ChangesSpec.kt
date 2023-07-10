@@ -277,6 +277,21 @@ class ChangesSpec : BehaviorSpec({
                     }
                 }
             }
+
+            When("incompatible changes produced") {
+                val changes1 = ChangesAccumulator()
+                    .withAdded(newModel)
+                    .withResult("whatever")
+
+                And("new changes merged into initial changes") {
+                    val attempt = { changes0.merge(changes1).withResult("whatever") }
+
+                    Then("original changes contain only models were added to it directly") {
+                        val ex = shouldThrow<IllegalStateException>(attempt)
+                        ex.message shouldBe "Failed to merge changes for model [${newModel.id()}]"
+                    }
+                }
+            }
         }
     }
 })

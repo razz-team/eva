@@ -39,7 +39,7 @@ class ChangesAccumulator private constructor(
         after.toPersist.forEach { new ->
             merging.merge(new.id, new) { change, succ ->
                 val merged = change.merge(succ)
-                requireNotNull(merged) { "Failed to merge changes for model [${change.id}]" }
+                checkNotNull(merged) { "Failed to merge changes for model [${change.id}]" }
             }
         }
         return ChangesAccumulator(merging)
