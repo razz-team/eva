@@ -45,7 +45,7 @@ class ChangesDslSpec : FunSpec({
         meterRegistry = SimpleMeterRegistry()
     )
 
-    test("Should return properly built ChangesWithResult when new model added and changed model updated") {
+    test("Should return properly built RealisedChanges when new model added and changed model updated") {
         val model0 = createdTestModel("MLG", 420).activate()
         val model1 = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
             .activate()
@@ -76,7 +76,7 @@ class ChangesDslSpec : FunSpec({
         uowx(uow).execute(DummyUow::class, TestPrincipal) { DummyUow.Params }
     }
 
-    test("Should return properly built ChangesWithResult when changed model updated") {
+    test("Should return properly built RealisedChanges when changed model updated") {
         val model = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1).activate()
 
         val uow = object : DummyUow(clock) {
@@ -97,7 +97,7 @@ class ChangesDslSpec : FunSpec({
         uowx(uow).execute(DummyUow::class, TestPrincipal) { DummyUow.Params }
     }
 
-    test("Should return properly built ChangesWithResult when unchanged model updated") {
+    test("Should return properly built RealisedChanges when unchanged model updated") {
         val model = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
 
         val uow = object : DummyUow(clock) {
@@ -107,7 +107,7 @@ class ChangesDslSpec : FunSpec({
                     "K P A C U B O"
                 }
 
-                changes.toPersist shouldBe listOf(Noop)
+                changes.toPersist shouldBe listOf(Noop(model))
                 changes.result shouldBe "K P A C U B O"
 
                 return changes
@@ -167,7 +167,7 @@ class ChangesDslSpec : FunSpec({
         exception.message shouldBe "No changes to persist"
     }
 
-    test("Should return properly built ChangesWithResult when unchanged model not changed") {
+    test("Should return properly built RealisedChanges when unchanged model not changed") {
         val model = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
 
         val uow = object : DummyUow(clock) {
@@ -177,7 +177,7 @@ class ChangesDslSpec : FunSpec({
                     "K P A C U B O"
                 }
 
-                changes.toPersist shouldBe listOf(Noop)
+                changes.toPersist shouldBe listOf(Noop(model))
                 changes.result shouldBe "K P A C U B O"
 
                 return changes

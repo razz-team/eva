@@ -8,7 +8,7 @@ import com.razz.eva.examples.composition.cart.Cart
 import com.razz.eva.examples.composition.inventory.Inventory
 import com.razz.eva.examples.composition.inventory.Inventory.InventoryItem
 import com.razz.eva.examples.composition.inventory.ReduceInventoryUow
-import com.razz.eva.examples.composition.uow.CustomUnitOfWork
+import com.razz.eva.uow.UnitOfWork
 import com.razz.eva.uow.UowParams
 import kotlinx.serialization.Serializable
 import java.time.Clock
@@ -18,7 +18,7 @@ class CheckoutUow(
     private val accountQueries: (Account.Id) -> Account,
     private val inventoryQueries: (Inventory.Id) -> Inventory,
     clock: Clock
-) : CustomUnitOfWork<ServicePrincipal, Params, Cart.Id>(clock) {
+) : UnitOfWork<ServicePrincipal, Params, Cart.Id>(clock) {
 
     @Serializable
     data class Params(
@@ -40,10 +40,12 @@ class CheckoutUow(
                 else v + 1
             }
         }
-        DebitAccountUow(accountQueries, clock, this)
-            .tryPerform(principal, DebitAccountUow.Params(params.accountId, totalAmount))
-        ReduceInventoryUow(inventoryQueries, clock, this)
-            .tryPerform(principal, ReduceInventoryUow.Params(params.inventoryId, items))
-        update(cart.checkout()).id()
+        val accountId = execute(DebitAccountUow(accountQueries, clock), principal) {
+            DebitAccountUow.Params(params.accountId, totalAmount)
+        }
+        execute(ReduceInventoryUow(inventoryQueries, clock), principal) {
+            ReduceInventoryUow.Params(params.inventoryId, items)
+        }
+        update(cart.checkout(accountId)).id()
     }
 }

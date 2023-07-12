@@ -21,17 +21,13 @@ abstract class BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, C>(
 
     open suspend fun onFailure(params: PARAMS, ex: PersistenceException): RESULT = throw ex
 
-    // TODO do we actually need that ?
-    protected val NO_CHANGES: Changes<Unit> = DefaultChanges(Unit, emptyList())
+    private val NO_CHANGES: Changes<Unit> = RealisedChanges(Unit, emptyList())
 
     protected fun noChanges() = NO_CHANGES
 
-    // TODO do we actually need that ?
-    protected fun <R> noChanges(result: R): Changes<R> = DefaultChanges(result, emptyList())
+    protected fun <R> noChanges(result: R): Changes<R> = RealisedChanges(result, emptyList())
 
     protected abstract suspend fun changes(init: suspend C.() -> RESULT): Changes<RESULT>
-
-    protected fun <R> Changes<R>.result(): R = this.result
 
     data class Configuration(
         val retry: Retry? = DEFAULT,
@@ -50,6 +46,6 @@ abstract class UnitOfWork<PRINCIPAL, PARAMS, RESULT>(
     where PRINCIPAL : Principal<*>, PARAMS : UowParams<PARAMS>, RESULT : Any {
 
     final override suspend fun changes(init: suspend ChangesDsl.() -> RESULT): Changes<RESULT> {
-        return ChangesDsl.changes(ChangesWithoutResult(), init)
+        return ChangesDsl.changes(ChangesAccumulator(), init)
     }
 }

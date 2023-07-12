@@ -21,7 +21,7 @@ open class UowSpecBase<R> private constructor(
         changes: Changes<R>
     ) : this(
         result = changes.result,
-        executionHistory = ArrayDeque(changes.toPersist.filter { it != Noop }),
+        executionHistory = ArrayDeque(changes.toPersist.filter { it !is Noop }),
         publishedEvents = ArrayDeque(changes.toPersist.flatMap { it.modelEvents })
     )
 

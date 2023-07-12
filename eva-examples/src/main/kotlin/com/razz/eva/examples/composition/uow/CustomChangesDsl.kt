@@ -4,9 +4,9 @@ import com.razz.eva.domain.Model
 import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
 import com.razz.eva.uow.Changes
-import com.razz.eva.uow.ChangesWithoutResult
+import com.razz.eva.uow.ChangesAccumulator
 
-class CustomChangesDsl internal constructor(private var changes: ChangesWithoutResult) {
+class CustomChangesDsl internal constructor(private var changes: ChangesAccumulator) {
 
     fun <MID, E, M> add(model: M): M
         where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
@@ -22,7 +22,7 @@ class CustomChangesDsl internal constructor(private var changes: ChangesWithoutR
 
     companion object {
         internal suspend inline fun <R> changes(
-            changes: ChangesWithoutResult,
+            changes: ChangesAccumulator,
             @Suppress("REDUNDANT_INLINE_SUSPEND_FUNCTION_TYPE")
             init: suspend CustomChangesDsl.() -> R
         ): Changes<R> {
