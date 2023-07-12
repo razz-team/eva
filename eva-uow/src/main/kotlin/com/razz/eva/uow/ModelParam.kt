@@ -62,6 +62,12 @@ class ModelParam<MID : ModelId<out Comparable<*>>, M : Model<MID, *>> private co
             return ModelParam(model, modelQueries)
         }
 
+        fun <MID : ModelId<out Comparable<*>>, M : Model<MID, *>> constantModelParam(
+            model: M
+        ): ModelParam<MID, M> {
+            return ModelParam(model) { model }
+        }
+
         fun <MID : ModelId<out Comparable<*>>, M : Model<MID, *>> idModelParam(
             modelId: MID,
             modelQueries: suspend (MID) -> M,
