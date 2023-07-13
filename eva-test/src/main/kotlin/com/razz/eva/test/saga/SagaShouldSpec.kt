@@ -3,6 +3,7 @@ package com.razz.eva.test.saga
 import com.razz.eva.domain.Principal
 import com.razz.eva.saga.Saga
 import io.kotest.core.spec.style.ShouldSpec
+import kotlin.reflect.KFunction
 import kotlin.reflect.full.callSuspend
 import kotlin.reflect.full.functions
 import kotlin.reflect.jvm.isAccessible
@@ -19,14 +20,17 @@ abstract class SagaShouldSpec<PRINCIPAL, PARAMS, IS, TS, SELF>(
           SELF : Saga<PRINCIPAL, PARAMS, IS, TS, SELF> {
 
     private lateinit var saga: Saga<PRINCIPAL, PARAMS, IS, TS, SELF>
-    fun setSaga(saga: Saga<PRINCIPAL, PARAMS, IS, TS, SELF>) {
+    private lateinit var innerInit: KFunction<*>
+    private lateinit var innerNext: KFunction<*>
+
+    fun setSaga(saga: Saga<PRINCIPAL, PARAMS, IS, TS, SELF>): Saga<PRINCIPAL, PARAMS, IS, TS, SELF> {
         this.saga = saga
+        innerInit = saga::class.functions.single { it.name == "init" }.also { it.isAccessible = true }
+        innerNext = saga::class.functions.single { it.name == "next" }.also { it.isAccessible = true }
+        return saga
     }
 
     open val clock = Clock.fixed(tickMillis(UTC).instant(), UTC)
-
-    private val innerInit = saga::class.functions.single { it.name == "init" }.also { it.isAccessible = true }
-    private val innerNext = saga::class.functions.single { it.name == "next" }.also { it.isAccessible = true }
 
     @Suppress("UNCHECKED_CAST")
     suspend fun afterParams(principal: PRINCIPAL, params: PARAMS): Saga.Step<SELF> {
