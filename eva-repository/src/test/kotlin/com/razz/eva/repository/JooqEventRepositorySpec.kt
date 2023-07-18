@@ -83,7 +83,7 @@ class JooqEventRepositorySpec : BehaviorSpec({
                     )
                 ),
                 idempotencyKey = params.idempotencyKey,
-                params = json.encodeToJsonElement(params.serialization(), params),
+                params = json.encodeToString(params.serialization(), params),
                 occurredAt = now
             )
 
@@ -211,7 +211,7 @@ class JooqEventRepositorySpec : BehaviorSpec({
                 principal = TestPrincipal,
                 modelEvents = emptyMap(),
                 idempotencyKey = params.idempotencyKey,
-                params = json.encodeToJsonElement(params.serialization(), params),
+                params = json.encodeToString(params.serialization(), params),
                 occurredAt = now
             )
 
@@ -286,7 +286,7 @@ class JooqEventRepositorySpec : BehaviorSpec({
                 principal = TestPrincipal,
                 modelEvents = emptyMap(),
                 idempotencyKey = params.idempotencyKey,
-                params = json.encodeToJsonElement(params.serialization(), params),
+                params = json.encodeToString(params.serialization(), params),
                 occurredAt = now
             )
 

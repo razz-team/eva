@@ -155,7 +155,7 @@ private fun uowEvent(vararg modelEvents: ModelEvent<*> = arrayOf(TestModelEvent0
     idempotencyKey = IdempotencyKey.random(),
     params = buildJsonObject {
         put("id", "some-id")
-    },
+    }.toString(),
     occurredAt = Instant.now()
 )
 
