@@ -3,7 +3,6 @@ package com.razz.eva.events
 import com.razz.eva.IdempotencyKey
 import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.Principal
-import kotlinx.serialization.json.JsonElement
 import java.time.Instant
 import java.util.*
 import java.util.UUID.randomUUID
@@ -14,7 +13,7 @@ data class UowEvent(
     val principal: Principal<*>,
     val modelEvents: Map<ModelEventId, ModelEvent<*>>,
     val idempotencyKey: IdempotencyKey?,
-    val params: JsonElement,
+    val params: String,
     val occurredAt: Instant,
 ) {
     @JvmInline

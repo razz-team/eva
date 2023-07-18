@@ -46,7 +46,7 @@ internal object Fake {
         idempotencyKey = IdempotencyKey.random(),
         params = buildJsonObject {
             put("id", FakeId.id.toString())
-        },
+        }.toString(),
         occurredAt = now()
     )
 }

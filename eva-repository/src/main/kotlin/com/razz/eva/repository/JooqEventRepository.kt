@@ -76,7 +76,7 @@ class JooqEventRepository(
             modelEvents = uowEvent.modelEvents
                 .map { (id, _) -> id.uuidValue() }
                 .toTypedArray()
-            params = json.encodeToString(uowEvent.params)
+            params = uowEvent.params
         }
     }
 

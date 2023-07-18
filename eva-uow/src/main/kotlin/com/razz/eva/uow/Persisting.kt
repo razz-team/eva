@@ -14,9 +14,9 @@ import com.razz.eva.uow.PersistingMode.PARALLEL_OUT_OF_ORDER
 import com.razz.eva.uow.PersistingMode.SEQUENTIAL_FIFO
 import com.razz.eva.events.UowEvent.ModelEventId
 import com.razz.eva.events.UowEvent.UowName
-import com.razz.eva.serialization.json.JsonFormat.json
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
+import kotlinx.serialization.StringFormat
 import java.time.Clock
 import java.time.Instant
 import java.util.UUID.randomUUID
@@ -25,14 +25,9 @@ class Persisting(
     private val transactionManager: TransactionManager<*>,
     private val modelRepos: ModelRepos,
     private val eventRepository: EventRepository,
-    private val eventPublisher: EventPublisher
+    private val eventPublisher: EventPublisher = NoopEventPublisher,
+    private val json: StringFormat = com.razz.eva.serialization.json.JsonFormat.json,
 ) {
-    constructor(
-        transactionManager: TransactionManager<*>,
-        modelRepos: ModelRepos,
-        eventRepository: EventRepository
-    ) : this(transactionManager, modelRepos, eventRepository, NoopEventPublisher)
-
     private object NoopEventPublisher : EventPublisher {
         override suspend fun publish(uowEvent: UowEvent) = Unit
     }
@@ -56,7 +51,7 @@ class Persisting(
                 principal = principal,
                 modelEvents = events.associateBy { ModelEventId.random() },
                 idempotencyKey = params.idempotencyKey,
-                params = json.encodeToJsonElement(params.serialization(), params),
+                params = json.encodeToString(params.serialization(), params),
                 occurredAt = startedAt
             )
         }
