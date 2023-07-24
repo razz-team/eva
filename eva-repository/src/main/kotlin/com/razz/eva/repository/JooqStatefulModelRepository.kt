@@ -16,11 +16,13 @@ abstract class JooqStatefulModelRepository<ID, MID, M, ME, R, S>(
     @Suppress("UNCHECKED_CAST")
     tableId: TableField<R, ID> = requireNotNull(table.primaryKey).fields.single() as TableField<R, ID>,
     @Suppress("UNCHECKED_CAST")
-    version: TableField<R, Long> = table.recordVersion as TableField<R, Long>
+    dbId: (MID) -> ID = { mid -> mid.id as ID },
+    @Suppress("UNCHECKED_CAST")
+    version: TableField<R, Long> = table.recordVersion as TableField<R, Long>,
 ) : JooqBaseModelRepository<ID, MID, M, ME, R>(
-    queryExecutor, dslContext, table, tableId, version
+    queryExecutor, dslContext, table, tableId, dbId, version,
 ) where ID : Comparable<ID>,
-        MID : ModelId<ID>,
+        MID : ModelId<out Comparable<*>>,
         ME : ModelEvent<MID>,
         M : Model<MID, ME>,
         R : TypedStatefulEntityRecord<ID, S>,

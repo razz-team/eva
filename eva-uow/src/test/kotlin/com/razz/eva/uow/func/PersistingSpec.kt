@@ -124,8 +124,8 @@ class PersistingSpec : BehaviorSpec({
 
         @Suppress("UNCHECKED_CAST")
         val repos = ModelRepos(
-            Department::class hasRepo topRepo as ModelRepository<*, *, Department<*>>,
-            Employee::class hasRepo topRepo as ModelRepository<*, *, Employee>
+            Department::class hasRepo topRepo as ModelRepository<*, Department<*>>,
+            Employee::class hasRepo topRepo as ModelRepository<*, Employee>
         )
 
         val txnManager = WithCtxConnectionTransactionManager(

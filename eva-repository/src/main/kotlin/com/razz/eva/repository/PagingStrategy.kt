@@ -16,7 +16,7 @@ import kotlin.reflect.KClass
 abstract class PagingStrategy<ID, MID, M, S, P, R>(
     private val modelClass: KClass<S>
 ) where ID : Comparable<ID>,
-        MID : ModelId<ID>,
+        MID : ModelId<out Comparable<*>>,
         M : Model<MID, *>,
         S : M,
         P : Comparable<P>,
