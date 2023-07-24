@@ -11,7 +11,7 @@ import com.razz.eva.uow.ExecutionStep.ModelsUpdated
 
 class SpyRepo(
     private val history: MutableList<ExecutionStep>
-) : ModelRepository<Comparable<Any>, ModelId<Comparable<Any>>, Model<ModelId<Comparable<Any>>, *>> {
+) : ModelRepository<ModelId<Comparable<Any>>, Model<ModelId<Comparable<Any>>, *>> {
 
     override suspend fun find(id: ModelId<Comparable<Any>>): Model<ModelId<Comparable<Any>>, *>? {
         TODO("Not used")

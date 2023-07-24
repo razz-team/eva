@@ -36,12 +36,14 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
     @Suppress("UNCHECKED_CAST")
     private val tableId: TableField<R, ID> = requireNotNull(table.primaryKey).fields.single() as TableField<R, ID>,
     @Suppress("UNCHECKED_CAST")
+    private val dbId: (MID) -> ID = { mid -> mid.id as ID },
+    @Suppress("UNCHECKED_CAST")
     private val version: TableField<R, Long> = table.recordVersion as TableField<R, Long>,
     @Suppress("UNCHECKED_CAST")
-    private val createdAt: TableField<R, Instant> = table.field("record_created_at") as TableField<R, Instant>
-) : ModelRepository<ID, MID, M>
+    private val createdAt: TableField<R, Instant> = table.field("record_created_at") as TableField<R, Instant>,
+) : ModelRepository<MID, M>
     where ID : Comparable<ID>,
-          MID : ModelId<ID>,
+          MID : ModelId<out Comparable<*>>,
           M : Model<MID, ME>,
           ME : ModelEvent<MID>,
           R : BaseEntityRecord<ID> {
@@ -54,7 +56,7 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
         return record.apply {
             setRecordUpdatedAt(context.startedAt)
             if (model.isNew()) {
-                setId(model.id().id)
+                setId(dbId(model.id()))
                 setRecordCreatedAt(context.startedAt)
             } else {
                 reset(tableId)
@@ -189,7 +191,7 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
             }
             DSL.row(
                 *toRecord(context, model).run {
-                    setId(model.id().id)
+                    setId(dbId(model.id()))
                     valuesRow()
                         .fields()
                         .filterIndexed { i, _ -> createdAt != this.field(i) }
@@ -243,13 +245,13 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
     }
 
     private fun <Q : UpdateQuery<R>> prepareUpdate(model: M, updateQuery: Q): Q {
-        updateQuery.addConditions(tableId.eq(model.id().id))
+        updateQuery.addConditions(tableId.eq(dbId(model.id())))
         updateQuery.addConditions(version.eq(model.version().version))
         return updateQuery
     }
 
     override suspend fun find(id: MID): M? {
-        return findOneWhere(tableId.eq(id.id))
+        return findOneWhere(tableId.eq(dbId(id)))
     }
 
     protected suspend fun existsWhere(condition: Condition): Boolean {

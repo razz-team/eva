@@ -31,5 +31,5 @@ object FakeMemorizingPersisting {
 
     @Suppress("UNCHECKED_CAST")
     private fun <M : Model<*, *>> anyRepo(history: MutableList<ExecutionStep>) =
-        SpyRepo(history) as ModelRepository<*, *, M>
+        SpyRepo(history) as ModelRepository<*, M>
 }

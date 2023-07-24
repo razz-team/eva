@@ -3,7 +3,7 @@ package com.razz.eva.repository
 import com.razz.eva.domain.Model
 import com.razz.eva.domain.ModelId
 
-interface ModelRepository<ID : Comparable<ID>, MID : ModelId<ID>, M : Model<MID, *>> {
+interface ModelRepository<MID : ModelId<out Comparable<*>>, M : Model<MID, *>> {
 
     suspend fun find(id: MID): M?
 

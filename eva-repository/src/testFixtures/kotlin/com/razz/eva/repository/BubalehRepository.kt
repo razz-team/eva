@@ -18,11 +18,11 @@ import org.jooq.DSLContext
 import org.jooq.impl.DSL
 import java.util.*
 
-    class BubalehRepository(
+class BubalehRepository(
     queryExecutor: QueryExecutor,
     dslContext: DSLContext
 ) : JooqStatefulModelRepository<UUID, BubalehId, Bubaleh, BubalehEvent, BubalehsRecord, BubalehsState>(
-    queryExecutor, dslContext, BUBALEHS, BUBALEHS.ID, BUBALEHS.VERSION
+    queryExecutor, dslContext, BUBALEHS, BUBALEHS.ID, { it.id }, BUBALEHS.VERSION
 ) {
 
     override fun stateOf(model: Bubaleh) = when (model.state()) {
