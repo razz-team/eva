@@ -119,15 +119,17 @@ class UnitOfWorkExecutor(
                 return when (val result = changes.result) {
                     is Model<*, *> -> {
                         @Suppress("UNCHECKED_CAST")
-                        persisted.single { it.id() == result.id() } as RESULT
+                        persisted.singleOrNull { it.id() == result.id() } as? RESULT ?: result
                     }
                     is Collection<*> -> {
                         val models = result.filterIsInstance<Model<*, *>>()
                         if (models.isEmpty()) result
                         else {
                             val persistedById = persisted.associateBy { it.id() }
+                            val matched = models.mapNotNull { model -> persistedById[model.id()] }
                             @Suppress("UNCHECKED_CAST")
-                            models.map { model -> persistedById.getValue(model.id()) } as RESULT
+                            if (matched.size == models.size) matched as RESULT
+                            else result
                         }
                     }
                     else -> changes.result

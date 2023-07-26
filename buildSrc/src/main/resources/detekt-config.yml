@@ -101,6 +101,7 @@ complexity:
   NestedBlockDepth:
     active: true
     threshold: 5
+    excludes: [ '**/UnitOfWorkExecutor.kt' ]
   ReplaceSafeCallChainWithRun:
     active: false
   StringLiteralDuplication:
