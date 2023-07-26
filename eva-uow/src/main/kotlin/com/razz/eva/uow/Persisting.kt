@@ -1,5 +1,6 @@
 package com.razz.eva.uow
 
+import com.razz.eva.domain.Model
 import com.razz.eva.domain.Principal
 import com.razz.eva.events.EventPublisher
 import com.razz.eva.events.UowEvent
@@ -14,6 +15,8 @@ import com.razz.eva.uow.PersistingMode.PARALLEL_OUT_OF_ORDER
 import com.razz.eva.uow.PersistingMode.SEQUENTIAL_FIFO
 import com.razz.eva.events.UowEvent.ModelEventId
 import com.razz.eva.events.UowEvent.UowName
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.serialization.StringFormat
@@ -39,8 +42,8 @@ class Persisting(
         changes: Collection<Change>,
         clock: Clock,
         uowSupportsOutOfOrderPersisting: Boolean
-    ) {
-        val uowEvent = inTransaction(clock, uowSupportsOutOfOrderPersisting) { persisting, startedAt ->
+    ): List<Model<*, *>> {
+        val (uowEvent, flushed) = inTransaction(clock, uowSupportsOutOfOrderPersisting) { persisting, startedAt ->
             val events = changes.flatMap(Change::modelEvents)
             changes.forEach { change ->
                 change.persist(persisting)
@@ -56,13 +59,14 @@ class Persisting(
             )
         }
         eventPublisher.publish(uowEvent)
+        return flushed
     }
 
     private suspend fun inTransaction(
         clock: Clock,
         uowSupportsOutOfOrderPersisting: Boolean,
         block: (ModelPersisting, Instant) -> UowEvent
-    ): UowEvent {
+    ): Pair<UowEvent, List<Model<*, *>>> {
         val persistingMode = if (transactionManager.supportsPipelining() && uowSupportsOutOfOrderPersisting) {
             PARALLEL_OUT_OF_ORDER
         } else {
@@ -70,13 +74,13 @@ class Persisting(
         }
         val persisting = newPersistingAccumulator(uowSupportsOutOfOrderPersisting, modelRepos)
         val uowEvent = block(persisting, clock.instant())
-        transactionManager.inTransaction(
+        val flushed = transactionManager.inTransaction(
             REQUIRE_NEW,
             suspend {
                 flush(persisting, uowEvent, transactionalContext(clock.instant()), persistingMode)
             }
         )
-        return uowEvent
+        return uowEvent to flushed
     }
 
     private suspend fun flush(
@@ -84,19 +88,20 @@ class Persisting(
         uowEvent: UowEvent,
         context: TransactionalContext,
         mode: PersistingMode
-    ): Unit = when (mode) {
+    ): List<Model<*, *>> = when (mode) {
         PARALLEL_OUT_OF_ORDER -> coroutineScope {
-            accumulator.accumulated().forEach { operation ->
-                launch { operation(context) }
+            val flushed = accumulator.accumulated().map { operation ->
+                async { operation(context) }
             }
             launch { eventRepository.add(uowEvent) }
-            Unit
+            flushed.awaitAll().flatten()
         }
         SEQUENTIAL_FIFO -> {
-            accumulator.accumulated().forEach { operation ->
+            val flushed = accumulator.accumulated().map { operation ->
                 operation(context)
             }
             eventRepository.add(uowEvent)
+            flushed.flatten()
         }
     }
 }

@@ -10,7 +10,7 @@ import kotlin.reflect.KClass
 internal sealed interface PersistingAccumulator : ModelPersisting {
 
     fun interface FlushOperation {
-        suspend operator fun invoke(context: TransactionalContext)
+        suspend operator fun invoke(context: TransactionalContext): List<Model<*, *>>
     }
 
     fun accumulated(): List<FlushOperation>
@@ -19,11 +19,11 @@ internal sealed interface PersistingAccumulator : ModelPersisting {
         private val changes: MutableList<FlushOperation> = mutableListOf()
 
         override fun <ID : ModelId<out Comparable<*>>, M : Model<ID, *>> add(model: M) {
-            changes.add { context -> repos.repoFor(model).add(context, model) }
+            changes.add { context -> repos.repoFor(model).add(context, model).let(::listOf) }
         }
 
         override fun <ID : ModelId<out Comparable<*>>, M : Model<ID, *>> update(model: M) {
-            changes.add { context -> repos.repoFor(model).update(context, model) }
+            changes.add { context -> repos.repoFor(model).update(context, model).let(::listOf) }
         }
 
         override fun accumulated() = changes

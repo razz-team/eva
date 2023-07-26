@@ -28,8 +28,9 @@ class SpyRepo(
     override suspend fun <ME : Model<ModelId<Comparable<Any>>, *>> add(
         context: TransactionalContext,
         models: List<ME>
-    ) {
+    ): List<ME> {
         history.add(ModelsAdded(context, models))
+        return models
     }
 
     override suspend fun <ME : Model<ModelId<Comparable<Any>>, *>> update(
@@ -43,7 +44,8 @@ class SpyRepo(
     override suspend fun <ME : Model<ModelId<Comparable<Any>>, *>> update(
         context: TransactionalContext,
         models: List<ME>
-    ) {
+    ): List<ME> {
         history.add(ModelsUpdated(context, models))
+        return models
     }
 }

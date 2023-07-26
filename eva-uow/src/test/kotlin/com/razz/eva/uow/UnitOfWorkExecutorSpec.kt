@@ -223,6 +223,16 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
             )
 
             And("UnitOfWork has one retry and returns result") {
+                coEvery {
+                    persisting.persist(
+                        uowName = "MockOfCreateDepartmentUow",
+                        params = params,
+                        principal = TestPrincipal,
+                        changes = listOf(),
+                        clock = clock,
+                        uowSupportsOutOfOrderPersisting = true
+                    )
+                } returns listOf(department)
                 every { rawUnitOfWork.configuration() } returns
                     Configuration(StaleRecordFixedRetry(1, ofMillis(100)), true)
                 val changes = RealisedChanges(department, listOf())
@@ -283,14 +293,14 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                 } returns RealisedChanges(department, listOf())
                 coEvery {
                     persisting.persist(
-                        "MockOfCreateDepartmentUow",
-                        eq(params),
-                        TestPrincipal,
-                        listOf(),
-                        fixedUTC(ofEpochMilli(0)),
-                        true
+                        uowName = "MockOfCreateDepartmentUow",
+                        params = params,
+                        principal = TestPrincipal,
+                        changes = listOf(),
+                        clock = clock,
+                        uowSupportsOutOfOrderPersisting = true
                     )
-                } throws ex andThen Unit
+                } throws ex andThen listOf(department)
                 coEvery { rawUnitOfWork.onFailure(eq(params), eq(ex)) } throws ex
 
                 When("Principal executes UnitOfWork") {

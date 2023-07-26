@@ -1,5 +1,6 @@
 package com.razz.eva.uow
 
+import com.razz.eva.domain.Model
 import com.razz.eva.domain.Principal
 import com.razz.eva.metrics.timerBuilder
 import com.razz.eva.persistence.PersistenceException
@@ -91,7 +92,7 @@ class UnitOfWorkExecutor(
                 }
                 performSpan.finish()
                 val persistSpan = buildPersistSpan(name, uowSpan)
-                try {
+                val persisted = try {
                     persisting.persist(
                         uowName = uow.name(),
                         params = constructedParams,
@@ -115,7 +116,22 @@ class UnitOfWorkExecutor(
                     throw e
                 }
                 persistSpan.finish()
-                return changes.result
+                return when (val result = changes.result) {
+                    is Model<*, *> -> {
+                        @Suppress("UNCHECKED_CAST")
+                        persisted.single { it.id() == result.id() } as RESULT
+                    }
+                    is Collection<*> -> {
+                        val models = result.filterIsInstance<Model<*, *>>()
+                        if (models.isEmpty()) result
+                        else {
+                            val persistedById = persisted.associateBy { it.id() }
+                            @Suppress("UNCHECKED_CAST")
+                            models.map { model -> persistedById.getValue(model.id()) } as RESULT
+                        }
+                    }
+                    else -> changes.result
+                }
             }
         } finally {
             val endTime = System.nanoTime()

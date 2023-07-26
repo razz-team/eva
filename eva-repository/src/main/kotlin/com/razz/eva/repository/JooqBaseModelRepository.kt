@@ -118,13 +118,13 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
         }
     }
 
-    override suspend fun <ME : M> add(context: TransactionalContext, models: List<ME>) {
+    override suspend fun <ME : M> add(context: TransactionalContext, models: List<ME>): List<ME> {
         when {
             models.isEmpty() -> throw IllegalArgumentException("No models provided for insert")
             models.size == 1 -> {
                 // just for optimization's sake, this version is capable of handling single record update
-                add(context, models.first())
-                return
+                val added = add(context, models.first())
+                return listOf(added)
             }
         }
         val insertQuery = models.fold(dslContext.insertQuery(table)) { query, model ->
@@ -146,6 +146,10 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
             throw IllegalStateException(
                 "${models.size} models were queried for insert, while ${added.size} rows were inserted"
             )
+        }
+        return added.map {
+            @Suppress("UNCHECKED_CAST")
+            fromRecord(it) as ME
         }
     }
 
@@ -176,13 +180,13 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
         }
     }
 
-    override suspend fun <ME : M> update(context: TransactionalContext, models: List<ME>) {
+    override suspend fun <ME : M> update(context: TransactionalContext, models: List<ME>): List<ME> {
         when {
             models.isEmpty() -> throw IllegalArgumentException("No models provided for update")
             models.size == 1 -> {
                 // just for optimization sake, this version is capable of handling single record update
-                update(context, models.first())
-                return
+                val updated = update(context, models.first())
+                return listOf(updated)
             }
         }
         val records = models.map { model ->
@@ -222,6 +226,10 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
             updated.size > models.size -> throw IllegalStateException(
                 "Only ${models.size} models were queried for update, while ${updated.size} rows were updated"
             )
+        }
+        return updated.map {
+            @Suppress("UNCHECKED_CAST")
+            fromRecord(it) as ME
         }
     }
 
