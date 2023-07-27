@@ -145,18 +145,21 @@ class UnitOfWorkExecutor(
             val models = result.filterIsInstance<Model<*, *>>()
             if (models.isEmpty()) result
             else {
-                val changesIds = changes.toPersist.mapNotNull { if (it is Noop) null else it.id }.toSet()
+                val toPersist = changes.toPersist.mapNotNull { if (it is Noop) null else it.id }.toSet()
                 // don't try to find persisted data for returned values such as `notChanged(model)`
-                if (changesIds.containsAll(models.map { it.id() })) {
-                    val persistedById = persisted.associateBy { it.id() }
-                    val matched = models.mapNotNull { model -> persistedById[model.id()] }
-                    @Suppress("UNCHECKED_CAST")
-                    if (matched.size == models.size) matched as RESULT
-                    else {
-                        logger.warn { "Unable to find returned models in persisted changes" }
-                        result
-                    }
-                } else result
+                val persistedById = persisted.associateBy { it.id() }
+                val matched = models.mapNotNull { model ->
+                    if (toPersist.contains(model.id())) {
+                        persistedById[model.id()]
+                    } else model
+                }
+                @Suppress("UNCHECKED_CAST")
+                if (matched.size == models.size) matched as RESULT
+                else {
+                    val notFound = models.filter { !matched.contains(it) }.joinToString { it.id().stringValue() }
+                    logger.warn { "Unable to find returned models in persisted changes: $notFound" }
+                    result
+                }
             }
         }
         else -> result

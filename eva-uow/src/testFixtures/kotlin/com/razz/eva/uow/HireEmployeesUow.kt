@@ -7,6 +7,7 @@ import com.razz.eva.domain.EmployeeId
 import com.razz.eva.domain.EntityState.NewState.Companion.newState
 import com.razz.eva.domain.Name
 import com.razz.eva.repository.DepartmentRepository
+import com.razz.eva.repository.EmployeeRepository
 import com.razz.eva.uow.HireEmployeesUow.Params
 import com.razz.eva.uow.Retry.StaleRecordFixedRetry
 import kotlinx.serialization.Serializable
@@ -17,7 +18,9 @@ import java.util.UUID.randomUUID
 class HireEmployeesUow(
     clock: Clock,
     private val departmentRepo: DepartmentRepository,
-    retries: Int
+    private val employeeRepo: EmployeeRepository,
+    retries: Int,
+    private val forceAdd: Boolean,
 ) : UnitOfWork<TestPrincipal, Params, List<Employee>>(
     clock,
     Configuration(retry = StaleRecordFixedRetry(retries, Duration.ofMillis(100)))
@@ -35,22 +38,27 @@ class HireEmployeesUow(
         var dep = checkNotNull(departmentRepo.find(params.departmentId))
         val emps = mutableListOf<Employee>()
         for (name in params.names) {
-            val email = "${name.first}.${name.last}@${dep.name}.razz.team"
-            val empId = EmployeeId(randomUUID())
-            val emp = Employee(
-                id = empId,
-                name = name,
-                departmentId = params.departmentId,
-                email = email,
-                ration = dep.ration,
-                entityState = newState(
-                    EmployeeCreated(
-                        empId, name, params.departmentId, email, dep.ration
+            val existing = employeeRepo.findByName(name)
+            if (existing != null && !forceAdd) {
+                emps += notChanged(existing)
+            } else {
+                val email = "${name.first}.${name.last}@${dep.name}.razz.team"
+                val empId = EmployeeId(randomUUID())
+                val emp = Employee(
+                    id = empId,
+                    name = name,
+                    departmentId = params.departmentId,
+                    email = email,
+                    ration = dep.ration,
+                    entityState = newState(
+                        EmployeeCreated(
+                            empId, name, params.departmentId, email, dep.ration
+                        )
                     )
                 )
-            )
-            emps += add(emp)
-            dep = dep.addEmployee(emp)
+                emps += add(emp)
+                dep = dep.addEmployee(emp)
+            }
         }
         update(dep)
         emps
