@@ -204,6 +204,23 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
         }
 
         And("UnitOfWorkExecutor and UnitOfWork are configured") {
+            val anotherId = randomDepartmentId()
+            val anotherModel = OwnedDepartment(
+                id = anotherId,
+                name = "LondonDepartment",
+                headcount = 1,
+                ration = Ration.BUBALEH,
+                boss = bossId,
+                entityState = newState(
+                    OwnedDepartmentCreated(
+                        departmentId = anotherId,
+                        name = "LondonDepartment",
+                        headcount = 1,
+                        ration = Ration.BUBALEH,
+                        boss = bossId
+                    )
+                )
+            )
             val unitOfWork = mockk<CreateDepartmentUow>()
             val rawUnitOfWork = unitOfWork as UnitOfWork<TestPrincipal, Params, OwnedDepartment>
             val persisting = mockk<Persisting>(relaxed = true)
@@ -223,6 +240,16 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
             )
 
             And("UnitOfWork has one retry and returns result") {
+                coEvery {
+                    persisting.persist(
+                        uowName = "MockOfCreateDepartmentUow",
+                        params = params,
+                        principal = TestPrincipal,
+                        changes = listOf(),
+                        clock = clock,
+                        uowSupportsOutOfOrderPersisting = true
+                    )
+                } returns listOf(anotherModel, department)
                 every { rawUnitOfWork.configuration() } returns
                     Configuration(StaleRecordFixedRetry(1, ofMillis(100)), true)
                 val changes = RealisedChanges(department, listOf())
@@ -283,14 +310,14 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                 } returns RealisedChanges(department, listOf())
                 coEvery {
                     persisting.persist(
-                        "MockOfCreateDepartmentUow",
-                        eq(params),
-                        TestPrincipal,
-                        listOf(),
-                        fixedUTC(ofEpochMilli(0)),
-                        true
+                        uowName = "MockOfCreateDepartmentUow",
+                        params = params,
+                        principal = TestPrincipal,
+                        changes = listOf(),
+                        clock = clock,
+                        uowSupportsOutOfOrderPersisting = true
                     )
-                } throws ex andThen Unit
+                } throws ex andThen listOf(department)
                 coEvery { rawUnitOfWork.onFailure(eq(params), eq(ex)) } throws ex
 
                 When("Principal executes UnitOfWork") {

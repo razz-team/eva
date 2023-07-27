@@ -16,7 +16,7 @@ interface ModelRepository<MID : ModelId<out Comparable<*>>, M : Model<MID, *>> {
      */
     suspend fun <ME : M> add(context: TransactionalContext, model: ME): ME
 
-    suspend fun <ME : M> add(context: TransactionalContext, models: List<ME>)
+    suspend fun <ME : M> add(context: TransactionalContext, models: List<ME>): List<ME>
 
     /**
      * This method meant to be used only by
@@ -27,5 +27,5 @@ interface ModelRepository<MID : ModelId<out Comparable<*>>, M : Model<MID, *>> {
      */
     suspend fun <ME : M> update(context: TransactionalContext, model: ME): ME
 
-    suspend fun <ME : M> update(context: TransactionalContext, models: List<ME>)
+    suspend fun <ME : M> update(context: TransactionalContext, models: List<ME>): List<ME>
 }

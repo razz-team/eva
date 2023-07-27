@@ -122,7 +122,7 @@ class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
     val uowxRetries = UnitOfWorkExecutor(
         factories = listOf(
             HireEmployeesUow::class withFactory {
-                HireEmployeesUow(clock, departmentRepo, retries = 1)
+                HireEmployeesUow(clock, departmentRepo, employeeRepo, 1, false)
             }
         ),
         persisting = persisting,
@@ -138,7 +138,7 @@ class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
             CreateSoloDepartmentUow(clock, employeeRepo, departmentRepo)
         },
         HireEmployeesUow::class withFactory {
-            HireEmployeesUow(clock, departmentRepo, retries = 0)
+            HireEmployeesUow(clock, departmentRepo, employeeRepo, 0, true)
         }
     )
 }

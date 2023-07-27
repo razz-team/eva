@@ -1,5 +1,6 @@
 package com.razz.eva.uow
 
+import com.razz.eva.domain.Model
 import com.razz.eva.domain.Principal
 import com.razz.eva.metrics.timerBuilder
 import com.razz.eva.persistence.PersistenceException
@@ -91,7 +92,7 @@ class UnitOfWorkExecutor(
                 }
                 performSpan.finish()
                 val persistSpan = buildPersistSpan(name, uowSpan)
-                try {
+                val persisted = try {
                     persisting.persist(
                         uowName = uow.name(),
                         params = constructedParams,
@@ -115,7 +116,7 @@ class UnitOfWorkExecutor(
                     throw e
                 }
                 persistSpan.finish()
-                return changes.result
+                return if (uow.configuration().returnRoundtrippedModels) result(changes, persisted) else changes.result
             }
         } finally {
             val endTime = System.nanoTime()
@@ -123,6 +124,45 @@ class UnitOfWorkExecutor(
             timer?.record(elapsedTime, NANOSECONDS)
             uowSpan?.finish()
         }
+    }
+
+    private fun <RESULT> result(
+        changes: Changes<RESULT>,
+        persisted: List<Model<*, *>>,
+    ) = when (val result = changes.result) {
+        is Model<*, *> -> {
+            // don't try to find persisted data for returned values such as `notChanged(model)`
+            if (changes.toPersist.any { it !is Noop && it.id == result.id() }) {
+                @Suppress("UNCHECKED_CAST")
+                val roundtripped = persisted.singleOrNull { it.id() == result.id() } as? RESULT
+                if (roundtripped == null) logger.warn {
+                    "Unable to find returned model [${result.id()}] in persisted changes"
+                }
+                roundtripped ?: result
+            } else result
+        }
+        is Collection<*> -> {
+            val models = result.filterIsInstance<Model<*, *>>()
+            if (models.isEmpty()) result
+            else {
+                val toPersist = changes.toPersist.mapNotNull { if (it is Noop) null else it.id }.toSet()
+                // don't try to find persisted data for returned values such as `notChanged(model)`
+                val persistedById = persisted.associateBy { it.id() }
+                val matched = models.mapNotNull { model ->
+                    if (toPersist.contains(model.id())) {
+                        persistedById[model.id()]
+                    } else model
+                }
+                @Suppress("UNCHECKED_CAST")
+                if (matched.size == models.size) matched as RESULT
+                else {
+                    val notFound = models.filter { !matched.contains(it) }.joinToString { it.id().stringValue() }
+                    logger.warn { "Unable to find returned models in persisted changes: $notFound" }
+                    result
+                }
+            }
+        }
+        else -> result
     }
 
     suspend fun <PRINCIPAL, PARAMS, RESULT, UOW> execute(

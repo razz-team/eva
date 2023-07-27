@@ -49,7 +49,7 @@ abstract class HackedRepository<ID, MID, M, ME, R, S>(
         return super.update(context, model)
     }
 
-    override suspend fun <ME : M> update(context: TransactionalContext, models: List<ME>) {
+    override suspend fun <ME : M> update(context: TransactionalContext, models: List<ME>): List<ME> {
         detachedScope.launch {
             models.forEach { model ->
                 preUpdate(model)
