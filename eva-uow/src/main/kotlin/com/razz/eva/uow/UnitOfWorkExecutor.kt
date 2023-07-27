@@ -116,7 +116,7 @@ class UnitOfWorkExecutor(
                     throw e
                 }
                 persistSpan.finish()
-                return result(changes, persisted)
+                return if (uow.configuration().returnRoundtrippedModels) result(changes, persisted) else changes.result
             }
         } finally {
             val endTime = System.nanoTime()

@@ -1,6 +1,7 @@
 package com.razz.eva.uow.func
 
 import com.razz.eva.IdempotencyKey.Companion.idempotencyKey
+import com.razz.eva.domain.Department.OwnedDepartment
 import com.razz.eva.domain.Employee
 import com.razz.eva.domain.Name
 import com.razz.eva.domain.Ration.SHAKSHOUKA
@@ -57,7 +58,7 @@ class PersistenceSpec : PersistenceBaseSpec({
                 module.uowx.execute(CreateSoloDepartmentUow::class, TestPrincipal) { params }
             }
 
-            Then("New model persisted") {
+            Then("New models persisted") {
                 boss = module.employeeRepo.findByDepartment(mobileboys.id()).single()
 
                 boss.name shouldBe Name("Misha", "K")
@@ -67,6 +68,16 @@ class PersistenceSpec : PersistenceBaseSpec({
                 mobileboys.name shouldBe "mobileboys"
                 mobileboys.ration shouldBe SHAKSHOUKA
                 boss.ration shouldBe mobileboys.ration
+
+                val persistedBoys = module.departmentRepo.findByName("mobileboys") as OwnedDepartment
+
+                persistedBoys.isPersisted() shouldBe true
+                persistedBoys.version() shouldBe mobileboys.version()
+                persistedBoys.id() shouldBe mobileboys.id()
+                persistedBoys.boss shouldBe mobileboys.boss
+                persistedBoys.headcount shouldBe mobileboys.headcount
+                persistedBoys.name shouldBe mobileboys.name
+                persistedBoys.ration shouldBe mobileboys.ration
             }
 
             And("Events persisted") {

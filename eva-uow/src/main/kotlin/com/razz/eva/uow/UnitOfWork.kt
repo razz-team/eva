@@ -33,7 +33,8 @@ abstract class BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, C>(
 
     data class Configuration(
         val retry: Retry? = DEFAULT,
-        val supportsOutOfOrderPersisting: Boolean = false
+        val supportsOutOfOrderPersisting: Boolean = false,
+        val returnRoundtrippedModels: Boolean = true,
     ) {
         companion object {
             fun default() = Configuration()

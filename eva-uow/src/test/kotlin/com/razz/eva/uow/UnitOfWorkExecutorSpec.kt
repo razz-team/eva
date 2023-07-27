@@ -204,6 +204,23 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
         }
 
         And("UnitOfWorkExecutor and UnitOfWork are configured") {
+            val anotherId = randomDepartmentId()
+            val anotherModel = OwnedDepartment(
+                id = anotherId,
+                name = "LondonDepartment",
+                headcount = 1,
+                ration = Ration.BUBALEH,
+                boss = bossId,
+                entityState = newState(
+                    OwnedDepartmentCreated(
+                        departmentId = anotherId,
+                        name = "LondonDepartment",
+                        headcount = 1,
+                        ration = Ration.BUBALEH,
+                        boss = bossId
+                    )
+                )
+            )
             val unitOfWork = mockk<CreateDepartmentUow>()
             val rawUnitOfWork = unitOfWork as UnitOfWork<TestPrincipal, Params, OwnedDepartment>
             val persisting = mockk<Persisting>(relaxed = true)
@@ -232,7 +249,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                         clock = clock,
                         uowSupportsOutOfOrderPersisting = true
                     )
-                } returns listOf(department)
+                } returns listOf(anotherModel, department)
                 every { rawUnitOfWork.configuration() } returns
                     Configuration(StaleRecordFixedRetry(1, ofMillis(100)), true)
                 val changes = RealisedChanges(department, listOf())

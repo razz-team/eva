@@ -18,6 +18,9 @@ class StaleRecordSpec : PersistenceBaseSpec({
 
     isolationMode = InstancePerLeaf
 
+    val departmentRepo = module.departmentRepo
+    val employeeRepo = module.employeeRepo
+
     Given("Models exist") {
         val department = module.writableRepository.add(
             newDepartment(
@@ -43,7 +46,7 @@ class StaleRecordSpec : PersistenceBaseSpec({
                     module.writableRepository.apply {
                         add(employeeOutOfUow)
                         update(
-                            checkNotNull(module.departmentRepo.find(department.id()))
+                            checkNotNull(departmentRepo.find(department.id()))
                                 .addEmployee(employeeOutOfUow)
                         )
                     }
@@ -63,23 +66,29 @@ class StaleRecordSpec : PersistenceBaseSpec({
                 Then("Uow fails and changes are not applied") {
                     shouldThrow<StaleRecordException> { attempt() }
 
-                    module.departmentRepo.find(department.id())?.headcount shouldBe 2
-                    module.employeeRepo.findByName(Name("Nik", "Dennis")) shouldBe null
+                    departmentRepo.find(department.id())?.headcount shouldBe 2
+                    employeeRepo.findByName(Name("Nik", "Dennis")) shouldBe null
                 }
             }
 
             When("Principal performs retriable uow") {
-                module.uowxRetries.execute(HireEmployeesUow::class, TestPrincipal) {
+                val avengers = module.uowxRetries.execute(HireEmployeesUow::class, TestPrincipal) {
                     HireEmployeesUow.Params(
                         department.id(),
-                        listOf(Name("Ser", "Pryt"))
+                        listOf(Name("Ser", "Pryt"), Name("Ser", "Posp"), Name("Pryt", "Posp"))
                     )
                 }
 
                 Then("Uow is completed and changes are applied") {
-                    module.departmentRepo.find(department.id())?.headcount shouldBe 3
-                    module.employeeRepo.findByName(Name("Ser", "Pryt"))?.departmentId shouldBe department.id()
-                    module.employeeRepo.find(employeeOutOfUow.id())?.departmentId shouldBe department.id()
+                    departmentRepo.find(department.id())?.headcount shouldBe 5
+                    avengers.size shouldBe 3
+                    avengers.forEach { sp ->
+                        val persisted = employeeRepo.find(sp.id())!!
+                        persisted.departmentId shouldBe department.id()
+                        persisted.version() shouldBe sp.version()
+                        sp.isPersisted() shouldBe true
+                    }
+                    employeeRepo.find(employeeOutOfUow.id())?.departmentId shouldBe department.id()
                 }
             }
         }
