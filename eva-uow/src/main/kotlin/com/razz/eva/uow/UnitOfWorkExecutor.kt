@@ -116,24 +116,7 @@ class UnitOfWorkExecutor(
                     throw e
                 }
                 persistSpan.finish()
-                return when (val result = changes.result) {
-                    is Model<*, *> -> {
-                        @Suppress("UNCHECKED_CAST")
-                        persisted.singleOrNull { it.id() == result.id() } as? RESULT ?: result
-                    }
-                    is Collection<*> -> {
-                        val models = result.filterIsInstance<Model<*, *>>()
-                        if (models.isEmpty()) result
-                        else {
-                            val persistedById = persisted.associateBy { it.id() }
-                            val matched = models.mapNotNull { model -> persistedById[model.id()] }
-                            @Suppress("UNCHECKED_CAST")
-                            if (matched.size == models.size) matched as RESULT
-                            else result
-                        }
-                    }
-                    else -> changes.result
-                }
+                return result(changes, persisted)
             }
         } finally {
             val endTime = System.nanoTime()
@@ -141,6 +124,42 @@ class UnitOfWorkExecutor(
             timer?.record(elapsedTime, NANOSECONDS)
             uowSpan?.finish()
         }
+    }
+
+    private fun <RESULT> result(
+        changes: Changes<RESULT>,
+        persisted: List<Model<*, *>>,
+    ) = when (val result = changes.result) {
+        is Model<*, *> -> {
+            // don't try to find persisted data for returned values such as `notChanged(model)`
+            if (changes.toPersist.any { it.id == result.id() }) {
+                @Suppress("UNCHECKED_CAST")
+                val roundtripped = persisted.singleOrNull { it.id() == result.id() } as? RESULT
+                if (roundtripped == null) logger.warn {
+                    "Unable to find returned model [${result.id()}] in persisted changes"
+                }
+                roundtripped ?: result
+            } else result
+        }
+        is Collection<*> -> {
+            val models = result.filterIsInstance<Model<*, *>>()
+            if (models.isEmpty()) result
+            else {
+                val changesIds = changes.toPersist.map { it.id }.toSet()
+                // don't try to find persisted data for returned values such as `notChanged(model)`
+                if (changesIds.containsAll(models.map { it.id() })) {
+                    val persistedById = persisted.associateBy { it.id() }
+                    val matched = models.mapNotNull { model -> persistedById[model.id()] }
+                    @Suppress("UNCHECKED_CAST")
+                    if (matched.size == models.size) matched as RESULT
+                    else {
+                        logger.warn { "Unable to find returned models in persisted changes" }
+                        result
+                    }
+                } else result
+            }
+        }
+        else -> result
     }
 
     suspend fun <PRINCIPAL, PARAMS, RESULT, UOW> execute(
