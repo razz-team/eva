@@ -132,7 +132,7 @@ class UnitOfWorkExecutor(
     ) = when (val result = changes.result) {
         is Model<*, *> -> {
             // don't try to find persisted data for returned values such as `notChanged(model)`
-            if (changes.toPersist.any { it.id == result.id() }) {
+            if (changes.toPersist.any { it !is Noop && it.id == result.id() }) {
                 @Suppress("UNCHECKED_CAST")
                 val roundtripped = persisted.singleOrNull { it.id() == result.id() } as? RESULT
                 if (roundtripped == null) logger.warn {
@@ -145,7 +145,7 @@ class UnitOfWorkExecutor(
             val models = result.filterIsInstance<Model<*, *>>()
             if (models.isEmpty()) result
             else {
-                val changesIds = changes.toPersist.map { it.id }.toSet()
+                val changesIds = changes.toPersist.mapNotNull { if (it is Noop) null else it.id }.toSet()
                 // don't try to find persisted data for returned values such as `notChanged(model)`
                 if (changesIds.containsAll(models.map { it.id() })) {
                     val persistedById = persisted.associateBy { it.id() }
