@@ -301,23 +301,27 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
      *
      * (timestamp, id) > (X, Y) is equivalent to (timestamp > X) OR ((timestamp = X) AND (id > Y))
      */
-    protected suspend fun <S : M, P : Comparable<P>> findPage(
+    protected suspend fun <N, S, P> findPage(
         condition: Condition,
         page: Page<P>,
-        pagingStrategy: PagingStrategy<ID, MID, M, S, P, R>
-    ): PagedList<S, P> {
-        val list = findAll(
+        pagingStrategy: PagingStrategy<ID, N, S, P, R>,
+        mapper: (R) -> N = {
+            @Suppress("UNCHECKED_CAST")
+            fromRecord(it) as N
+        },
+    ): PagedList<S, P> where S : N, P : Comparable<P> {
+        val list = allRecords(
             dslContext.selectFrom(table)
                 .where(condition)
                 .page(page, pagingStrategy)
         )
-        return pagingStrategy.pagedList(list, page.size)
+        return pagingStrategy.pagedList(list, mapper, page.size)
     }
 
-    private fun <S : M, P : Comparable<P>> SelectConditionStep<R>.page(
+    private fun <N, S, P> SelectConditionStep<R>.page(
         page: Page<P>,
-        pagingStrategy: PagingStrategy<ID, MID, M, S, P, R>
-    ) = pagingStrategy.select(this, page)
+        pagingStrategy: PagingStrategy<ID, N, S, P, R>
+    ) where S : N, P : Comparable<P> = pagingStrategy.select(this, page)
 
     protected suspend fun findAllWhere(
         condition: Condition,

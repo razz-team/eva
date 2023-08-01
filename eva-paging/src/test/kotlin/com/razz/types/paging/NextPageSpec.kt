@@ -40,7 +40,7 @@ class NextPageSpec : BehaviorSpec({
                 Then("Next page is returned") {
                     nextPage shouldBe Page.Next(
                         maxOrdering = now.minusSeconds(10),
-                        modelIdOffset = "Ilya",
+                        offset = "Ilya",
                         size = prevPage.size
                     )
                 }

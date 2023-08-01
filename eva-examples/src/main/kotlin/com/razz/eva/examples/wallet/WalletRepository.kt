@@ -38,6 +38,6 @@ class WalletRepository(
     suspend fun wallets(currency: Currency, page: Page<Instant>) = findPage(
         condition = WALLET.CURRENCY.eq(currency.currencyCode),
         page = page,
-        pagingStrategy = WalletPaging
+        pagingStrategy = WalletPaging,
     )
 }

@@ -12,7 +12,7 @@ import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.encoding.decodeStructure
 import kotlinx.serialization.encoding.encodeStructure
 
-typealias ModelOffset = String
+typealias Offset = String
 
 @Suppress("SERIALIZER_TYPE_INCOMPATIBLE")
 @Serializable(with = Page.PageGenericSerializer::class)
@@ -26,7 +26,7 @@ sealed class Page<P : Comparable<P>> {
 
     abstract fun withMinSize(size: Size): Page<P>
 
-    fun next(maxOrdering: P, modelIdOffset: ModelOffset): Next<P> = Next(maxOrdering, modelIdOffset, size)
+    fun next(maxOrdering: P, offset: Offset): Next<P> = Next(maxOrdering, offset, size)
 
     @Serializable(with = PageGenericSerializer::class)
     data class First<P : Comparable<P>>(
@@ -43,9 +43,9 @@ sealed class Page<P : Comparable<P>> {
          */
         val maxOrdering: @Contextual P,
         /**
-         * Return records with id less than provided id
+         * Return records with offset field value less than provided offset value
          */
-        val modelIdOffset: ModelOffset,
+        val offset: Offset,
 
         override val size: Size
     ) : Page<P>() {
@@ -65,7 +65,7 @@ sealed class Page<P : Comparable<P>> {
             element<String>("type")
             element("size", Size.serializer().descriptor)
             element("maxOrdering", orderingSerializer.descriptor)
-            element<String>("modelIdOffset")
+            element<String>("offset")
         }
 
         override fun serialize(encoder: Encoder, value: Page<T>) {
@@ -78,7 +78,7 @@ sealed class Page<P : Comparable<P>> {
                     is Next -> {
                         encodeStringElement(descriptor, 0, "next")
                         encodeSerializableElement(descriptor, 2, orderingSerializer, value.maxOrdering)
-                        encodeStringElement(descriptor, 3, value.modelIdOffset)
+                        encodeStringElement(descriptor, 3, value.offset)
                     }
                 }
                 encodeSerializableElement(descriptor, 1, Size.serializer(), value.size)
@@ -90,13 +90,13 @@ sealed class Page<P : Comparable<P>> {
                 var type: String? = null
                 var size: Size? = null
                 var maxOrdering: T? = null
-                var modelIdOffset: String? = null
+                var offset: String? = null
                 while (true) {
                     when (val index = decodeElementIndex(descriptor)) {
                         0 -> type = decodeStringElement(descriptor, 0)
                         1 -> size = Size(decodeIntElement(descriptor, 1))
                         2 -> maxOrdering = decodeSerializableElement(descriptor, 2, orderingSerializer)
-                        3 -> modelIdOffset = decodeStringElement(descriptor, 3)
+                        3 -> offset = decodeStringElement(descriptor, 3)
                         CompositeDecoder.DECODE_DONE -> break
                         else -> error("Unexpected index: $index")
                     }
@@ -104,7 +104,7 @@ sealed class Page<P : Comparable<P>> {
                 when (type) {
                     "first" -> First(requireNotNull(size))
                     "next" ->
-                        Next(requireNotNull(maxOrdering), requireNotNull(modelIdOffset), requireNotNull(size))
+                        Next(requireNotNull(maxOrdering), requireNotNull(offset), requireNotNull(size))
                     else -> error("Unexpected type: $type")
                 }
             }
@@ -115,7 +115,7 @@ sealed class Page<P : Comparable<P>> {
 fun <E, P : Comparable<P>> List<E>.nextPage(
     prevPage: Page<P>,
     maxOrdering: (E) -> P,
-    offset: (E) -> ModelOffset
+    offset: (E) -> Offset
 ): Page.Next<P>? {
     return if (size < prevPage.sizeValue() || isEmpty()) {
         null
@@ -123,7 +123,7 @@ fun <E, P : Comparable<P>> List<E>.nextPage(
         val lastElement = last()
         Page.Next(
             maxOrdering = maxOrdering(lastElement),
-            modelIdOffset = offset(lastElement),
+            offset = offset(lastElement),
             size = prevPage.size
         )
     }
