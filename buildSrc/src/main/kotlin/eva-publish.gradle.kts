@@ -30,6 +30,8 @@ publishing {
             val javaComponent = (components["java"] as AdhocComponentWithVariants)
             from(javaComponent)
             artifact(sourcesJar)
+            groupId = "team.razz.eva"
+            version = Ci.publishVersion
         }
     }
 }
