@@ -72,13 +72,12 @@ class Persisting(
         } else {
             SEQUENTIAL_FIFO
         }
+        val now = clock.instant()
         val persisting = newPersistingAccumulator(uowSupportsOutOfOrderPersisting, modelRepos)
-        val uowEvent = block(persisting, clock.instant())
+        val uowEvent = block(persisting, now)
         val flushed = transactionManager.inTransaction(
             REQUIRE_NEW,
-            suspend {
-                flush(persisting, uowEvent, transactionalContext(clock.instant()), persistingMode)
-            }
+            suspend { flush(persisting, uowEvent, transactionalContext(now), persistingMode) }
         )
         return uowEvent to flushed
     }
