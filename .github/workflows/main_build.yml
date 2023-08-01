@@ -33,7 +33,7 @@ jobs:
           GITHUB_SHA: ${{ steps.git_sha.outputs.short }}
 
       - name: Publish to Maven releases
-        run: ./gradlew publish -Drelease=false
+        run: ./gradlew publish -Drelease=true
         env:
           SONATYPE_USER: ${{ secrets.SONATYPE_USER }}
           SONATYPE_PASS: ${{ secrets.SONATYPE_PASS }}
