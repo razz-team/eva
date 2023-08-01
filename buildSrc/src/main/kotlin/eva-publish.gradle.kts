@@ -14,7 +14,7 @@ publishing {
     repositories {
         maven {
             name = "MavenCentral"
-            url = if (Ci.isRelease) {
+            url = if (Ci.publishRelease) {
                 URI("https://s01.oss.sonatype.org/content/repositories/releases/")
             } else {
                 URI("https://s01.oss.sonatype.org/content/repositories/snapshots/")
