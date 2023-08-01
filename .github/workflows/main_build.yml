@@ -22,6 +22,15 @@ jobs:
       - name: Build project
         run: ./gradlew build
 
+      - name: Publish to Maven releases
+        run: ./gradlew publish -Drelease=true
+        env:
+          SONATYPE_USER: ${{ secrets.SONATYPE_USER }}
+          SONATYPE_PASS: ${{ secrets.SONATYPE_PASS }}
+
+      - name: Cleanup gradle daemon cache
+        run: ./gradlew --stop
+
       - run: echo "::set-output name=short::$(git rev-parse --short HEAD)"
         id: git_sha
 
@@ -31,9 +40,3 @@ jobs:
           SONATYPE_USER: ${{ secrets.SONATYPE_USER }}
           SONATYPE_PASS: ${{ secrets.SONATYPE_PASS }}
           GITHUB_SHA: ${{ steps.git_sha.outputs.short }}
-
-      - name: Publish to Maven releases
-        run: ./gradlew publish -Drelease=true
-        env:
-          SONATYPE_USER: ${{ secrets.SONATYPE_USER }}
-          SONATYPE_PASS: ${{ secrets.SONATYPE_PASS }}
