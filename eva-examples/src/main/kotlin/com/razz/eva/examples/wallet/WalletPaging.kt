@@ -2,20 +2,20 @@ package com.razz.eva.examples.wallet
 
 import com.razz.eva.examples.schema.db.Tables.WALLET
 import com.razz.eva.examples.schema.db.tables.records.WalletRecord
-import com.razz.eva.paging.ModelOffset
-import com.razz.eva.repository.PagingStrategy
+import com.razz.eva.paging.Offset
+import com.razz.eva.repository.ModelPagingStrategy
 import java.time.Instant
 import java.util.*
 
-object WalletPaging : PagingStrategy<UUID, Wallet.Id, Wallet, Wallet, Instant, WalletRecord>(Wallet::class) {
+object WalletPaging : ModelPagingStrategy<UUID, Wallet.Id, Wallet, Wallet, Instant, WalletRecord>(Wallet::class) {
 
     override fun tableOrdering() = WALLET.EXPIRE_AT
 
     override fun tableId() = WALLET.ID
 
-    override fun tableOffset(modelOffset: ModelOffset) = UUID.fromString(modelOffset)
+    override fun tableOffset(offset: Offset) = UUID.fromString(offset)
 
-    override fun modelOrdering(model: Wallet) = model.expireAt
+    override fun ordering(data: Wallet) = data.expireAt
 
-    override fun modelOffset(model: Wallet) = model.id().stringValue()
+    override fun offset(data: Wallet) = data.id().stringValue()
 }

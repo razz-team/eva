@@ -7,14 +7,14 @@ abstract class AbstractPagedList<ELEMENT, ORDER_BY : Comparable<ORDER_BY>>(
 
     protected abstract fun maxOrdering(item: ELEMENT): ORDER_BY
 
-    protected abstract fun offset(item: ELEMENT): ModelOffset
+    protected abstract fun offset(item: ELEMENT): Offset
 
     override fun nextPage(): Page.Next<ORDER_BY>? {
         return if (list.size >= pageSize.intValue() && list.isNotEmpty()) {
             val lastElement = list.last()
             Page.Next(
                 maxOrdering = maxOrdering(lastElement),
-                modelIdOffset = offset(lastElement),
+                offset = offset(lastElement),
                 size = pageSize
             )
         } else null

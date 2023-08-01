@@ -60,6 +60,25 @@ sealed class Bubaleh(
         volume: BubalehBottleVol,
         entityState: EntityState<BubalehId, BubalehEvent>
     ) : Bubaleh(id, employeeId, taste, producedOn, volume, entityState)
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is Bubaleh) return false
+
+        if (id != other.id) return false
+        if (employeeId != other.employeeId) return false
+        if (taste != other.taste) return false
+        if (producedOn != other.producedOn) return false
+        if (volume != other.volume) return false
+        if (this.state() != other.state()) return false
+        if (this.version() != other.version()) return false
+
+        return true
+    }
+
+    override fun hashCode(): Int {
+        return id.hashCode()
+    }
 }
 
 sealed class BubalehEvent(

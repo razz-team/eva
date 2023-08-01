@@ -1,14 +1,21 @@
 package com.razz.eva.repository
 
 import com.razz.eva.domain.Bubaleh
+import com.razz.eva.domain.BubalehBottleVol
 import com.razz.eva.domain.BubalehFixtures.aConsumedBubaleh
 import com.razz.eva.domain.BubalehFixtures.aServedBubaleh
 import com.razz.eva.domain.BubalehId
+import com.razz.eva.domain.BubalehState
+import com.razz.eva.domain.BubalehTaste
+import com.razz.eva.domain.EmployeeId
+import com.razz.eva.domain.EntityState.PersistentState.Companion.persistentState
+import com.razz.eva.domain.Version.Companion.V1
 import com.razz.eva.paging.BasicPagedList
-import com.razz.eva.paging.ModelOffset
+import com.razz.eva.paging.Offset
 import com.razz.eva.paging.Page
 import com.razz.eva.paging.Page.Factory.firstPage
 import com.razz.eva.paging.Size
+import com.razz.eva.test.schema.enums.BubalehsState.CONSUMED
 import com.razz.eva.test.schema.enums.BubalehsState.SERVED
 import com.razz.eva.test.schema.tables.Bubalehs.BUBALEHS
 import com.razz.eva.test.schema.tables.records.BubalehsRecord
@@ -22,11 +29,11 @@ import org.jooq.impl.DSL
 import java.time.Instant
 import java.time.ZoneOffset.UTC
 import java.time.format.DateTimeFormatter
-import java.util.*
+import java.util.UUID
 
 class PagingStrategySpec : BehaviorSpec({
 
-    class ServedBubalehPagingStrategy : PagingStrategy<
+    class ServedBubalehPagingStrategy : ModelPagingStrategy<
         UUID,
         BubalehId,
         Bubaleh,
@@ -38,9 +45,9 @@ class PagingStrategySpec : BehaviorSpec({
     ) {
         override fun tableOrdering(): TableField<BubalehsRecord, Instant> = BUBALEHS.PRODUCED_ON
         override fun tableId(): TableField<BubalehsRecord, UUID> = BUBALEHS.ID
-        override fun tableOffset(modelOffset: ModelOffset) = UUID.fromString(modelOffset)
-        override fun modelOrdering(model: Bubaleh.Served) = model.producedOn
-        override fun modelOffset(model: Bubaleh.Served) = model.id().stringValue()
+        override fun tableOffset(offset: Offset) = UUID.fromString(offset)
+        override fun ordering(data: Bubaleh.Served) = data.producedOn
+        override fun offset(data: Bubaleh.Served) = data.id().stringValue()
         override fun failOnWrongModel(): Boolean = true
     }
 
@@ -87,7 +94,7 @@ class PagingStrategySpec : BehaviorSpec({
                 val maxTimestamp = Instant.parse("2023-06-20T15:54:30.123Z")
                 val page = Page.Next(
                     maxOrdering = maxTimestamp,
-                    modelIdOffset = "a5e15308-3a8d-462b-b96c-6f1137e30f0d",
+                    offset = "a5e15308-3a8d-462b-b96c-6f1137e30f0d",
                     size = size
                 )
                 val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS").withZone(UTC)
@@ -132,14 +139,14 @@ class PagingStrategySpec : BehaviorSpec({
                 val result = listOf(model)
 
                 When("Principal wraps selection result to paged list") {
-                    val pagedList = strategy.pagedList(result, size)
+                    val pagedList = strategy.pagedList(listOf(model).map(::record), ::model, size)
 
                     Then("Paged list is correct") {
                         pagedList shouldBe BasicPagedList(
                             result,
                             Page.Next(
                                 maxOrdering = model.producedOn,
-                                modelIdOffset = model.id().stringValue(),
+                                offset = model.id().stringValue(),
                                 size = size
                             )
                         )
@@ -152,10 +159,10 @@ class PagingStrategySpec : BehaviorSpec({
                 val anotherModel = aConsumedBubaleh(
                     id = BubalehId.fromString("401b9b20-db2d-463b-a4ed-0840a18dcb52")
                 )
-                val result = listOf(anotherModel, model)
+                val result = listOf(anotherModel, model).map(::record)
 
                 When("Principal wraps selection result to paged list") {
-                    val attempt = { strategy.pagedList(result, size) }
+                    val attempt = { strategy.pagedList(result, ::model, size) }
 
                     Then("Exception is returned") {
                         val ex = shouldThrow<IllegalStateException>(attempt)
@@ -167,3 +174,39 @@ class PagingStrategySpec : BehaviorSpec({
         }
     }
 })
+
+private fun record(model: Bubaleh) = BubalehsRecord().apply {
+    setId(model.id().id)
+    employeeId = model.employeeId.id
+    taste = model.taste.name
+    producedOn = model.producedOn
+    volume = model.volume.name
+    setState(
+        when (model.state()) {
+            BubalehState.SERVED -> SERVED
+            BubalehState.CONSUMED -> CONSUMED
+        }
+    )
+}
+
+fun model(record: BubalehsRecord): Bubaleh {
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
+    return when (record.state) {
+        SERVED -> Bubaleh.Served(
+            BubalehId(record.id),
+            EmployeeId(record.employeeId),
+            BubalehTaste.valueOf(record.taste),
+            record.producedOn,
+            BubalehBottleVol.valueOf(record.volume),
+            persistentState(V1),
+        )
+        CONSUMED -> Bubaleh.Consumed(
+            BubalehId(record.id),
+            EmployeeId(record.employeeId),
+            BubalehTaste.valueOf(record.taste),
+            record.producedOn,
+            BubalehBottleVol.valueOf(record.volume),
+            persistentState(V1),
+        )
+    }
+}
