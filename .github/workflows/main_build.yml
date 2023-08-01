@@ -26,16 +26,14 @@ jobs:
         id: git_sha
 
       - name: Publish to Maven snapshots
-        run: ./gradlew publish
+        run: ./gradlew publish -Drelease=false
         env:
           SONATYPE_USER: ${{ secrets.SONATYPE_USER }}
           SONATYPE_PASS: ${{ secrets.SONATYPE_PASS }}
           GITHUB_SHA: ${{ steps.git_sha.outputs.short }}
-          PUBLISH_RELEASE: false
 
       - name: Publish to Maven releases
-        run: ./gradlew publish
+        run: ./gradlew publish -Drelease=true
         env:
           SONATYPE_USER: ${{ secrets.SONATYPE_USER }}
           SONATYPE_PASS: ${{ secrets.SONATYPE_PASS }}
-          PUBLISH_RELEASE: true
