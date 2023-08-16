@@ -8,6 +8,7 @@ import com.razz.eva.paging.Size
 import org.jooq.Record
 import org.jooq.Select
 import org.jooq.SelectOrderByStep
+import org.jooq.SortOrder
 import org.jooq.TableField
 
 abstract class PagingStrategy<ID, M, S, P, R>
@@ -26,10 +27,12 @@ abstract class PagingStrategy<ID, M, S, P, R>
 
     protected abstract fun offset(data: S): Offset
 
+    protected open fun order(): SortOrder = SortOrder.DESC
+
     internal fun select(
         step: SelectOrderByStep<R>,
         page: Page<P>
-    ): Select<R> = step.orderBy(tableOrdering().desc(), tableId())
+    ): Select<R> = step.orderBy(tableOrdering().sort(order()), tableId())
         .apply {
             if (page is Page.Next<P>) {
                 seek(page.maxOrdering, tableOffset(page.offset))
