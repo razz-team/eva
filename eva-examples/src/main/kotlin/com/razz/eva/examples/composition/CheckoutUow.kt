@@ -9,7 +9,7 @@ import com.razz.eva.examples.composition.inventory.Inventory
 import com.razz.eva.examples.composition.inventory.Inventory.InventoryItem
 import com.razz.eva.examples.composition.inventory.ReduceInventoryUow
 import com.razz.eva.uow.UnitOfWork
-import com.razz.eva.uow.UowParams
+import com.razz.eva.uow.serialization.kotlinx.UowParams
 import kotlinx.serialization.Serializable
 import java.time.Clock
 

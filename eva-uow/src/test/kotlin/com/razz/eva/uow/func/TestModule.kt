@@ -18,11 +18,12 @@ import com.razz.eva.test.repository.WritableModelRepository
 import com.razz.eva.tracing.Tracing.notReportingTracer
 import com.razz.eva.uow.Clocks.fixedUTC
 import com.razz.eva.uow.Clocks.millisUTC
-import com.razz.eva.uow.CreateEmployeeUow
-import com.razz.eva.uow.CreateSoloDepartmentUow
-import com.razz.eva.uow.HireEmployeesUow
+import com.razz.eva.uow.test.CreateEmployeeUow
+import com.razz.eva.uow.test.CreateSoloDepartmentUow
+import com.razz.eva.uow.test.HireEmployeesUow
 import com.razz.eva.uow.Persisting
 import com.razz.eva.uow.UnitOfWorkExecutor
+import com.razz.eva.uow.test.Encoders
 import com.razz.eva.uow.withFactory
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import org.jooq.DSLContext
@@ -77,7 +78,8 @@ class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
     val persisting = Persisting(
         transactionManager = transactionManager,
         modelRepos = repos,
-        eventRepository = eventRepository
+        eventRepository = eventRepository,
+        encoders = Encoders,
     )
 
     val uowx = UnitOfWorkExecutor(
@@ -113,7 +115,8 @@ class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
                 queryExecutor = patchingQueryExecutor,
                 dslContext = dslContext,
                 tracer = tracer
-            )
+            ),
+            encoders = Encoders,
         ),
         tracer = tracer,
         meterRegistry = SimpleMeterRegistry()

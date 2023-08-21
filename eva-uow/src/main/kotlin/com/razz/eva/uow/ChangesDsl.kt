@@ -42,7 +42,7 @@ class ChangesDsl internal constructor(private var changes: ChangesAccumulator) {
         params: () -> PARAMS,
     ): RESULT
         where PRINCIPAL : Principal<*>,
-              PARAMS : UowParams<PARAMS>,
+              PARAMS : UowParams<PARAMS, *>,
               RESULT : Any,
               UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *> {
         val subChanges = uow.tryPerform(principal, params())

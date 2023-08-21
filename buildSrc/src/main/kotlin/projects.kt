@@ -36,6 +36,7 @@ interface eva {
     object eva_tracing : eva
     object eva_test : eva
     object eva_uow : eva
+    object eva_uow_serialization_kotlinx : eva
     object eva_examples : eva
 }
 

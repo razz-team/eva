@@ -8,9 +8,11 @@ import com.razz.eva.persistence.jdbc.executor.JdbcQueryExecutor
 import com.razz.eva.repository.JooqEventRepository
 import com.razz.eva.repository.ModelRepos
 import com.razz.eva.repository.hasRepo
+import com.razz.eva.serialization.json.JsonFormat.json
 import com.razz.eva.uow.Clocks
 import com.razz.eva.uow.Persisting
 import com.razz.eva.uow.UnitOfWorkExecutor
+import com.razz.eva.uow.serialization.kotlinx.Serialization
 import com.razz.eva.uow.withFactory
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import io.opentracing.noop.NoopTracerFactory
@@ -48,7 +50,13 @@ class WalletModule(databaseConfig: DatabaseConfig) {
     val persisting = Persisting(
         transactionManager = transactionManager,
         modelRepos = ModelRepos(Wallet::class hasRepo walletRepo),
-        eventRepository = JooqEventRepository(queryExecutor, dslContext, tracer)
+        eventRepository = JooqEventRepository(queryExecutor, dslContext, tracer),
+        encoders = { p ->
+            when (p) {
+                is com.razz.eva.uow.serialization.kotlinx.UowParams<*> -> Serialization.Encoder(json)
+                else -> com.razz.eva.uow.Serialization.Encoder.NOOP
+            }
+        },
     )
 
     /**

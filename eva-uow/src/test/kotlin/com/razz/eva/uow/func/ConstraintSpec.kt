@@ -7,8 +7,8 @@ import com.razz.eva.domain.Name
 import com.razz.eva.domain.Ration.SHAKSHOUKA
 import com.razz.eva.persistence.PersistenceException.ModelRecordConstraintViolationException
 import com.razz.eva.persistence.PersistenceException.UniqueModelRecordViolationException
-import com.razz.eva.uow.HireEmployeesUow
-import com.razz.eva.uow.TestPrincipal
+import com.razz.eva.uow.test.HireEmployeesUow
+import com.razz.eva.uow.test.TestPrincipal
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import java.util.UUID.randomUUID

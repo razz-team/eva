@@ -9,7 +9,7 @@ import java.time.Clock
 abstract class BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, C>(
     protected val clock: Clock,
     private val configuration: Configuration = default()
-) where PRINCIPAL : Principal<*>, PARAMS : UowParams<PARAMS>, RESULT : Any, C : Any {
+) where PRINCIPAL : Principal<*>, PARAMS : UowParams<PARAMS, *>, RESULT : Any, C : Any {
 
     abstract suspend fun tryPerform(principal: PRINCIPAL, params: PARAMS): Changes<RESULT>
 
@@ -46,7 +46,7 @@ abstract class UnitOfWork<PRINCIPAL, PARAMS, RESULT>(
     clock: Clock,
     configuration: Configuration = default()
 ) : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, ChangesDsl>(clock, configuration)
-    where PRINCIPAL : Principal<*>, PARAMS : UowParams<PARAMS>, RESULT : Any {
+    where PRINCIPAL : Principal<*>, PARAMS : UowParams<PARAMS, *>, RESULT : Any {
 
     final override suspend fun changes(init: suspend ChangesDsl.() -> RESULT): Changes<RESULT> {
         return ChangesDsl.changes(ChangesAccumulator(), init)

@@ -6,7 +6,7 @@ import com.razz.eva.examples.changes.user.UpdateUserUow.Params
 import com.razz.eva.examples.changes.user.User.Address
 import com.razz.eva.examples.changes.user.User.FirstName
 import com.razz.eva.examples.changes.user.User.LastName
-import com.razz.eva.uow.UowParams
+import com.razz.eva.uow.serialization.kotlinx.UowParams
 import kotlinx.serialization.Serializable
 import java.time.Clock
 

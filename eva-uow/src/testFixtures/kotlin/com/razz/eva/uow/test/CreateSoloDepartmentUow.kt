@@ -1,4 +1,4 @@
-package com.razz.eva.uow
+package com.razz.eva.uow.test
 
 import com.razz.eva.IdempotencyKey
 import com.razz.eva.domain.Department
@@ -13,7 +13,10 @@ import com.razz.eva.domain.Name
 import com.razz.eva.domain.Ration
 import com.razz.eva.repository.DepartmentRepository
 import com.razz.eva.repository.EmployeeRepository
-import com.razz.eva.uow.CreateSoloDepartmentUow.Params
+import com.razz.eva.uow.Changes
+import com.razz.eva.uow.ChangesDsl
+import com.razz.eva.uow.UnitOfWork
+import com.razz.eva.uow.test.CreateSoloDepartmentUow.Params
 import kotlinx.serialization.Serializable
 import java.time.Clock
 import java.util.UUID.randomUUID

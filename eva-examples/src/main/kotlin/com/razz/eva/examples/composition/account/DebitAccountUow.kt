@@ -3,7 +3,7 @@ package com.razz.eva.examples.composition.account
 import com.razz.eva.examples.ServicePrincipal
 import com.razz.eva.examples.composition.account.DebitAccountUow.Params
 import com.razz.eva.uow.UnitOfWork
-import com.razz.eva.uow.UowParams
+import com.razz.eva.uow.serialization.kotlinx.UowParams
 import kotlinx.serialization.Serializable
 import java.time.Clock
 
