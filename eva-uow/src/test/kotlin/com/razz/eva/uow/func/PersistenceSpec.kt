@@ -13,8 +13,8 @@ import com.razz.eva.serialization.json.int
 import com.razz.eva.serialization.json.jsonObject
 import com.razz.eva.serialization.json.string
 import com.razz.eva.tracing.Tracing.withNewSpan
-import com.razz.eva.uow.CreateSoloDepartmentUow
-import com.razz.eva.uow.TestPrincipal
+import com.razz.eva.uow.test.CreateSoloDepartmentUow
+import com.razz.eva.uow.test.TestPrincipal
 import com.razz.eva.events.UowEvent.UowName
 import com.razz.eva.persistence.ConnectionMode.REQUIRE_NEW
 import com.razz.eva.test.schema.Tables

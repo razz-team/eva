@@ -19,7 +19,6 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
-import kotlinx.serialization.StringFormat
 import java.time.Clock
 import java.time.Instant
 import java.util.UUID.randomUUID
@@ -28,14 +27,14 @@ class Persisting(
     private val transactionManager: TransactionManager<*>,
     private val modelRepos: ModelRepos,
     private val eventRepository: EventRepository,
+    private val encoders: (UowParams<*, *>) -> Serialization.Encoder,
     private val eventPublisher: EventPublisher = NoopEventPublisher,
-    private val json: StringFormat = com.razz.eva.serialization.json.JsonFormat.json,
 ) {
     private object NoopEventPublisher : EventPublisher {
         override suspend fun publish(uowEvent: UowEvent) = Unit
     }
 
-    internal suspend fun <PARAMS : UowParams<PARAMS>> persist(
+    internal suspend fun <PARAMS : UowParams<PARAMS, *>> persist(
         uowName: String,
         params: PARAMS,
         principal: Principal<*>,
@@ -48,13 +47,17 @@ class Persisting(
             changes.forEach { change ->
                 change.persist(persisting)
             }
+            @Suppress("UNCHECKED_CAST")
+            val ss: Serialization.Strategy<PARAMS, Serialization.Encoder> =
+                params.serializationStrategy() as Serialization.Strategy<PARAMS, Serialization.Encoder>
+            val e: Serialization.Encoder = params.encoder() ?: encoders(params)
             UowEvent(
                 id = UowEvent.Id(randomUUID()),
                 uowName = UowName(uowName),
                 principal = principal,
                 modelEvents = events.associateBy { ModelEventId.random() },
                 idempotencyKey = params.idempotencyKey,
-                params = json.encodeToString(params.serialization(), params),
+                params = ss(params, e),
                 occurredAt = startedAt
             )
         }

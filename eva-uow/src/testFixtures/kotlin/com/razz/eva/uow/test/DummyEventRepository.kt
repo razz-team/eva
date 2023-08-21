@@ -1,4 +1,4 @@
-package com.razz.eva.uow
+package com.razz.eva.uow.test
 
 import com.razz.eva.events.UowEvent
 import com.razz.eva.repository.EventRepository

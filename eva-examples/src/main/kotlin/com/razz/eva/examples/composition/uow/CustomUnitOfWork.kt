@@ -5,7 +5,7 @@ import com.razz.eva.uow.BaseUnitOfWork.Configuration.Companion.default
 import com.razz.eva.uow.Changes
 import com.razz.eva.uow.ChangesAccumulator
 import com.razz.eva.domain.Principal
-import com.razz.eva.uow.UowParams
+import com.razz.eva.uow.serialization.kotlinx.UowParams
 import java.time.Clock
 
 abstract class CustomUnitOfWork<PRINCIPAL, PARAMS, RESULT>(

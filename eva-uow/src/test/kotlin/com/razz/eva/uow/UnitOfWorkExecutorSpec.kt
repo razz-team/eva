@@ -17,8 +17,12 @@ import com.razz.eva.tracing.Tracing.noopTracer
 import com.razz.eva.uow.BaseUnitOfWork.Configuration
 import com.razz.eva.uow.Clocks.fixedUTC
 import com.razz.eva.uow.Clocks.millisUTC
-import com.razz.eva.uow.CreateDepartmentUow.Params
+import com.razz.eva.uow.test.CreateDepartmentUow.Params
 import com.razz.eva.uow.Retry.StaleRecordFixedRetry
+import com.razz.eva.uow.test.CreateDepartmentUow
+import com.razz.eva.uow.test.DummyEventRepository
+import com.razz.eva.uow.test.Encoders
+import com.razz.eva.uow.test.TestPrincipal
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.IsolationMode.InstancePerLeaf
 import io.kotest.core.spec.style.BehaviorSpec
@@ -83,7 +87,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
             )
             val uowx = UnitOfWorkExecutor(
                 factories,
-                Persisting(WithCtxConnectionTransactionManager(), ModelRepos(), DummyEventRepository()),
+                Persisting(WithCtxConnectionTransactionManager(), ModelRepos(), DummyEventRepository(), Encoders),
                 noopTracer(),
                 SimpleMeterRegistry()
             )
@@ -132,7 +136,10 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                 }
                 val txnManager = WithCtxConnectionTransactionManager()
                 val uowx = UnitOfWorkExecutor(
-                    factories, Persisting(txnManager, ModelRepos(), eventRepo), noopTracer(), SimpleMeterRegistry()
+                    factories = factories,
+                    persisting = Persisting(txnManager, ModelRepos(), eventRepo, Encoders),
+                    tracer = noopTracer(),
+                    meterRegistry = SimpleMeterRegistry(),
                 )
 
                 Then("Clock property wasn't called") {
@@ -166,7 +173,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
             When("UnitOfWorkExecutor created without factories") {
                 val uowx = UnitOfWorkExecutor(
                     listOf(),
-                    Persisting(WithCtxConnectionTransactionManager(), ModelRepos(), DummyEventRepository()),
+                    Persisting(WithCtxConnectionTransactionManager(), ModelRepos(), DummyEventRepository(), Encoders),
                     noopTracer(),
                     SimpleMeterRegistry(),
                 )

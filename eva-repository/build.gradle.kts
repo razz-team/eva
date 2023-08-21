@@ -22,6 +22,8 @@ dependencies {
     implementation(project(eva.eva_events_db_schema))
 
     testImplementation(project(eva.eva_uow))
+    testImplementation(project(eva.eva_serialization))
+    testImplementation(project(eva.eva_uow_serialization_kotlinx))
     testImplementation(testFixtures(project(eva.eva_domain)))
     testImplementation(testFixtures(project(eva.eva_repository)))
 

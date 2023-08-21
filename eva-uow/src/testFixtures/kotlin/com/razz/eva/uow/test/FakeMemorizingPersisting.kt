@@ -1,12 +1,13 @@
-package com.razz.eva.uow
+package com.razz.eva.uow.test
 
 import com.razz.eva.domain.Model
 import com.razz.eva.persistence.WithCtxConnectionTransactionManager
 import com.razz.eva.repository.ModelRepos
 import com.razz.eva.repository.ModelRepository
 import com.razz.eva.repository.hasRepo
-import com.razz.eva.uow.ExecutionStep.TransactionFinished
-import com.razz.eva.uow.ExecutionStep.TransactionStarted
+import com.razz.eva.uow.Persisting
+import com.razz.eva.uow.test.ExecutionStep.TransactionFinished
+import com.razz.eva.uow.test.ExecutionStep.TransactionStarted
 import kotlin.reflect.KClass
 
 object FakeMemorizingPersisting {
@@ -18,7 +19,7 @@ object FakeMemorizingPersisting {
             afterTxn = { mode, _ -> history.add(TransactionFinished(mode)) }
         )
         val repos = uows.map { it hasRepo anyRepo(history) }.toTypedArray()
-        val persisting = Persisting(txnManager, ModelRepos(*repos), DummyEventRepository())
+        val persisting = Persisting(txnManager, ModelRepos(*repos), DummyEventRepository(), Encoders)
         executions[persisting] = history
         return persisting
     }

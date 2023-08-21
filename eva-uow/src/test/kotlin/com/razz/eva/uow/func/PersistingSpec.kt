@@ -24,22 +24,23 @@ import com.razz.eva.repository.ModelRepository
 import com.razz.eva.repository.TransactionalContext.Companion.transactionalContext
 import com.razz.eva.repository.hasRepo
 import com.razz.eva.uow.ChangesAccumulator
-import com.razz.eva.uow.ExecutionStep
-import com.razz.eva.uow.ExecutionStep.ModelAdded
-import com.razz.eva.uow.ExecutionStep.ModelUpdated
-import com.razz.eva.uow.ExecutionStep.ModelsAdded
-import com.razz.eva.uow.ExecutionStep.ModelsUpdated
-import com.razz.eva.uow.ExecutionStep.TransactionFinished
-import com.razz.eva.uow.ExecutionStep.TransactionStarted
-import com.razz.eva.uow.ExecutionStep.UowEventAdded
+import com.razz.eva.uow.test.ExecutionStep
+import com.razz.eva.uow.test.ExecutionStep.ModelAdded
+import com.razz.eva.uow.test.ExecutionStep.ModelUpdated
+import com.razz.eva.uow.test.ExecutionStep.ModelsAdded
+import com.razz.eva.uow.test.ExecutionStep.ModelsUpdated
+import com.razz.eva.uow.test.ExecutionStep.TransactionFinished
+import com.razz.eva.uow.test.ExecutionStep.TransactionStarted
+import com.razz.eva.uow.test.ExecutionStep.UowEventAdded
 import com.razz.eva.uow.Noop
 import com.razz.eva.uow.Persisting
-import com.razz.eva.uow.SpyRepo
-import com.razz.eva.uow.TestPrincipal
+import com.razz.eva.uow.test.SpyRepo
+import com.razz.eva.uow.test.TestPrincipal
 import com.razz.eva.events.UowEvent
 import com.razz.eva.events.UowEvent.UowName
-import com.razz.eva.uow.ExecutionStep.UowEventPublished
-import com.razz.eva.uow.UowParams
+import com.razz.eva.uow.test.Encoders
+import com.razz.eva.uow.test.ExecutionStep.UowEventPublished
+import com.razz.eva.uow.test.UowParams
 import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.matchers.maps.shouldHaveSize
 import io.kotest.matchers.should
@@ -151,7 +152,8 @@ class PersistingSpec : BehaviorSpec({
             transactionManager = txnManager,
             modelRepos = repos,
             eventRepository = eventsRepo,
-            eventPublisher = eventPublisher
+            eventPublisher = eventPublisher,
+            encoders = Encoders,
         )
 
         val now = now()

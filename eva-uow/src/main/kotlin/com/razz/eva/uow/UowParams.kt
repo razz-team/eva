@@ -1,11 +1,12 @@
 package com.razz.eva.uow
 
 import com.razz.eva.IdempotencyKey
-import kotlinx.serialization.SerializationStrategy
 
-interface UowParams<Params> {
+interface UowParams<Params, E : Serialization.Encoder> {
     val idempotencyKey: IdempotencyKey?
         get() = null
 
-    fun serialization(): SerializationStrategy<Params>
+    fun encoder(): E? = null
+
+    fun serializationStrategy(): Serialization.Strategy<Params, E>
 }

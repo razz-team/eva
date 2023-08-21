@@ -31,7 +31,7 @@ data class InstantiationContext internal constructor(
 infix fun <PRINCIPAL, PARAMS, RESULT, UOW> KClass<UOW>.withFactory(
     factory: () -> UOW
 ) where PRINCIPAL : Principal<*>,
-        PARAMS : UowParams<PARAMS>,
+        PARAMS : UowParams<PARAMS, *>,
         UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *>,
         RESULT : Any =
     ClassToUow(this, factory)
@@ -48,7 +48,7 @@ class UnitOfWorkExecutor(
         internal val uowFactory: () -> UOW
     ) where PRINCIPAL : Principal<*>,
             UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *>,
-            PARAMS : UowParams<PARAMS>,
+            PARAMS : UowParams<PARAMS, *>,
             RESULT : Any
 
     private val logger = KotlinLogging.logger {}
@@ -61,7 +61,7 @@ class UnitOfWorkExecutor(
         uowFactory: () -> UOW,
         params: InstantiationContext.() -> PARAMS
     ): RESULT where PRINCIPAL : Principal<*>,
-                    PARAMS : UowParams<PARAMS>,
+                    PARAMS : UowParams<PARAMS, *>,
                     UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *> {
         val startTime = System.nanoTime()
         val activeSpan = coroutineContext[ActiveSpanElement]?.span
@@ -170,7 +170,7 @@ class UnitOfWorkExecutor(
         principal: PRINCIPAL,
         params: InstantiationContext.() -> PARAMS
     ): RESULT where PRINCIPAL : Principal<*>,
-                    PARAMS : UowParams<PARAMS>,
+                    PARAMS : UowParams<PARAMS, *>,
                     UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *> {
         return execute(principal, { create(target) }, params)
     }
