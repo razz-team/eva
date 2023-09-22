@@ -7,6 +7,7 @@ import kotlin.reflect.KFunction
 import kotlin.reflect.full.callSuspend
 import kotlin.reflect.full.functions
 import kotlin.reflect.jvm.isAccessible
+import java.lang.reflect.InvocationTargetException
 import java.time.Clock
 import java.time.Clock.tickMillis
 import java.time.ZoneOffset.UTC
@@ -51,7 +52,11 @@ abstract class SagaShouldSpec<PRINCIPAL, PARAMS, IS, TS, SELF>(
         params: PARAMS,
         currentStep: IS?,
     ): TS? {
-        return innerOnException.callSuspend(saga, e, principal, params, currentStep) as TS?
+        return try {
+            innerOnException.callSuspend(saga, e, principal, params, currentStep) as TS?
+        } catch (ex: InvocationTargetException) {
+            throw ex.targetException
+        }
     }
 
     init {
