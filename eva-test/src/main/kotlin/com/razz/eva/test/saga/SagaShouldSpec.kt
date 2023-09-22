@@ -22,11 +22,13 @@ abstract class SagaShouldSpec<PRINCIPAL, PARAMS, IS, TS, SELF>(
     private lateinit var saga: Saga<PRINCIPAL, PARAMS, IS, TS, SELF>
     private lateinit var innerInit: KFunction<*>
     private lateinit var innerNext: KFunction<*>
+    private lateinit var innerOnException: KFunction<*>
 
     fun setSaga(saga: Saga<PRINCIPAL, PARAMS, IS, TS, SELF>): Saga<PRINCIPAL, PARAMS, IS, TS, SELF> {
         this.saga = saga
         innerInit = saga::class.functions.single { it.name == "init" }.also { it.isAccessible = true }
         innerNext = saga::class.functions.single { it.name == "next" }.also { it.isAccessible = true }
+        innerOnException = saga::class.functions.single { it.name == "onException" }.also { it.isAccessible = true }
         return saga
     }
 
@@ -40,6 +42,16 @@ abstract class SagaShouldSpec<PRINCIPAL, PARAMS, IS, TS, SELF>(
     @Suppress("UNCHECKED_CAST")
     suspend fun afterNext(principal: PRINCIPAL, step: IS): Saga.Step<SELF> {
         return innerNext.callSuspend(saga, principal, step) as Saga.Step<SELF>
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    suspend fun afterOnException(
+        e: Exception,
+        principal: PRINCIPAL,
+        params: PARAMS,
+        currentStep: IS?,
+    ): TS? {
+        return innerOnException.callSuspend(saga, e, principal, params, currentStep) as TS?
     }
 
     init {
