@@ -5,25 +5,35 @@ import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
 import com.razz.eva.domain.Principal
 
-class ChangesDsl internal constructor(private var changes: ChangesAccumulator) {
+class ChangesDsl internal constructor(initial: ChangesAccumulator) {
+    private var tail: ChangesAccumulator? = null
+    private var head: ChangesAccumulator = initial
+    private fun <R> withResult(result: R): Changes<R> {
+        val snapTail = tail
+        return if (snapTail == null) {
+            head.withResult(result)
+        } else {
+            snapTail.merge(head.withResult(Unit)).withResult(result)
+        }
+    }
 
     fun <MID, E, M> add(model: M): M
         where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
-        changes = changes.withAdded(model)
+        head = head.withAdded(model)
         return model
     }
 
     fun <MID, E, M> update(model: M, required: Boolean = false): M
         where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
-        changes = when (required) {
+        head = when (required) {
             true -> {
-                changes.withUpdated(model)
+                head.withUpdated(model)
             }
             false -> {
                 if (model.isDirty()) {
-                    changes.withUpdated(model)
+                    head.withUpdated(model)
                 } else {
-                    changes.withUnchanged(model)
+                    head.withUnchanged(model)
                 }
             }
         }
@@ -32,7 +42,7 @@ class ChangesDsl internal constructor(private var changes: ChangesAccumulator) {
 
     fun <MID, E, M> notChanged(model: M): M
         where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
-        changes = changes.withUnchanged(model)
+        head = head.withUnchanged(model)
         return model
     }
 
@@ -46,7 +56,13 @@ class ChangesDsl internal constructor(private var changes: ChangesAccumulator) {
               RESULT : Any,
               UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *> {
         val subChanges = uow.tryPerform(principal, params())
-        changes = changes.merge(subChanges)
+        val snapTail = tail
+        tail = if (snapTail == null) {
+            head.merge(subChanges)
+        } else {
+            snapTail.merge(head.merge(subChanges).withResult(Unit))
+        }
+        head = ChangesAccumulator()
         return subChanges.result
     }
 
@@ -58,7 +74,7 @@ class ChangesDsl internal constructor(private var changes: ChangesAccumulator) {
         ): Changes<R> {
             val dsl = ChangesDsl(changes)
             val res = init(dsl)
-            return dsl.changes.withResult(res)
+            return dsl.withResult(res)
         }
     }
 }
