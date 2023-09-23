@@ -7,7 +7,7 @@ import com.razz.eva.persistence.PersistenceException
 import com.razz.eva.persistence.PersistenceException.ModelRecordConstraintViolationException
 import com.razz.eva.persistence.PersistenceException.UniqueModelRecordViolationException
 import com.razz.eva.uow.Changes
-import com.razz.eva.uow.UnitOfWork
+import com.razz.eva.uow.basic.UnitOfWork
 import com.razz.eva.uow.UowParams
 import kotlinx.serialization.Serializable
 import java.time.Clock

@@ -9,6 +9,7 @@ import com.razz.eva.domain.Ration.SHAKSHOUKA
 import com.razz.eva.repository.DepartmentRepository
 import com.razz.eva.test.uow.UowBehaviorSpec
 import com.razz.eva.uow.CreateDepartmentUow.Params
+import com.razz.eva.uow.basic.UnitOfWork
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe

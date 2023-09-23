@@ -34,16 +34,20 @@ class ChangesAccumulator private constructor(
         return changes(model, emptyList()) { m, _ -> Noop(m) }
     }
 
-    fun merge(after: Changes<*>): ChangesAccumulator {
-        val merging = LinkedHashMap(changes)
-        after.toPersist.forEach { new ->
-            merging.merge(new.id, new) { change, succ ->
+    private fun merge(from: Collection<Change>): ChangesAccumulator {
+        val into = LinkedHashMap(changes)
+        from.forEach { new ->
+            into.merge(new.id, new) { change, succ ->
                 val merged = change.merge(succ)
                 checkNotNull(merged) { "Failed to merge changes for model [${change.id}]" }
             }
         }
-        return ChangesAccumulator(merging)
+        return ChangesAccumulator(into)
     }
+
+    fun merge(after: ChangesAccumulator): ChangesAccumulator = merge(after.changes.values)
+
+    fun merge(after: Changes<*>): ChangesAccumulator = merge(after.toPersist)
 
     fun <R> withResult(result: R): Changes<R> {
         require(changes.isNotEmpty()) { "No changes to persist" }

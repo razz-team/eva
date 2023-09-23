@@ -424,7 +424,7 @@ naming:
     minimumVariableNameLength: 1
   VariableNaming:
     active: true
-    excludes: [ '**/UnitOfWork.kt', '**/JooqBaseModelRepository.kt' ]
+    excludes: [ '**/BaseUnitOfWork.kt', '**/JooqBaseModelRepository.kt' ]
     variablePattern: '[a-z][A-Za-z0-9]*'
     privateVariablePattern: '(_)?[a-z][A-Za-z0-9]*'
     excludeClassPattern: '$^'
