@@ -40,15 +40,20 @@ class ChangesDslSpec : FunSpec({
     val now = millisUTC().instant()
     val clock = fixedUTC(now)
 
-    test("Should return properly built RealisedChanges when new model added and changed model updated") {
+    test("""
+        Should return properly built RealisedChanges when
+        new model added, changed model updated and not changed model marked as not changed
+    """) {
         val model0 = createdTestModel("MLG", 420).activate()
         val model1 = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
             .activate()
+        val model2 = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
 
         val uow = object : DummyUow(clock) {
             override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
                 add(model0)
                 update(model1)
+                notChanged(model2)
                 "K P A C U B O"
             }
         }
@@ -62,24 +67,8 @@ class ChangesDslSpec : FunSpec({
                     TestModelStatusChanged(model0.id(), CREATED, ACTIVE)
                 )
             ),
-            Update(model1, listOf(TestModelStatusChanged(model1.id(), CREATED, ACTIVE)))
-        )
-        changes.result shouldBe "K P A C U B O"
-    }
-
-    test("Should return properly built RealisedChanges when changed model updated") {
-        val model = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1).activate()
-
-        val uow = object : DummyUow(clock) {
-            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
-                update(model)
-                "K P A C U B O"
-            }
-        }
-        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
-
-        changes.toPersist shouldBe listOf(
-            Update(model, listOf(TestModelStatusChanged(model.id(), CREATED, ACTIVE)))
+            Update(model1, listOf(TestModelStatusChanged(model1.id(), CREATED, ACTIVE))),
+            Noop(model2)
         )
         changes.result shouldBe "K P A C U B O"
     }

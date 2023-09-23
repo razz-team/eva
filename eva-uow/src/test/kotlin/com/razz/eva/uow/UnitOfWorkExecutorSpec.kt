@@ -20,7 +20,7 @@ import com.razz.eva.uow.Clocks.millisUTC
 import com.razz.eva.uow.CreateDepartmentUow.Params
 import com.razz.eva.uow.Retry.StaleRecordFixedRetry
 import com.razz.eva.uow.basic.UnitOfWork
-import com.razz.eva.uow.composable.DummyUow
+import com.razz.eva.uow.basic.DummyUow
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.IsolationMode.InstancePerLeaf
 import io.kotest.core.spec.style.BehaviorSpec
