@@ -12,13 +12,9 @@ import com.razz.eva.uow.UowParams
 class ChangesDsl internal constructor(initial: ChangesAccumulator) {
     private var tail: ChangesAccumulator? = null
     private var head: ChangesAccumulator = initial
+
     private fun <R> withResult(result: R): Changes<R> {
-        val snapTail = tail
-        return if (snapTail == null) {
-            head.withResult(result)
-        } else {
-            snapTail.merge(head).withResult(result)
-        }
+        return tail?.merge(head)?.withResult(result) ?: head.withResult(result)
     }
 
     // Under no circumstances should this method accept a model that is not new
@@ -100,12 +96,7 @@ class ChangesDsl internal constructor(initial: ChangesAccumulator) {
           RESULT : Any,
           UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *> {
         val subChanges = uow.tryPerform(principal, params())
-        val snapTail = tail
-        tail = if (snapTail == null) {
-            head.merge(subChanges)
-        } else {
-            snapTail.merge(head.merge(subChanges))
-        }
+        tail = tail?.merge(head.merge(subChanges)) ?: head.merge(subChanges)
         head = ChangesAccumulator()
         return subChanges.result
     }
