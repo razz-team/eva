@@ -3,12 +3,15 @@ package com.razz.eva.uow
 import com.razz.eva.domain.Model
 import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
-import com.razz.eva.domain.Principal
 
 class ChangesDsl internal constructor(private var changes: ChangesAccumulator) {
 
     fun <MID, E, M> add(model: M): M
         where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
+        require(model.isNew()) {
+            "Attempted to register ${if (model.isDirty()) "changed" else "unchanged"} " +
+                "model [${model.id().stringValue()}] as new"
+        }
         changes = changes.withAdded(model)
         return model
     }
@@ -17,9 +20,16 @@ class ChangesDsl internal constructor(private var changes: ChangesAccumulator) {
         where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
         changes = when (required) {
             true -> {
+                require(model.isDirty()) {
+                    "Attempted to register ${if (model.isNew()) "new" else "unchanged"} " +
+                        "model [${model.id().stringValue()}] as changed"
+                }
                 changes.withUpdated(model)
             }
             false -> {
+                require(!model.isNew()) {
+                    "Attempted to register new model [${model.id().stringValue()}] as changed"
+                }
                 if (model.isDirty()) {
                     changes.withUpdated(model)
                 } else {
@@ -32,22 +42,12 @@ class ChangesDsl internal constructor(private var changes: ChangesAccumulator) {
 
     fun <MID, E, M> notChanged(model: M): M
         where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
+        require(model.isPersisted()) {
+            "Attempted to register ${if (model.isNew()) "new" else "changed"} " +
+                "model [${model.id().stringValue()}] as unchanged"
+        }
         changes = changes.withUnchanged(model)
         return model
-    }
-
-    suspend fun <PRINCIPAL, PARAMS, RESULT, UOW> execute(
-        uow: UOW,
-        principal: PRINCIPAL,
-        params: () -> PARAMS,
-    ): RESULT
-        where PRINCIPAL : Principal<*>,
-              PARAMS : UowParams<PARAMS>,
-              RESULT : Any,
-              UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *> {
-        val subChanges = uow.tryPerform(principal, params())
-        changes = changes.merge(subChanges)
-        return subChanges.result
     }
 
     companion object {

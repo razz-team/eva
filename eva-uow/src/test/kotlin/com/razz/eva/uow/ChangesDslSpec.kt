@@ -1,6 +1,5 @@
 package com.razz.eva.uow
 
-import com.razz.eva.domain.TestModel
 import com.razz.eva.domain.TestModel.Factory.createdTestModel
 import com.razz.eva.domain.TestModel.Factory.existingCreatedTestModel
 import com.razz.eva.domain.TestModelEvent.TestModelCreated
@@ -9,13 +8,11 @@ import com.razz.eva.domain.TestModelId.Companion.randomTestModelId
 import com.razz.eva.domain.TestModelStatus.ACTIVE
 import com.razz.eva.domain.TestModelStatus.CREATED
 import com.razz.eva.domain.Version.Companion.V1
-import com.razz.eva.tracing.Tracing.noopTracer
 import com.razz.eva.uow.Clocks.fixedUTC
 import com.razz.eva.uow.Clocks.millisUTC
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
-import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import kotlinx.serialization.Serializable
 import java.time.Clock
 
@@ -38,82 +35,52 @@ class ChangesDslSpec : FunSpec({
     val now = millisUTC().instant()
     val clock = fixedUTC(now)
 
-    fun <UOW : DummyUow> uowx(uow: UOW) = UnitOfWorkExecutor(
-        factories = listOf(DummyUow::class withFactory { uow }),
-        persisting = FakeMemorizingPersisting(TestModel::class),
-        tracer = noopTracer(),
-        meterRegistry = SimpleMeterRegistry()
-    )
-
-    test("Should return properly built RealisedChanges when new model added and changed model updated") {
+    test("""
+        Should return properly built RealisedChanges when
+        new model added, changed model updated and not changed model marked as not changed
+    """) {
         val model0 = createdTestModel("MLG", 420).activate()
         val model1 = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
             .activate()
+        val model2 = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
 
         val uow = object : DummyUow(clock) {
-            override suspend fun tryPerform(principal: TestPrincipal, params: Params): Changes<String> {
-                val changes = changes {
-                    add(model0)
-                    update(model1)
-                    "K P A C U B O"
-                }
-
-                changes.toPersist shouldBe listOf(
-                    Add(
-                        model0,
-                        listOf(
-                            TestModelCreated(model0.id()),
-                            TestModelStatusChanged(model0.id(), CREATED, ACTIVE)
-                        )
-                    ),
-                    Update(model1, listOf(TestModelStatusChanged(model1.id(), CREATED, ACTIVE)))
-                )
-                changes.result shouldBe "K P A C U B O"
-
-                return changes
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                add(model0)
+                update(model1)
+                notChanged(model2)
+                "K P A C U B O"
             }
         }
-        uowx(uow).execute(DummyUow::class, TestPrincipal) { DummyUow.Params }
-    }
+        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
 
-    test("Should return properly built RealisedChanges when changed model updated") {
-        val model = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1).activate()
-
-        val uow = object : DummyUow(clock) {
-            override suspend fun tryPerform(principal: TestPrincipal, params: Params): Changes<String> {
-                val changes = changes {
-                    update(model)
-                    "K P A C U B O"
-                }
-
-                changes.toPersist shouldBe listOf(
-                    Update(model, listOf(TestModelStatusChanged(model.id(), CREATED, ACTIVE)))
+        changes.toPersist shouldBe listOf(
+            Add(
+                model0,
+                listOf(
+                    TestModelCreated(model0.id()),
+                    TestModelStatusChanged(model0.id(), CREATED, ACTIVE)
                 )
-                changes.result shouldBe "K P A C U B O"
-
-                return changes
-            }
-        }
-        uowx(uow).execute(DummyUow::class, TestPrincipal) { DummyUow.Params }
+            ),
+            Update(model1, listOf(TestModelStatusChanged(model1.id(), CREATED, ACTIVE))),
+            Noop(model2)
+        )
+        changes.result shouldBe "K P A C U B O"
     }
 
     test("Should return properly built RealisedChanges when unchanged model updated") {
         val model = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
 
         val uow = object : DummyUow(clock) {
-            override suspend fun tryPerform(principal: TestPrincipal, params: Params): Changes<String> {
-                val changes = changes {
-                    update(model)
-                    "K P A C U B O"
-                }
-
-                changes.toPersist shouldBe listOf(Noop(model))
-                changes.result shouldBe "K P A C U B O"
-
-                return changes
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                update(model)
+                "K P A C U B O"
             }
         }
-        uowx(uow).execute(DummyUow::class, TestPrincipal) { DummyUow.Params }
+        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
+
+        changes.toPersist shouldBe listOf(Noop(model))
+        changes.result shouldBe "K P A C U B O"
     }
 
     test("Should throw exception when unchanged model required updated") {
@@ -126,14 +93,84 @@ class ChangesDslSpec : FunSpec({
             }
         }
         val exception = shouldThrow<IllegalArgumentException> {
-            UnitOfWorkExecutor(
-                factories = listOf(DummyUow::class withFactory { uow }),
-                persisting = FakeMemorizingPersisting(TestModel::class),
-                tracer = noopTracer(),
-                meterRegistry = SimpleMeterRegistry()
-            ).execute(DummyUow::class, TestPrincipal) { DummyUow.Params }
+            uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
-        exception.message shouldBe "Attempted to register unchanged model [${model.id()}] as changed"
+        exception.message shouldBe "Attempted to register unchanged model [${model.id().stringValue()}] as changed"
+    }
+
+    test("Should throw exception when unchanged model added") {
+        val model = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
+
+        val uow = object : DummyUow(clock) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                add(model)
+                "K P A C U B O"
+            }
+        }
+        val exception = shouldThrow<IllegalArgumentException> {
+            uow.tryPerform(TestPrincipal, DummyUow.Params)
+        }
+        exception.message shouldBe "Attempted to register unchanged model [${model.id().stringValue()}] as new"
+    }
+
+    test("Should throw exception when changed model added") {
+        val model = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1).activate()
+
+        val uow = object : DummyUow(clock) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                add(model)
+                "K P A C U B O"
+            }
+        }
+        val exception = shouldThrow<IllegalArgumentException> {
+            uow.tryPerform(TestPrincipal, DummyUow.Params)
+        }
+        exception.message shouldBe "Attempted to register changed model [${model.id().stringValue()}] as new"
+    }
+
+    test("Should throw exception when changed model marked as not changed") {
+        val model = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1).activate()
+
+        val uow = object : DummyUow(clock) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                notChanged(model)
+                "K P A C U B O"
+            }
+        }
+        val exception = shouldThrow<IllegalArgumentException> {
+            uow.tryPerform(TestPrincipal, DummyUow.Params)
+        }
+        exception.message shouldBe "Attempted to register changed model [${model.id().stringValue()}] as unchanged"
+    }
+
+    test("Should throw exception when new model marked as not changed") {
+        val model = createdTestModel("MLG", 420).activate()
+
+        val uow = object : DummyUow(clock) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                notChanged(model)
+                "K P A C U B O"
+            }
+        }
+        val exception = shouldThrow<IllegalArgumentException> {
+            uow.tryPerform(TestPrincipal, DummyUow.Params)
+        }
+        exception.message shouldBe "Attempted to register new model [${model.id().stringValue()}] as unchanged"
+    }
+
+    test("Should throw exception when new model updated") {
+        val model = createdTestModel("MLG", 420).activate()
+
+        val uow = object : DummyUow(clock) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                update(model)
+                "K P A C U B O"
+            }
+        }
+        val exception = shouldThrow<IllegalArgumentException> {
+            uow.tryPerform(TestPrincipal, DummyUow.Params)
+        }
+        exception.message shouldBe "Attempted to register new model [${model.id().stringValue()}] as changed"
     }
 
     test("Should throw exception when no models were added or updated with result") {
@@ -145,7 +182,7 @@ class ChangesDslSpec : FunSpec({
         }
 
         val exception = shouldThrow<IllegalArgumentException> {
-            uowx(uow).execute(DummyUow::class, TestPrincipal) { DummyUow.Params }
+            uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
         exception.message shouldBe "No changes to persist"
     }
@@ -157,12 +194,7 @@ class ChangesDslSpec : FunSpec({
         }
 
         val exception = shouldThrow<IllegalArgumentException> {
-            UnitOfWorkExecutor(
-                factories = listOf(DummyUnitUow::class withFactory { uow }),
-                persisting = FakeMemorizingPersisting(TestModel::class),
-                tracer = noopTracer(),
-                meterRegistry = SimpleMeterRegistry()
-            ).execute(DummyUnitUow::class, TestPrincipal) { DummyUnitUow.Params }
+            uow.tryPerform(TestPrincipal, DummyUnitUow.Params)
         }
         exception.message shouldBe "No changes to persist"
     }
@@ -171,18 +203,14 @@ class ChangesDslSpec : FunSpec({
         val model = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
 
         val uow = object : DummyUow(clock) {
-            override suspend fun tryPerform(principal: TestPrincipal, params: Params): Changes<String> {
-                val changes = changes {
-                    notChanged(model)
-                    "K P A C U B O"
-                }
-
-                changes.toPersist shouldBe listOf(Noop(model))
-                changes.result shouldBe "K P A C U B O"
-
-                return changes
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                notChanged(model)
+                "K P A C U B O"
             }
         }
-        uowx(uow).execute(DummyUow::class, TestPrincipal) { DummyUow.Params }
+        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
+
+        changes.toPersist shouldBe listOf(Noop(model))
+        changes.result shouldBe "K P A C U B O"
     }
 })
