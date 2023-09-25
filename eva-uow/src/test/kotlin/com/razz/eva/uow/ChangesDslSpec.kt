@@ -1,4 +1,4 @@
-package com.razz.eva.uow.basic
+package com.razz.eva.uow
 
 import com.razz.eva.domain.TestModel.Factory.createdTestModel
 import com.razz.eva.domain.TestModel.Factory.existingCreatedTestModel
@@ -8,13 +8,8 @@ import com.razz.eva.domain.TestModelId.Companion.randomTestModelId
 import com.razz.eva.domain.TestModelStatus.ACTIVE
 import com.razz.eva.domain.TestModelStatus.CREATED
 import com.razz.eva.domain.Version.Companion.V1
-import com.razz.eva.uow.Add
 import com.razz.eva.uow.Clocks.fixedUTC
 import com.razz.eva.uow.Clocks.millisUTC
-import com.razz.eva.uow.Noop
-import com.razz.eva.uow.TestPrincipal
-import com.razz.eva.uow.UowParams
-import com.razz.eva.uow.Update
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe

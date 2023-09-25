@@ -8,7 +8,6 @@ import com.razz.eva.domain.Shakshouka
 import com.razz.eva.domain.ShakshoukaEvent.ShakshoukaCreated
 import com.razz.eva.domain.ShakshoukaId
 import com.razz.eva.repository.EmployeeRepository
-import com.razz.eva.uow.basic.UnitOfWork
 import kotlinx.serialization.Serializable
 import java.time.Clock
 import java.util.*

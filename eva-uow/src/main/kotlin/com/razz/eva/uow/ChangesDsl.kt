@@ -1,10 +1,8 @@
-package com.razz.eva.uow.basic
+package com.razz.eva.uow
 
 import com.razz.eva.domain.Model
 import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
-import com.razz.eva.uow.Changes
-import com.razz.eva.uow.ChangesAccumulator
 
 class ChangesDsl internal constructor(private var changes: ChangesAccumulator) {
 

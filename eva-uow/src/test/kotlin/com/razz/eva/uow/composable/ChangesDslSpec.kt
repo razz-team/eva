@@ -49,7 +49,7 @@ class ChangesDslSpec : FunSpec({
             .activate()
         val model2 = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
 
-        val uow = object : com.razz.eva.uow.basic.DummyUow(clock) {
+        val uow = object : com.razz.eva.uow.DummyUow(clock) {
             override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
                 add(model0)
                 update(model1)
@@ -57,7 +57,7 @@ class ChangesDslSpec : FunSpec({
                 "K P A C U B O"
             }
         }
-        val changes = uow.tryPerform(TestPrincipal, com.razz.eva.uow.basic.DummyUow.Params)
+        val changes = uow.tryPerform(TestPrincipal, com.razz.eva.uow.DummyUow.Params)
 
         changes.toPersist shouldBe listOf(
             Add(

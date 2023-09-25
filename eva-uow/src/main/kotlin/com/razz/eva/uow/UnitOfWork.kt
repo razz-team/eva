@@ -1,10 +1,6 @@
-package com.razz.eva.uow.basic
+package com.razz.eva.uow
 
 import com.razz.eva.domain.Principal
-import com.razz.eva.uow.BaseUnitOfWork
-import com.razz.eva.uow.Changes
-import com.razz.eva.uow.ChangesAccumulator
-import com.razz.eva.uow.UowParams
 import java.time.Clock
 
 abstract class UnitOfWork<PRINCIPAL, PARAMS, RESULT>(
