@@ -130,10 +130,7 @@ class UnitOfWorkDemoSpec : UowBehaviorSpec({
                         employeeId shouldBe boomerId
                         newHeadcount shouldBe 1
                     }
-
-                    returns {
-                        this shouldBe Unit
-                    }
+                    returnsEq(Unit)
                 }
             }
         }

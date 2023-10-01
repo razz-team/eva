@@ -18,7 +18,7 @@ open class UowSpecBase<R> private constructor(
 ) {
 
     internal constructor(
-        changes: Changes<R>
+        changes: Changes<R>,
     ) : this(
         result = changes.result,
         executionHistory = ArrayDeque(changes.toPersist.filter { it !is Noop }),
@@ -32,6 +32,11 @@ open class UowSpecBase<R> private constructor(
 
     protected fun verifyResult(verification: (R) -> Unit) {
         verification(result)
+    }
+
+    protected fun <RR : R> verifyResultAs(verification: (RR) -> Unit) {
+        @Suppress("UNCHECKED_CAST")
+        verification(result as RR)
     }
 
     protected fun <M : Model<*, *>> verifyAdded(verify: (M) -> Unit): M {
@@ -60,9 +65,10 @@ open class UowSpecBase<R> private constructor(
         return model
     }
 
-    protected fun <E : ModelEvent<out ModelId<out Comparable<*>>>> verifyEmitted(verify: (E) -> Unit) {
+    protected fun <E : ModelEvent<out ModelId<out Comparable<*>>>> verifyEmitted(verify: (E) -> Unit): E {
         @Suppress("UNCHECKED_CAST")
         val next = checkNotNull(publishedEvents.pollFirst()) { "Expecting [ModelEvent] got nothing" } as E
         verify(next)
+        return next
     }
 }
