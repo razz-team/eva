@@ -41,7 +41,7 @@ import com.razz.eva.events.UowEvent.UowName
 import com.razz.eva.uow.ExecutionStep.UowEventPublished
 import com.razz.eva.uow.UowParams
 import io.kotest.core.spec.style.BehaviorSpec
-import io.kotest.matchers.maps.shouldHaveSize
+import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeTypeOf
@@ -202,7 +202,7 @@ class PersistingSpec : BehaviorSpec({
                             eh.shouldBeTypeOf<UowEventAdded>()
                             eh.uowEvent.occurredAt shouldBe now
                             eh.uowEvent.uowName shouldBe UowName("Hoba")
-                            eh.uowEvent.modelEvents.values.toList() should { vals ->
+                            eh.uowEvent.modelEvents.map(Pair<*, *>::second) should { vals ->
                                 vals.size shouldBe 5
                                 vals[0] shouldBe OwnedDepartmentCreated(
                                     departmentId = departmentId1,
@@ -228,7 +228,7 @@ class PersistingSpec : BehaviorSpec({
                             eh.shouldBeTypeOf<UowEventPublished>()
                             eh.uowEvent.occurredAt shouldBe now
                             eh.uowEvent.uowName shouldBe UowName("Hoba")
-                            eh.uowEvent.modelEvents.values.toList() should { vals ->
+                            eh.uowEvent.modelEvents.map(Pair<*, *>::second) should { vals ->
                                 vals.size shouldBe 5
                                 vals[0] shouldBe OwnedDepartmentCreated(
                                     departmentId = departmentId1,
@@ -276,7 +276,7 @@ class PersistingSpec : BehaviorSpec({
                             eh.shouldBeTypeOf<UowEventAdded>()
                             eh.uowEvent.occurredAt shouldBe now
                             eh.uowEvent.uowName shouldBe UowName("Hoba")
-                            eh.uowEvent.modelEvents.values.toList() should { vals ->
+                            eh.uowEvent.modelEvents.map(Pair<*, *>::second) should { vals ->
                                 vals.size shouldBe 5
                                 vals[0] shouldBe OwnedDepartmentCreated(
                                     departmentId = departmentId1,
@@ -302,7 +302,7 @@ class PersistingSpec : BehaviorSpec({
                             eh.shouldBeTypeOf<UowEventPublished>()
                             eh.uowEvent.occurredAt shouldBe now
                             eh.uowEvent.uowName shouldBe UowName("Hoba")
-                            eh.uowEvent.modelEvents.values.toList() should { vals ->
+                            eh.uowEvent.modelEvents.map(Pair<*, *>::second) should { vals ->
                                 vals.size shouldBe 5
                                 vals[0] shouldBe OwnedDepartmentCreated(
                                     departmentId = departmentId1,

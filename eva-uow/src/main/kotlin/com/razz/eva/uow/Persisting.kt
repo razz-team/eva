@@ -52,7 +52,7 @@ class Persisting(
                 id = UowEvent.Id(randomUUID()),
                 uowName = UowName(uowName),
                 principal = principal,
-                modelEvents = events.associateBy { ModelEventId.random() },
+                modelEvents = events.map { ModelEventId.random() to it },
                 idempotencyKey = params.idempotencyKey,
                 params = json.encodeToString(params.serialization(), params),
                 occurredAt = startedAt
