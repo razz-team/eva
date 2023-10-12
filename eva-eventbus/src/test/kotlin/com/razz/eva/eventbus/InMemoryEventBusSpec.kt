@@ -38,7 +38,7 @@ class InMemoryEventBusSpec : FunSpec({
 
     test("Event bus distributes event to consumer") {
         val uowEvent = uowEvent()
-        val (modelEventId, modelEvent) = uowEvent.modelEvents.entries.first()
+        val (modelEventId, modelEvent) = uowEvent.modelEvents.first()
         val (chan, consumer) = consumer(modelEvent) { event ->
             matchConsumed(event, modelEvent, modelEventId, uowEvent)
         }
@@ -54,7 +54,7 @@ class InMemoryEventBusSpec : FunSpec({
 
     test("Event bus distributes event to all interested consumers") {
         val uowEvent = uowEvent()
-        val (modelEventId, modelEvent) = uowEvent.modelEvents.entries.first()
+        val (modelEventId, modelEvent) = uowEvent.modelEvents.first()
         val (chan0, consumer0) = consumer(modelEvent) { event ->
             matchConsumed(event, modelEvent, modelEventId, uowEvent)
         }
@@ -74,9 +74,9 @@ class InMemoryEventBusSpec : FunSpec({
 
     test("Event bus distributes different events to dedicated consumers") {
         val uowEvent = uowEvent(TestModelEvent0, TestModelEvent1, TestModelEvent2)
-        val (modelEventId0, modelEvent0) = uowEvent.modelEvents.entries.toList()[0]
-        val (modelEventId1, modelEvent1) = uowEvent.modelEvents.entries.toList()[1]
-        val (modelEventId2, modelEvent2) = uowEvent.modelEvents.entries.toList()[2]
+        val (modelEventId0, modelEvent0) = uowEvent.modelEvents[0]
+        val (modelEventId1, modelEvent1) = uowEvent.modelEvents[1]
+        val (modelEventId2, modelEvent2) = uowEvent.modelEvents[2]
         val (chan0, consumer0) = consumer(modelEvent0) { event ->
             matchConsumed(event, modelEvent0, modelEventId0, uowEvent)
         }
@@ -151,7 +151,7 @@ private fun uowEvent(vararg modelEvents: ModelEvent<*> = arrayOf(TestModelEvent0
     id = UowEvent.Id.random(),
     uowName = UowEvent.UowName("Fake"),
     principal = TestPrincipal,
-    modelEvents = modelEvents.associateBy { UowEvent.ModelEventId.random() },
+    modelEvents = modelEvents.map { UowEvent.ModelEventId.random() to it },
     idempotencyKey = IdempotencyKey.random(),
     params = buildJsonObject {
         put("id", "some-id")

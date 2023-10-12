@@ -11,7 +11,7 @@ data class UowEvent(
     val id: Id,
     val uowName: UowName,
     val principal: Principal<*>,
-    val modelEvents: Map<ModelEventId, ModelEvent<*>>,
+    val modelEvents: List<Pair<ModelEventId, ModelEvent<*>>>,
     val idempotencyKey: IdempotencyKey?,
     val params: String,
     val occurredAt: Instant,

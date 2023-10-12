@@ -67,7 +67,7 @@ class JooqEventRepositorySpec : BehaviorSpec({
                 id = UowEvent.Id.random(),
                 uowName = UowName("TestUow"),
                 principal = TestPrincipal,
-                modelEvents = linkedMapOf(
+                modelEvents = listOf(
                     ModelEventId.random() to OrphanedDepartmentCreated(
                         depId,
                         "PoContrE",
@@ -143,7 +143,7 @@ class JooqEventRepositorySpec : BehaviorSpec({
                             dslContext.insertQuery(MODEL_EVENTS)
                                 .also {
                                     it.addRecord(
-                                        with(uowEvent.modelEvents.entries.first()) {
+                                        uowEvent.modelEvents.first().let { (key, value) ->
                                             ModelEventsRecord().apply {
                                                 this.id = key.uuidValue()
                                                 this.uowId = uowEvent.id.uuidValue()
@@ -166,7 +166,7 @@ class JooqEventRepositorySpec : BehaviorSpec({
                                         }
                                     )
                                     it.addRecord(
-                                        with(uowEvent.modelEvents.entries.last()) {
+                                        uowEvent.modelEvents.last().let { (key, value) ->
                                             ModelEventsRecord().apply {
                                                 this.id = key.uuidValue()
                                                 this.uowId = uowEvent.id.uuidValue()
@@ -209,7 +209,7 @@ class JooqEventRepositorySpec : BehaviorSpec({
                 id = UowEvent.Id(randomUUID()),
                 uowName = UowName("TestUow"),
                 principal = TestPrincipal,
-                modelEvents = emptyMap(),
+                modelEvents = listOf(),
                 idempotencyKey = params.idempotencyKey,
                 params = json.encodeToString(params.serialization(), params),
                 occurredAt = now
@@ -284,7 +284,7 @@ class JooqEventRepositorySpec : BehaviorSpec({
                 id = UowEvent.Id(randomUUID()),
                 uowName = UowName("TestUow"),
                 principal = TestPrincipal,
-                modelEvents = emptyMap(),
+                modelEvents = listOf(),
                 idempotencyKey = params.idempotencyKey,
                 params = json.encodeToString(params.serialization(), params),
                 occurredAt = now

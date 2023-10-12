@@ -42,7 +42,7 @@ internal object Fake {
         id = UowEvent.Id.random(),
         uowName = UowName("Fake"),
         principal = FakePrincipal,
-        modelEvents = mapOf(FakeModelEvent.eventId to FakeModelEvent),
+        modelEvents = listOf(FakeModelEvent.eventId to FakeModelEvent),
         idempotencyKey = IdempotencyKey.random(),
         params = buildJsonObject {
             put("id", FakeId.id.toString())
