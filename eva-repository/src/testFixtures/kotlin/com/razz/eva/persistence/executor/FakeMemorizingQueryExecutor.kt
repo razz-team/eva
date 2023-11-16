@@ -46,11 +46,11 @@ class FakeMemorizingQueryExecutor(
             .into(table)
     }
 
-    override suspend fun <R : Record> executeStore(
+    override suspend fun <RIN : Record, ROUT : Record> executeStore(
         dslContext: DSLContext,
-        jooqQuery: StoreQuery<R>,
-        table: Table<R>,
-    ): List<R> {
+        jooqQuery: StoreQuery<RIN>,
+        table: Table<ROUT>,
+    ): List<ROUT> {
         executions += StoreExecuted(dslContext, jooqQuery, table)
         return DSL.using(MockConnection(MockProvider(queries)), POSTGRES, dslContext.settings())
             .fetch(jooqQuery.getSQL(INLINED))

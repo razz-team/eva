@@ -16,11 +16,11 @@ interface QueryExecutor {
         table: Table<R>,
     ): List<R>
 
-    suspend fun <R : Record> executeStore(
+    suspend fun <RIN : Record, ROUT : Record> executeStore(
         dslContext: DSLContext,
-        jooqQuery: StoreQuery<R>,
-        table: Table<R>,
-    ): List<R>
+        jooqQuery: StoreQuery<RIN>,
+        table: Table<ROUT>,
+    ): List<ROUT>
 
     suspend fun <R : Record> executeDelete(
         dslContext: DSLContext,
