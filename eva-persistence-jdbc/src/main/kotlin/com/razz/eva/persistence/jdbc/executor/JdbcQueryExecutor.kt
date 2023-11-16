@@ -30,11 +30,11 @@ class JdbcQueryExecutor(
         }
     }
 
-    override suspend fun <R : Record> executeStore(
+    override suspend fun <RIN : Record, ROUT : Record> executeStore(
         dslContext: DSLContext,
-        jooqQuery: StoreQuery<R>,
-        table: Table<R>,
-    ): List<R> {
+        jooqQuery: StoreQuery<RIN>,
+        table: Table<ROUT>,
+    ): List<ROUT> {
         jooqQuery.setReturning()
         return transactionManager.inTransaction(REQUIRE_EXISTING) { connection ->
             DSL.using(connection, dslContext.settings())
@@ -47,24 +47,25 @@ class JdbcQueryExecutor(
         jooqQuery: DeleteQuery<R>,
         table: Table<R>,
     ): Int {
-        jooqQuery.setReturning()
         return transactionManager.inTransaction(REQUIRE_EXISTING) { connection ->
-            DSL.using(connection, dslContext.settings())
-                .preparedQuery(jooqQuery, table).size
+            DSL.using(connection, dslContext.settings()).run {
+                preparedQuery(jooqQuery).execute()
+            }
         }
     }
 
-    @Suppress("UNCHECKED_CAST")
     private fun <R : Record> DSLContext.preparedQuery(
         jooqQuery: Query,
         table: Table<R>,
-    ): List<R> = resultQuery(
+    ): List<R> = preparedQuery(jooqQuery).coerce(table).fetch()
+
+    private fun DSLContext.preparedQuery(jooqQuery: Query) = resultQuery(
         render(jooqQuery),
         *extractParams(jooqQuery)
             .values
             .filterNot(Param<*>::isInline)
             .toTypedArray()
-    ).coerce(table).fetch()
+    )
 
     override fun getConstraintName(e: DataAccessException): String? {
         return e.getCause(PSQLException::class.java)?.serverErrorMessage?.constraint

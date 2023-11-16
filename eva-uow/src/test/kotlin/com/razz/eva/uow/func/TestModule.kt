@@ -88,11 +88,11 @@ class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
     )
 
     private val patchingQueryExecutor = object : QueryExecutor by queryExecutor {
-        override suspend fun <R : Record> executeStore(
+        override suspend fun <RIN : Record, ROUT : Record> executeStore(
             dslContext: DSLContext,
-            jooqQuery: StoreQuery<R>,
-            table: Table<R>
-        ): List<R> {
+            jooqQuery: StoreQuery<RIN>,
+            table: Table<ROUT>,
+        ): List<ROUT> {
             if (table.name == "uow_events") {
                 val occurredAtParam = jooqQuery.getParam("6") as Field<Timestamp>
                 jooqQuery.addValue(

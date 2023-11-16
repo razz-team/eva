@@ -36,6 +36,17 @@ class VertxQueryExecutorSpec : BehaviorSpec({
         val vertxTransactionManager = spyk(VertxTransactionManager(connectionProvider, connectionProvider))
         val vertxExecutor = VertxQueryExecutor(vertxTransactionManager)
         val preparedQueryMock = mockk<PreparedQuery<RowSet<Row>>> {
+            every { execute(any<ArrayTuple>()) } returns succeededFuture(
+                mockk {
+                    every { rowCount() } returns 0
+                    every { iterator() } answers {
+                        mockk {
+                            every { hasNext() } returns false
+                        }
+                    }
+                    every { size() } returns 0
+                }
+            )
             every { mapping(any<Function<Row, Any>>()) } answers {
                 mockk {
                     every { execute(any<ArrayTuple>()) } returns succeededFuture(

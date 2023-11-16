@@ -8,6 +8,7 @@ import io.vertx.kotlin.coroutines.await
 import io.vertx.pgclient.PgConnection
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
+import io.vertx.sqlclient.SqlResult
 import io.vertx.sqlclient.impl.ArrayTuple
 import org.jooq.Converter
 import org.jooq.DSLContext
@@ -42,11 +43,11 @@ class VertxQueryExecutor(
         }
     }
 
-    override suspend fun <R : Record> executeStore(
+    override suspend fun <RIN : Record, ROUT : Record> executeStore(
         dslContext: DSLContext,
-        jooqQuery: StoreQuery<R>,
-        table: Table<R>,
-    ): List<R> {
+        jooqQuery: StoreQuery<RIN>,
+        table: Table<ROUT>,
+    ): List<ROUT> {
         return transactionManager.inTransaction(REQUIRE_EXISTING) { connection ->
             jooqQuery.setReturning()
             val rows = executeQuery(connection, dslContext, jooqQuery, table)
@@ -60,8 +61,8 @@ class VertxQueryExecutor(
         table: Table<R>,
     ): Int {
         return transactionManager.inTransaction(REQUIRE_EXISTING) { connection ->
-            jooqQuery.setReturning()
-            executeQuery(connection, dslContext, jooqQuery, table).size()
+            connection.preparedQuery(dslContext.renderNamedParams(jooqQuery))
+                .execute(bindParams(dslContext, jooqQuery)).map(SqlResult<*>::rowCount).await()
         }
     }
 
