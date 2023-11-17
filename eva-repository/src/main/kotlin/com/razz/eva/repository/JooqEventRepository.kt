@@ -22,7 +22,6 @@ import kotlinx.serialization.encodeToString
 import org.jooq.DSLContext
 import org.jooq.InsertQuery
 import org.jooq.Record
-import org.jooq.Table
 import org.jooq.exception.DataAccessException
 import kotlin.coroutines.coroutineContext
 
@@ -86,7 +85,6 @@ class JooqEventRepository(
                 dslContext.insertQuery(UOW_EVENTS).apply {
                     setRecord(toUERecord(uowEvent))
                 },
-                UOW_EVENTS
             )
         } catch (e: Exception) {
             val constraintName = when {
@@ -128,16 +126,14 @@ class JooqEventRepository(
                         addRecord(mer)
                     }
                 },
-                MODEL_EVENTS
             )
         }
     }
 
-    private suspend fun <R : Record> insert(query: InsertQuery<R>, table: Table<R>) {
-        queryExecutor.executeStore(
+    private suspend fun <R : Record> insert(query: InsertQuery<R>) {
+        queryExecutor.executeQuery(
             dslContext = dslContext,
             jooqQuery = query,
-            table = table
         )
     }
 }

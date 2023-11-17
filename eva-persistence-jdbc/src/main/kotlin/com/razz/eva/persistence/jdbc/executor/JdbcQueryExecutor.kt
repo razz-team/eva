@@ -3,8 +3,8 @@ package com.razz.eva.persistence.jdbc.executor
 import com.razz.eva.persistence.ConnectionMode.REQUIRE_EXISTING
 import com.razz.eva.persistence.executor.QueryExecutor
 import com.razz.eva.persistence.jdbc.JdbcTransactionManager
+import org.jooq.DMLQuery
 import org.jooq.DSLContext
-import org.jooq.DeleteQuery
 import org.jooq.Param
 import org.jooq.Query
 import org.jooq.Record
@@ -42,14 +42,19 @@ class JdbcQueryExecutor(
         }
     }
 
-    override suspend fun <R : Record> executeDelete(
+    override suspend fun <R : Record> executeQuery(
         dslContext: DSLContext,
-        jooqQuery: DeleteQuery<R>,
-        table: Table<R>,
+        jooqQuery: DMLQuery<R>,
     ): Int {
         return transactionManager.inTransaction(REQUIRE_EXISTING) { connection ->
             DSL.using(connection, dslContext.settings()).run {
-                preparedQuery(jooqQuery).execute()
+                execute(
+                    render(jooqQuery),
+                    *extractParams(jooqQuery)
+                        .values
+                        .filterNot(Param<*>::isInline)
+                        .toTypedArray()
+                )
             }
         }
     }
@@ -57,15 +62,13 @@ class JdbcQueryExecutor(
     private fun <R : Record> DSLContext.preparedQuery(
         jooqQuery: Query,
         table: Table<R>,
-    ): List<R> = preparedQuery(jooqQuery).coerce(table).fetch()
-
-    private fun DSLContext.preparedQuery(jooqQuery: Query) = resultQuery(
+    ): List<R> = resultQuery(
         render(jooqQuery),
         *extractParams(jooqQuery)
             .values
             .filterNot(Param<*>::isInline)
             .toTypedArray()
-    )
+    ).coerce(table).fetch()
 
     override fun getConstraintName(e: DataAccessException): String? {
         return e.getCause(PSQLException::class.java)?.serverErrorMessage?.constraint

@@ -128,10 +128,9 @@ class VertxQueryExecutorSpec : BehaviorSpec({
             When("Principal calls execute store without context") {
 
                 val storeRun = suspend {
-                    vertxExecutor.executeDelete(
+                    vertxExecutor.executeQuery(
                         dslContext,
                         delete,
-                        DSL.table("cool_table"),
                     )
                 }
 
@@ -204,10 +203,9 @@ class VertxQueryExecutorSpec : BehaviorSpec({
             When("Principal calls execute delete with context") {
 
                 withContext(Dispatchers.IO + VertxConnectionElement(connection)) {
-                    vertxExecutor.executeDelete(
+                    vertxExecutor.executeQuery(
                         dslContext,
                         delete,
-                        DSL.table("cool_table"),
                     )
                 }
 
