@@ -35,7 +35,6 @@ import org.jooq.impl.SQLDataType
 import java.sql.Timestamp
 import java.time.Clock
 import java.time.Duration
-import java.time.Instant.now
 import java.util.*
 
 class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
@@ -105,7 +104,7 @@ class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
     }
 
     val uowxInFuture = UnitOfWorkExecutor(
-        factories = factories(fixedUTC(now() + Duration.ofDays(6))),
+        factories = factories(fixedUTC(now + Duration.ofDays(6))),
         persisting = Persisting(
             transactionManager = transactionManager,
             modelRepos = repos,
