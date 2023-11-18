@@ -143,12 +143,11 @@ class PersistenceSpec : PersistenceBaseSpec({
 
         When("Principal performs delete on query executor") {
             module.transactionManager.inTransaction(REQUIRE_NEW) { _ ->
-                module.queryExecutor.executeDelete(
+                module.queryExecutor.executeQuery(
                     module.dslContext,
                     module.dslContext.deleteQuery(Tables.EMPLOYEES).apply {
                         addConditions(Tables.EMPLOYEES.ID.eq(boss.id().id))
                     },
-                    Tables.EMPLOYEES,
                 )
             }
 

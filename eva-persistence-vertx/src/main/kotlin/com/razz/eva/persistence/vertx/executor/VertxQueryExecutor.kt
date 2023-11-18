@@ -11,8 +11,8 @@ import io.vertx.sqlclient.RowSet
 import io.vertx.sqlclient.SqlResult
 import io.vertx.sqlclient.impl.ArrayTuple
 import org.jooq.Converter
+import org.jooq.DMLQuery
 import org.jooq.DSLContext
-import org.jooq.DeleteQuery
 import org.jooq.JSON
 import org.jooq.JSONB
 import org.jooq.Query
@@ -55,10 +55,9 @@ class VertxQueryExecutor(
         }
     }
 
-    override suspend fun <R : Record> executeDelete(
+    override suspend fun <R : Record> executeQuery(
         dslContext: DSLContext,
-        jooqQuery: DeleteQuery<R>,
-        table: Table<R>,
+        jooqQuery: DMLQuery<R>,
     ): Int {
         return transactionManager.inTransaction(REQUIRE_EXISTING) { connection ->
             connection.preparedQuery(dslContext.renderNamedParams(jooqQuery))

@@ -1,10 +1,10 @@
 package com.razz.eva.persistence.executor
 
-import com.razz.eva.persistence.executor.FakeMemorizingQueryExecutor.ExecutionStep.DeleteExecuted
+import com.razz.eva.persistence.executor.FakeMemorizingQueryExecutor.ExecutionStep.QueryExecuted
 import com.razz.eva.persistence.executor.FakeMemorizingQueryExecutor.ExecutionStep.SelectExecuted
 import com.razz.eva.persistence.executor.FakeMemorizingQueryExecutor.ExecutionStep.StoreExecuted
+import org.jooq.DMLQuery
 import org.jooq.DSLContext
-import org.jooq.DeleteQuery
 import org.jooq.Record
 import org.jooq.SQLDialect.POSTGRES
 import org.jooq.Select
@@ -57,12 +57,11 @@ class FakeMemorizingQueryExecutor(
             .into(table)
     }
 
-    override suspend fun <R : Record> executeDelete(
+    override suspend fun <R : Record> executeQuery(
         dslContext: DSLContext,
-        jooqQuery: DeleteQuery<R>,
-        table: Table<R>,
+        jooqQuery: DMLQuery<R>,
     ): Int {
-        executions += DeleteExecuted(dslContext, jooqQuery)
+        executions += QueryExecuted(dslContext, jooqQuery)
         return DSL.using(MockConnection(MockProvider(queries)), POSTGRES, dslContext.settings())
             .execute(jooqQuery.getSQL(INLINED))
     }
@@ -81,9 +80,9 @@ class FakeMemorizingQueryExecutor(
             val table: Table<out Record>,
         ) : ExecutionStep()
 
-        data class DeleteExecuted(
+        data class QueryExecuted(
             val dslContext: DSLContext,
-            val jooqQuery: DeleteQuery<out Record>,
+            val jooqQuery: DMLQuery<out Record>,
         ) : ExecutionStep()
     }
 

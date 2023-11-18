@@ -15,7 +15,7 @@ import com.razz.eva.events.db.tables.UowEvents.UOW_EVENTS
 import com.razz.eva.events.db.tables.records.ModelEventsRecord
 import com.razz.eva.events.db.tables.records.UowEventsRecord
 import com.razz.eva.persistence.executor.FakeMemorizingQueryExecutor
-import com.razz.eva.persistence.executor.FakeMemorizingQueryExecutor.ExecutionStep.StoreExecuted
+import com.razz.eva.persistence.executor.FakeMemorizingQueryExecutor.ExecutionStep.QueryExecuted
 import com.razz.eva.serialization.json.JsonFormat.json
 import com.razz.eva.uow.UowParams
 import com.razz.eva.tracing.Tracing.notReportingTracer
@@ -110,7 +110,7 @@ class JooqEventRepositorySpec : BehaviorSpec({
 
                 Then("Query executor should receive one uow event and two model events") {
                     queryExecutor.executionHistory shouldBe listOf(
-                        StoreExecuted(
+                        QueryExecuted(
                             dslContext,
                             dslContext.insertQuery(UOW_EVENTS)
                                 .also {
@@ -136,9 +136,8 @@ class JooqEventRepositorySpec : BehaviorSpec({
                                         }
                                     )
                                 },
-                            UOW_EVENTS
                         ),
-                        StoreExecuted(
+                        QueryExecuted(
                             dslContext,
                             dslContext.insertQuery(MODEL_EVENTS)
                                 .also {
@@ -189,7 +188,6 @@ class JooqEventRepositorySpec : BehaviorSpec({
                                         }
                                     )
                                 },
-                            MODEL_EVENTS
                         )
                     )
                 }
@@ -238,7 +236,7 @@ class JooqEventRepositorySpec : BehaviorSpec({
 
                 Then("Query executor should receive one uow event") {
                     queryExecutor.executionHistory shouldBe listOf(
-                        StoreExecuted(
+                        QueryExecuted(
                             dslContext,
                             dslContext.insertQuery(UOW_EVENTS)
                                 .also {
@@ -264,7 +262,6 @@ class JooqEventRepositorySpec : BehaviorSpec({
                                         }
                                     )
                                 },
-                            UOW_EVENTS
                         )
                     )
                 }
@@ -295,7 +292,7 @@ class JooqEventRepositorySpec : BehaviorSpec({
 
                 Then("Query executor should receive one uow event") {
                     queryExecutor.executionHistory shouldBe listOf(
-                        StoreExecuted(
+                        QueryExecuted(
                             dslContext,
                             dslContext.insertQuery(UOW_EVENTS)
                                 .also {
@@ -321,7 +318,6 @@ class JooqEventRepositorySpec : BehaviorSpec({
                                         }
                                     )
                                 },
-                            UOW_EVENTS
                         )
                     )
                 }

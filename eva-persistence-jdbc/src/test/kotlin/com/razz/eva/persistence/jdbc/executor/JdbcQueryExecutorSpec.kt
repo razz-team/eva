@@ -90,10 +90,9 @@ class JdbcQueryExecutorSpec : BehaviorSpec({
             When("Principal calls execute delete without context") {
 
                 val storeRun = suspend {
-                    jdbcExecutor.executeDelete(
+                    jdbcExecutor.executeQuery(
                         dslContext,
                         delete,
-                        DSL.table("cool_table"),
                     )
                 }
 
@@ -166,10 +165,9 @@ class JdbcQueryExecutorSpec : BehaviorSpec({
             When("Principal calls execute delete with context") {
 
                 withContext(Dispatchers.IO + JdbcConnectionElement(connection)) {
-                    jdbcExecutor.executeDelete(
+                    jdbcExecutor.executeQuery(
                         dslContext,
                         delete,
-                        DSL.table("cool_table"),
                     )
                 }
 

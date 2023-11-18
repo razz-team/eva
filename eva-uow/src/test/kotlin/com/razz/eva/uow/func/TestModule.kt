@@ -25,17 +25,16 @@ import com.razz.eva.uow.Persisting
 import com.razz.eva.uow.UnitOfWorkExecutor
 import com.razz.eva.uow.withFactory
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
+import org.jooq.DMLQuery
 import org.jooq.DSLContext
 import org.jooq.Field
+import org.jooq.InsertQuery
 import org.jooq.Record
-import org.jooq.StoreQuery
-import org.jooq.Table
 import org.jooq.impl.DSL
 import org.jooq.impl.SQLDataType
 import java.sql.Timestamp
 import java.time.Clock
 import java.time.Duration
-import java.time.Instant.now
 import java.util.*
 
 class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
@@ -88,24 +87,20 @@ class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
     )
 
     private val patchingQueryExecutor = object : QueryExecutor by queryExecutor {
-        override suspend fun <RIN : Record, ROUT : Record> executeStore(
-            dslContext: DSLContext,
-            jooqQuery: StoreQuery<RIN>,
-            table: Table<ROUT>,
-        ): List<ROUT> {
-            if (table.name == "uow_events") {
+        override suspend fun <R : Record> executeQuery(dslContext: DSLContext, jooqQuery: DMLQuery<R>): Int {
+            if (jooqQuery is InsertQuery<*> && jooqQuery.sql.contains("uow_events")) {
                 val occurredAtParam = jooqQuery.getParam("6") as Field<Timestamp>
                 jooqQuery.addValue(
                     DSL.field("inserted_at", SQLDataType.TIMESTAMP),
                     occurredAtParam,
                 )
             }
-            return queryExecutor.executeStore(dslContext, jooqQuery, table)
+            return queryExecutor.executeQuery(dslContext, jooqQuery)
         }
     }
 
     val uowxInFuture = UnitOfWorkExecutor(
-        factories = factories(fixedUTC(now() + Duration.ofDays(6))),
+        factories = factories(fixedUTC(now + Duration.ofDays(6))),
         persisting = Persisting(
             transactionManager = transactionManager,
             modelRepos = repos,

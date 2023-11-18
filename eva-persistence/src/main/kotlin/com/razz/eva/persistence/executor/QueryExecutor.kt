@@ -1,7 +1,7 @@
 package com.razz.eva.persistence.executor
 
+import org.jooq.DMLQuery
 import org.jooq.DSLContext
-import org.jooq.DeleteQuery
 import org.jooq.Record
 import org.jooq.Select
 import org.jooq.StoreQuery
@@ -22,10 +22,9 @@ interface QueryExecutor {
         table: Table<ROUT>,
     ): List<ROUT>
 
-    suspend fun <R : Record> executeDelete(
+    suspend fun <R : Record> executeQuery(
         dslContext: DSLContext,
-        jooqQuery: DeleteQuery<R>,
-        table: Table<R>,
+        jooqQuery: DMLQuery<R>,
     ): Int
 
     fun getConstraintName(e: DataAccessException): String?
