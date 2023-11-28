@@ -4,7 +4,7 @@ import com.razz.eva.persistence.ConnectionMode.REQUIRE_EXISTING
 import com.razz.eva.persistence.executor.QueryExecutor
 import com.razz.eva.persistence.vertx.VertxTransactionManager
 import io.vertx.core.json.Json
-import io.vertx.kotlin.coroutines.await
+import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.pgclient.PgConnection
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
@@ -61,7 +61,7 @@ class VertxQueryExecutor(
     ): Int {
         return transactionManager.inTransaction(REQUIRE_EXISTING) { connection ->
             connection.preparedQuery(dslContext.renderNamedParams(jooqQuery))
-                .execute(bindParams(dslContext, jooqQuery)).map(SqlResult<*>::rowCount).await()
+                .execute(bindParams(dslContext, jooqQuery)).map(SqlResult<*>::rowCount).coAwait()
         }
     }
 
@@ -72,7 +72,7 @@ class VertxQueryExecutor(
         table: Table<R>,
     ): RowSet<R> = connection.preparedQuery(dslContext.renderNamedParams(jooqQuery)).mapping { row ->
         convertRowToRecord(dslContext, row, table)
-    }.execute(bindParams(dslContext, jooqQuery)).await()
+    }.execute(bindParams(dslContext, jooqQuery)).coAwait()
 
     private fun bindParams(
         dslContext: DSLContext,

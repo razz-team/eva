@@ -14,7 +14,7 @@ import com.razz.eva.persistence.vertx.executor.VertxQueryExecutor
 import com.razz.eva.test.db.DatabaseContainerHelper
 import com.razz.eva.test.db.DatabaseContainerHelper.Companion.localPool
 import io.vertx.pgclient.PgConnectOptions
-import io.vertx.pgclient.PgPool
+import io.vertx.sqlclient.Pool
 import io.vertx.sqlclient.PoolOptions
 import org.flywaydb.core.Flyway
 import org.jooq.SQLDialect
@@ -78,11 +78,11 @@ open class RepositoryHelper(
     private fun vertxEngine(dbName: String): Pair<TransactionManager<*>, QueryExecutor> {
         val pool = vertxPool(db, dbName)
         val provider = PgPoolConnectionProvider(pool)
-        val vertxnManager = VertxTransactionManager(provider, provider)
-        return vertxnManager to VertxQueryExecutor(vertxnManager)
+        val vertxManager = VertxTransactionManager(provider, provider)
+        return vertxManager to VertxQueryExecutor(vertxManager)
     }
 
-    private fun vertxPool(db: DatabaseContainerHelper, dbName: String): PgPool {
+    private fun vertxPool(db: DatabaseContainerHelper, dbName: String): Pool {
         val options = PgConnectOptions().apply {
             cachePreparedStatements = true
             preparedStatementCacheMaxSize = 2048
@@ -94,7 +94,7 @@ open class RepositoryHelper(
             database = dbName
             port = db.dbPort()
         }
-        return PgPool.pool(options, PoolOptions())
+        return Pool.pool(options, PoolOptions())
     }
 
     private fun flywayProvider(dbName: String, migration: Migration): Flyway {

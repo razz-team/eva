@@ -10,11 +10,11 @@ sourceSets.main {
 }
 
 tasks.compileJava {
-    options.release.set(19)
+    options.release.set(21)
 }
 tasks.compileKotlin {
     kotlinOptions {
-        languageVersion = "1.8"
-        jvmTarget = "19"
+        languageVersion = "1.9"
+        jvmTarget = "21"
     }
 }
