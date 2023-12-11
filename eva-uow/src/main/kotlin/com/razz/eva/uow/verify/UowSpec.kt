@@ -51,6 +51,18 @@ class UowSpec<R> internal constructor(
         return verified
     }
 
+    fun <M : Model<*, *>> addsAndReturns(verify: M.() -> Unit): M {
+        verifyResultAs(verify)
+        return verifyAdded(verify)
+    }
+
+    fun <M : Model<*, *>> EqualityVerifierAware.addsAndReturns(id: ModelId<*>, verify: M.() -> Unit): M {
+        verifyResultAs(verify)
+        val verified = verifyAdded(verify)
+        equalityVerifier.verify(verified.id(), id)
+        return verified
+    }
+
     fun <M : Model<*, *>> updatesEq(expected: M) {
         verifyUpdated<M> { actual ->
             check(actual == expected) { "Got unexpected update of [$actual]" }
@@ -62,6 +74,18 @@ class UowSpec<R> internal constructor(
     }
 
     fun <M : Model<*, *>> EqualityVerifierAware.updates(id: ModelId<*>, verify: M.() -> Unit): M {
+        val verified = verifyUpdated(verify)
+        equalityVerifier.verify(verified.id(), id)
+        return verified
+    }
+
+    fun <M : Model<*, *>> updatesAnReturns(verify: M.() -> Unit): M {
+        verifyResultAs(verify)
+        return verifyUpdated(verify)
+    }
+
+    fun <M : Model<*, *>> EqualityVerifierAware.updatesAnReturns(id: ModelId<*>, verify: M.() -> Unit): M {
+        verifyResultAs(verify)
         val verified = verifyUpdated(verify)
         equalityVerifier.verify(verified.id(), id)
         return verified
