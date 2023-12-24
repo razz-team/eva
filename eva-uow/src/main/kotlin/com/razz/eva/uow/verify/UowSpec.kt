@@ -79,12 +79,12 @@ class UowSpec<R> internal constructor(
         return verified
     }
 
-    fun <M : Model<*, *>> updatesAnReturns(verify: M.() -> Unit): M {
+    fun <M : Model<*, *>> updatesAndReturns(verify: M.() -> Unit): M {
         verifyResultAs(verify)
         return verifyUpdated(verify)
     }
 
-    fun <M : Model<*, *>> EqualityVerifierAware.updatesAnReturns(id: ModelId<*>, verify: M.() -> Unit): M {
+    fun <M : Model<*, *>> EqualityVerifierAware.updatesAndReturns(id: ModelId<*>, verify: M.() -> Unit): M {
         verifyResultAs(verify)
         val verified = verifyUpdated(verify)
         equalityVerifier.verify(verified.id(), id)
