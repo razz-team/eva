@@ -199,7 +199,7 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
                     valuesRow()
                         .fields()
                         .filterIndexed { i, _ -> createdAt != this.field(i) }
-                        .map { field -> field.cast(field.dataType) }
+//                        .map { field -> field.cast(field.dataType) }
                         .toTypedArray()
                 }
             )
@@ -242,11 +242,17 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
     private fun <Q : UpdateQuery<R>> prepareUpdate(updateQuery: Q): Q {
         return updateQuery.apply {
             addConditions(
-                DSL.field(DSL.name(VALUES_ALIAS, tableId.unqualifiedName)).cast(tableId.dataType).eq(
-                    DSL.field(DSL.name(ORIGIN_ALIAS, tableId.unqualifiedName)).cast(tableId.dataType)
+//                DSL.field(DSL.name(VALUES_ALIAS, tableId.unqualifiedName)).cast(tableId.dataType).eq(
+//                    DSL.field(DSL.name(ORIGIN_ALIAS, tableId.unqualifiedName)).cast(tableId.dataType)
+//                ),
+//                DSL.field(DSL.name(VALUES_ALIAS, version.unqualifiedName)).cast(version.dataType).eq(
+//                    DSL.field(DSL.name(ORIGIN_ALIAS, version.unqualifiedName)).cast(version.dataType).plus(1)
+//                )
+                DSL.field(DSL.name(VALUES_ALIAS, tableId.unqualifiedName)).eq(
+                    DSL.field(DSL.name(ORIGIN_ALIAS, tableId.unqualifiedName))
                 ),
-                DSL.field(DSL.name(VALUES_ALIAS, version.unqualifiedName)).cast(version.dataType).eq(
-                    DSL.field(DSL.name(ORIGIN_ALIAS, version.unqualifiedName)).cast(version.dataType).plus(1)
+                DSL.field(DSL.name(VALUES_ALIAS, version.unqualifiedName)).eq(
+                    DSL.field(DSL.name(ORIGIN_ALIAS, version.unqualifiedName)).plus(1)
                 )
             )
         }
