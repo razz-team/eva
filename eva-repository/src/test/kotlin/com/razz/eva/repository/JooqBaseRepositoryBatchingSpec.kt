@@ -329,23 +329,23 @@ class JooqBaseRepositoryBatchingSpec : BehaviorSpec({
                             "U"."version")
                             
                             from (values 
-                                (cast('${dep1.id().id}' as uuid),
-                                cast('UPDATE TEST' as text),
-                                cast('${boss1.id}' as uuid),
-                                cast(1 as int),
-                                cast('BUBALEH' as text),
-                                cast(cast('OWNED' as "departments_state") as "departments_state"),
-                                cast(timestamp '$recordUpdatedAt' as timestamp(6)),
-                                cast(2 as bigint)),
+                                ('${dep1.id().id}',
+                                'UPDATE TEST',
+                                '${boss1.id}',
+                                1,
+                                'BUBALEH',
+                                cast('OWNED' as "departments_state"),
+                                timestamp '$recordUpdatedAt',
+                                2),
                                     
-                                (cast('${dep2.id().id}' as uuid),
-                                cast('UPDATE TEST 2' as text),
-                                cast('${boss2.id}' as uuid),
-                                cast(1 as int),
-                                cast('SHAKSHOUKA' as text),
-                                cast(cast('OWNED' as "departments_state") as "departments_state"),
-                                cast(timestamp '$recordUpdatedAt' as timestamp(6)),
-                                cast(2 as bigint)))
+                                ('${dep2.id().id}',
+                                'UPDATE TEST 2',
+                                '${boss2.id}',
+                                1,
+                                'SHAKSHOUKA',
+                                cast('OWNED' as "departments_state"),
+                                timestamp '$recordUpdatedAt',
+                                2))
                                 
                             as "U"
                             ("id",
@@ -357,8 +357,8 @@ class JooqBaseRepositoryBatchingSpec : BehaviorSpec({
                             "record_updated_at",
                             "version")
                             
-                            where (cast("U"."id" as uuid) = cast("T"."id" as uuid)
-                                and cast("U"."version" as bigint) = (cast("T"."version" as bigint) + 1))
+                            where ("U"."id" = "T"."id"
+                                and "U"."version" = ("T"."version" + 1))
                         """.trim().replace(Regex("\\s+"), " ")
                     }
                 }
