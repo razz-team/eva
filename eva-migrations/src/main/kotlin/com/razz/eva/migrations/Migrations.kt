@@ -36,7 +36,8 @@ class Migrations(
                     }
                 )
             )
-            .schemas(migration.schema.toString())
+            .schemas(migration.schema.stringValue())
+            .createSchemas(migration.schema.createOnMigration()) // Flyway defaults to true
             .locations(*migration.classpathLocations().toTypedArray())
             .load()
     }
