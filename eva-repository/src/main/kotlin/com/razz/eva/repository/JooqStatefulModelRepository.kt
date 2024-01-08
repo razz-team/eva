@@ -8,6 +8,7 @@ import com.razz.jooq.record.TypedStatefulEntityRecord
 import org.jooq.DSLContext
 import org.jooq.Table
 import org.jooq.TableField
+import java.time.Instant
 
 abstract class JooqStatefulModelRepository<ID, MID, M, ME, R, S>(
     queryExecutor: QueryExecutor,
@@ -19,8 +20,10 @@ abstract class JooqStatefulModelRepository<ID, MID, M, ME, R, S>(
     dbId: (MID) -> ID = { mid -> mid.id as ID },
     @Suppress("UNCHECKED_CAST")
     version: TableField<R, Long> = table.recordVersion as TableField<R, Long>,
+    @Suppress("UNCHECKED_CAST")
+    createdAt: TableField<R, Instant> = table.field("record_created_at") as TableField<R, Instant>,
 ) : JooqBaseModelRepository<ID, MID, M, ME, R>(
-    queryExecutor, dslContext, table, tableId, dbId, version,
+    queryExecutor, dslContext, table, tableId, dbId, version, createdAt
 ) where ID : Comparable<ID>,
         MID : ModelId<out Comparable<*>>,
         ME : ModelEvent<MID>,
