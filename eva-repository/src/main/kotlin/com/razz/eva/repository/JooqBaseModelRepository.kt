@@ -171,7 +171,9 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
                 jooqQuery = updateQuery,
                 table = table
             )
-        }.getSingle(this::fromRecord) { throw IllegalStateException("Too many rows updated") }.second
+        }.getSingleOrNull(this::fromRecord) {
+            JooqQueryException(updateQuery, it, "Too many rows updated")
+        }
 
         @Suppress("UNCHECKED_CAST")
         when (updated) {
@@ -270,7 +272,7 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
     }
 
     private suspend fun <R : Record> exists(select: Select<R>): Boolean {
-        return oneRecord(dslContext.selectOne().whereExists(select)) != null
+        return atMostOneRecord(dslContext.selectOne().whereExists(select)) != null
     }
 
     protected suspend fun findOneWhere(condition: Condition): M? {
@@ -280,7 +282,7 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
     }
 
     private suspend fun findOne(select: Select<R>): M? {
-        return oneRecord(select)?.let { fromRecord(it) }
+        return atMostOneRecord(select)?.let { fromRecord(it) }
     }
 
     protected suspend fun findLast(
@@ -343,11 +345,11 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
     }
 
     protected suspend fun count(condition: Condition): Long {
-        return oneRecord(dslContext.select(LONG_COUNT).from(table).where(condition))?.value1() ?: 0
+        return atMostOneRecord(dslContext.select(LONG_COUNT).from(table).where(condition))?.value1() ?: 0
     }
 
     protected suspend fun countGrouped(condition: Condition, groupFields: Set<TableField<R, *>>): Long {
-        return oneRecord(
+        return atMostOneRecord(
             dslContext
                 .select(LONG_COUNT)
                 .from(
@@ -359,10 +361,11 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
         )?.value1() ?: 0
     }
 
-    protected suspend fun <R : Record> oneRecord(select: Select<R>): R? {
+    protected suspend fun <R : Record> atMostOneRecord(select: Select<R>): R? {
         return allRecords(select)
-            .getSingle({ it }) { throw IllegalStateException("Found more than one record") }
-            .second
+            .getSingleOrNull({ it }) {
+                JooqQueryException(select, it, "Found more than one record")
+            }
     }
 
     protected suspend fun <R : Record> allRecords(select: Select<R>): List<R> {
@@ -373,12 +376,12 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
         )
     }
 
-    private fun <T, K> List<T>.getSingle(mapper: (T) -> K, ex: () -> Exception): Pair<Int, K?> {
-        return this.fold(Pair<Int, K?>(0, null)) { (i, _), v ->
-            when (i) {
-                0 -> i.inc() to mapper(v)
-                else -> throw ex()
-            }
+    @Throws(JooqQueryException::class)
+    private fun <T, K> List<T>.getSingleOrNull(mapper: (T) -> K, ex: (List<T>) -> JooqQueryException): K? {
+        return when (size) {
+            0 -> null
+            1 -> mapper(first())
+            else -> throw ex(this)
         }
     }
 
