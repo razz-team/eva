@@ -1,6 +1,6 @@
 package com.razz.eva.domain
 
-interface Queries<MID : ModelId<out Comparable<*>>, M : Model<MID, *>> : suspend (MID) -> M {
+interface Queries<MID : ModelId<out Comparable<*>>, out M : Model<MID, *>> : suspend (MID) -> M {
 
     suspend fun find(id: MID): M?
 
