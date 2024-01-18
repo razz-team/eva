@@ -5,11 +5,11 @@ import com.razz.eva.paging.Offset
 import com.razz.eva.paging.Page
 import com.razz.eva.paging.PagedList
 import com.razz.eva.paging.Size
+import org.jooq.Field
 import org.jooq.Record
 import org.jooq.Select
 import org.jooq.SelectOrderByStep
 import org.jooq.SortOrder
-import org.jooq.TableField
 
 abstract class PagingStrategy<ID, M, S, P, R>
     where ID : Comparable<ID>,
@@ -17,9 +17,9 @@ abstract class PagingStrategy<ID, M, S, P, R>
           P : Comparable<P>,
           R : Record {
 
-    protected abstract fun tableOrdering(): TableField<R, P>
+    protected abstract fun tableOrdering(): Field<P>
 
-    protected abstract fun tableId(): TableField<R, ID>
+    protected abstract fun tableId(): Field<ID>
 
     protected abstract fun tableOffset(offset: Offset): ID
 
