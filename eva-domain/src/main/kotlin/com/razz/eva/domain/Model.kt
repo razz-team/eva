@@ -15,10 +15,3 @@ abstract class Model<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>>(
 
     protected fun entityState(): EntityState<ID, E> = entityState
 }
-
-inline fun <reified M : Model<*, *>, T> M.changeIfPresent(
-    value: T?,
-    update: M.(T) -> M
-): M {
-    return value?.let { update(it) } ?: this
-}
