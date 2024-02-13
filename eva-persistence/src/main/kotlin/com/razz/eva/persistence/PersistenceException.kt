@@ -6,12 +6,25 @@ import java.util.UUID
 
 sealed class PersistenceException(message: String) : RuntimeException(message) {
 
-    class UniqueModelRecordViolationException(
-        val modelId: ModelId<*>,
-        tableName: String,
+    sealed interface ConstraintViolation {
         val constraintName: String?
-    ) : PersistenceException(
+    }
+
+    open class UniqueModelRecordViolationException(
+        val modelId: ModelId<*>,
+        val tableName: String,
+        override val constraintName: String?
+    ) : ConstraintViolation, PersistenceException(
         "Uniqueness of [$tableName]:[${modelId.stringValue()}]" +
+            " violated ${constraintName?.let { ": [$it]" }}"
+    )
+
+    open class ModelRecordConstraintViolationException(
+        val modelId: ModelId<*>,
+        val tableName: String,
+        override val constraintName: String?
+    ) : ConstraintViolation, PersistenceException(
+        "Constraint for [$tableName]:[${modelId.stringValue()}]" +
             " violated ${constraintName?.let { ": [$it]" }}"
     )
 
@@ -22,15 +35,6 @@ sealed class PersistenceException(message: String) : RuntimeException(message) {
         val constraintName: String?
     ) : PersistenceException(
         "Uniqueness of [$uowName] [$uowId] ${idempotencyKey?.let { ": [${it.stringValue()}]" }}" +
-            " violated ${constraintName?.let { ": [$it]" }}"
-    )
-
-    class ModelRecordConstraintViolationException(
-        val modelId: ModelId<*>,
-        tableName: String,
-        val constraintName: String?
-    ) : PersistenceException(
-        "Constraint for [$tableName]:[${modelId.stringValue()}]" +
             " violated ${constraintName?.let { ": [$it]" }}"
     )
 

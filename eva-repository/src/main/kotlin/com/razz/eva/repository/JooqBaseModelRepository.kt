@@ -387,31 +387,51 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
 
     private inline fun <R : Record, ME : M> wrapException(model: ME, block: () -> List<R>) = try {
         block()
-    } catch (e: DataAccessException) {
+    } catch (ex: DataAccessException) {
         when {
-            e.sqlState() == PgHelpers.PG_UNIQUE_VIOLATION -> {
-                val constraintName = PgHelpers.extractUniqueConstraintName(queryExecutor, table, e)
-                throw PersistenceException.UniqueModelRecordViolationException(model.id(), table.name, constraintName)
-            }
-            e.sqlStateClass() == SQLStateClass.C23_INTEGRITY_CONSTRAINT_VIOLATION -> {
-                val constraintName = PgHelpers.extractConstraintName(queryExecutor, e)
-                throw PersistenceException.ModelRecordConstraintViolationException(
+            ex.sqlState() == PgHelpers.PG_UNIQUE_VIOLATION -> {
+                val constraintName = PgHelpers.extractUniqueConstraintName(queryExecutor, table, ex)
+                val uex = PersistenceException.UniqueModelRecordViolationException(
                     model.id(),
                     table.name,
-                    constraintName
+                    constraintName,
                 )
+                throw mapConstraintViolation(uex) ?: uex
             }
-            else -> throw PersistenceException.ModelPersistingGenericException(model.id(), e)
+            ex.sqlStateClass() == SQLStateClass.C23_INTEGRITY_CONSTRAINT_VIOLATION -> {
+                val constraintName = PgHelpers.extractConstraintName(queryExecutor, ex)
+                val cex = PersistenceException.ModelRecordConstraintViolationException(
+                    model.id(),
+                    table.name,
+                    constraintName,
+                )
+                throw mapConstraintViolation(cex) ?: cex
+            }
+            else -> throw PersistenceException.ModelPersistingGenericException(model.id(), ex)
         }
-    } catch (e: PgException) {
+    } catch (ex: PgException) {
         when {
-            e.sqlState == PgHelpers.PG_UNIQUE_VIOLATION ->
-                throw PersistenceException.UniqueModelRecordViolationException(model.id(), table.name, e.constraint)
-            SQLStateClass.fromCode(e.sqlState) == SQLStateClass.C23_INTEGRITY_CONSTRAINT_VIOLATION ->
-                throw PersistenceException.ModelRecordConstraintViolationException(model.id(), table.name, e.constraint)
-            else -> throw PersistenceException.ModelPersistingGenericException(model.id(), e)
+            ex.sqlState == PgHelpers.PG_UNIQUE_VIOLATION -> {
+                val uex = PersistenceException.UniqueModelRecordViolationException(
+                    model.id(),
+                    table.name,
+                    ex.constraint,
+                )
+                throw mapConstraintViolation(uex) ?: uex
+            }
+            SQLStateClass.fromCode(ex.sqlState) == SQLStateClass.C23_INTEGRITY_CONSTRAINT_VIOLATION -> {
+                val cex = PersistenceException.ModelRecordConstraintViolationException(
+                    model.id(),
+                    table.name,
+                    ex.constraint,
+                )
+                throw mapConstraintViolation(cex) ?: cex
+            }
+            else -> throw PersistenceException.ModelPersistingGenericException(model.id(), ex)
         }
     }
+
+    protected open fun mapConstraintViolation(ex: PersistenceException.ConstraintViolation): Exception? = null
 
     private companion object {
         private const val MAX_RETURNED_RECORDS = 1000
