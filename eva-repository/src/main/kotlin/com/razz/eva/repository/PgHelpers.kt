@@ -7,8 +7,8 @@ import org.jooq.exception.DataAccessException
 object PgHelpers {
     const val PG_UNIQUE_VIOLATION = "23505"
 
-    fun extractUniqueConstraintName(queryExecutor: QueryExecutor, table: Table<*>, e: DataAccessException): String? {
-        val constraintName = queryExecutor.getConstraintName(e)
+    fun extractUniqueConstraintName(queryExecutor: QueryExecutor, table: Table<*>, ex: DataAccessException): String? {
+        val constraintName = queryExecutor.getConstraintName(ex)
         return if (table.comment == "PARTITIONED") {
             constraintName
         } else {
@@ -16,7 +16,7 @@ object PgHelpers {
         }
     }
 
-    fun extractConstraintName(queryExecutor: QueryExecutor, e: DataAccessException): String? {
-        return queryExecutor.getConstraintName(e)
+    fun extractConstraintName(queryExecutor: QueryExecutor, ex: DataAccessException): String? {
+        return queryExecutor.getConstraintName(ex)
     }
 }

@@ -101,5 +101,5 @@ class FakeMemorizingQueryExecutor(
         }
     }
 
-    override fun getConstraintName(e: DataAccessException): String? = null
+    override fun getConstraintName(ex: DataAccessException): String? = null
 }

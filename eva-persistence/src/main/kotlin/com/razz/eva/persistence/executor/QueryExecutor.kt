@@ -27,5 +27,5 @@ interface QueryExecutor {
         jooqQuery: DMLQuery<R>,
     ): Int
 
-    fun getConstraintName(e: DataAccessException): String?
+    fun getConstraintName(ex: DataAccessException): String?
 }
