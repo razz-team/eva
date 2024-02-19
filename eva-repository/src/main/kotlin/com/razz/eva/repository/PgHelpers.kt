@@ -12,7 +12,8 @@ object PgHelpers {
         return if (table.comment == "PARTITIONED") {
             constraintName
         } else {
-            table.indexes.firstOrNull { it.unique && it.name == constraintName }?.name
+            table.keys.firstOrNull { it.name == constraintName }?.name
+                ?: table.indexes.firstOrNull { it.unique && it.name == constraintName }?.name
         }
     }
 
