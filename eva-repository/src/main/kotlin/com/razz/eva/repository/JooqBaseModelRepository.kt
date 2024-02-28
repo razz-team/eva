@@ -287,8 +287,14 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
 
     protected suspend fun findLast(
         condition: Condition,
-        sortField: TableField<R, *>
-    ): M? = findAllWhere(condition, sortField.desc(), 1).singleOrNull()
+        sortField: TableField<R, *>,
+        sortFields: Array<TableField<R, *>> = emptyArray(),
+    ): M? = findAllWhere(
+        condition = condition,
+        sortField = sortField.desc(),
+        sortFields = sortFields.map(TableField<R, *>::desc).toTypedArray(),
+        limit = 1,
+    ).singleOrNull()
 
     /**
      * If page is not first, we use JOOQ 'seek' method to find position of page
@@ -322,18 +328,19 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
 
     private fun <N, S, P> SelectConditionStep<R>.page(
         page: Page<P>,
-        pagingStrategy: PagingStrategy<ID, N, S, P, R>
+        pagingStrategy: PagingStrategy<ID, N, S, P, R>,
     ) where S : N, P : Comparable<P> = pagingStrategy.select(this, page)
 
     protected suspend fun findAllWhere(
         condition: Condition,
         sortField: SortField<*>? = null,
-        limit: Int = MAX_RETURNED_RECORDS
+        sortFields: Array<SortField<*>> = emptyArray(),
+        limit: Int = MAX_RETURNED_RECORDS,
     ): List<M> {
         val select = dslContext.selectFrom(table)
             .where(condition)
         return if (sortField != null) {
-            findAll(select.orderBy(sortField).limit(limit))
+            findAll(select.orderBy(sortField, *sortFields).limit(limit))
         } else {
             findAll(select.limit(limit))
         }
