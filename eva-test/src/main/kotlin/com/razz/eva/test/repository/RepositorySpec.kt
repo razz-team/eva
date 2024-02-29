@@ -28,8 +28,8 @@ abstract class RepositorySpec(
         this.body()
     }
 
-    suspend fun <R> inTransaction(block: suspend (context: TransactionalContext) -> R): R {
-        val context = transactionalContext(clock.instant())
+    suspend fun <R> inTransaction(ctxInstant: Instant? = null, block: suspend (context: TransactionalContext) -> R): R {
+        val context = transactionalContext(ctxInstant ?: clock.instant())
         val txBlock: suspend () -> R = {
             block(context)
         }
