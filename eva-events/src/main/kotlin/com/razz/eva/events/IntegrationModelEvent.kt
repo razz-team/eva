@@ -15,8 +15,7 @@ data class IntegrationModelEvent(
     val payload: JsonObject
 ) {
 
-    @JvmInline
-    value class EventId(private val id: UUID) {
+    data class EventId(private val id: UUID) {
         override fun toString() = id.toString()
 
         fun toUUID() = id
@@ -28,8 +27,7 @@ data class IntegrationModelEvent(
         }
     }
 
-    @JvmInline
-    value class UowId(private val id: UUID) {
+    data class UowId(private val id: UUID) {
         override fun toString() = id.toString()
 
         fun toUUID() = id
@@ -39,20 +37,17 @@ data class IntegrationModelEvent(
         }
     }
 
-    @JvmInline
-    value class ModelId(private val id: String) {
+    data class ModelId(private val id: String) {
         fun stringValue() = id
 
         override fun toString() = id
     }
 
-    @JvmInline
-    value class EventName(private val name: String) {
+    data class EventName(private val name: String) {
         override fun toString() = name
     }
 
-    @JvmInline
-    value class ModelName(private val name: String) {
+    data class ModelName(private val name: String) {
         override fun toString() = name
     }
 
