@@ -3,7 +3,7 @@ object versions {
     val jvm = "21"
     val kotlin = "1.9.21"
     val kotlin_coroutines = "1.7.3"
-    val kotlin_serialization_json = "1.6.1"
+    val kotlin_serialization_json = "1.6.3"
     val kotest = "5.8.0"
     val jooq = "3.18.7"
     val flywaydb = "10.1.0"
