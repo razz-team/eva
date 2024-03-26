@@ -125,7 +125,7 @@ class PagingStrategySpec : BehaviorSpec({
                             ("bubalehs"."state" = cast('SERVED' as "bubalehs_state")
                             and ("bubalehs"."produced_on" < timestamp '$renderedTimestamp' 
                             or ("bubalehs"."produced_on" = timestamp '$renderedTimestamp' 
-                            and "bubalehs"."id" > 'a5e15308-3a8d-462b-b96c-6f1137e30f0d'))) 
+                            and "bubalehs"."id" > cast('a5e15308-3a8d-462b-b96c-6f1137e30f0d' as uuid)))) 
                             order by "bubalehs"."produced_on" desc, "bubalehs"."id" 
                             fetch next 1 rows only
                             """.trimIndent().replace(Regex("\\s+"), " ")

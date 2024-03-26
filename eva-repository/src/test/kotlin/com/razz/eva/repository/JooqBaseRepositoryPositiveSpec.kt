@@ -90,9 +90,9 @@ class JooqBaseRepositoryPositiveSpec : BehaviorSpec({
                              "record_created_at",
                              "version")
                             values 
-                            ('${dep.id().id}',
+                            (cast('${dep.id().id}' as uuid),
                              'store me in the repo',
-                             '${boss.id}',
+                             cast('${boss.id}' as uuid),
                              1,
                              'BUBALEH',
                              cast('OWNED' as "departments_state"),
@@ -132,13 +132,13 @@ class JooqBaseRepositoryPositiveSpec : BehaviorSpec({
                         update.jooqQuery.getSQL(INLINED) shouldBe """
                             update "departments" set
                             "name" = 'UPDATE TEST',
-                            "boss" = '${boss.id}',
+                            "boss" = cast('${boss.id}' as uuid),
                             "headcount" = 1,
                             "ration" = 'BUBALEH',
                             "state" = cast('OWNED' as "departments_state"),
                             "record_updated_at" = timestamp '$recordUpdatedAt',
                             "version" = 2
-                            where ("departments"."id" = '${dep.id().id}' and "departments"."version" = 1)
+                            where ("departments"."id" = cast('${dep.id().id}' as uuid) and "departments"."version" = 1)
                         """.trim().replace(Regex("\\s+"), " ")
                     }
                 }

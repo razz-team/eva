@@ -108,9 +108,9 @@ class JooqBaseRepositoryBatchingSpec : BehaviorSpec({
                              "record_created_at",
                              "version")
                             values 
-                            ('${dep1.id().id}',
+                             (cast('${dep1.id().id}' as uuid),
                              'store me in the repo',
-                             '${boss.id}',
+                             cast('${boss.id}' as uuid),
                              1,
                              'BUBALEH',
                              cast('OWNED' as "departments_state"),
@@ -171,18 +171,18 @@ class JooqBaseRepositoryBatchingSpec : BehaviorSpec({
                               "record_created_at",
                               "version")
                              values
-                             ('${dep1.id().id}',
+                              (cast('${dep1.id().id}' as uuid),
                               'store me in the repo',
-                              '${boss1.id}',
+                              cast('${boss1.id}' as uuid),
                               1,
                               'BUBALEH',
                               cast('OWNED' as "departments_state"),
                               timestamp '$recordCreatedAt',
                               timestamp '$recordCreatedAt',
                               1),
-                             ('${dep2.id().id}',
+                             (cast('${dep2.id().id}' as uuid),
                               'store me in the repo too',
-                              '${boss2.id}',
+                              cast('${boss2.id}' as uuid),
                               1,
                               'SHAKSHOUKA',
                               cast('OWNED' as "departments_state"),
@@ -236,13 +236,13 @@ class JooqBaseRepositoryBatchingSpec : BehaviorSpec({
                         update.jooqQuery.getSQL(INLINED) shouldBe """
                             update "departments" set
                             "name" = 'UPDATE TEST',
-                            "boss" = '${boss.id}',
+                            "boss" = cast('${boss.id}' as uuid),
                             "headcount" = 1,
                             "ration" = 'BUBALEH',
                             "state" = cast('OWNED' as "departments_state"),
                             "record_updated_at" = timestamp '$recordUpdatedAt',
                             "version" = 2
-                            where ("departments"."id" = '${dep1.id().id}' and "departments"."version" = 1)
+                            where ("departments"."id" = cast('${dep1.id().id}' as uuid) and "departments"."version" = 1)
                         """.trim().replace(Regex("\\s+"), " ")
                     }
                 }

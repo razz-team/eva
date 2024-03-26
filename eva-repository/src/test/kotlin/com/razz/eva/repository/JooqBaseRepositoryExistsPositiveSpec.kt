@@ -31,7 +31,7 @@ class JooqBaseRepositoryExistsPositiveSpec : BehaviorSpec({
                       where exists 
                       (select 1 as "one" 
                         from "departments" 
-                        where "departments"."boss" = '${bossId.id}')     
+                        where "departments"."boss" = cast('${bossId.id}' as uuid))     
                  """.trim().replace(Regex("\\s+"), " ")
             }
         }
