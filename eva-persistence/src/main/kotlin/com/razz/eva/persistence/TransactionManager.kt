@@ -14,11 +14,12 @@ abstract class TransactionManager<C>(
     open suspend fun <R> withConnection(block: suspend (C) -> R): R {
         return when (val existingConn = ctxConnection()) {
             null -> {
-                val newConn = connectionProvider(coroutineContext).acquire()
+                var newConn: C? = null
                 try {
+                    newConn = connectionProvider(coroutineContext).acquire()
                     block(newConn)
                 } finally {
-                    connectionProvider(coroutineContext).release(newConn)
+                    newConn?.let { connectionProvider(coroutineContext).release(it) }
                 }
             }
             else -> block(existingConn)
@@ -39,8 +40,9 @@ abstract class TransactionManager<C>(
         checkCtxConnectionMode(mode)
         return when (val existingConn = ctxConnection()) {
             null -> {
-                val newConn = primaryProvider.acquire()
+                var newConn: C? = null
                 try {
+                    newConn = primaryProvider.acquire()
                     val ctx = wrapConnection(newConn)
                     withContext(ctx) {
                         try {
@@ -54,7 +56,7 @@ abstract class TransactionManager<C>(
                         }
                     }
                 } finally {
-                    primaryProvider.release(newConn)
+                    newConn?.let { primaryProvider.release(it) }
                 }
             }
             // we do not commit/rollback/release existingConn after calling block
