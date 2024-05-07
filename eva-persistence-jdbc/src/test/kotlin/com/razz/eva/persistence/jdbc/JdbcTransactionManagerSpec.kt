@@ -14,6 +14,9 @@ import io.mockk.mockk
 import io.mockk.verify
 import io.mockk.verifyOrder
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.sql.Connection
 
@@ -272,6 +275,55 @@ class JdbcTransactionManagerSpec : BehaviorSpec({
                     confirmVerified(primaryPool)
                     confirmVerified(replicaPool)
                     confirmVerified(connection)
+                }
+            }
+        }
+
+        And("Long running action") {
+            var count = 0
+            val actionStarted = Channel<Boolean>(1)
+            val action = suspend {
+                actionStarted.send(true)
+                delay(100_000)
+                count++
+            }
+
+            And("Principal runs action with connection in cancelable coroutine") {
+                clearMocks(primaryPool, answers = false)
+                clearMocks(replicaPool, answers = false)
+
+                val connection = mockk<Connection>(relaxed = true)
+                every { replicaPool.connection } returns connection
+                val coroutine = async {
+                    jdbcTransactionManager.withConnection { _ -> action() }
+                }
+
+                When("Principal cancels coroutine") {
+                    actionStarted.receive()
+                    coroutine.cancel()
+
+                    Then("Count logic was not called") {
+                        count shouldBe 0
+                    }
+
+                    And("Connection was acquired and released") {
+                        verifyOrder {
+                            replicaPool.connection
+                            connection.close()
+                        }
+                    }
+
+                    And("Only one pool connection was acquired and returned") {
+                        verify(exactly = 1) {
+                            replicaPool.connection
+                        }
+                        verify(exactly = 1) {
+                            connection.close()
+                        }
+                        confirmVerified(primaryPool)
+                        confirmVerified(replicaPool)
+                        confirmVerified(connection)
+                    }
                 }
             }
         }
