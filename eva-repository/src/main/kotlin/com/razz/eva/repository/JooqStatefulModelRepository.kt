@@ -25,11 +25,11 @@ abstract class JooqStatefulModelRepository<ID, MID, M, ME, R, S>(
 ) : JooqBaseModelRepository<ID, MID, M, ME, R>(
     queryExecutor, dslContext, table, tableId, dbId, version, createdAt
 ) where ID : Comparable<ID>,
-        MID : ModelId<out Comparable<*>>,
-        ME : ModelEvent<MID>,
-        M : Model<MID, ME>,
-        R : TypedStatefulEntityRecord<ID, S>,
-        S : Enum<S> {
+      MID : ModelId<out Comparable<*>>,
+      ME : ModelEvent<MID>,
+      M : Model<MID, ME>,
+      R : TypedStatefulEntityRecord<ID, S>,
+      S : Enum<S> {
 
     protected abstract fun stateOf(model: M): S
 

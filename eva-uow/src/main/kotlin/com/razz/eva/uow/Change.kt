@@ -85,7 +85,7 @@ internal data class Noop(
 }
 
 private infix fun <E : ModelEvent<out ModelId<out Comparable<*>>>> List<E>
-.isSuccessorOf(modelEvents: List<E>): Boolean {
+    .isSuccessorOf(modelEvents: List<E>): Boolean {
     if (this.size < modelEvents.size) {
         return false
     }

@@ -19,7 +19,7 @@ class ChangesDsl internal constructor(initial: ChangesAccumulator) {
 
     // Under no circumstances should this method accept a model that is not new
     fun <MID, E, M> add(model: M): M
-    where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
+        where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
         require(model.isNew()) {
             "Attempted to register ${if (model.isDirty()) "changed" else "unchanged"} " +
                 "model [${model.id().stringValue()}] as new"
@@ -49,7 +49,7 @@ class ChangesDsl internal constructor(initial: ChangesAccumulator) {
     //     }
     //
     fun <MID, E, M> update(model: M): M
-    where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
+        where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
         require(model.isDirty() || model.isNew()) {
             "Attempted to register unchanged model [${model.id().stringValue()}] as changed"
         }
@@ -78,7 +78,7 @@ class ChangesDsl internal constructor(initial: ChangesAccumulator) {
     //     }
     //
     fun <MID, E, M> notChanged(model: M): M
-    where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
+        where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
         require(model.isPersisted() || model.isNew()) {
             "Attempted to register changed model [${model.id().stringValue()}] as unchanged"
         }
@@ -91,10 +91,10 @@ class ChangesDsl internal constructor(initial: ChangesAccumulator) {
         principal: PRINCIPAL,
         params: () -> PARAMS,
     ): RESULT
-    where PRINCIPAL : Principal<*>,
-          PARAMS : UowParams<PARAMS>,
-          RESULT : Any,
-          UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *> {
+        where PRINCIPAL : Principal<*>,
+              PARAMS : UowParams<PARAMS>,
+              RESULT : Any,
+              UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *> {
         val subChanges = uow.tryPerform(principal, params())
         tail = tail?.merge(head.merge(subChanges)) ?: head.merge(subChanges)
         head = ChangesAccumulator()
