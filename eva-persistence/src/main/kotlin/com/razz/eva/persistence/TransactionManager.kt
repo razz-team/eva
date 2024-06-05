@@ -8,7 +8,7 @@ import kotlin.coroutines.coroutineContext
 
 abstract class TransactionManager<C>(
     private val primaryProvider: ConnectionProvider<C>,
-    private val replicaProvider: ConnectionProvider<C>
+    private val replicaProvider: ConnectionProvider<C>,
 ) {
 
     open suspend fun <R> withConnection(block: suspend (C) -> R): R {
@@ -37,9 +37,9 @@ abstract class TransactionManager<C>(
         mode: ConnectionMode,
         block: suspend (C) -> R
     ): R {
-        checkCtxConnectionMode(mode)
         return when (val existingConn = ctxConnection()) {
             null -> {
+                check(mode == REQUIRE_NEW) { "Required existing connection but no existing connection was found" }
                 var newConn: C? = null
                 try {
                     newConn = primaryProvider.acquire()
@@ -63,7 +63,10 @@ abstract class TransactionManager<C>(
             // because we are in recursive call to inTransaction
             // and this connection was created upwards the callstack during first call to inTransaction
             // and will be handled there
-            else -> block(existingConn)
+            else -> {
+                check(mode == REQUIRE_EXISTING) { "Required new connection but existing connection was found" }
+                block(existingConn)
+            }
         }
     }
 
@@ -73,13 +76,6 @@ abstract class TransactionManager<C>(
         } else {
             replicaProvider
         }
-
-    private suspend fun checkCtxConnectionMode(mode: ConnectionMode) {
-        when (mode) {
-            REQUIRE_NEW -> check(ctxConnection() == null) { "Required new connection" }
-            REQUIRE_EXISTING -> check(ctxConnection() != null) { "Required existing connection" }
-        }
-    }
 
     abstract fun supportsPipelining(): Boolean
 

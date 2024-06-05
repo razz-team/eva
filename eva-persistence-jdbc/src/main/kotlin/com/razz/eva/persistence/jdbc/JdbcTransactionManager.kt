@@ -13,7 +13,7 @@ import kotlin.coroutines.coroutineContext
 class JdbcTransactionManager(
     primaryProvider: ConnectionProvider<Connection>,
     replicaProvider: ConnectionProvider<Connection>,
-    private val blockingJdbcContext: CoroutineDispatcher = Dispatchers.IO
+    private val blockingJdbcContext: CoroutineDispatcher = Dispatchers.IO,
 ) : TransactionManager<Connection>(primaryProvider, replicaProvider) {
 
     override suspend fun <R> withConnection(block: suspend (Connection) -> R): R {

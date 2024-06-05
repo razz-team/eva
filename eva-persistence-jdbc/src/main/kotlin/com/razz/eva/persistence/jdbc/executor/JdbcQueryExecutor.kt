@@ -1,8 +1,8 @@
 package com.razz.eva.persistence.jdbc.executor
 
 import com.razz.eva.persistence.ConnectionMode.REQUIRE_EXISTING
+import com.razz.eva.persistence.TransactionManager
 import com.razz.eva.persistence.executor.QueryExecutor
-import com.razz.eva.persistence.jdbc.JdbcTransactionManager
 import org.jooq.DMLQuery
 import org.jooq.DSLContext
 import org.jooq.Param
@@ -14,9 +14,10 @@ import org.jooq.Table
 import org.jooq.exception.DataAccessException
 import org.jooq.impl.DSL
 import org.postgresql.util.PSQLException
+import java.sql.Connection
 
 class JdbcQueryExecutor(
-    private val transactionManager: JdbcTransactionManager,
+    private val transactionManager: TransactionManager<Connection>,
 ) : QueryExecutor {
 
     override suspend fun <R : Record> executeSelect(

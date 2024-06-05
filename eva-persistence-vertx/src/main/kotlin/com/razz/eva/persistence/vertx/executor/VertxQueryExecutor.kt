@@ -1,8 +1,8 @@
 package com.razz.eva.persistence.vertx.executor
 
 import com.razz.eva.persistence.ConnectionMode.REQUIRE_EXISTING
+import com.razz.eva.persistence.TransactionManager
 import com.razz.eva.persistence.executor.QueryExecutor
-import com.razz.eva.persistence.vertx.VertxTransactionManager
 import io.vertx.core.json.Json
 import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.pgclient.PgConnection
@@ -29,7 +29,7 @@ import java.time.LocalDateTime
 import java.time.ZoneOffset.UTC
 
 class VertxQueryExecutor(
-    private val transactionManager: VertxTransactionManager
+    private val transactionManager: TransactionManager<PgConnection>,
 ) : QueryExecutor {
 
     override suspend fun <R : Record> executeSelect(
