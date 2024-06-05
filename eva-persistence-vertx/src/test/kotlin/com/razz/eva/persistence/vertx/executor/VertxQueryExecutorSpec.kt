@@ -108,7 +108,7 @@ class VertxQueryExecutorSpec : BehaviorSpec({
 
                 Then("Exception thrown saying there is context missing") {
                     val ex = shouldThrow<IllegalStateException> { storeRun() }
-                    ex.message shouldBe "Required existing connection"
+                    ex.message shouldBe "Required existing connection but no existing connection was found"
                 }
                 And("Connection was not acquired and was not released on delegate provider") {
                     coVerify(exactly = 0) {
@@ -136,7 +136,7 @@ class VertxQueryExecutorSpec : BehaviorSpec({
 
                 Then("Exception thrown saying there is context missing") {
                     val ex = shouldThrow<IllegalStateException> { storeRun() }
-                    ex.message shouldBe "Required existing connection"
+                    ex.message shouldBe "Required existing connection but no existing connection was found"
                 }
                 And("Connection was not acquired and was not released on delegate provider") {
                     coVerify(exactly = 0) {

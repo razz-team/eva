@@ -48,7 +48,7 @@ class VertxTransactionManagerSpec : BehaviorSpec({
 
             Then("Exception thrown") {
                 val ex = shouldThrow<IllegalStateException> { call() }
-                ex.message shouldBe "Required existing connection"
+                ex.message shouldBe "Required existing connection but no existing connection was found"
             }
 
             And("Pools were not called") {
@@ -84,7 +84,7 @@ class VertxTransactionManagerSpec : BehaviorSpec({
                     txn.rollback()
                     connection.close()
                 }
-                ex.message shouldBe "Required new connection"
+                ex.message shouldBe "Required new connection but existing connection was found"
             }
 
             And("Pool connections was acquired and returned, txn was rolled back") {
