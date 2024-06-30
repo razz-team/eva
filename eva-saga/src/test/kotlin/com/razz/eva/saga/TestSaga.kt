@@ -44,11 +44,11 @@ internal object TestSaga : Saga<TestPrincipal, Params, Intermediary, Terminal, T
     ): Step<TestSaga> = params.succ(currentStep)
 
     override suspend fun onException(
-        e: Exception,
+        ex: Exception,
         principal: TestPrincipal,
         params: Params,
         currentStep: Intermediary?,
     ): Terminal? {
-        return params.onException(e, principal, params, currentStep)
+        return params.onException(ex, principal, params, currentStep)
     }
 }

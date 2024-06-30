@@ -47,13 +47,13 @@ abstract class SagaShouldSpec<PRINCIPAL, PARAMS, IS, TS, SELF>(
 
     @Suppress("UNCHECKED_CAST")
     suspend fun afterOnException(
-        e: Exception,
+        ex: Exception,
         principal: PRINCIPAL,
         params: PARAMS,
         currentStep: IS?,
     ): TS? {
         return try {
-            innerOnException.callSuspend(saga, e, principal, params, currentStep) as TS?
+            innerOnException.callSuspend(saga, ex, principal, params, currentStep) as TS?
         } catch (ex: InvocationTargetException) {
             throw ex.targetException
         }
