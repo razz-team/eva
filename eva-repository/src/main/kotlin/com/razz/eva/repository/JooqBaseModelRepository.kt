@@ -249,7 +249,8 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
                 ),
                 DSL.field(DSL.name(VALUES_ALIAS, version.unqualifiedName)).cast(version.dataType).eq(
                     DSL.field(DSL.name(ORIGIN_ALIAS, version.unqualifiedName)).cast(version.dataType).plus(1)
-                )
+                ),
+                // TODO map `partitionCond` to aliased fields
             )
         }
     }
@@ -257,6 +258,7 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
     private fun <Q : UpdateQuery<R>> prepareUpdate(model: M, updateQuery: Q): Q {
         updateQuery.addConditions(tableId.eq(dbId(model.id())))
         updateQuery.addConditions(version.eq(model.version().version))
+        updateQuery.addConditions(partitionCond(model))
         return updateQuery
     }
 
@@ -439,6 +441,8 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
     }
 
     protected open fun mapConstraintViolation(ex: PersistenceException.ConstraintViolation): Exception? = null
+
+    protected open fun partitionCond(model: M): Condition = DSL.noCondition()
 
     private companion object {
         private const val MAX_RETURNED_RECORDS = 1000
