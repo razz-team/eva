@@ -20,8 +20,8 @@ publishing {
                 URI("https://s01.oss.sonatype.org/content/repositories/snapshots/")
             }
             credentials {
-                username = System.getenv("SONATYPE_USER")
-                password = System.getenv("SONATYPE_PASS")
+                username = System.getenv("SONATYPE_TOKEN")
+                password = System.getenv("SONATYPE_TOKEN_PASS")
             }
         }
     }

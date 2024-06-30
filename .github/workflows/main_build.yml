@@ -25,8 +25,8 @@ jobs:
       - name: Publish to Maven releases
         run: ./gradlew publish -Drelease=true
         env:
-          SONATYPE_USER: ${{ secrets.SONATYPE_USER }}
-          SONATYPE_PASS: ${{ secrets.SONATYPE_PASS }}
+          SONATYPE_TOKEN: ${{ secrets.SONATYPE_TOKEN }}
+          SONATYPE_TOKEN_PASS: ${{ secrets.SONATYPE_TOKEN_PASS }}
 
       - name: Cleanup gradle daemon cache
         run: ./gradlew --stop
@@ -37,6 +37,6 @@ jobs:
       - name: Publish to Maven snapshots
         run: ./gradlew publish -Drelease=false
         env:
-          SONATYPE_USER: ${{ secrets.SONATYPE_USER }}
-          SONATYPE_PASS: ${{ secrets.SONATYPE_PASS }}
+          SONATYPE_TOKEN: ${{ secrets.SONATYPE_TOKEN }}
+          SONATYPE_TOKEN_PASS: ${{ secrets.SONATYPE_TOKEN_PASS }}
           GITHUB_SHA: ${{ steps.git_sha.outputs.short }}

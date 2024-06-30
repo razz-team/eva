@@ -26,17 +26,17 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>
     protected abstract suspend fun next(principal: PRINCIPAL, currentStep: IS): Step<SELF>
 
     protected open suspend fun onException(
-        e: Exception,
+        ex: Exception,
         principal: PRINCIPAL,
         params: PARAMS,
         currentStep: IS?
-    ): TS? = throw e
+    ): TS? = throw ex
 
     suspend fun resume(principal: PRINCIPAL, params: PARAMS): TS {
         val initial = try {
             init(principal, params)
-        } catch (e: Exception) {
-            onException(e, principal, params, null) ?: resume(principal, params)
+        } catch (ex: Exception) {
+            onException(ex, principal, params, null) ?: resume(principal, params)
         }
         return run(principal, params, setOf(initial::class), initial)
     }
@@ -58,7 +58,7 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>
             }
             is Terminal<*> -> step as TS
         }
-    } catch (e: Exception) {
-        onException(e, principal, params, step as IS) ?: resume(principal, params)
+    } catch (ex: Exception) {
+        onException(ex, principal, params, step as IS) ?: resume(principal, params)
     }
 }
