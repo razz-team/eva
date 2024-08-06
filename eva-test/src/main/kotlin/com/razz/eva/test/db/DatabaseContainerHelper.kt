@@ -190,5 +190,5 @@ sealed class DockerImageName(internal val value: String) {
     fun toTestcontainers(): TestcontainersDockerImageName = TestcontainersDockerImageName.parse(this.value)
         .asCompatibleSubstituteFor("postgres")
 
-    object PostgrePartmanImage14 : DockerImageName("alecx/testdb:pg14.5")
+    object PostgrePartmanImage14 : DockerImageName("public.ecr.aws/t9u6q1l4/testdb:pg16")
 }
