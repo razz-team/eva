@@ -1,14 +1,16 @@
 package com.razz.eva.persistence.jdbc
 
-import com.zaxxer.hikari.HikariDataSource
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 import java.sql.Connection
+import javax.sql.DataSource
 
-class HikariPoolConnectionProvider(
-    private val pool: HikariDataSource,
+typealias HikariPoolConnectionProvider = DataSourceConnectionProvider
+
+class DataSourceConnectionProvider(
+    private val pool: DataSource,
     private val blockingJdbcContext: CoroutineDispatcher = Dispatchers.IO
 ) : JdbcConnectionProvider {
 
