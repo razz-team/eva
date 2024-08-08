@@ -22,6 +22,9 @@ jobs:
       - name: Build project
         run: ./gradlew build
 
+      - name: dependency graph
+        uses: gradle/actions/dependency-submission@v3
+
       - name: Publish to Maven releases
         run: ./gradlew publish -Drelease=true
         env:
