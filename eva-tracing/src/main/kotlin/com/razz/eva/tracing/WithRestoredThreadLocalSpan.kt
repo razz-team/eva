@@ -13,7 +13,7 @@ import kotlin.coroutines.coroutineContext
  * `block` is specifically made non-suspending to make use of ThreadLocal-stored spans.
  */
 suspend fun <T> Tracer.withRestoredThreadLocalSpan(block: () -> T): T {
-    val activeSpan: Span? = activeSpan()
+    val previousSpan: Span? = activeSpan()
 
     val coroutineSpan = coroutineContext[ActiveSpanElement]
     if (coroutineSpan != null) {
@@ -24,7 +24,7 @@ suspend fun <T> Tracer.withRestoredThreadLocalSpan(block: () -> T): T {
         return block()
     } finally {
         if (coroutineSpan != null) {
-            activateSpan(activeSpan)
+            activateSpan(previousSpan)
         }
     }
 }
