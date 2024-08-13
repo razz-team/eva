@@ -10,7 +10,7 @@ import kotlin.coroutines.coroutineContext
  *
  * After the execution of the block, the original active span is restored.
  *
- * `block` is specifically made non-suspending to make use of ThreadLocal-stored spans.
+ * `block` is made non-suspending on purpose, to make sure that ThreadLocal-stored spans are not lost on context switch.
  */
 suspend fun <T> Tracer.withRestoredThreadLocalSpan(block: () -> T): T {
     val previousSpan: Span? = activeSpan()
