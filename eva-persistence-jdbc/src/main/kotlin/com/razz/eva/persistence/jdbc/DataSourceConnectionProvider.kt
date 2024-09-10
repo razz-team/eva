@@ -3,9 +3,11 @@ package com.razz.eva.persistence.jdbc
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import java.sql.Connection
 import javax.sql.DataSource
+import kotlin.coroutines.coroutineContext
 
 typealias HikariPoolConnectionProvider = DataSourceConnectionProvider
 
@@ -15,7 +17,11 @@ class DataSourceConnectionProvider(
 ) : JdbcConnectionProvider {
 
     override suspend fun acquire(): Connection {
-        return withContext(blockingJdbcContext) {
+        coroutineContext.ensureActive() // fail-fast if current coroutine was cancelled before acquiring a connection
+
+        // if withContext is cancelled, regardless of the inner block result, the cancellation exception will be thrown
+        // here there is nothing to cancel, and we do want to get the connection back regardless of the cancellation
+        return withContext(blockingJdbcContext + NonCancellable) {
             pool.connection
         }
     }
