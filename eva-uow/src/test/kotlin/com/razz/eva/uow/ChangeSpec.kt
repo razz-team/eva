@@ -133,6 +133,18 @@ class ChangeSpec : BehaviorSpec({
             }
         }
 
+        When("Principal tries to merge Update change with Update change for different event") {
+            val firstAcivate = dirtyModel.activate()
+            val update = Update(firstAcivate, firstAcivate.writeEvents(ModelEventDrive()).events())
+            val updatedModel = dirtyModel.activate()
+            val anotherUpdate = Update(updatedModel, updatedModel.writeEvents(ModelEventDrive()).events())
+            val merged = update.merge(anotherUpdate)
+
+            Then("Merged change is null") {
+                merged shouldBe null
+            }
+        }
+
         When("Principal tries to merge Update change with Update change for different model") {
             val update = Update(dirtyModel, dirtyModel.writeEvents(ModelEventDrive()).events())
             val incompatibleModel = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
