@@ -15,7 +15,9 @@ class DataSourceConnectionProvider(
 ) : JdbcConnectionProvider {
 
     override suspend fun acquire(): Connection {
-        return withContext(blockingJdbcContext) {
+        // if withContext is cancelled, even if the inner coroutine will continue running, no value will be returned
+        // therefore need to add NonCancellable, so that the created connection _is_ returned
+        return withContext(blockingJdbcContext + NonCancellable) {
             pool.connection
         }
     }
