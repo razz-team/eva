@@ -17,7 +17,7 @@ class DataSourceConnectionProvider(
 ) : JdbcConnectionProvider {
 
     override suspend fun acquire(): Connection {
-        coroutineContext.ensureActive() // explicitly check for cancellation before acquiring a connection
+        coroutineContext.ensureActive() // fail-fast if current coroutine was cancelled before acquiring a connection
 
         // if withContext is cancelled, regardless of the inner block result, the cancellation exception will be thrown
         // here there is nothing to cancel, and we do want to get the connection back regardless of the cancellation
