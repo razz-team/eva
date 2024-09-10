@@ -306,4 +306,82 @@ class ChangesDslSpec : FunSpec({
         noop.id shouldBe model2.id()
         changes.result shouldBe "K P A C U B O"
     }
+
+    test("Should throw exception when same model updated with composable uow case the same updates") {
+        val model = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
+        val innerUow0 = object : DummyUow<CreatedTestModel>(clock) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                update(model.changeParam1("123"))
+            }
+        }
+        val innerUow1 = object : DummyUow<CreatedTestModel>(clock) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                update(model.changeParam1("123"))
+            }
+        }
+        val uow = object : DummyUow<String>(clock) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                execute(innerUow0, TestPrincipal) { Params }
+                execute(innerUow1, TestPrincipal) { Params }
+                "K P A C U B O"
+            }
+        }
+
+        val exception = shouldThrow<IllegalStateException> {
+            uow.tryPerform(TestPrincipal, DummyUow.Params)
+        }
+        exception.message shouldBe "Failed to merge changes for model [${model.id()}]"
+    }
+
+    test("Should throw exception when same model updated with composable uow case first updates with 2 events") {
+        val model = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
+        val innerUow0 = object : DummyUow<CreatedTestModel>(clock) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                update(model.changeParam1("123").changeParam2(10L))
+            }
+        }
+        val innerUow1 = object : DummyUow<CreatedTestModel>(clock) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                update(model.changeParam1("123"))
+            }
+        }
+        val uow = object : DummyUow<String>(clock) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                execute(innerUow0, TestPrincipal) { Params }
+                execute(innerUow1, TestPrincipal) { Params }
+                "K P A C U B O"
+            }
+        }
+
+        val exception = shouldThrow<IllegalStateException> {
+            uow.tryPerform(TestPrincipal, DummyUow.Params)
+        }
+        exception.message shouldBe "Failed to merge changes for model [${model.id()}]"
+    }
+
+    test("Should throw exception when same model updated with composable uow case second updates with 2 events") {
+        val model = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
+        val innerUow0 = object : DummyUow<CreatedTestModel>(clock) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                update(model.changeParam1("123"))
+            }
+        }
+        val innerUow1 = object : DummyUow<CreatedTestModel>(clock) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                update(model.changeParam1("123").changeParam2(10L))
+            }
+        }
+        val uow = object : DummyUow<String>(clock) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                execute(innerUow0, TestPrincipal) { Params }
+                execute(innerUow1, TestPrincipal) { Params }
+                "K P A C U B O"
+            }
+        }
+
+        val exception = shouldThrow<IllegalStateException> {
+            uow.tryPerform(TestPrincipal, DummyUow.Params)
+        }
+        exception.message shouldBe "Failed to merge changes for model [${model.id()}]"
+    }
 })
