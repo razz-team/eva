@@ -14,8 +14,6 @@ import javax.sql.DataSource
 
 class DataSourceConnectionProviderSpec : BehaviorSpec({
 
-    coroutineTestScope = false
-
     Given("DataSourceConnectionProvider with a data source that returns a connection after a timeout") {
         val dataSource = mockk<DataSource>()
         val expected = mockk<Connection>()
