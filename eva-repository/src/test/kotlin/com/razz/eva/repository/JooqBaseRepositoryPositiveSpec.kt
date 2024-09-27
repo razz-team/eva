@@ -138,7 +138,7 @@ class JooqBaseRepositoryPositiveSpec : BehaviorSpec({
                             "state" = cast('OWNED' as "departments_state"),
                             "record_updated_at" = timestamp '$recordUpdatedAt',
                             "version" = 2
-                            where ("departments"."id" = cast('${dep.id().id}' as uuid) and "departments"."version" = 1 and "departments"."ration" = 'BUBALEH')
+                            where ("departments"."id" = cast('${dep.id().id}' as uuid) and "departments"."version" = 1)
                         """.trim().replace(Regex("\\s+"), " ")
                     }
                 }

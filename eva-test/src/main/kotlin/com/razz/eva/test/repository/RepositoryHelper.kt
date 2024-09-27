@@ -13,15 +13,16 @@ import com.razz.eva.persistence.vertx.VertxTransactionManager
 import com.razz.eva.persistence.vertx.executor.VertxQueryExecutor
 import com.razz.eva.test.db.DatabaseContainer
 import com.razz.eva.test.db.DatabaseContainerHelper
+import io.opentelemetry.api.OpenTelemetry.noop
 import io.vertx.pgclient.PgConnectOptions
 import io.vertx.sqlclient.Pool
 import io.vertx.sqlclient.PoolOptions
+import java.util.function.Predicate
 import org.flywaydb.core.Flyway
 import org.jooq.SQLDialect
 import org.jooq.conf.ParamType
 import org.jooq.conf.Settings
 import org.jooq.impl.DSL
-import java.util.function.Predicate
 
 open class RepositoryHelper(
     migrationPath: String,
@@ -74,7 +75,7 @@ open class RepositoryHelper(
         val pool = databaseContainer.localPool(db.dbName(), hikariPoolSize)
         val provider = HikariPoolConnectionProvider(pool)
         val jdbcManager = JdbcTransactionManager(provider, provider)
-        return jdbcManager to JdbcQueryExecutor(jdbcManager)
+        return jdbcManager to JdbcQueryExecutor(jdbcManager, noop())
     }
 
     private fun vertxEngine(dbName: String): Pair<TransactionManager<*>, QueryExecutor> {

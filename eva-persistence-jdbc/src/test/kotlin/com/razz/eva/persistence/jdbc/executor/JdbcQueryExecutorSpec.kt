@@ -11,11 +11,12 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
 import io.mockk.spyk
+import io.opentelemetry.api.OpenTelemetry.noop
+import java.sql.Connection
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.jooq.SQLDialect.POSTGRES
 import org.jooq.impl.DSL
-import java.sql.Connection
 
 class JdbcQueryExecutorSpec : BehaviorSpec({
 
@@ -27,7 +28,7 @@ class JdbcQueryExecutorSpec : BehaviorSpec({
     Given("Jdbc query executor with connection provider") {
         val connectionProvider = mockk<JdbcConnectionProvider>(relaxed = true)
         val jdbcTransactionManager = spyk(JdbcTransactionManager(connectionProvider, connectionProvider))
-        val jdbcExecutor = JdbcQueryExecutor(jdbcTransactionManager)
+        val jdbcExecutor = JdbcQueryExecutor(jdbcTransactionManager, noop())
 
         And("Connection from provider") {
             clearMocks(connectionProvider, answers = false)

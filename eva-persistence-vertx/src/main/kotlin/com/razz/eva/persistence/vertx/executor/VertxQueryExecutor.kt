@@ -36,6 +36,7 @@ class VertxQueryExecutor(
         dslContext: DSLContext,
         jooqQuery: Select<R>,
         table: Table<R>,
+        tag: String?,
     ): List<R> {
         return transactionManager.withConnection { connection ->
             val rows = executeQuery(connection, dslContext, jooqQuery, table)
@@ -47,6 +48,7 @@ class VertxQueryExecutor(
         dslContext: DSLContext,
         jooqQuery: StoreQuery<RIN>,
         table: Table<ROUT>,
+        tag: String?,
     ): List<ROUT> {
         return transactionManager.inTransaction(REQUIRE_EXISTING) { connection ->
             jooqQuery.setReturning()
@@ -58,6 +60,7 @@ class VertxQueryExecutor(
     override suspend fun <R : Record> executeQuery(
         dslContext: DSLContext,
         jooqQuery: DMLQuery<R>,
+        tag: String?,
     ): Int {
         return transactionManager.inTransaction(REQUIRE_EXISTING) { connection ->
             connection.preparedQuery(dslContext.renderNamedParams(jooqQuery))
