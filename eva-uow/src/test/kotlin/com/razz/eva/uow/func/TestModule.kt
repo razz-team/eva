@@ -24,7 +24,11 @@ import com.razz.eva.uow.HireEmployeesUow
 import com.razz.eva.uow.Persisting
 import com.razz.eva.uow.UnitOfWorkExecutor
 import com.razz.eva.uow.withFactory
-import io.micrometer.core.instrument.simple.SimpleMeterRegistry
+import io.opentelemetry.api.OpenTelemetry
+import java.sql.Timestamp
+import java.time.Clock
+import java.time.Duration
+import java.util.*
 import org.jooq.DMLQuery
 import org.jooq.DSLContext
 import org.jooq.Field
@@ -32,10 +36,6 @@ import org.jooq.InsertQuery
 import org.jooq.Record
 import org.jooq.impl.DSL
 import org.jooq.impl.SQLDataType
-import java.sql.Timestamp
-import java.time.Clock
-import java.time.Duration
-import java.util.*
 
 class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
 
@@ -62,6 +62,8 @@ class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
 
     val tracer = TestTracer(notReportingTracer())
 
+    val openTelemetry = OpenTelemetry.noop()
+
     val eventRepository = JooqEventRepository(
         queryExecutor = queryExecutor,
         dslContext = dslContext,
@@ -82,8 +84,7 @@ class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
     val uowx = UnitOfWorkExecutor(
         factories = factories(clock),
         persisting = persisting,
-        tracer = tracer,
-        meterRegistry = SimpleMeterRegistry()
+        openTelemetry = openTelemetry,
     )
 
     private val patchingQueryExecutor = object : QueryExecutor by queryExecutor {
@@ -110,8 +111,7 @@ class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
                 tracer = tracer
             )
         ),
-        tracer = tracer,
-        meterRegistry = SimpleMeterRegistry()
+        openTelemetry = openTelemetry,
     )
 
     val uowxRetries = UnitOfWorkExecutor(
@@ -121,8 +121,7 @@ class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
             }
         ),
         persisting = persisting,
-        tracer = tracer,
-        meterRegistry = SimpleMeterRegistry()
+        openTelemetry = openTelemetry,
     )
 
     fun factories(clock: Clock) = listOf(

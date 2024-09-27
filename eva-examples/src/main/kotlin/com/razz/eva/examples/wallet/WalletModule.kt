@@ -12,17 +12,17 @@ import com.razz.eva.uow.Clocks
 import com.razz.eva.uow.Persisting
 import com.razz.eva.uow.UnitOfWorkExecutor
 import com.razz.eva.uow.withFactory
-import io.micrometer.core.instrument.simple.SimpleMeterRegistry
+import io.opentelemetry.api.OpenTelemetry
 import io.opentracing.noop.NoopTracerFactory
+import java.time.Clock
+import java.time.ZoneOffset.UTC
+import java.util.concurrent.Executors.newFixedThreadPool
 import kotlinx.coroutines.asCoroutineDispatcher
 import org.jooq.DSLContext
 import org.jooq.SQLDialect.POSTGRES
 import org.jooq.conf.ParamType
 import org.jooq.conf.Settings
 import org.jooq.impl.DSL
-import java.time.Clock
-import java.time.ZoneOffset.UTC
-import java.util.concurrent.Executors.newFixedThreadPool
 
 class WalletModule(databaseConfig: DatabaseConfig) {
 
@@ -59,8 +59,7 @@ class WalletModule(databaseConfig: DatabaseConfig) {
 
     val uowx: UnitOfWorkExecutor = UnitOfWorkExecutor(
         persisting = persisting,
-        tracer = tracer,
-        meterRegistry = SimpleMeterRegistry(),
+        openTelemetry = OpenTelemetry.noop(),
         factories = listOf(
             CreateWalletUow::class withFactory { CreateWalletUow(walletRepo, frozenClock()) }
         )
