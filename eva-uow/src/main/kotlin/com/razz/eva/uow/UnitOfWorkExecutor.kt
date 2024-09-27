@@ -4,10 +4,10 @@ import com.razz.eva.domain.Model
 import com.razz.eva.domain.Principal
 import com.razz.eva.persistence.PersistenceException
 import com.razz.eva.persistence.PrimaryConnectionRequiredFlag
+import com.razz.eva.tracing.use
 import com.razz.eva.uow.UnitOfWorkExecutor.ClassToUow
 import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.api.trace.Span
-import io.opentelemetry.api.trace.SpanKind.INTERNAL
 import io.opentelemetry.extension.kotlin.asContextElement
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -52,7 +52,7 @@ class UnitOfWorkExecutor(
     ): RESULT where PRINCIPAL : Principal<*>,
           PARAMS : UowParams<PARAMS>,
           UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *> {
-        lateinit var uowSpan: Span
+        lateinit var executorSpan: Span
         lateinit var name: String
         try {
             var currentAttempt = 0
@@ -60,14 +60,16 @@ class UnitOfWorkExecutor(
                 val uow = uowFactory()
                 if (currentAttempt == 0) {
                     name = uow.name()
-                    uowSpan = uowSpan(name)
+                    executorSpan = executorSpan()
                 }
                 val constructedParams = params(InstantiationContext(currentAttempt))
-                val changes = withContext(PrimaryConnectionRequiredFlag + uowSpan.asContextElement()) {
-                    uow.tryPerform(principal, constructedParams)
+                val changes = withContext(PrimaryConnectionRequiredFlag + executorSpan.asContextElement()) {
+                    uowSpan(name).use {
+                        uow.tryPerform(principal, constructedParams)
+                    }
                 }
                 val persisted = try {
-                    withContext(uowSpan.asContextElement()) {
+                    withContext(executorSpan.asContextElement()) {
                         persisting.persist(
                             uowName = uow.name(),
                             params = constructedParams,
@@ -89,10 +91,10 @@ class UnitOfWorkExecutor(
                 return if (uow.configuration().returnRoundtrippedModels) result(changes, persisted) else changes.result
             }
         } catch (ex: Exception) {
-            uowSpan.recordException(ex)
+            executorSpan.recordException(ex)
             throw ex
         } finally {
-            uowSpan.end()
+            executorSpan.end()
         }
     }
 
@@ -158,17 +160,19 @@ class UnitOfWorkExecutor(
         return (factory as () -> UOW)()
     }
 
-    private fun uowSpan(uowName: String) = openTelemetry.getTracer(SPAN_SERVICE)
+    private fun executorSpan() = openTelemetry.getTracer("eva")
+        .spanBuilder(SPAN_SERVICE)
+        .setAttribute(SPAN_SERVICE_KEY, SPAN_SERVICE)
+        .startSpan()
+
+    private fun uowSpan(uowName: String) = openTelemetry.getTracer("eva")
         .spanBuilder(uowName)
         .setAttribute(SPAN_SERVICE_KEY, SPAN_SERVICE)
-        .setAttribute(SPAN_METHOD_KEY, uowName)
-        .setSpanKind(INTERNAL)
         .startSpan()
 
     companion object {
-        private const val SPAN_SERVICE = "UnitOfWorkExecutor"
+        private const val SPAN_SERVICE = "UowExecutor"
         private const val SPAN_SERVICE_KEY = "service.name"
-        private const val SPAN_METHOD_KEY = "rpc.method"
     }
 }
 

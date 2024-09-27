@@ -107,7 +107,8 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
             queryExecutor.executeStore(
                 dslContext = dslContext,
                 jooqQuery = insertQuery,
-                table = table
+                table = table,
+                tag = this::class.simpleName + "::add",
             )
         }.singleOrNull()
 
@@ -138,7 +139,8 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
             queryExecutor.executeStore(
                 dslContext = dslContext,
                 jooqQuery = insertQuery,
-                table = table
+                table = table,
+                tag = this::class.simpleName + "::add",
             )
         }
 
@@ -169,7 +171,8 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
             queryExecutor.executeStore(
                 dslContext = dslContext,
                 jooqQuery = updateQuery,
-                table = table
+                table = table,
+                tag = this::class.simpleName + "::update",
             )
         }.getSingleOrNull(this::fromRecord) {
             JooqQueryException(updateQuery, it, "Too many rows updated")
@@ -215,7 +218,8 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
             queryExecutor.executeStore(
                 dslContext = dslContext,
                 jooqQuery = updateQuery,
-                table = table
+                table = table,
+                tag = this::class.simpleName + "::update",
             )
         }
 
@@ -249,8 +253,7 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
                 ),
                 DSL.field(DSL.name(VALUES_ALIAS, version.unqualifiedName)).cast(version.dataType).eq(
                     DSL.field(DSL.name(ORIGIN_ALIAS, version.unqualifiedName)).cast(version.dataType).plus(1)
-                ),
-                // TODO map `partitionCond` to aliased fields
+                )
             )
         }
     }
@@ -258,7 +261,6 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
     private fun <Q : UpdateQuery<R>> prepareUpdate(model: M, updateQuery: Q): Q {
         updateQuery.addConditions(tableId.eq(dbId(model.id())))
         updateQuery.addConditions(version.eq(model.version().version))
-        updateQuery.addConditions(partitionCond(model))
         return updateQuery
     }
 
@@ -274,7 +276,7 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
     }
 
     private suspend fun <R : Record> exists(select: Select<R>): Boolean {
-        return atMostOneRecord(dslContext.selectOne().whereExists(select)) != null
+        return atMostOneRecord(dslContext.selectOne().whereExists(select), "::exists") != null
     }
 
     protected suspend fun findOneWhere(condition: Condition): M? {
@@ -284,7 +286,7 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
     }
 
     private suspend fun findOne(select: Select<R>): M? {
-        return atMostOneRecord(select)?.let { fromRecord(it) }
+        return atMostOneRecord(select, "::findOne")?.let { fromRecord(it) }
     }
 
     protected suspend fun findLast(
@@ -323,7 +325,8 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
         val list = allRecords(
             dslContext.selectFrom(table)
                 .where(condition)
-                .page(page, pagingStrategy)
+                .page(page, pagingStrategy),
+            "::findPage",
         )
         return pagingStrategy.pagedList(list, mapper, page.size)
     }
@@ -349,12 +352,13 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
     }
 
     protected suspend fun findAll(select: Select<R>): List<M> {
-        return allRecords(select)
+        return allRecords(select, "::findAll")
             .map { fromRecord(it) }
     }
 
     protected suspend fun count(condition: Condition): Long {
-        return atMostOneRecord(dslContext.select(LONG_COUNT).from(table).where(condition))?.value1() ?: 0
+        return atMostOneRecord(dslContext.select(LONG_COUNT).from(table).where(condition), "::count")
+            ?.value1() ?: 0
     }
 
     protected suspend fun countGrouped(condition: Condition, groupFields: Set<TableField<R, *>>): Long {
@@ -366,22 +370,24 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
                         .from(table)
                         .where(condition)
                         .groupBy(groupFields)
-                )
+                ),
+            "::count"
         )?.value1() ?: 0
     }
 
-    protected suspend fun <R : Record> atMostOneRecord(select: Select<R>): R? {
-        return allRecords(select)
+    protected suspend fun <R : Record> atMostOneRecord(select: Select<R>, tag: String): R? {
+        return allRecords(select, tag)
             .getSingleOrNull({ it }) {
                 JooqQueryException(select, it, "Found more than one record")
             }
     }
 
-    protected suspend fun <R : Record> allRecords(select: Select<R>): List<R> {
+    protected suspend fun <R : Record> allRecords(select: Select<R>, tag: String): List<R> {
         return queryExecutor.executeSelect(
             dslContext = dslContext,
             jooqQuery = select,
-            table = select.asTable()
+            table = select.asTable(),
+            tag = this::class.simpleName + tag,
         )
     }
 
@@ -441,8 +447,6 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
     }
 
     protected open fun mapConstraintViolation(ex: PersistenceException.ConstraintViolation): Exception? = null
-
-    protected open fun partitionCond(model: M): Condition = DSL.noCondition()
 
     private companion object {
         private const val MAX_RETURNED_RECORDS = 1000

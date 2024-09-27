@@ -14,9 +14,8 @@ import com.razz.eva.test.schema.enums.DepartmentsState
 import com.razz.eva.test.schema.enums.DepartmentsState.ORPHANED
 import com.razz.eva.test.schema.enums.DepartmentsState.OWNED
 import com.razz.eva.test.schema.tables.records.DepartmentsRecord
-import org.jooq.Condition
+import java.util.UUID
 import org.jooq.DSLContext
-import java.util.*
 
 class DepartmentRepository(
     queryExecutor: QueryExecutor,
@@ -30,10 +29,6 @@ class DepartmentRepository(
     DEPARTMENTS,
     preUpdate
 ) {
-
-    override fun partitionCond(model: Department<*>): Condition {
-        return DEPARTMENTS.RATION.eq(model.ration.name)
-    }
 
     override fun stateOf(model: Department<*>): DepartmentsState {
         return when (model) {

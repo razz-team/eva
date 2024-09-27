@@ -15,7 +15,6 @@ import com.razz.eva.repository.ModelRepos
 import com.razz.eva.repository.PreModifyCallback
 import com.razz.eva.repository.hasRepo
 import com.razz.eva.test.repository.WritableModelRepository
-import com.razz.eva.tracing.Tracing.notReportingTracer
 import com.razz.eva.uow.Clocks.fixedUTC
 import com.razz.eva.uow.Clocks.millisUTC
 import com.razz.eva.uow.CreateEmployeeUow
@@ -60,14 +59,11 @@ class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
         modelRepos = repos
     )
 
-    val tracer = TestTracer(notReportingTracer())
-
     val openTelemetry = OpenTelemetry.noop()
 
     val eventRepository = JooqEventRepository(
         queryExecutor = queryExecutor,
         dslContext = dslContext,
-        tracer = tracer
     )
 
     val eventQueries = EventQueries(
@@ -88,7 +84,11 @@ class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
     )
 
     private val patchingQueryExecutor = object : QueryExecutor by queryExecutor {
-        override suspend fun <R : Record> executeQuery(dslContext: DSLContext, jooqQuery: DMLQuery<R>): Int {
+        override suspend fun <R : Record> executeQuery(
+            dslContext: DSLContext,
+            jooqQuery: DMLQuery<R>,
+            tag: String?
+        ): Int {
             if (jooqQuery is InsertQuery<*> && jooqQuery.sql.contains("uow_events")) {
                 val occurredAtParam = jooqQuery.getParam("6") as Field<Timestamp>
                 jooqQuery.addValue(
@@ -108,7 +108,6 @@ class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
             eventRepository = JooqEventRepository(
                 queryExecutor = patchingQueryExecutor,
                 dslContext = dslContext,
-                tracer = tracer
             )
         ),
         openTelemetry = openTelemetry,

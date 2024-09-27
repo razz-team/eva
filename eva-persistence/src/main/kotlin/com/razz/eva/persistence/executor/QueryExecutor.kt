@@ -14,17 +14,20 @@ interface QueryExecutor {
         dslContext: DSLContext,
         jooqQuery: Select<R>,
         table: Table<R>,
+        tag: String? = null
     ): List<R>
 
     suspend fun <RIN : Record, ROUT : Record> executeStore(
         dslContext: DSLContext,
         jooqQuery: StoreQuery<RIN>,
         table: Table<ROUT>,
+        tag: String? = null
     ): List<ROUT>
 
     suspend fun <R : Record> executeQuery(
         dslContext: DSLContext,
         jooqQuery: DMLQuery<R>,
+        tag: String? = null
     ): Int
 
     fun getConstraintName(ex: DataAccessException): String?

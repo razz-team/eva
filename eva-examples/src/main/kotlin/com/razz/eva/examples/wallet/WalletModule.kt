@@ -12,8 +12,7 @@ import com.razz.eva.uow.Clocks
 import com.razz.eva.uow.Persisting
 import com.razz.eva.uow.UnitOfWorkExecutor
 import com.razz.eva.uow.withFactory
-import io.opentelemetry.api.OpenTelemetry
-import io.opentracing.noop.NoopTracerFactory
+import io.opentelemetry.api.OpenTelemetry.noop
 import java.time.Clock
 import java.time.ZoneOffset.UTC
 import java.util.concurrent.Executors.newFixedThreadPool
@@ -34,7 +33,7 @@ class WalletModule(databaseConfig: DatabaseConfig) {
         replicaProvider = HikariPoolConnectionProvider(dataSource(databaseConfig, isPrimary = false)),
         blockingJdbcContext = newFixedThreadPool(databaseConfig.maxPoolSize.value()).asCoroutineDispatcher()
     )
-    val queryExecutor = JdbcQueryExecutor(transactionManager)
+    val queryExecutor = JdbcQueryExecutor(transactionManager, noop())
     val dslContext: DSLContext = DSL.using(
         POSTGRES,
         Settings().withRenderNamedParamPrefix("$").withParamType(ParamType.NAMED)
@@ -43,12 +42,11 @@ class WalletModule(databaseConfig: DatabaseConfig) {
     /**
      * Persisting definition
      */
-    val tracer = NoopTracerFactory.create()
     val walletRepo = WalletRepository(queryExecutor, dslContext)
     val persisting = Persisting(
         transactionManager = transactionManager,
         modelRepos = ModelRepos(Wallet::class hasRepo walletRepo),
-        eventRepository = JooqEventRepository(queryExecutor, dslContext, tracer)
+        eventRepository = JooqEventRepository(queryExecutor, dslContext)
     )
 
     /**
@@ -59,7 +57,7 @@ class WalletModule(databaseConfig: DatabaseConfig) {
 
     val uowx: UnitOfWorkExecutor = UnitOfWorkExecutor(
         persisting = persisting,
-        openTelemetry = OpenTelemetry.noop(),
+        openTelemetry = noop(),
         factories = listOf(
             CreateWalletUow::class withFactory { CreateWalletUow(walletRepo, frozenClock()) }
         )
