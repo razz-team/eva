@@ -261,6 +261,7 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
     private fun <Q : UpdateQuery<R>> prepareUpdate(model: M, updateQuery: Q): Q {
         updateQuery.addConditions(tableId.eq(dbId(model.id())))
         updateQuery.addConditions(version.eq(model.version().version))
+        updateQuery.addConditions(partitionCond(model))
         return updateQuery
     }
 
@@ -445,6 +446,8 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
             else -> throw PersistenceException.ModelPersistingGenericException(model.id(), ex)
         }
     }
+
+    protected open fun partitionCond(model: M): Condition = DSL.noCondition()
 
     protected open fun mapConstraintViolation(ex: PersistenceException.ConstraintViolation): Exception? = null
 
