@@ -7,11 +7,12 @@ import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
 import com.razz.eva.domain.Version.Companion.version
 import com.razz.eva.paging.Page
+import com.razz.eva.paging.PagedList
 import com.razz.eva.persistence.PersistenceException
 import com.razz.eva.persistence.executor.QueryExecutor
 import com.razz.jooq.record.BaseEntityRecord
-import com.razz.eva.paging.PagedList
 import io.vertx.pgclient.PgException
+import java.time.Instant
 import org.jooq.Condition
 import org.jooq.DSLContext
 import org.jooq.Field
@@ -27,7 +28,6 @@ import org.jooq.exception.DataAccessException
 import org.jooq.exception.SQLStateClass
 import org.jooq.impl.DSL
 import org.jooq.impl.SQLDataType
-import java.time.Instant
 
 abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
     private val queryExecutor: QueryExecutor,
@@ -107,8 +107,7 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
             queryExecutor.executeStore(
                 dslContext = dslContext,
                 jooqQuery = insertQuery,
-                table = table,
-                tag = this::class.simpleName + "::add",
+                table = table
             )
         }.singleOrNull()
 
@@ -139,8 +138,7 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
             queryExecutor.executeStore(
                 dslContext = dslContext,
                 jooqQuery = insertQuery,
-                table = table,
-                tag = this::class.simpleName + "::add",
+                table = table
             )
         }
 
@@ -171,8 +169,7 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
             queryExecutor.executeStore(
                 dslContext = dslContext,
                 jooqQuery = updateQuery,
-                table = table,
-                tag = this::class.simpleName + "::update",
+                table = table
             )
         }.getSingleOrNull(this::fromRecord) {
             JooqQueryException(updateQuery, it, "Too many rows updated")
@@ -218,8 +215,7 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
             queryExecutor.executeStore(
                 dslContext = dslContext,
                 jooqQuery = updateQuery,
-                table = table,
-                tag = this::class.simpleName + "::update",
+                table = table
             )
         }
 
@@ -277,7 +273,7 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
     }
 
     private suspend fun <R : Record> exists(select: Select<R>): Boolean {
-        return atMostOneRecord(dslContext.selectOne().whereExists(select), "::exists") != null
+        return atMostOneRecord(dslContext.selectOne().whereExists(select)) != null
     }
 
     protected suspend fun findOneWhere(condition: Condition): M? {
@@ -287,7 +283,7 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
     }
 
     private suspend fun findOne(select: Select<R>): M? {
-        return atMostOneRecord(select, "::findOne")?.let { fromRecord(it) }
+        return atMostOneRecord(select)?.let { fromRecord(it) }
     }
 
     protected suspend fun findLast(
@@ -326,8 +322,7 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
         val list = allRecords(
             dslContext.selectFrom(table)
                 .where(condition)
-                .page(page, pagingStrategy),
-            "::findPage",
+                .page(page, pagingStrategy)
         )
         return pagingStrategy.pagedList(list, mapper, page.size)
     }
@@ -353,12 +348,12 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
     }
 
     protected suspend fun findAll(select: Select<R>): List<M> {
-        return allRecords(select, "::findAll")
+        return allRecords(select)
             .map { fromRecord(it) }
     }
 
     protected suspend fun count(condition: Condition): Long {
-        return atMostOneRecord(dslContext.select(LONG_COUNT).from(table).where(condition), "::count")
+        return atMostOneRecord(dslContext.select(LONG_COUNT).from(table).where(condition))
             ?.value1() ?: 0
     }
 
@@ -371,24 +366,22 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
                         .from(table)
                         .where(condition)
                         .groupBy(groupFields)
-                ),
-            "::count"
+                )
         )?.value1() ?: 0
     }
 
-    protected suspend fun <R : Record> atMostOneRecord(select: Select<R>, tag: String): R? {
-        return allRecords(select, tag)
+    protected suspend fun <R : Record> atMostOneRecord(select: Select<R>): R? {
+        return allRecords(select)
             .getSingleOrNull({ it }) {
                 JooqQueryException(select, it, "Found more than one record")
             }
     }
 
-    protected suspend fun <R : Record> allRecords(select: Select<R>, tag: String): List<R> {
+    protected suspend fun <R : Record> allRecords(select: Select<R>): List<R> {
         return queryExecutor.executeSelect(
             dslContext = dslContext,
             jooqQuery = select,
-            table = select.asTable(),
-            tag = this::class.simpleName + tag,
+            table = select.asTable()
         )
     }
 

@@ -57,10 +57,12 @@ class UnitOfWorkExecutor(
         try {
             var currentAttempt = 0
             while (true) {
+                if (currentAttempt == 0) {
+                    executorSpan = executorSpan()
+                }
                 val uow = uowFactory()
                 if (currentAttempt == 0) {
                     name = uow.name()
-                    executorSpan = executorSpan()
                 }
                 val constructedParams = params(InstantiationContext(currentAttempt))
                 val changes = withContext(PrimaryConnectionRequiredFlag + executorSpan.asContextElement()) {
@@ -70,14 +72,16 @@ class UnitOfWorkExecutor(
                 }
                 val persisted = try {
                     withContext(executorSpan.asContextElement()) {
-                        persisting.persist(
-                            uowName = uow.name(),
-                            params = constructedParams,
-                            principal = principal,
-                            changes = changes.toPersist,
-                            clock = uow.clock(),
-                            uowSupportsOutOfOrderPersisting = uow.configuration().supportsOutOfOrderPersisting
-                        )
+                        persistingSpan().use {
+                            persisting.persist(
+                                uowName = uow.name(),
+                                params = constructedParams,
+                                principal = principal,
+                                changes = changes.toPersist,
+                                clock = uow.clock(),
+                                uowSupportsOutOfOrderPersisting = uow.configuration().supportsOutOfOrderPersisting
+                            )
+                        }
                     }
                 } catch (e: PersistenceException) {
                     val config = uow.configuration()
@@ -170,7 +174,13 @@ class UnitOfWorkExecutor(
         .setAttribute(SPAN_SERVICE_KEY, SPAN_SERVICE)
         .startSpan()
 
+    private fun persistingSpan() = openTelemetry.getTracer("eva")
+        .spanBuilder(SPAN_PERSISTING)
+        .setAttribute(SPAN_SERVICE_KEY, SPAN_SERVICE)
+        .startSpan()
+
     companion object {
+        private const val SPAN_PERSISTING = "Persisting"
         private const val SPAN_SERVICE = "UowExecutor"
         private const val SPAN_SERVICE_KEY = "service.name"
     }

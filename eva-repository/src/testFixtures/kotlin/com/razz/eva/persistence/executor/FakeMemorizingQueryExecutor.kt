@@ -39,7 +39,6 @@ class FakeMemorizingQueryExecutor(
         dslContext: DSLContext,
         jooqQuery: Select<R>,
         table: Table<R>,
-        tag: String?,
     ): List<R> {
         executions += SelectExecuted(dslContext, jooqQuery, table)
         return DSL.using(MockConnection(MockProvider(queries)), POSTGRES, dslContext.settings())
@@ -51,7 +50,6 @@ class FakeMemorizingQueryExecutor(
         dslContext: DSLContext,
         jooqQuery: StoreQuery<RIN>,
         table: Table<ROUT>,
-        tag: String?,
     ): List<ROUT> {
         executions += StoreExecuted(dslContext, jooqQuery, table)
         return DSL.using(MockConnection(MockProvider(queries)), POSTGRES, dslContext.settings())
@@ -62,7 +60,6 @@ class FakeMemorizingQueryExecutor(
     override suspend fun <R : Record> executeQuery(
         dslContext: DSLContext,
         jooqQuery: DMLQuery<R>,
-        tag: String?,
     ): Int {
         executions += QueryExecuted(dslContext, jooqQuery)
         return DSL.using(MockConnection(MockProvider(queries)), POSTGRES, dslContext.settings())
