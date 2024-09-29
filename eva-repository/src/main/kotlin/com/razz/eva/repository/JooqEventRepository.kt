@@ -44,7 +44,6 @@ class JooqEventRepository(
             dslContext = dslContext,
             jooqQuery = select,
             table = select.asTable(),
-            tag = this::class.simpleName + "::warmup"
         ).firstOrNull()
     }
 
@@ -135,7 +134,6 @@ class JooqEventRepository(
         queryExecutor.executeQuery(
             dslContext = dslContext,
             jooqQuery = query,
-            tag = this::class.simpleName + "::insert"
         )
     }
 

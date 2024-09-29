@@ -10,6 +10,10 @@ import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
 import io.vertx.sqlclient.SqlResult
 import io.vertx.sqlclient.impl.ArrayTuple
+import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.ZoneOffset.UTC
 import org.jooq.Converter
 import org.jooq.DMLQuery
 import org.jooq.DSLContext
@@ -23,10 +27,6 @@ import org.jooq.Table
 import org.jooq.exception.DataAccessException
 import org.jooq.impl.SQLDataType
 import org.jooq.postgres.extensions.types.Inet
-import java.time.Instant
-import java.time.LocalDate
-import java.time.LocalDateTime
-import java.time.ZoneOffset.UTC
 
 class VertxQueryExecutor(
     private val transactionManager: TransactionManager<PgConnection>,
@@ -36,7 +36,6 @@ class VertxQueryExecutor(
         dslContext: DSLContext,
         jooqQuery: Select<R>,
         table: Table<R>,
-        tag: String?,
     ): List<R> {
         return transactionManager.withConnection { connection ->
             val rows = executeQuery(connection, dslContext, jooqQuery, table)
@@ -48,7 +47,6 @@ class VertxQueryExecutor(
         dslContext: DSLContext,
         jooqQuery: StoreQuery<RIN>,
         table: Table<ROUT>,
-        tag: String?,
     ): List<ROUT> {
         return transactionManager.inTransaction(REQUIRE_EXISTING) { connection ->
             jooqQuery.setReturning()
@@ -60,7 +58,6 @@ class VertxQueryExecutor(
     override suspend fun <R : Record> executeQuery(
         dslContext: DSLContext,
         jooqQuery: DMLQuery<R>,
-        tag: String?,
     ): Int {
         return transactionManager.inTransaction(REQUIRE_EXISTING) { connection ->
             connection.preparedQuery(dslContext.renderNamedParams(jooqQuery))

@@ -4,10 +4,8 @@ import com.razz.eva.persistence.ConnectionMode.REQUIRE_EXISTING
 import com.razz.eva.persistence.TransactionManager
 import com.razz.eva.persistence.executor.QueryExecutor
 import com.razz.eva.tracing.QueryTracingListenerProvider
-import com.razz.eva.tracing.use
 import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.api.OpenTelemetry.noop
-import io.opentelemetry.api.trace.Span
 import java.sql.Connection
 import org.jooq.DMLQuery
 import org.jooq.DSLContext
@@ -29,14 +27,10 @@ class JdbcQueryExecutor(
     override suspend fun <R : Record> executeSelect(
         dslContext: DSLContext,
         jooqQuery: Select<R>,
-        table: Table<R>,
-        tag: String?,
+        table: Table<R>
     ): List<R> {
-        return span(tag ?: "JdbcQueryExecutor::select::${table.name}").use {
-            transactionManager.withConnection { connection ->
-                dslContext.using(connection)
-                    .preparedQuery(jooqQuery, table)
-            }
+        return transactionManager.withConnection { connection ->
+            dslContext.using(connection).preparedQuery(jooqQuery, table)
         }
     }
 
@@ -44,33 +38,26 @@ class JdbcQueryExecutor(
         dslContext: DSLContext,
         jooqQuery: StoreQuery<RIN>,
         table: Table<ROUT>,
-        tag: String?
     ): List<ROUT> {
         jooqQuery.setReturning()
-        return span(tag ?: "JdbcQueryExecutor::store::${table.name}").use {
-            transactionManager.inTransaction(REQUIRE_EXISTING) { connection ->
-                dslContext.using(connection)
-                    .preparedQuery(jooqQuery, table)
-            }
+        return transactionManager.inTransaction(REQUIRE_EXISTING) { connection ->
+            dslContext.using(connection).preparedQuery(jooqQuery, table)
         }
     }
 
     override suspend fun <R : Record> executeQuery(
         dslContext: DSLContext,
         jooqQuery: DMLQuery<R>,
-        tag: String?,
     ): Int {
-        return span(tag ?: "JdbcQueryExecutor").use {
-            transactionManager.inTransaction(REQUIRE_EXISTING) { connection ->
-                dslContext.using(connection).run {
-                    execute(
-                        render(jooqQuery),
-                        *extractParams(jooqQuery)
-                            .values
-                            .filterNot(Param<*>::isInline)
-                            .toTypedArray()
-                    )
-                }
+        return transactionManager.inTransaction(REQUIRE_EXISTING) { connection ->
+            dslContext.using(connection).run {
+                execute(
+                    render(jooqQuery),
+                    *extractParams(jooqQuery)
+                        .values
+                        .filterNot(Param<*>::isInline)
+                        .toTypedArray()
+                )
             }
         }
     }
@@ -94,12 +81,5 @@ class JdbcQueryExecutor(
         val newContext = DSL.using(connection, settings())
         newContext.configuration().set(QueryTracingListenerProvider(openTelemetry))
         return newContext
-    }
-
-    private fun span(name: String) = Span.current()?.let {
-        openTelemetry
-            .getTracer("eva")
-            .spanBuilder(name)
-            .startSpan()
     }
 }
