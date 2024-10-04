@@ -32,7 +32,7 @@ public class UowEventsTemplateRecord extends TableRecordImpl<UowEventsTemplateRe
     private static final long serialVersionUID = 1L;
 
     /**
-     * Setter for <code>events.uow_events.id</code>.
+     * Setter for <code>events.uow_events_template.id</code>.
      */
     public UowEventsTemplateRecord setId(UUID value) {
         set(0, value);
@@ -40,14 +40,14 @@ public class UowEventsTemplateRecord extends TableRecordImpl<UowEventsTemplateRe
     }
 
     /**
-     * Getter for <code>events.uow_events.id</code>.
+     * Getter for <code>events.uow_events_template_template.id</code>.
      */
     public UUID getId() {
         return (UUID) get(0);
     }
 
     /**
-     * Setter for <code>events.uow_events.name</code>.
+     * Setter for <code>events.uow_events_template.name</code>.
      */
     public UowEventsTemplateRecord setName(String value) {
         set(1, value);
@@ -55,14 +55,14 @@ public class UowEventsTemplateRecord extends TableRecordImpl<UowEventsTemplateRe
     }
 
     /**
-     * Getter for <code>events.uow_events.name</code>.
+     * Getter for <code>events.uow_events_template.name</code>.
      */
     public String getName() {
         return (String) get(1);
     }
 
     /**
-     * Setter for <code>events.uow_events.idempotency_key</code>.
+     * Setter for <code>events.uow_events_template.idempotency_key</code>.
      */
     public UowEventsTemplateRecord setIdempotencyKey(String value) {
         set(2, value);
@@ -70,14 +70,14 @@ public class UowEventsTemplateRecord extends TableRecordImpl<UowEventsTemplateRe
     }
 
     /**
-     * Getter for <code>events.uow_events.idempotency_key</code>.
+     * Getter for <code>events.uow_events_template.idempotency_key</code>.
      */
     public String getIdempotencyKey() {
         return (String) get(2);
     }
 
     /**
-     * Setter for <code>events.uow_events.principal_name</code>.
+     * Setter for <code>events.uow_events_template.principal_name</code>.
      */
     public UowEventsTemplateRecord setPrincipalName(String value) {
         set(3, value);
@@ -85,14 +85,14 @@ public class UowEventsTemplateRecord extends TableRecordImpl<UowEventsTemplateRe
     }
 
     /**
-     * Getter for <code>events.uow_events.principal_name</code>.
+     * Getter for <code>events.uow_events_template.principal_name</code>.
      */
     public String getPrincipalName() {
         return (String) get(3);
     }
 
     /**
-     * Setter for <code>events.uow_events.principal_id</code>.
+     * Setter for <code>events.uow_events_template.principal_id</code>.
      */
     public UowEventsTemplateRecord setPrincipalId(String value) {
         set(4, value);
@@ -100,14 +100,14 @@ public class UowEventsTemplateRecord extends TableRecordImpl<UowEventsTemplateRe
     }
 
     /**
-     * Getter for <code>events.uow_events.principal_id</code>.
+     * Getter for <code>events.uow_events_template.principal_id</code>.
      */
     public String getPrincipalId() {
         return (String) get(4);
     }
 
     /**
-     * Setter for <code>events.uow_events.principal_context</code>.
+     * Setter for <code>events.uow_events_template.principal_context</code>.
      */
     public UowEventsTemplateRecord setPrincipalContext(String value) {
         set(5, value);
@@ -115,14 +115,14 @@ public class UowEventsTemplateRecord extends TableRecordImpl<UowEventsTemplateRe
     }
 
     /**
-     * Getter for <code>events.uow_events.principal_context</code>.
+     * Getter for <code>events.uow_events_template.principal_context</code>.
      */
     public String getPrincipalContext() {
         return (String) get(5);
     }
 
     /**
-     * Setter for <code>events.uow_events.occurred_at</code>.
+     * Setter for <code>events.uow_events_template.occurred_at</code>.
      */
     public UowEventsTemplateRecord setOccurredAt(Instant value) {
         set(6, value);
@@ -130,14 +130,14 @@ public class UowEventsTemplateRecord extends TableRecordImpl<UowEventsTemplateRe
     }
 
     /**
-     * Getter for <code>events.uow_events.occurred_at</code>.
+     * Getter for <code>events.uow_events_template.occurred_at</code>.
      */
     public Instant getOccurredAt() {
         return (Instant) get(6);
     }
 
     /**
-     * Setter for <code>events.uow_events.inserted_at</code>.
+     * Setter for <code>events.uow_events_template.inserted_at</code>.
      */
     public UowEventsTemplateRecord setInsertedAt(Instant value) {
         set(7, value);
@@ -145,14 +145,14 @@ public class UowEventsTemplateRecord extends TableRecordImpl<UowEventsTemplateRe
     }
 
     /**
-     * Getter for <code>events.uow_events.inserted_at</code>.
+     * Getter for <code>events.uow_events_template.inserted_at</code>.
      */
     public Instant getInsertedAt() {
         return (Instant) get(7);
     }
 
     /**
-     * Setter for <code>events.uow_events.model_events</code>.
+     * Setter for <code>events.uow_events_template.model_events</code>.
      */
     public UowEventsTemplateRecord setModelEvents(UUID[] value) {
         set(8, value);
@@ -160,14 +160,14 @@ public class UowEventsTemplateRecord extends TableRecordImpl<UowEventsTemplateRe
     }
 
     /**
-     * Getter for <code>events.uow_events.model_events</code>.
+     * Getter for <code>events.uow_events_template.model_events</code>.
      */
     public UUID[] getModelEvents() {
         return (UUID[]) get(8);
     }
 
     /**
-     * Setter for <code>events.uow_events.params</code>.
+     * Setter for <code>events.uow_events_template.params</code>.
      */
     public UowEventsTemplateRecord setParams(String value) {
         set(9, value);
@@ -175,14 +175,14 @@ public class UowEventsTemplateRecord extends TableRecordImpl<UowEventsTemplateRe
     }
 
     /**
-     * Getter for <code>events.uow_events.params</code>.
+     * Getter for <code>events.uow_events_template.params</code>.
      */
     public String getParams() {
         return (String) get(9);
     }
 
     /**
-     * Setter for <code>events.uow_events.incremental_query_id</code>.
+     * Setter for <code>events.uow_events_template.incremental_query_id</code>.
      */
     public UowEventsTemplateRecord setIncrementalQueryId(Long value) {
         set(10, value);
@@ -190,7 +190,7 @@ public class UowEventsTemplateRecord extends TableRecordImpl<UowEventsTemplateRe
     }
 
     /**
-     * Getter for <code>events.uow_events.incremental_query_id</code>.
+     * Getter for <code>events.uow_events_template.incremental_query_id</code>.
      */
     public Long getIncrementalQueryId() {
         return (Long) get(10);
