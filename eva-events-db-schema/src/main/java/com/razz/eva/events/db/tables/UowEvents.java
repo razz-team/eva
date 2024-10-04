@@ -51,7 +51,7 @@ public class UowEvents extends TableImpl<UowEventsRecord> {
     private static final long serialVersionUID = 1L;
 
     /**
-     * The reference instance of <code>uow_events</code>
+     * The reference instance of <code>events.uow_events</code>
      */
     public static final UowEvents UOW_EVENTS = new UowEvents();
 
@@ -69,7 +69,7 @@ public class UowEvents extends TableImpl<UowEventsRecord> {
     public final TableField<UowEventsRecord, UUID> ID = createField(DSL.name("id"), SQLDataType.UUID.nullable(false), this, "");
 
     /**
-     * The column <code>uow_events.name</code>.
+     * The column <code>events.uow_events.name</code>.
      */
     public final TableField<UowEventsRecord, String> NAME = createField(DSL.name("name"), SQLDataType.CLOB.nullable(false), this, "");
 
