@@ -87,6 +87,7 @@ class PersistenceSpec : PersistenceBaseSpec({
                 uowEvent.occurredAt shouldBe module.now
                 uowEvent.principalId shouldBe "THIS_IS_SINGLETON"
                 uowEvent.principalName shouldBe "TEST_PRINCIPAL"
+                uowEvent.principalContext shouldBe """{"AGENT":"Mozilla/5.0 (X11; Linux x86_64)"}"""
                 uowEvent.params["bossName"] shouldBe parseToJsonElement("""{"last":"K","first":"Misha"}""")
                 uowEvent.params["bossEmail"] shouldBe JsonPrimitive("misha@razz.team")
                 uowEvent.params["departmentName"] shouldBe JsonPrimitive("mobileboys")

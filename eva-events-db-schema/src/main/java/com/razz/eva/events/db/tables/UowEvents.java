@@ -8,19 +8,30 @@ import com.razz.eva.events.db.Events;
 import com.razz.eva.events.db.Indexes;
 import com.razz.eva.events.db.tables.records.UowEventsRecord;
 import com.razz.jooq.converter.InstantConverter;
-import org.jooq.Record;
-import org.jooq.*;
+import java.time.Instant;
+import java.util.Arrays;
+import java.util.List;
+import java.util.UUID;
+import java.util.function.Function;
+import org.jooq.Check;
+import org.jooq.Field;
+import org.jooq.Function11;
+import org.jooq.Identity;
+import org.jooq.Index;
+import org.jooq.Name;
+import org.jooq.Records;
+import org.jooq.Row11;
+import org.jooq.Schema;
+import org.jooq.SelectField;
+import org.jooq.Table;
+import org.jooq.TableField;
+import org.jooq.TableOptions;
 import org.jooq.impl.DSL;
 import org.jooq.impl.Internal;
 import org.jooq.impl.SQLDataType;
 import org.jooq.impl.TableImpl;
 
 import javax.annotation.processing.Generated;
-import java.time.Instant;
-import java.util.Arrays;
-import java.util.List;
-import java.util.UUID;
-import java.util.function.Function;
 
 
 /**
@@ -40,7 +51,7 @@ public class UowEvents extends TableImpl<UowEventsRecord> {
     private static final long serialVersionUID = 1L;
 
     /**
-     * The reference instance of <code>events.uow_events</code>
+     * The reference instance of <code>uow_events</code>
      */
     public static final UowEvents UOW_EVENTS = new UowEvents();
 
@@ -58,7 +69,7 @@ public class UowEvents extends TableImpl<UowEventsRecord> {
     public final TableField<UowEventsRecord, UUID> ID = createField(DSL.name("id"), SQLDataType.UUID.nullable(false), this, "");
 
     /**
-     * The column <code>events.uow_events.name</code>.
+     * The column <code>uow_events.name</code>.
      */
     public final TableField<UowEventsRecord, String> NAME = createField(DSL.name("name"), SQLDataType.CLOB.nullable(false), this, "");
 
@@ -76,6 +87,11 @@ public class UowEvents extends TableImpl<UowEventsRecord> {
      * The column <code>events.uow_events.principal_id</code>.
      */
     public final TableField<UowEventsRecord, String> PRINCIPAL_ID = createField(DSL.name("principal_id"), SQLDataType.CLOB.nullable(false), this, "");
+
+    /**
+     * The column <code>events.uow_events.principal_context</code>.
+     */
+    public final TableField<UowEventsRecord, String> PRINCIPAL_CONTEXT = createField(DSL.name("principal_context"), SQLDataType.CLOB.nullable(false).defaultValue(DSL.field(DSL.raw("'{}'::text"), SQLDataType.CLOB)), this, "");
 
     /**
      * The column <code>events.uow_events.occurred_at</code>.
@@ -129,10 +145,6 @@ public class UowEvents extends TableImpl<UowEventsRecord> {
      */
     public UowEvents() {
         this(DSL.name("uow_events"), null);
-    }
-
-    public <O extends Record> UowEvents(Table<O> child, ForeignKey<O, UowEventsRecord> key) {
-        super(child, key, UOW_EVENTS);
     }
 
     @Override
@@ -202,14 +214,14 @@ public class UowEvents extends TableImpl<UowEventsRecord> {
     // -------------------------------------------------------------------------
 
     @Override
-    public Row10<UUID, String, String, String, String, Instant, Instant, UUID[], String, Long> fieldsRow() {
-        return (Row10) super.fieldsRow();
+    public Row11<UUID, String, String, String, String, String, Instant, Instant, UUID[], String, Long> fieldsRow() {
+        return (Row11) super.fieldsRow();
     }
 
     /**
      * Convenience mapping calling {@link SelectField#convertFrom(Function)}.
      */
-    public <U> SelectField<U> mapping(Function10<? super UUID, ? super String, ? super String, ? super String, ? super String, ? super Instant, ? super Instant, ? super UUID[], ? super String, ? super Long, ? extends U> from) {
+    public <U> SelectField<U> mapping(Function11<? super UUID, ? super String, ? super String, ? super String, ? super String, ? super String, ? super Instant, ? super Instant, ? super UUID[], ? super String, ? super Long, ? extends U> from) {
         return convertFrom(Records.mapping(from));
     }
 
@@ -217,7 +229,7 @@ public class UowEvents extends TableImpl<UowEventsRecord> {
      * Convenience mapping calling {@link SelectField#convertFrom(Class,
      * Function)}.
      */
-    public <U> SelectField<U> mapping(Class<U> toType, Function10<? super UUID, ? super String, ? super String, ? super String, ? super String, ? super Instant, ? super Instant, ? super UUID[], ? super String, ? super Long, ? extends U> from) {
+    public <U> SelectField<U> mapping(Class<U> toType, Function11<? super UUID, ? super String, ? super String, ? super String, ? super String, ? super String, ? super Instant, ? super Instant, ? super UUID[], ? super String, ? super Long, ? extends U> from) {
         return convertFrom(toType, Records.mapping(from));
     }
 }
