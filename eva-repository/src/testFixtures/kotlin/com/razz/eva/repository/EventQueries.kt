@@ -15,12 +15,12 @@ import com.razz.eva.events.db.tables.records.ModelEventsRecord
 import com.razz.eva.events.db.tables.records.UowEventsRecord
 import com.razz.eva.persistence.executor.QueryExecutor
 import com.razz.eva.serialization.json.JsonFormat.json
+import java.time.Instant
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
 import org.jooq.Condition
 import org.jooq.DSLContext
-import java.time.Instant
 
 class EventQueries(
     private val queryExecutor: QueryExecutor,
@@ -65,7 +65,7 @@ class EventQueries(
                 .sortedBy {
                     uowEvent.modelEvents.indexOf(it.first.id.toUUID())
                 },
-            params = Json.parseToJsonElement(uowEvent.params).jsonObject,
+            params = json.parseToJsonElement(uowEvent.params).jsonObject,
             principalContext = uowEvent.principalContext
         )
     }
