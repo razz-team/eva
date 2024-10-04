@@ -32,6 +32,7 @@ class EventQueries(
         val uowName: UowName,
         val principalId: String,
         val principalName: String,
+        val principalContext: String,
         val modelEvents: List<Pair<IntegrationModelEvent, JsonObject>>,
         val occurredAt: Instant,
         val params: JsonObject
@@ -64,7 +65,8 @@ class EventQueries(
                 .sortedBy {
                     uowEvent.modelEvents.indexOf(it.first.id.toUUID())
                 },
-            params = Json.parseToJsonElement(uowEvent.params).jsonObject
+            params = Json.parseToJsonElement(uowEvent.params).jsonObject,
+            principalContext = uowEvent.principalContext
         )
     }
 
