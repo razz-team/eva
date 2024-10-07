@@ -71,6 +71,7 @@ class JooqEventRepository(
             idempotencyKey = uowEvent.idempotencyKey?.stringValue()
             principalId = uowEvent.principal.id.toString()
             principalName = uowEvent.principal.name.toString()
+            principalContext = json.encodeToString(uowEvent.principal.context())
             occurredAt = uowEvent.occurredAt
             modelEvents = uowEvent.modelEvents
                 .map { (id, _) -> id.uuidValue() }
