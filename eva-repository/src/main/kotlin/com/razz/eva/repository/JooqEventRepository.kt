@@ -12,23 +12,15 @@ import com.razz.eva.persistence.executor.QueryExecutor
 import com.razz.eva.repository.Fake.FakeModelEvent
 import com.razz.eva.repository.PgHelpers.PG_UNIQUE_VIOLATION
 import com.razz.eva.repository.PgHelpers.extractUniqueConstraintName
-import com.razz.eva.serialization.json.JsonFormat.json
-import com.razz.eva.tracing.ActiveSpanElement
-import io.opentracing.Tracer
-import io.opentracing.propagation.Format
-import io.opentracing.propagation.TextMapAdapter
 import io.vertx.pgclient.PgException
-import kotlinx.serialization.encodeToString
 import org.jooq.DSLContext
 import org.jooq.InsertQuery
 import org.jooq.Record
 import org.jooq.exception.DataAccessException
-import kotlin.coroutines.coroutineContext
 
 class JooqEventRepository(
     private val queryExecutor: QueryExecutor,
     private val dslContext: DSLContext,
-    private val tracer: Tracer
 ) : EventRepository {
 
     override suspend fun warmup() {
@@ -44,7 +36,7 @@ class JooqEventRepository(
         queryExecutor.executeSelect(
             dslContext = dslContext,
             jooqQuery = select,
-            table = select.asTable()
+            table = select.asTable(),
         ).firstOrNull()
     }
 
@@ -100,24 +92,12 @@ class JooqEventRepository(
                 constraintName
             )
         }
-
-        val tracingContext = kotlin.runCatching {
-            coroutineContext[ActiveSpanElement]?.span?.context()?.let {
-                mutableMapOf<String, String>().apply {
-                    tracer.inject(it, Format.Builtin.TEXT_MAP, TextMapAdapter(this))
-                }
-            }
-        }.getOrNull()
         val modelEventRs = uowEvent.modelEvents.map { (id, event) ->
             toMERecord(
                 uowEvent = uowEvent,
                 eventId = id,
                 modelEvent = event
-            ).also { record ->
-                if (tracingContext != null) {
-                    record.tracingContext = json.encodeToString(tracingContext)
-                }
-            }
+            )
         }
         if (modelEventRs.isNotEmpty()) {
             insert(

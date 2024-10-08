@@ -14,9 +14,9 @@ import com.razz.eva.test.schema.enums.DepartmentsState
 import com.razz.eva.test.schema.enums.DepartmentsState.ORPHANED
 import com.razz.eva.test.schema.enums.DepartmentsState.OWNED
 import com.razz.eva.test.schema.tables.records.DepartmentsRecord
+import java.util.UUID
 import org.jooq.Condition
 import org.jooq.DSLContext
-import java.util.*
 
 class DepartmentRepository(
     queryExecutor: QueryExecutor,
