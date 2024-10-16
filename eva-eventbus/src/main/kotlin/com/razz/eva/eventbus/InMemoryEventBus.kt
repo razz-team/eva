@@ -1,5 +1,6 @@
 package com.razz.eva.eventbus
 
+import com.razz.eva.domain.payload
 import com.razz.eva.events.EventConsumer
 import com.razz.eva.events.EventPublisher
 import com.razz.eva.events.IntegrationModelEvent
@@ -61,7 +62,7 @@ class InMemoryEventBus(
                 modelId = IntegrationModelEvent.ModelId(event.modelId.stringValue()),
                 modelName = IntegrationModelEvent.ModelName(event.modelName),
                 occurredAt = uowEvent.occurredAt,
-                payload = event.integrationEvent()
+                payload = event.payload(uowEvent.principal),
             )
             flow.emit(integrationEvent)
         }

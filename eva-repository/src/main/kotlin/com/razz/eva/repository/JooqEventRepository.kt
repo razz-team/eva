@@ -1,6 +1,7 @@
 package com.razz.eva.repository
 
 import com.razz.eva.domain.ModelEvent
+import com.razz.eva.domain.payload
 import com.razz.eva.events.UowEvent
 import com.razz.eva.events.UowEvent.ModelEventId
 import com.razz.eva.events.db.tables.ModelEvents.MODEL_EVENTS
@@ -60,7 +61,7 @@ class JooqEventRepository(
             name = modelEvent.eventName()
             modelName = modelEvent.modelName
             occurredAt = uowEvent.occurredAt
-            payload = modelEvent.integrationEvent().toString()
+            payload = modelEvent.payload(uowEvent.principal).toString()
         }
     }
 

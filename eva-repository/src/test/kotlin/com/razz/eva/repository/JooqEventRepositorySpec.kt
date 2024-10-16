@@ -4,7 +4,7 @@ import com.razz.eva.IdempotencyKey
 import com.razz.eva.domain.DepartmentEvent.OrphanedDepartmentCreated
 import com.razz.eva.domain.DepartmentId.Companion.randomDepartmentId
 import com.razz.eva.domain.EmployeeEvent.EmployeeCreated
-import com.razz.eva.domain.EmployeeId
+import com.razz.eva.domain.EmployeeId.Companion.randomEmployeeId
 import com.razz.eva.domain.Name
 import com.razz.eva.domain.Ration
 import com.razz.eva.events.UowEvent
@@ -62,6 +62,7 @@ class JooqEventRepositorySpec : BehaviorSpec({
 
         And("Unit of Work Event") {
             val depId = randomDepartmentId()
+            val empId = randomEmployeeId()
             val params = Params(1, "Nik", IdempotencyKey.random())
             val uowEvent = UowEvent(
                 id = UowEvent.Id.random(),
@@ -75,7 +76,7 @@ class JooqEventRepositorySpec : BehaviorSpec({
                         Ration.SHAKSHOUKA
                     ),
                     ModelEventId.random() to EmployeeCreated(
-                        EmployeeId(randomUUID()),
+                        empId,
                         Name("rabotyaga", "#1"),
                         depId,
                         "rabotyaga1@top_pocontre.eu",
@@ -150,7 +151,15 @@ class JooqEventRepositorySpec : BehaviorSpec({
                                                 this.name = value.eventName()
                                                 this.modelName = value.modelName
                                                 this.occurredAt = now
-                                                this.payload = value.integrationEvent().toString()
+                                                this.payload = json.parseToJsonElement("""
+                                                        {
+                                                            "principalId":"THIS_IS_SINGLETON",
+                                                            "principalName":"TEST_PRINCIPAL",
+                                                            "name":"PoContrE",
+                                                            "headcount":1337,
+                                                            "ration":"SHAKSHOUKA"
+                                                        }
+                                                    """).toString()
                                                 this.tracingContext = parseToJsonElement(
                                                     """
                                                     {
@@ -173,7 +182,15 @@ class JooqEventRepositorySpec : BehaviorSpec({
                                                 this.name = value.eventName()
                                                 this.modelName = value.modelName
                                                 this.occurredAt = now
-                                                this.payload = value.integrationEvent().toString()
+                                                this.payload = json.parseToJsonElement("""
+                                                        {
+                                                            "employeeId":"${empId.id}",
+                                                            "name":{"first":"rabotyaga","last":"#1"},
+                                                            "departmentId":"${depId.id}",
+                                                            "email":"rabotyaga1@top_pocontre.eu",
+                                                            "ration":"SHAKSHOUKA"
+                                                        }
+                                                    """).toString()
                                                 this.tracingContext = parseToJsonElement(
                                                     """
                                                     {
