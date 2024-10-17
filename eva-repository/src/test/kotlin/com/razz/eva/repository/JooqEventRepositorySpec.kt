@@ -3,9 +3,12 @@ package com.razz.eva.repository
 import com.razz.eva.IdempotencyKey
 import com.razz.eva.domain.DepartmentEvent.OrphanedDepartmentCreated
 import com.razz.eva.domain.DepartmentId.Companion.randomDepartmentId
+import com.razz.eva.domain.EmployeeEvent.EmailChanged
 import com.razz.eva.domain.EmployeeEvent.EmployeeCreated
-import com.razz.eva.domain.EmployeeId
+import com.razz.eva.domain.EmployeeId.Companion.randomEmployeeId
 import com.razz.eva.domain.Name
+import com.razz.eva.domain.Principal
+import com.razz.eva.domain.Principal.Id
 import com.razz.eva.domain.Ration
 import com.razz.eva.events.UowEvent
 import com.razz.eva.events.UowEvent.ModelEventId
@@ -53,6 +56,10 @@ class JooqEventRepositorySpec : BehaviorSpec({
             inner.inject(spanContext, format, carrier)
         }
     }
+    val anotherPrincipal = object : Principal<String> {
+        override val id = Id("ANOTHER_ID")
+        override val name = Principal.Name("ANOTHER_PRINCIPAL")
+    }
 
     Given("SqlEventRepository with hacked queryExecutor and tracing context") {
         val dslContext = DSL.using(POSTGRES)
@@ -62,6 +69,7 @@ class JooqEventRepositorySpec : BehaviorSpec({
 
         And("Unit of Work Event") {
             val depId = randomDepartmentId()
+            val empId = randomEmployeeId()
             val params = Params(1, "Nik", IdempotencyKey.random())
             val uowEvent = UowEvent(
                 id = UowEvent.Id.random(),
@@ -75,12 +83,18 @@ class JooqEventRepositorySpec : BehaviorSpec({
                         Ration.SHAKSHOUKA
                     ),
                     ModelEventId.random() to EmployeeCreated(
-                        EmployeeId(randomUUID()),
+                        empId,
                         Name("rabotyaga", "#1"),
                         depId,
                         "rabotyaga1@top_pocontre.eu",
                         Ration.SHAKSHOUKA
-                    )
+                    ),
+                    ModelEventId.random() to EmailChanged(
+                        empId,
+                        "old@email.com",
+                        "new@email.com",
+                        anotherPrincipal
+                    ),
                 ),
                 idempotencyKey = params.idempotencyKey,
                 params = json.encodeToString(params.serialization(), params),
@@ -142,7 +156,7 @@ class JooqEventRepositorySpec : BehaviorSpec({
                             dslContext.insertQuery(MODEL_EVENTS)
                                 .also {
                                     it.addRecord(
-                                        uowEvent.modelEvents.first().let { (key, value) ->
+                                        uowEvent.modelEvents[0].let { (key, value) ->
                                             ModelEventsRecord().apply {
                                                 this.id = key.uuidValue()
                                                 this.uowId = uowEvent.id.uuidValue()
@@ -150,7 +164,15 @@ class JooqEventRepositorySpec : BehaviorSpec({
                                                 this.name = value.eventName()
                                                 this.modelName = value.modelName
                                                 this.occurredAt = now
-                                                this.payload = value.integrationEvent().toString()
+                                                this.payload = json.parseToJsonElement("""
+                                                        {
+                                                            "principalId":"THIS_IS_SINGLETON",
+                                                            "principalName":"TEST_PRINCIPAL",
+                                                            "name":"PoContrE",
+                                                            "headcount":1337,
+                                                            "ration":"SHAKSHOUKA"
+                                                        }
+                                                    """).toString()
                                                 this.tracingContext = parseToJsonElement(
                                                     """
                                                     {
@@ -165,7 +187,7 @@ class JooqEventRepositorySpec : BehaviorSpec({
                                         }
                                     )
                                     it.addRecord(
-                                        uowEvent.modelEvents.last().let { (key, value) ->
+                                        uowEvent.modelEvents[1].let { (key, value) ->
                                             ModelEventsRecord().apply {
                                                 this.id = key.uuidValue()
                                                 this.uowId = uowEvent.id.uuidValue()
@@ -173,7 +195,45 @@ class JooqEventRepositorySpec : BehaviorSpec({
                                                 this.name = value.eventName()
                                                 this.modelName = value.modelName
                                                 this.occurredAt = now
-                                                this.payload = value.integrationEvent().toString()
+                                                this.payload = json.parseToJsonElement("""
+                                                        {
+                                                            "employeeId":"${empId.id}",
+                                                            "name":{"first":"rabotyaga","last":"#1"},
+                                                            "departmentId":"${depId.id}",
+                                                            "email":"rabotyaga1@top_pocontre.eu",
+                                                            "ration":"SHAKSHOUKA"
+                                                        }
+                                                    """).toString()
+                                                this.tracingContext = parseToJsonElement(
+                                                    """
+                                                    {
+                                                        "X-B3-TraceId":"0000000007654321",
+                                                        "X-B3-ParentSpanId":"0000000001234567",
+                                                        "X-B3-SpanId":"$spanId",
+                                                        "X-B3-Sampled":"1"
+                                                    }
+                                                    """
+                                                ).toString()
+                                            }
+                                        }
+                                    )
+                                    it.addRecord(
+                                        uowEvent.modelEvents[2].let { (key, value) ->
+                                            ModelEventsRecord().apply {
+                                                this.id = key.uuidValue()
+                                                this.uowId = uowEvent.id.uuidValue()
+                                                this.modelId = value.modelId.id.toString()
+                                                this.name = value.eventName()
+                                                this.modelName = value.modelName
+                                                this.occurredAt = now
+                                                this.payload = json.parseToJsonElement("""
+                                                        {
+                                                            "principalId":"ANOTHER_ID",
+                                                            "principalName":"TEST_PRINCIPAL",
+                                                            "oldEmail":"old@email.com",
+                                                            "newEmail":"new@email.com"
+                                                        }
+                                                    """).toString()
                                                 this.tracingContext = parseToJsonElement(
                                                     """
                                                     {

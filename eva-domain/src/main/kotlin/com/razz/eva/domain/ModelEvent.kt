@@ -15,3 +15,5 @@ interface ModelEvent<ID : ModelId<out Comparable<*>>> {
 }
 
 interface ModelCreatedEvent<ID : ModelId<out Comparable<*>>> : ModelEvent<ID>
+
+interface ModelWithPrincipalEvent<ID : ModelId<out Comparable<*>>> : ModelEvent<ID>

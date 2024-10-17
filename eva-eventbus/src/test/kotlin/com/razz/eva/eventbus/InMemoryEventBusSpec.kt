@@ -3,6 +3,7 @@ package com.razz.eva.eventbus
 import com.razz.eva.IdempotencyKey
 import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
+import com.razz.eva.domain.ModelWithPrincipalEvent
 import com.razz.eva.domain.Principal
 import com.razz.eva.events.EventConsumer
 import com.razz.eva.events.IntegrationModelEvent
@@ -15,6 +16,7 @@ import kotlin.time.toDuration
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.withTimeout
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import java.time.Instant
@@ -40,7 +42,7 @@ class InMemoryEventBusSpec : FunSpec({
         val uowEvent = uowEvent()
         val (modelEventId, modelEvent) = uowEvent.modelEvents.first()
         val (chan, consumer) = consumer(modelEvent) { event ->
-            matchConsumed(event, modelEvent, modelEventId, uowEvent)
+            matchConsumed(event, modelEvent, modelEventId, uowEvent, buildJsonObject { })
         }
         val bus = InMemoryEventBus(
             consumers = listOf(consumer),
@@ -56,10 +58,10 @@ class InMemoryEventBusSpec : FunSpec({
         val uowEvent = uowEvent()
         val (modelEventId, modelEvent) = uowEvent.modelEvents.first()
         val (chan0, consumer0) = consumer(modelEvent) { event ->
-            matchConsumed(event, modelEvent, modelEventId, uowEvent)
+            matchConsumed(event, modelEvent, modelEventId, uowEvent, buildJsonObject { })
         }
         val (chan1, consumer1) = consumer(modelEvent) { event ->
-            matchConsumed(event, modelEvent, modelEventId, uowEvent)
+            matchConsumed(event, modelEvent, modelEventId, uowEvent, buildJsonObject { })
         }
         val bus = InMemoryEventBus(
             consumers = listOf(consumer0, consumer1),
@@ -78,13 +80,22 @@ class InMemoryEventBusSpec : FunSpec({
         val (modelEventId1, modelEvent1) = uowEvent.modelEvents[1]
         val (modelEventId2, modelEvent2) = uowEvent.modelEvents[2]
         val (chan0, consumer0) = consumer(modelEvent0) { event ->
-            matchConsumed(event, modelEvent0, modelEventId0, uowEvent)
+            matchConsumed(event, modelEvent0, modelEventId0, uowEvent, buildJsonObject { })
         }
         val (chan1, consumer1) = consumer(modelEvent1) { event ->
-            matchConsumed(event, modelEvent1, modelEventId1, uowEvent)
+            matchConsumed(event, modelEvent1, modelEventId1, uowEvent, buildJsonObject { })
         }
         val (chan2, consumer2) = consumer(modelEvent2) { event ->
-            matchConsumed(event, modelEvent2, modelEventId2, uowEvent)
+            matchConsumed(
+                event = event,
+                modelEvent = modelEvent2,
+                modelEventId = modelEventId2,
+                uowEvent = uowEvent,
+                payload = buildJsonObject {
+                    put("principalId", uowEvent.principal.id.toString())
+                    put("principalName", uowEvent.principal.name.toString())
+                }
+            )
         }
         val bus = InMemoryEventBus(
             consumers = listOf(consumer0, consumer1, consumer2),
@@ -104,6 +115,7 @@ private fun matchConsumed(
     modelEvent: ModelEvent<*>,
     modelEventId: UowEvent.ModelEventId,
     uowEvent: UowEvent,
+    payload: JsonObject,
 ) {
     event.eventName.toString() shouldBe modelEvent.eventName()
     event.id.toUUID() shouldBe modelEventId.uuidValue()
@@ -111,7 +123,7 @@ private fun matchConsumed(
     event.occurredAt shouldBe uowEvent.occurredAt
     event.modelName.toString() shouldBe modelEvent.modelName
     event.uowId.toUUID() shouldBe uowEvent.id.uuidValue()
-    event.payload shouldBe modelEvent.integrationEvent()
+    event.payload shouldBe payload
 }
 
 sealed interface Result {
@@ -142,7 +154,7 @@ private object TestModelEvent1 : ModelEvent<TestModelId1> {
     override val modelName = "TestModel1"
 }
 
-private object TestModelEvent2 : ModelEvent<TestModelId1> {
+private object TestModelEvent2 : ModelWithPrincipalEvent<TestModelId1> {
     override val modelId = TestModelId1
     override val modelName = "TestModel1"
 }

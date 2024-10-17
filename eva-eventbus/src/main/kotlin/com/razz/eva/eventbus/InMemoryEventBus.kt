@@ -1,5 +1,8 @@
 package com.razz.eva.eventbus
 
+import com.razz.eva.domain.ModelEvent
+import com.razz.eva.domain.ModelWithPrincipalEvent
+import com.razz.eva.domain.Principal
 import com.razz.eva.events.EventConsumer
 import com.razz.eva.events.EventPublisher
 import com.razz.eva.events.IntegrationModelEvent
@@ -12,6 +15,9 @@ import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import mu.KotlinLogging
 import java.io.Closeable
 import java.util.concurrent.Executors.newSingleThreadExecutor
@@ -61,7 +67,7 @@ class InMemoryEventBus(
                 modelId = IntegrationModelEvent.ModelId(event.modelId.stringValue()),
                 modelName = IntegrationModelEvent.ModelName(event.modelName),
                 occurredAt = uowEvent.occurredAt,
-                payload = event.integrationEvent()
+                payload = event.payload(uowEvent.principal),
             )
             flow.emit(integrationEvent)
         }
@@ -74,5 +80,20 @@ class InMemoryEventBus(
 
     override fun close() {
         consumingJob?.cancel()
+    }
+
+    private fun ModelEvent<*>.payload(principal: Principal<*>): JsonObject {
+        return when (this) {
+            is ModelWithPrincipalEvent -> {
+                val principalPayload = buildJsonObject {
+                    put("principalId", principal.id.toString())
+                    put("principalName", principal.name.toString())
+                }
+                return JsonObject(principalPayload + integrationEvent())
+            }
+            else -> {
+                integrationEvent()
+            }
+        }
     }
 }
