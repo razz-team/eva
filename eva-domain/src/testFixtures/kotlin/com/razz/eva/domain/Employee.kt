@@ -126,4 +126,17 @@ sealed class EmployeeEvent(override val modelId: EmployeeId) : ModelEvent<Employ
             check(oldDepartmentId != newDepartmentId) { "Same department" }
         }
     }
+
+    data class EmailChanged(
+        val employeeId: EmployeeId,
+        val oldEmail: String,
+        val newEmail: String,
+        val principal: Principal<*>,
+    ) : EmployeeEvent(employeeId), ModelWithPrincipalEvent<EmployeeId> {
+        override fun integrationEvent() = buildJsonObject {
+            put("oldEmail", oldEmail)
+            put("newEmail", newEmail)
+            put("principalId", principal.id.toString())
+        }
+    }
 }
