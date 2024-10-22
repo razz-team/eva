@@ -91,7 +91,7 @@ BEGIN
         PERFORM partman.create_parent(
             p_parent_table := 'events.uow_events',
             p_control := 'inserted_at',
-            p_type := 'native',
+            p_type := 'range',
             p_interval := '5 days',
             p_template_table := 'events.uow_events_template',
             p_premake := 2
@@ -132,7 +132,7 @@ BEGIN
         PERFORM partman.create_parent(
             p_parent_table := 'events.model_events',
             p_control := 'inserted_at',
-            p_type := 'native',
+            p_type := 'range',
             p_interval := '5 days',
             p_premake := 2
         );
