@@ -14,8 +14,11 @@ class Migrations(
         flywayProvider(config, migration)
     }
 
-    fun start() {
-        flywayMigrators.forEach(Flyway::migrate)
+    fun start(withRepair: Boolean = false) {
+        flywayMigrators.forEach { flyway ->
+            if (withRepair) flyway.repair()
+            flyway.migrate()
+        }
     }
 
     companion object {

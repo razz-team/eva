@@ -86,12 +86,22 @@ CREATE UNIQUE INDEX uow_events_template_name_idempotency_key_idx ON uow_events_t
 
 -- By date part
 DO $body$
+DECLARE
+    partman_version TEXT;
 BEGIN
     IF EXISTS(SELECT 1 FROM information_schema.schemata WHERE schema_name = 'partman') THEN
+        SELECT extversion INTO partman_version
+        FROM pg_extension
+        WHERE extname = 'pg_partman';
+
         PERFORM partman.create_parent(
             p_parent_table := 'events.uow_events',
             p_control := 'inserted_at',
-            p_type := 'range',
+            p_type := CASE
+                WHEN split_part(partman_version,'.', 1)::integer > 4
+                THEN 'range'
+                ELSE 'native'
+                END,
             p_interval := '5 days',
             p_template_table := 'events.uow_events_template',
             p_premake := 2
@@ -127,12 +137,22 @@ CREATE INDEX model_events_inserted_at_idx on model_events (inserted_at);
 
 -- By date part
 DO $body$
+DECLARE
+    partman_version TEXT;
 BEGIN
     IF EXISTS(SELECT 1 FROM information_schema.schemata WHERE schema_name = 'partman') THEN
+        SELECT extversion INTO partman_version
+        FROM pg_extension
+        WHERE extname = 'pg_partman';
+
         PERFORM partman.create_parent(
             p_parent_table := 'events.model_events',
             p_control := 'inserted_at',
-            p_type := 'range',
+            p_type := CASE
+                WHEN split_part(partman_version,'.', 1)::integer > 4
+                THEN 'range'
+                ELSE 'native'
+                END,
             p_interval := '5 days',
             p_premake := 2
         );
