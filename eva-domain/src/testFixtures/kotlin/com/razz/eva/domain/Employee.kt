@@ -9,10 +9,15 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
 import java.util.*
+import java.util.UUID.randomUUID
 
 @Serializable
-data class EmployeeId(override val id: @Contextual UUID = UUID.randomUUID()) : ModelId<UUID> {
+data class EmployeeId(override val id: @Contextual UUID = randomUUID()) : ModelId<UUID> {
     override fun toString() = id.toString()
+
+    companion object {
+        fun randomEmployeeId(): EmployeeId = EmployeeId(randomUUID())
+    }
 }
 
 @Serializable
@@ -75,7 +80,7 @@ class Employee(
             email: String,
             ration: Ration
         ): Employee {
-            val empId = EmployeeId(UUID.randomUUID())
+            val empId = EmployeeId(randomUUID())
             return Employee(
                 id = empId,
                 name = name,
@@ -119,6 +124,19 @@ sealed class EmployeeEvent(override val modelId: EmployeeId) : ModelEvent<Employ
     ) : EmployeeEvent(employeeId), ModelEvent<EmployeeId> {
         init {
             check(oldDepartmentId != newDepartmentId) { "Same department" }
+        }
+    }
+
+    data class EmailChanged(
+        val employeeId: EmployeeId,
+        val oldEmail: String,
+        val newEmail: String,
+        val principal: Principal<*>,
+    ) : EmployeeEvent(employeeId), ModelWithPrincipalEvent<EmployeeId> {
+        override fun integrationEvent() = buildJsonObject {
+            put("oldEmail", oldEmail)
+            put("newEmail", newEmail)
+            put("principalId", principal.id.toString())
         }
     }
 }

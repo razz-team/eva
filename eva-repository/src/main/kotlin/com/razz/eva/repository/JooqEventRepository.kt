@@ -1,6 +1,8 @@
 package com.razz.eva.repository
 
 import com.razz.eva.domain.ModelEvent
+import com.razz.eva.domain.ModelWithPrincipalEvent
+import com.razz.eva.domain.Principal
 import com.razz.eva.events.UowEvent
 import com.razz.eva.events.UowEvent.ModelEventId
 import com.razz.eva.events.db.tables.ModelEvents.MODEL_EVENTS
@@ -17,6 +19,9 @@ import com.razz.eva.tracing.textPropagation
 import io.opentelemetry.api.OpenTelemetry
 import io.vertx.pgclient.PgException
 import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import org.jooq.DSLContext
 import org.jooq.InsertQuery
 import org.jooq.Record
@@ -57,7 +62,7 @@ class JooqEventRepository(
             name = modelEvent.eventName()
             modelName = modelEvent.modelName
             occurredAt = uowEvent.occurredAt
-            payload = modelEvent.integrationEvent().toString()
+            payload = modelEvent.payload(uowEvent.principal).toString()
         }
     }
 
@@ -126,5 +131,20 @@ class JooqEventRepository(
             dslContext = dslContext,
             jooqQuery = query,
         )
+    }
+
+    private fun ModelEvent<*>.payload(principal: Principal<*>): JsonObject {
+        return when (this) {
+            is ModelWithPrincipalEvent -> {
+                val principalPayload = buildJsonObject {
+                    put("principalId", principal.id.toString())
+                    put("principalName", principal.name.toString())
+                }
+                return JsonObject(principalPayload + integrationEvent())
+            }
+            else -> {
+                integrationEvent()
+            }
+        }
     }
 }

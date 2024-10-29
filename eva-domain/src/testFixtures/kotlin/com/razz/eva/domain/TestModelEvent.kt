@@ -1,5 +1,8 @@
 package com.razz.eva.domain
 
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+
 sealed class TestModelEvent(
     override val modelId: TestModelId
 ) : ModelEvent<TestModelId> {
@@ -19,6 +22,19 @@ sealed class TestModelEvent(
     data class TestModelEvent2(
         val testModelId: TestModelId
     ) : TestModelEvent(testModelId)
+
+    data class TestModelEventWithPrincipal(
+        val testModelId: TestModelId
+    ) : TestModelEvent(testModelId), ModelWithPrincipalEvent<TestModelId>
+
+    data class TestModelEventWithOverridePrincipal(
+        val testModelId: TestModelId,
+        val principal: Principal<*>
+    ) : TestModelEvent(testModelId), ModelWithPrincipalEvent<TestModelId> {
+        override fun integrationEvent() = buildJsonObject {
+            put("principalId", principal.id.toString())
+        }
+    }
 
     data class TestModelCreated(
         val testModelId: TestModelId

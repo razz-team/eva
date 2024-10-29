@@ -222,7 +222,7 @@ sealed class DepartmentEvent(
         val name: String,
         val headcount: Int,
         val ration: Ration
-    ) : DepartmentEvent(departmentId), ModelCreatedEvent<DepartmentId> {
+    ) : DepartmentEvent(departmentId), ModelCreatedEvent<DepartmentId>, ModelWithPrincipalEvent<DepartmentId> {
 
         override fun integrationEvent() = buildJsonObject {
             put("name", name)
