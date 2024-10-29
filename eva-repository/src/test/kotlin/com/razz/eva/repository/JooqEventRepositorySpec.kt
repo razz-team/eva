@@ -17,15 +17,20 @@ import com.razz.eva.events.db.tables.records.UowEventsRecord
 import com.razz.eva.persistence.executor.FakeMemorizingQueryExecutor
 import com.razz.eva.persistence.executor.FakeMemorizingQueryExecutor.ExecutionStep.QueryExecuted
 import com.razz.eva.serialization.json.JsonFormat.json
+import com.razz.eva.tracing.testing.OpenTelemetryTestConfiguration
+import com.razz.eva.tracing.textPropagation
+import com.razz.eva.tracing.use
 import com.razz.eva.uow.UowParams
 import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.matchers.shouldBe
-import java.time.Instant.now
-import java.util.UUID.randomUUID
+import io.opentelemetry.context.Context
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json.Default.parseToJsonElement
 import org.jooq.SQLDialect.POSTGRES
 import org.jooq.impl.DSL
+import java.time.Instant.now
+import java.util.UUID.randomUUID
 
 @Serializable
 data class Params(
@@ -37,14 +42,14 @@ data class Params(
 }
 
 class JooqEventRepositorySpec : BehaviorSpec({
-
     val now = now()
+
+    val openTelemetry = OpenTelemetryTestConfiguration.create()
 
     Given("SqlEventRepository with hacked queryExecutor and tracing context") {
         val dslContext = DSL.using(POSTGRES)
         val queryExecutor = FakeMemorizingQueryExecutor()
-
-        val eventRepo = JooqEventRepository(queryExecutor, dslContext)
+        val eventRepo = JooqEventRepository(queryExecutor, dslContext, openTelemetry)
 
         And("Unit of Work Event") {
             val depId = randomDepartmentId()
@@ -74,7 +79,13 @@ class JooqEventRepositorySpec : BehaviorSpec({
             )
 
             When("Principal saving Unit of Work Event with two model events") {
-                eventRepo.add(uowEvent)
+                val span = openTelemetry.tracerProvider.get("JooqEventRepositorySpec")
+                    .spanBuilder("Test").setParent(Context.root()).startSpan()
+
+                val traceContext = span.use {
+                    eventRepo.add(uowEvent)
+                    textPropagation(openTelemetry.propagators.textMapPropagator)
+                }
 
                 Then("Query executor should receive one uow event and two model events") {
                     queryExecutor.executionHistory shouldBe listOf(
@@ -119,6 +130,7 @@ class JooqEventRepositorySpec : BehaviorSpec({
                                                 this.modelName = value.modelName
                                                 this.occurredAt = now
                                                 this.payload = value.integrationEvent().toString()
+                                                this.tracingContext = json.encodeToString(traceContext)
                                             }
                                         }
                                     )
@@ -132,6 +144,7 @@ class JooqEventRepositorySpec : BehaviorSpec({
                                                 this.modelName = value.modelName
                                                 this.occurredAt = now
                                                 this.payload = value.integrationEvent().toString()
+                                                this.tracingContext = json.encodeToString(traceContext)
                                             }
                                         }
                                     )
