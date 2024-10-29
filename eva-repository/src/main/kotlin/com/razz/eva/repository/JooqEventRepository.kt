@@ -15,7 +15,7 @@ import com.razz.eva.repository.Fake.FakeModelEvent
 import com.razz.eva.repository.PgHelpers.PG_UNIQUE_VIOLATION
 import com.razz.eva.repository.PgHelpers.extractUniqueConstraintName
 import com.razz.eva.serialization.json.JsonFormat.json
-import com.razz.eva.tracing.textPropagation
+import com.razz.eva.tracing.contextMap
 import io.opentelemetry.api.OpenTelemetry
 import io.vertx.pgclient.PgException
 import kotlinx.serialization.encodeToString
@@ -109,7 +109,7 @@ class JooqEventRepository(
                 eventId = id,
                 modelEvent = event
             ).also {
-                val tracingContext = textPropagation(openTelemetry.propagators.textMapPropagator)
+                val tracingContext = contextMap(openTelemetry.propagators.textMapPropagator)
                 if (tracingContext.isNotEmpty()) {
                     it.tracingContext = json.encodeToString(tracingContext)
                 }

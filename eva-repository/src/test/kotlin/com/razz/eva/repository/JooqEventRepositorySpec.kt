@@ -21,7 +21,7 @@ import com.razz.eva.persistence.executor.FakeMemorizingQueryExecutor
 import com.razz.eva.persistence.executor.FakeMemorizingQueryExecutor.ExecutionStep.QueryExecuted
 import com.razz.eva.serialization.json.JsonFormat.json
 import com.razz.eva.tracing.testing.OpenTelemetryTestConfiguration
-import com.razz.eva.tracing.textPropagation
+import com.razz.eva.tracing.contextMap
 import com.razz.eva.tracing.use
 import com.razz.eva.uow.UowParams
 import io.kotest.core.spec.style.BehaviorSpec
@@ -100,7 +100,7 @@ class JooqEventRepositorySpec : BehaviorSpec({
 
                 val traceContext = span.use {
                     eventRepo.add(uowEvent)
-                    textPropagation(openTelemetry.propagators.textMapPropagator)
+                    contextMap(openTelemetry.propagators.textMapPropagator)
                 }
 
                 Then("Query executor should receive one uow event and two model events") {
