@@ -46,7 +46,7 @@ class WalletModule(databaseConfig: DatabaseConfig) {
     val persisting = Persisting(
         transactionManager = transactionManager,
         modelRepos = ModelRepos(Wallet::class hasRepo walletRepo),
-        eventRepository = JooqEventRepository(queryExecutor, dslContext)
+        eventRepository = JooqEventRepository(queryExecutor, dslContext, noop())
     )
 
     /**
