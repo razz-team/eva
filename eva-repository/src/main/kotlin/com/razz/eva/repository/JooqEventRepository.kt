@@ -15,10 +15,14 @@ import com.razz.eva.persistence.executor.QueryExecutor
 import com.razz.eva.repository.Fake.FakeModelEvent
 import com.razz.eva.repository.PgHelpers.PG_UNIQUE_VIOLATION
 import com.razz.eva.repository.PgHelpers.extractUniqueConstraintName
+import com.razz.eva.serialization.json.JsonFormat.json
+import com.razz.eva.tracing.textPropagation
+import io.opentelemetry.api.OpenTelemetry
 import io.vertx.pgclient.PgException
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import kotlinx.serialization.encodeToString
 import org.jooq.DSLContext
 import org.jooq.InsertQuery
 import org.jooq.Record
@@ -27,6 +31,7 @@ import org.jooq.exception.DataAccessException
 class JooqEventRepository(
     private val queryExecutor: QueryExecutor,
     private val dslContext: DSLContext,
+    private val openTelemetry: OpenTelemetry = OpenTelemetry.noop(),
     private val maxEventPayloadSize: Int = 1024 * 1024,
 ) : EventRepository {
 
@@ -112,12 +117,18 @@ class JooqEventRepository(
                 constraintName
             )
         }
+
         val modelEventRs = uowEvent.modelEvents.map { (id, event) ->
             toMERecord(
                 uowEvent = uowEvent,
                 eventId = id,
                 modelEvent = event
-            )
+            ).also {
+                val tracingContext = textPropagation(openTelemetry.propagators.textMapPropagator)
+                if (tracingContext.isNotEmpty()) {
+                    it.tracingContext = json.encodeToString(tracingContext)
+                }
+            }
         }
         if (modelEventRs.isNotEmpty()) {
             insert(
