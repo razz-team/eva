@@ -9,7 +9,7 @@ object versions {
     val flywaydb = "10.13.0"
     val opentracing = "0.33.0"
     val jaeger = "1.8.1"
-    val micrometer = "1.13.0"
+    val micrometer = "1.13.6"
     val detekt = "1.23.6"
     val logback = "1.5.6"
     val kotlin_logging = "3.0.5"
