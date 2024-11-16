@@ -1,12 +1,12 @@
 object versions {
     val java = org.gradle.api.JavaVersion.VERSION_21
     val jvm = "21"
-    val kotlin = "1.9.24"
+    val kotlin = "2.0.20-RC2"
     val kotlin_coroutines = "1.8.1"
-    val kotlin_serialization_json = "1.6.3"
-    val kotest = "5.9.0"
-    val jooq = "3.19.8"
-    val flywaydb = "10.13.0"
+    val kotlin_serialization_json = "1.7.1"
+    val kotest = "5.9.1"
+    val jooq = "3.19.10"
+    val flywaydb = "10.17.0"
     val opentracing = "0.33.0"
     val jaeger = "1.8.1"
     val micrometer = "1.13.6"
@@ -14,14 +14,14 @@ object versions {
     val logback = "1.5.6"
     val kotlin_logging = "3.0.5"
     val kotlin_slf4 = "1.8.1"
-    val jackson = "2.17.1"
-    val mockk = "1.13.11"
-    val testcontainers = "1.19.8"
+    val jackson = "2.17.2"
+    val mockk = "1.13.12"
+    val testcontainers = "1.20.1"
     val postgresql = "42.7.3"
-    val vertx = "4.5.8"
+    val vertx = "4.5.9"
     val ongres_scram = "2.1"
     val hikari = "5.1.0"
-    val kafka_clients = "3.1.0"
+    val kafka_clients = "3.8.0"
 }
 
 object libs {

@@ -35,7 +35,6 @@ dependencies {
     testFixturesImplementation(libs.kotest_framework)
     testFixturesImplementation(libs.kotlin_coroutines)
     testFixturesImplementation(project(eva.eva_repository))
-    testFixturesImplementation(project(eva.eva_test))
     testFixturesImplementation(testFixtures(project(eva.eva_repository)))
     testFixturesImplementation(testFixtures(project(eva.eva_domain)))
     testFixturesImplementation(testFixtures(project(eva.eva_persistence)))

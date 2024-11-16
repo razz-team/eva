@@ -11,6 +11,7 @@ dependencies {
     implementation(project(eva.eva_migrations))
     implementation(project(eva.eva_persistence_jdbc))
     implementation(project(eva.eva_persistence_vertx))
+    implementation(testFixtures(project(eva.eva_uow)))
 
     implementation(platform(libs.testcontainers_bom))
 
