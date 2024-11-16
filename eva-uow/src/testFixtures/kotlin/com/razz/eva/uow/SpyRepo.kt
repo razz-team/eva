@@ -17,6 +17,10 @@ class SpyRepo(
         TODO("Not used")
     }
 
+    override suspend fun list(ids: Collection<ModelId<Comparable<Any>>>): List<Model<ModelId<Comparable<Any>>, *>> {
+        TODO("Not used")
+    }
+
     override suspend fun <ME : Model<ModelId<Comparable<Any>>, *>> add(
         context: TransactionalContext,
         model: ME

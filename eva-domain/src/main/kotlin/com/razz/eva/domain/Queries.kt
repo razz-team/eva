@@ -6,6 +6,8 @@ interface Queries<MID : ModelId<out Comparable<*>>, out M : Model<MID, *>> : sus
 
     suspend fun get(id: MID): M
 
+    suspend fun list(ids: Collection<MID>): List<M>
+
     override suspend fun invoke(id: MID): M = get(id)
 }
 

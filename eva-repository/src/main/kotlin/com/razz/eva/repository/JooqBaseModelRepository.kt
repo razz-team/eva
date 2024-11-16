@@ -15,7 +15,9 @@ import io.vertx.pgclient.PgException
 import org.jooq.Condition
 import org.jooq.DSLContext
 import org.jooq.Field
+import org.jooq.QuantifiedSelect
 import org.jooq.Record
+import org.jooq.Record1
 import org.jooq.Select
 import org.jooq.SelectConditionStep
 import org.jooq.SortField
@@ -264,6 +266,16 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
 
     override suspend fun find(id: MID): M? {
         return findOneWhere(tableId.eq(dbId(id)))
+    }
+
+    override suspend fun list(ids: Collection<MID>): List<M> {
+        val uniqueDbIds = ids.toSet().map { dbId(it) }
+        return if (uniqueDbIds.size <= 3) {
+            findAllWhere(tableId.`in`(uniqueDbIds))
+        } else {
+            @Suppress("UNCHECKED_CAST")
+            findAllWhere(tableId.eq(DSL.any(*(uniqueDbIds as List<*>).toTypedArray()) as QuantifiedSelect<Record1<ID>>))
+        }
     }
 
     protected suspend fun existsWhere(condition: Condition): Boolean {

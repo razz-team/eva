@@ -106,7 +106,7 @@ complexity:
     active: false
   StringLiteralDuplication:
     active: true
-    excludes: [ '**/test/**', '**/testFixtures/**', '**/testFunctional/**', '**/PersistenceException.kt' ]
+    excludes: [ '**/test/**', '**/testFixtures/**', '**/testFunctional/**', '**/PersistenceException.kt', '**/DSLs.kt' ]
     threshold: 3
     ignoreAnnotation: true
     excludeStringsWithLessThan5Characters: true

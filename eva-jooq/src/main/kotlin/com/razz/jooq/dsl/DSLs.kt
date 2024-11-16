@@ -16,6 +16,9 @@ object ArrayDSL {
 
 object JsonDSL {
 
+    fun jsonbField(field: Field<JSONB>, name: String): Field<String> =
+        DSL.field("{0}->>{1}", String::class.java, field, DSL.inline(name))
+
     fun jsonbContainsKeys(field: Field<JSONB>, vararg keys: String) =
         DSL.condition("jsonb_exists_all({0}, {1}::text[])", field, array(keys))
 
@@ -27,4 +30,17 @@ object JsonDSL {
 
     fun jsonbContains(field: Field<JSONB>, value: JSONB) =
         DSL.condition("{0} @> {1}", field, value)
+}
+
+object SqlDSL {
+    inline fun <reified T> Field<T>.eqAny(values: List<T>) = if (values.size <= 3) {
+        this.`in`(values)
+    } else {
+        this.eq(DSL.any(*values.toTypedArray()))
+    }
+    inline fun <reified T> Field<T>.eqAny(vararg values: T) = if (values.size <= 3) {
+        this.`in`(*values)
+    } else {
+        this.eq(DSL.any(*values))
+    }
 }
