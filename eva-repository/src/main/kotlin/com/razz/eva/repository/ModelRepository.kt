@@ -7,6 +7,8 @@ interface ModelRepository<MID : ModelId<out Comparable<*>>, M : Model<MID, *>> {
 
     suspend fun find(id: MID): M?
 
+    suspend fun list(ids: Collection<MID>): List<M>
+
     /**
      * This method meant to be used only by
      * [com.razz.eva.uow.ModelPersisting#add]
