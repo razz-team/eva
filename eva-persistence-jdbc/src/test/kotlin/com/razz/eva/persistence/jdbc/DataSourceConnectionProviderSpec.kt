@@ -22,11 +22,15 @@ class DataSourceConnectionProviderSpec : BehaviorSpec({
             expected
         }
 
-        val provider = DataSourceConnectionProvider(dataSource)
+        // ensure there are 2 different dispatchers
+        val blockingDispatcher = Dispatchers.IO
+        val outerDispatcher = Dispatchers.Default
+
+        val provider = DataSourceConnectionProvider(dataSource, blockingDispatcher)
 
         When("Acquire is called and cancelled after a short delay") {
             val actual = AtomicReference<Connection>()
-            val job = launch(Dispatchers.IO) {
+            val job = launch(outerDispatcher) {
                 var connection: Connection? = null
                 try {
                     connection = provider.acquire()
