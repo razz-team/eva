@@ -19,17 +19,28 @@ class DataSourceConnectionProvider(
     override suspend fun acquire(): Connection {
         coroutineContext.ensureActive() // fail-fast if current coroutine was cancelled before acquiring a connection
 
-        // if withContext is cancelled, regardless of the inner block result, the cancellation exception will be thrown
-        // here there is nothing to cancel, and we do want to get the connection back regardless of the cancellation
-        return withContext(blockingJdbcContext + NonCancellable) {
-            pool.connection
+        // here are 2 issues to solve:
+        // 1. if the current coroutine is cancelled and we don't have NonCancellable at all,
+        //    the resulting connection will be discarded even if there is really nothing to cancel in this function
+        // 2. even if we put NonCancellable in the context, but also change a dispatcher,
+        //    the resulting connection will still be discarded, because withContext has a prompt cancellation guarantee,
+        //    withContext will still throw a CancellationException regardless of the presence of NonCancellable,
+        //    if the current coroutine is cancelled before withContext starts executing the block
+        //
+        // see https://kotlinlang.org/api/kotlinx.coroutines/kotlinx-coroutines-core/kotlinx.coroutines/with-context.html
+        return withContext(NonCancellable) { // do not change a dispatcher when doing NonCancellable
+            withContext(blockingJdbcContext) { // change a dispatcher separately
+                pool.connection
+            }
         }
     }
 
     override suspend fun release(connection: Connection) =
         // If we close current coroutine (by service/http/call/etc timeout f.e.) -
         // we can't call withContext() block, because it will throw an exception.
-        withContext(blockingJdbcContext + NonCancellable) {
-            connection.close()
+        withContext(NonCancellable) {
+            withContext(blockingJdbcContext) {
+                connection.close()
+            }
         }
 }
