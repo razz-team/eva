@@ -1,5 +1,5 @@
 plugins {
-    kotlin("jvm") version "1.9.21"
+    kotlin("jvm") version "2.1.0"
     `java-gradle-plugin`
     `kotlin-dsl`
     `kotlin-dsl-precompiled-script-plugins`
@@ -18,9 +18,8 @@ tasks.compileJava {
 }
 
 tasks.compileKotlin {
-    kotlinOptions {
-        languageVersion = "1.9"
-        jvmTarget = versions.jvm
+    compilerOptions {
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21
     }
 }
 

@@ -1,7 +1,6 @@
-@file:Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
 package com.razz.eva.test.uow
 
-import com.razz.eva.uow.InstantiationContext
+import com.razz.eva.uow.InstantiationContextFixtures
 
-val INITIAL = InstantiationContext(0)
-val AFTER_RETRY = InstantiationContext(1)
+val INITIAL = InstantiationContextFixtures.INITIAL
+val AFTER_RETRY = InstantiationContextFixtures.AFTER_RETRY

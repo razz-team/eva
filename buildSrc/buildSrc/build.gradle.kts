@@ -14,7 +14,7 @@ tasks.compileJava {
 }
 tasks.compileKotlin {
     kotlinOptions {
-        languageVersion = "1.9"
+        languageVersion = "2.1"
         jvmTarget = "21"
     }
 }

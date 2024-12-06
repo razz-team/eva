@@ -13,7 +13,7 @@ import kotlinx.serialization.encoding.Encoder
 class ModelParam<MID : ModelId<out Comparable<*>>, M : Model<MID, *>> private constructor(
     private var model: M?,
     private val id: MID,
-    private val modelQueries: suspend (MID) -> M
+    private val modelQueries: suspend (MID) -> M,
 ) {
 
     private constructor(model: M, modelQueries: suspend (MID) -> M) : this(model, model.id(), modelQueries)
@@ -31,9 +31,9 @@ class ModelParam<MID : ModelId<out Comparable<*>>, M : Model<MID, *>> private co
         }
     }
 
-    class Serializer<MID : ModelId<out Comparable<*>>, M : Model<MID, *>>(
+    class Serializer<MID : ModelId<out Comparable<*>>>(
         private val idSerializer: KSerializer<MID>,
-        @Suppress("unused") private val modelNoopSerializer: KSerializer<M>,
+        @Suppress("unused") private val modelNoopSerializer: KSerializer<Nothing>,
     ) : KSerializer<ModelParam<MID, *>> {
         override val descriptor: SerialDescriptor = idSerializer.descriptor
         override fun serialize(encoder: Encoder, value: ModelParam<MID, *>) =
@@ -63,7 +63,7 @@ class ModelParam<MID : ModelId<out Comparable<*>>, M : Model<MID, *>> private co
         }
 
         fun <MID : ModelId<out Comparable<*>>, M : Model<MID, *>> constantModelParam(
-            model: M
+            model: M,
         ): ModelParam<MID, M> {
             return ModelParam(model) { model }
         }
