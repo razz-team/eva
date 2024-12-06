@@ -41,8 +41,8 @@ tasks.compileJava {
 }
 tasks.compileKotlin {
     compilerOptions {
-        apiVersion = org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_0
-        languageVersion = org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_0
+        apiVersion = org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_1
+        languageVersion = org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_1
         jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21
         allWarningsAsErrors = true
         freeCompilerArgs = listOf("-opt-in=kotlin.RequiresOptIn", "-Xconsistent-data-class-copy-visibility")
@@ -53,8 +53,8 @@ tasks.compileTestJava {
 }
 tasks.compileTestKotlin {
     compilerOptions {
-        apiVersion = org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_0
-        languageVersion = org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_0
+        apiVersion = org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_1
+        languageVersion = org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_1
         jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21
         freeCompilerArgs = listOf("-opt-in=kotlin.RequiresOptIn")
     }
@@ -65,8 +65,8 @@ tasks.compileTestFixturesJava {
 }
 tasks.compileTestFixturesKotlin {
     compilerOptions {
-        apiVersion = org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_0
-        languageVersion = org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_0
+        apiVersion = org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_1
+        languageVersion = org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_1
         jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21
     }
 }
