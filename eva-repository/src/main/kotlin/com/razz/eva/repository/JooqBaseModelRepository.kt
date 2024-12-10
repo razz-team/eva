@@ -268,11 +268,15 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
 
     override suspend fun list(ids: Collection<MID>): List<M> {
         val uniqueDbIds = ids.toSet().map { dbId(it) }
-        return if (uniqueDbIds.size <= 3) {
-            findAllWhere(tableId.`in`(uniqueDbIds))
-        } else {
-            val idParams = uniqueDbIds.map<ID, Field<ID>>(DSL::`val`).toTypedArray()
-            findAllWhere(tableId.eq(DSL.any(*idParams)))
+        return when {
+            uniqueDbIds.isEmpty() -> listOf()
+            uniqueDbIds.size <= 3 -> {
+                findAllWhere(tableId.`in`(uniqueDbIds))
+            }
+            else -> {
+                val idParams = uniqueDbIds.map<ID, Field<ID>>(DSL::`val`).toTypedArray()
+                findAllWhere(tableId.eq(DSL.any(*idParams)))
+            }
         }
     }
 
