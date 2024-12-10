@@ -13,33 +13,38 @@ data class DatabaseConfig(
     val jdbcURL: JdbcURL = JdbcURL("jdbc:postgresql://${nodes.joinToString(",")}/$name")
 }
 
-data class DbNodeAddress(private val hostPort: String) {
-    constructor(host: String, port: Int) : this("$host:$port")
-    override fun toString() = hostPort
-    fun host() = hostPort.substringBefore(':')
-    fun port() = hostPort.substringAfter(':').toInt()
+data class DbNodeAddress(private val host: String, private val port: Int) {
+    constructor(hostPort: String) : this(hostPort.substringBefore(':'), hostPort.substringAfter(':').toInt())
+    override fun toString() = "$host:$port"
+    fun host() = host
+    fun port() = port
 }
 
-data class DbName(private val name: String) {
+@JvmInline
+value class DbName(private val name: String) {
     override fun toString() = name
 }
 
-data class DbUser(private val user: String) {
+@JvmInline
+value class DbUser(private val user: String) {
     override fun toString() = user
 }
 
-data class DbPassword(private val password: String) {
+@JvmInline
+value class DbPassword(private val password: String) {
 
     fun showPassword() = password
 
     override fun toString() = "****"
 }
 
-data class JdbcURL(private val url: String) {
+@JvmInline
+value class JdbcURL(private val url: String) {
     override fun toString() = url
 }
 
-data class MaxPoolSize(private val maxPoolSize: Int) {
+@JvmInline
+value class MaxPoolSize(private val maxPoolSize: Int) {
     override fun toString() = maxPoolSize.toString()
     fun value() = maxPoolSize
 }
