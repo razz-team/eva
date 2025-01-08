@@ -2,26 +2,16 @@ package com.razz.eva.uow
 
 import com.razz.eva.domain.Model
 import com.razz.eva.domain.Principal
-import com.razz.eva.metrics.timerBuilder
 import com.razz.eva.persistence.PersistenceException
 import com.razz.eva.persistence.PrimaryConnectionRequiredFlag
-import com.razz.eva.tracing.ActiveSpanElement
-import com.razz.eva.tracing.Tracing
-import com.razz.eva.tracing.Tracing.PERFORM
-import com.razz.eva.tracing.Tracing.PERSIST
+import com.razz.eva.tracing.use
 import com.razz.eva.uow.UnitOfWorkExecutor.ClassToUow
-import io.micrometer.core.instrument.MeterRegistry
-import io.micrometer.core.instrument.Timer
-import io.opentracing.Span
-import io.opentracing.Tracer
-import io.opentracing.tag.Tags.ERROR
+import io.opentelemetry.api.OpenTelemetry
+import io.opentelemetry.api.trace.Span
+import io.opentelemetry.extension.kotlin.asContextElement
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import mu.KotlinLogging
-import java.io.PrintWriter
-import java.io.StringWriter
-import java.util.concurrent.TimeUnit.NANOSECONDS
-import kotlin.coroutines.coroutineContext
 import kotlin.reflect.KClass
 
 data class InstantiationContext internal constructor(
@@ -39,8 +29,7 @@ infix fun <PRINCIPAL, PARAMS, RESULT, UOW> KClass<UOW>.withFactory(
 class UnitOfWorkExecutor(
     factories: List<ClassToUow<*, *, *, *>>,
     private val persisting: Persisting,
-    private val tracer: Tracer,
-    private val meterRegistry: MeterRegistry
+    private val openTelemetry: OpenTelemetry,
 ) {
 
     class ClassToUow<PRINCIPAL, PARAMS, RESULT, UOW> internal constructor(
@@ -63,66 +52,53 @@ class UnitOfWorkExecutor(
     ): RESULT where PRINCIPAL : Principal<*>,
           PARAMS : UowParams<PARAMS>,
           UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *> {
-        val startTime = System.nanoTime()
-        val activeSpan = coroutineContext[ActiveSpanElement]?.span
-        if (activeSpan == null) {
-            logger.debug { "No active span found in uow context, check tracing configuration" }
-        }
-        var timer: Timer? = null
-        var uowSpan: Span? = null
+        lateinit var executorSpan: Span
         lateinit var name: String
         try {
             var currentAttempt = 0
             while (true) {
+                if (currentAttempt == 0) {
+                    executorSpan = executorSpan()
+                }
                 val uow = uowFactory()
                 if (currentAttempt == 0) {
                     name = uow.name()
-                    timer = createTimer(name)
-                    uowSpan = tracer.buildSpan(name).asChildOf(activeSpan).withTag(Tracing.Tags.UOW_NAME, name).start()
                 }
                 val constructedParams = params(InstantiationContext(currentAttempt))
-                val performSpan = buildPerformSpan(name, uowSpan)
-                val changes = withContext(ActiveSpanElement(performSpan) + PrimaryConnectionRequiredFlag) {
-                    try {
+                val changes = withContext(PrimaryConnectionRequiredFlag + executorSpan.asContextElement()) {
+                    uowSpan(name).use {
                         uow.tryPerform(principal, constructedParams)
-                    } catch (e: Exception) {
-                        performSpan.finishWithError(e)
-                        throw e
                     }
                 }
-                performSpan.finish()
-                val persistSpan = buildPersistSpan(name, uowSpan)
                 val persisted = try {
-                    persisting.persist(
-                        uowName = uow.name(),
-                        params = constructedParams,
-                        principal = principal,
-                        changes = changes.toPersist,
-                        clock = uow.clock(),
-                        uowSupportsOutOfOrderPersisting = uow.configuration().supportsOutOfOrderPersisting
-                    )
+                    withContext(executorSpan.asContextElement()) {
+                        persistingSpan().use {
+                            persisting.persist(
+                                uowName = uow.name(),
+                                params = constructedParams,
+                                principal = principal,
+                                changes = changes.toPersist,
+                                clock = uow.clock(),
+                                uowSupportsOutOfOrderPersisting = uow.configuration().supportsOutOfOrderPersisting
+                            )
+                        }
+                    }
                 } catch (e: PersistenceException) {
                     val config = uow.configuration()
-                    uowSpan?.log("persistence-exception")
                     if (config.retry.shouldRetry(currentAttempt, e)) {
                         currentAttempt += 1
                         logger.warn { "Retrying UnitOfWork: ${uow.name()}. Attempt: $currentAttempt" }
                         continue
                     }
-                    persistSpan.finishWithError(e)
                     return uow.onFailure(constructedParams, e)
-                } catch (e: Exception) {
-                    persistSpan.finishWithError(e)
-                    throw e
                 }
-                persistSpan.finish()
                 return if (uow.configuration().returnRoundtrippedModels) result(changes, persisted) else changes.result
             }
+        } catch (ex: Exception) {
+            executorSpan.recordException(ex)
+            throw ex
         } finally {
-            val endTime = System.nanoTime()
-            val elapsedTime = endTime - startTime
-            timer?.record(elapsedTime, NANOSECONDS)
-            uowSpan?.finish()
+            executorSpan.end()
         }
     }
 
@@ -181,10 +157,6 @@ class UnitOfWorkExecutor(
             true
         } ?: false
 
-    private fun createTimer(name: String) = timerBuilder("UnitsOfWorkExecutor")
-        .tag("UnitOfWork", name)
-        .register(meterRegistry)
-
     @Suppress("UNCHECKED_CAST")
     private fun <PRINCIPAL : Principal<*>, PARAMS, RESULT, UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *>>
     create(target: KClass<UOW>): UOW {
@@ -192,24 +164,26 @@ class UnitOfWorkExecutor(
         return (factory as () -> UOW)()
     }
 
-    private fun buildPersistSpan(name: String, uowSpan: Span?) = tracer
-        .buildSpan("$name-$PERSIST")
-        .asChildOf(uowSpan)
-        .withTag(Tracing.Tags.UOW_NAME, name)
-        .withTag(Tracing.Tags.UOW_OPERATION, PERSIST)
-        .start()
+    private fun executorSpan() = openTelemetry.getTracer("eva")
+        .spanBuilder(SPAN_SERVICE)
+        .setAttribute(SPAN_SERVICE_KEY, SPAN_SERVICE)
+        .startSpan()
 
-    private fun buildPerformSpan(name: String, uowSpan: Span?) = tracer
-        .buildSpan("$name-$PERFORM")
-        .asChildOf(uowSpan)
-        .withTag(Tracing.Tags.UOW_NAME, name)
-        .withTag(Tracing.Tags.UOW_OPERATION, PERFORM)
-        .start()
+    private fun uowSpan(uowName: String) = openTelemetry.getTracer("eva")
+        .spanBuilder(uowName)
+        .setAttribute(SPAN_SERVICE_KEY, SPAN_SERVICE)
+        .startSpan()
 
-    private fun Span.finishWithError(e: Exception) = this
-        .setTag(ERROR, true)
-        .log(mapOf("stacktrace" to StringWriter().apply { e.printStackTrace(PrintWriter(this)) }))
-        .finish()
+    private fun persistingSpan() = openTelemetry.getTracer("eva")
+        .spanBuilder(SPAN_PERSISTING)
+        .setAttribute(SPAN_SERVICE_KEY, SPAN_SERVICE)
+        .startSpan()
+
+    companion object {
+        private const val SPAN_PERSISTING = "Persisting"
+        private const val SPAN_SERVICE = "UowExecutor"
+        private const val SPAN_SERVICE_KEY = "service.name"
+    }
 }
 
 class UowFactoryNotFoundException(uowClass: KClass<*>) :

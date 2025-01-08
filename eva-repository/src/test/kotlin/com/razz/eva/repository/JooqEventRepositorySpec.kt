@@ -20,16 +20,15 @@ import com.razz.eva.events.db.tables.records.UowEventsRecord
 import com.razz.eva.persistence.executor.FakeMemorizingQueryExecutor
 import com.razz.eva.persistence.executor.FakeMemorizingQueryExecutor.ExecutionStep.QueryExecuted
 import com.razz.eva.serialization.json.JsonFormat.json
+import com.razz.eva.tracing.testing.OpenTelemetryTestConfiguration
+import com.razz.eva.tracing.contextMap
+import com.razz.eva.tracing.use
 import com.razz.eva.uow.UowParams
-import com.razz.eva.tracing.Tracing.notReportingTracer
-import com.razz.eva.tracing.Tracing.withNewSpan
 import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.matchers.shouldBe
-import io.opentracing.SpanContext
-import io.opentracing.Tracer
-import io.opentracing.propagation.Format
-import io.opentracing.propagation.TextMapAdapter
 import kotlinx.serialization.Serializable
+import io.opentelemetry.context.Context
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json.Default.parseToJsonElement
 import org.jooq.SQLDialect.POSTGRES
 import org.jooq.impl.DSL
@@ -48,14 +47,9 @@ data class Params(
 class JooqEventRepositorySpec : BehaviorSpec({
 
     val now = now()
-    lateinit var spanId: String
-    val inner = notReportingTracer()
-    val tracer = object : Tracer by inner {
-        override fun <C> inject(spanContext: SpanContext, format: Format<C>, carrier: C) {
-            spanId = spanContext.toSpanId()
-            inner.inject(spanContext, format, carrier)
-        }
-    }
+
+    val openTelemetry = OpenTelemetryTestConfiguration.create()
+
     val anotherPrincipal = object : Principal<String> {
         override val id = Id("ANOTHER_ID")
         override val name = Principal.Name("ANOTHER_PRINCIPAL")
@@ -64,8 +58,7 @@ class JooqEventRepositorySpec : BehaviorSpec({
     Given("SqlEventRepository with hacked queryExecutor and tracing context") {
         val dslContext = DSL.using(POSTGRES)
         val queryExecutor = FakeMemorizingQueryExecutor()
-
-        val eventRepo = JooqEventRepository(queryExecutor, dslContext, tracer)
+        val eventRepo = JooqEventRepository(queryExecutor, dslContext, openTelemetry)
 
         And("Unit of Work Event") {
             val depId = randomDepartmentId()
@@ -102,24 +95,12 @@ class JooqEventRepositorySpec : BehaviorSpec({
             )
 
             When("Principal saving Unit of Work Event with two model events") {
-                withNewSpan(
-                    tracer,
-                    {
-                        it.buildSpan("event-repo-spec").asChildOf(
-                            tracer.extract(
-                                Format.Builtin.TEXT_MAP,
-                                TextMapAdapter(
-                                    mapOf(
-                                        "x-b3-spanid" to "0000000001234567",
-                                        "x-b3-traceid" to "0000000007654321",
-                                        "x-b3-sampled" to "1"
-                                    )
-                                )
-                            )
-                        ).start()
-                    }
-                ) {
+                val span = openTelemetry.tracerProvider.get("JooqEventRepositorySpec")
+                    .spanBuilder("Test").setParent(Context.root()).startSpan()
+
+                val traceContext = span.use {
                     eventRepo.add(uowEvent)
+                    contextMap(openTelemetry.propagators.textMapPropagator)
                 }
 
                 Then("Query executor should receive one uow event and two model events") {
@@ -173,16 +154,7 @@ class JooqEventRepositorySpec : BehaviorSpec({
                                                             "ration":"SHAKSHOUKA"
                                                         }
                                                     """).toString()
-                                                this.tracingContext = parseToJsonElement(
-                                                    """
-                                                    {
-                                                        "X-B3-TraceId":"0000000007654321",
-                                                        "X-B3-ParentSpanId":"0000000001234567",
-                                                        "X-B3-SpanId":"$spanId",
-                                                        "X-B3-Sampled":"1"
-                                                    }
-                                                    """
-                                                ).toString()
+                                                this.tracingContext = json.encodeToString(traceContext)
                                             }
                                         }
                                     )
@@ -195,6 +167,8 @@ class JooqEventRepositorySpec : BehaviorSpec({
                                                 this.name = value.eventName()
                                                 this.modelName = value.modelName
                                                 this.occurredAt = now
+                                                this.payload = value.integrationEvent().toString()
+                                                this.tracingContext = json.encodeToString(traceContext)
                                                 this.payload = json.parseToJsonElement("""
                                                         {
                                                             "employeeId":"${empId.id}",
@@ -204,16 +178,7 @@ class JooqEventRepositorySpec : BehaviorSpec({
                                                             "ration":"SHAKSHOUKA"
                                                         }
                                                     """).toString()
-                                                this.tracingContext = parseToJsonElement(
-                                                    """
-                                                    {
-                                                        "X-B3-TraceId":"0000000007654321",
-                                                        "X-B3-ParentSpanId":"0000000001234567",
-                                                        "X-B3-SpanId":"$spanId",
-                                                        "X-B3-Sampled":"1"
-                                                    }
-                                                    """
-                                                ).toString()
+                                                this.tracingContext = json.encodeToString(traceContext)
                                             }
                                         }
                                     )
@@ -226,6 +191,8 @@ class JooqEventRepositorySpec : BehaviorSpec({
                                                 this.name = value.eventName()
                                                 this.modelName = value.modelName
                                                 this.occurredAt = now
+                                                this.payload = value.integrationEvent().toString()
+                                                this.tracingContext = json.encodeToString(traceContext)
                                                 this.payload = json.parseToJsonElement("""
                                                         {
                                                             "principalId":"ANOTHER_ID",
@@ -234,16 +201,7 @@ class JooqEventRepositorySpec : BehaviorSpec({
                                                             "newEmail":"new@email.com"
                                                         }
                                                     """).toString()
-                                                this.tracingContext = parseToJsonElement(
-                                                    """
-                                                    {
-                                                        "X-B3-TraceId":"0000000007654321",
-                                                        "X-B3-ParentSpanId":"0000000001234567",
-                                                        "X-B3-SpanId":"$spanId",
-                                                        "X-B3-Sampled":"1"
-                                                    }
-                                                    """
-                                                ).toString()
+                                                this.tracingContext = json.encodeToString(traceContext)
                                             }
                                         }
                                     )
@@ -259,7 +217,7 @@ class JooqEventRepositorySpec : BehaviorSpec({
         val dslContext = DSL.using(POSTGRES)
         val queryExecutor = FakeMemorizingQueryExecutor()
 
-        val eventRepo = JooqEventRepository(queryExecutor, dslContext, tracer)
+        val eventRepo = JooqEventRepository(queryExecutor, dslContext)
 
         And("Unit of Work Event without model events") {
             val params = Params(1, "Nik", IdempotencyKey.random())
@@ -274,25 +232,7 @@ class JooqEventRepositorySpec : BehaviorSpec({
             )
 
             When("Principal saving Unit of Work Event") {
-                withNewSpan(
-                    tracer,
-                    {
-                        it.buildSpan("event-repo-spec").asChildOf(
-                            tracer.extract(
-                                Format.Builtin.TEXT_MAP,
-                                TextMapAdapter(
-                                    mapOf(
-                                        "x-b3-spanid" to "0000000001234567",
-                                        "x-b3-traceid" to "0000000007654321",
-                                        "x-b3-sampled" to "1"
-                                    )
-                                )
-                            )
-                        ).start()
-                    }
-                ) {
-                    eventRepo.add(uowEvent)
-                }
+                eventRepo.add(uowEvent)
 
                 Then("Query executor should receive one uow event") {
                     queryExecutor.executionHistory shouldBe listOf(
@@ -333,7 +273,7 @@ class JooqEventRepositorySpec : BehaviorSpec({
         val dslContext = DSL.using(POSTGRES)
         val queryExecutor = FakeMemorizingQueryExecutor()
 
-        val eventRepo = JooqEventRepository(queryExecutor, dslContext, tracer)
+        val eventRepo = JooqEventRepository(queryExecutor, dslContext)
 
         And("Unit of Work Event without model events") {
             val params = Params(1, "Nik", IdempotencyKey.random())
