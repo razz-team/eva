@@ -1,5 +1,6 @@
 package com.razz.eva.paging
 
+import com.razz.eva.paging.Page.PageGenericSerializer
 import kotlinx.serialization.Contextual
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
@@ -14,8 +15,7 @@ import kotlinx.serialization.encoding.encodeStructure
 
 typealias Offset = String
 
-@Suppress("SERIALIZER_TYPE_INCOMPATIBLE")
-@Serializable(with = Page.PageGenericSerializer::class)
+@Serializable(with = PageGenericSerializer::class)
 sealed class Page<P : Comparable<P>> {
     /**
      * Return less or equal number of records
@@ -28,7 +28,7 @@ sealed class Page<P : Comparable<P>> {
 
     fun next(maxOrdering: P, offset: Offset): Next<P> = Next(maxOrdering, offset, size)
 
-    @Serializable(with = PageGenericSerializer::class)
+    @Serializable
     data class First<P : Comparable<P>>(
         override val size: Size
     ) : Page<P>() {
@@ -36,7 +36,7 @@ sealed class Page<P : Comparable<P>> {
         override fun withMinSize(size: Size) = copy(size = this.size.minSize(size))
     }
 
-    @Serializable(with = PageGenericSerializer::class)
+    @Serializable
     data class Next<P : Comparable<P>>(
         /**
          * Return records with ordering field less or equal to this value
