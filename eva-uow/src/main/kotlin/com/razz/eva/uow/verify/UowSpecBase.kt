@@ -8,7 +8,8 @@ import com.razz.eva.uow.Change
 import com.razz.eva.uow.Changes
 import com.razz.eva.uow.Noop
 import com.razz.eva.uow.Update
-import java.util.*
+import java.util.ArrayDeque
+import java.util.Deque
 
 open class UowSpecBase<R> private constructor(
     private val result: R,
@@ -26,8 +27,8 @@ open class UowSpecBase<R> private constructor(
     )
 
     fun verifyEnd() {
-        check(executionHistory.isEmpty()) { "No more changes expected" }
-        check(publishedEvents.isEmpty()) { "No more events expected" }
+        check(executionHistory.isEmpty()) { "No more changes expected, but still present: $executionHistory" }
+        check(publishedEvents.isEmpty()) { "No more events expected, but still present: $publishedEvents" }
     }
 
     protected fun verifyResult(verification: (R) -> Unit) {
