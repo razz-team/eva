@@ -75,4 +75,18 @@ class ModelParam<MID : ModelId<out Comparable<*>>, M : Model<MID, *>> private co
             return ModelParam(modelId, modelQueries)
         }
     }
+
+    override fun hashCode(): Int {
+        return 31 * (model?.hashCode() ?: 0) + id.hashCode()
+    }
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is ModelParam<*, *>) return false
+
+        if (model != null && other.model != null && model != other.model) return false
+        if (id != other.id) return false
+
+        return true
+    }
 }
