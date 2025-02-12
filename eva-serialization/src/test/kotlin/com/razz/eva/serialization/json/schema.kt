@@ -1,11 +1,15 @@
 package com.razz.eva.serialization.json
 
+import com.razz.eva.paging.Page
+import com.razz.eva.paging.Page.First
+import com.razz.eva.paging.Page.Next
+import java.net.URI
+import java.time.Instant
+import java.time.ZoneId
+import java.util.*
 import kotlinx.serialization.Contextual
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import java.net.URI
-import java.time.ZoneId
-import java.util.*
 
 @Serializable
 data class User(
@@ -40,3 +44,11 @@ sealed class TestError {
     @SerialName("Snafu")
     object Snafu : TestError()
 }
+
+@Serializable
+data class Result(
+    val pureFirst: @Contextual First<@Contextual Instant>,
+    val pureNext: @Contextual Next<@Contextual Instant>,
+    val commonNext: @Contextual Page<@Contextual Instant>,
+    val commonFirst: @Contextual Page<@Contextual Instant>,
+)

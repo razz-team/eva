@@ -172,7 +172,8 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
                 table = table
             )
         }.getSingleOrNull(this::fromRecord) {
-            JooqQueryException(updateQuery, it, "Too many rows updated")
+            val type = model::class
+            JooqQueryException(updateQuery, it, "Too many rows updated. Type: $type")
         }
 
         @Suppress("UNCHECKED_CAST")
@@ -387,7 +388,8 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
     protected suspend fun <R : Record> atMostOneRecord(select: Select<R>): R? {
         return allRecords(select)
             .getSingleOrNull({ it }) {
-                JooqQueryException(select, it, "Found more than one record")
+                val type = select.recordType
+                JooqQueryException(select, it, "Found more than one record. Type: $type")
             }
     }
 
