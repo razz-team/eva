@@ -1,5 +1,6 @@
 package com.razz.eva.test.db
 
+import com.razz.eva.test.db.DatabaseContainer.Companion.BASIC
 import mu.KotlinLogging
 import org.testcontainers.containers.PostgreSQLContainer
 import java.io.Closeable
@@ -97,7 +98,7 @@ class DatabaseContainerHelper private constructor(
 
         private val DB_NAME_FORMAT = "[a-z0-9_]+".toRegex()
 
-        fun create(dbName: String, databaseContainer: DatabaseContainer): DatabaseContainerHelper {
+        fun create(dbName: String, databaseContainer: DatabaseContainer = BASIC): DatabaseContainerHelper {
             require(DB_NAME_FORMAT.matches(dbName)) {
                 "Wrong DB name: $dbName. DB name should have only lowercase chars and numbers."
             }
