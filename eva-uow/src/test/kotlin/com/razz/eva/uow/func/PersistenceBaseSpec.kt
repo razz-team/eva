@@ -11,6 +11,7 @@ import com.razz.eva.persistence.config.DbUser
 import com.razz.eva.persistence.config.ExecutorType
 import com.razz.eva.persistence.config.JdbcURL
 import com.razz.eva.persistence.config.MaxPoolSize
+import com.razz.eva.test.db.DatabaseContainer
 import com.razz.eva.test.db.DatabaseContainerHelper
 
 abstract class PersistenceBaseSpec(
@@ -18,7 +19,7 @@ abstract class PersistenceBaseSpec(
 ) : FunctionalSpec<TestModule>({ sharedModule }, body) {
 
     companion object {
-        private val DB = DatabaseContainerHelper.create("eva")
+        private val DB = DatabaseContainerHelper.create("eva", DatabaseContainer.BASIC)
 
         val dbConfig = DatabaseConfig(
             nodes = listOf(DbNodeAddress(DB.dbHost(), DB.dbPort())),

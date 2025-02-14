@@ -11,8 +11,8 @@ import com.razz.eva.persistence.jdbc.executor.JdbcQueryExecutor
 import com.razz.eva.persistence.vertx.PgPoolConnectionProvider
 import com.razz.eva.persistence.vertx.VertxTransactionManager
 import com.razz.eva.persistence.vertx.executor.VertxQueryExecutor
+import com.razz.eva.test.db.DatabaseContainer
 import com.razz.eva.test.db.DatabaseContainerHelper
-import com.razz.eva.test.db.DatabaseContainerHelper.Companion.localPool
 import io.vertx.pgclient.PgConnectOptions
 import io.vertx.sqlclient.Pool
 import io.vertx.sqlclient.PoolOptions
@@ -29,6 +29,7 @@ open class RepositoryHelper(
     createPartman: Boolean = false,
     trimmedPackagePrefix: String = "com/razz/",
     schema: DbSchema = DbSchema.ModelsSchema,
+    private val databaseContainer: DatabaseContainer = DatabaseContainer.BASIC,
 ) {
 
     companion object {
@@ -50,10 +51,11 @@ open class RepositoryHelper(
     val queryExecutor: QueryExecutor
 
     private val db = DatabaseContainerHelper.create(
-        migrationPath
+        dbName = migrationPath
             .replace(trimmedPackagePrefix, "")
             .replace("/db", "")
-            .replace("/", "") + "_repo_test"
+            .replace("/", "") + "_repo_test",
+        databaseContainer = databaseContainer,
     )
 
     init {
@@ -69,7 +71,7 @@ open class RepositoryHelper(
     }
 
     private fun jdbcEngine(): Pair<TransactionManager<*>, QueryExecutor> {
-        val pool = localPool(db.dbName(), hikariPoolSize)
+        val pool = databaseContainer.localPool(db.dbName(), hikariPoolSize)
         val provider = HikariPoolConnectionProvider(pool)
         val jdbcManager = JdbcTransactionManager(provider, provider)
         return jdbcManager to JdbcQueryExecutor(jdbcManager)
@@ -99,7 +101,7 @@ open class RepositoryHelper(
 
     private fun flywayProvider(dbName: String, migration: Migration): Flyway {
         return Flyway.configure()
-            .dataSource(localPool(dbName, 4))
+            .dataSource(databaseContainer.localPool(dbName, 4))
             .schemas(migration.schema.stringValue())
             .locations(*migration.classpathLocations().toTypedArray())
             .load()
