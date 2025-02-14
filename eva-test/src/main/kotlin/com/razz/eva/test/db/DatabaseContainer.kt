@@ -20,7 +20,7 @@ data class DatabaseContainer(
         username = "test"
         password = "test"
         maximumPoolSize = 2
-        dataSource = HikariDataSource(this)
+        HikariDataSource(this)
     }
 
     fun localPool(dbName: String, size: Int) = synchronized(pgContainer) {
