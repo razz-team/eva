@@ -62,6 +62,8 @@ sealed class PersistenceException(message: String) : RuntimeException(message) {
         val payloadSize: Int,
         val maxEventPayloadSize: Int,
     ) : PersistenceException(
-        "Event [eventId=$eventId, modelEventId=$modelEventId] payload size is $payloadSize which exceeds maxEventPayloadSize $maxEventPayloadSize bytes"
+        "Event [eventId=$eventId, modelEventId=$modelEventId] " +
+            "payload size is $payloadSize which exceeds " +
+            "maxEventPayloadSize $maxEventPayloadSize bytes"
     )
 }
