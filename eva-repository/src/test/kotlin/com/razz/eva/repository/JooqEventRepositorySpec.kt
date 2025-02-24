@@ -392,7 +392,7 @@ class JooqEventRepositorySpec : BehaviorSpec({
         val queryExecutor = FakeMemorizingQueryExecutor()
         val eventRepo = JooqEventRepository(queryExecutor, dslContext, tracer, 100)
 
-        When("Max payload size is set to 100 bytes") {
+        When("trying to insert an event with a payload size exceeding the maxEventPayloadSize") {
             val params = Params(1, "Nik", IdempotencyKey.random())
             val eventId = UowEvent.Id(randomUUID())
             val departmentId = randomDepartmentId()
@@ -418,7 +418,7 @@ class JooqEventRepositorySpec : BehaviorSpec({
                 eventRepo.add(uowEvent)
             }
 
-            Then("It should reject the event and throw an EventPayloadTooLargeException") {
+            Then("it should reject the event and throw an EventPayloadTooLargeException") {
                 exception.eventId shouldBe eventId.uuidValue()
                 exception.modelEventId shouldBe modelEventId.uuidValue()
                 exception.payloadSize shouldBe 1217
