@@ -61,7 +61,7 @@ class JooqEventRepository(
         modelEvent: ModelEvent<*>
     ): ModelEventsRecord {
         val payloadString = modelEvent.payload(uowEvent.principal).toString()
-        val payloadSize = payloadString.toByteArray(Charsets.UTF_8).size
+        val payloadSize = payloadString.utf8SizeInBytes()
 
         if (payloadSize > maxEventPayloadSize) {
             throw PersistenceException.EventPayloadTooLargeException(
@@ -170,5 +170,24 @@ class JooqEventRepository(
                 integrationEvent()
             }
         }
+    }
+
+    private fun String.utf8SizeInBytes(): Int {
+        var totalBytes = 0
+        val charIterator = this.iterator()
+        for (character in charIterator) {
+            when {
+                character <= '\u007F' -> totalBytes += 1
+                character <= '\u07FF' -> totalBytes += 2
+                Character.isHighSurrogate(character) -> {
+                    totalBytes += 4
+                    if (charIterator.hasNext()) {
+                        charIterator.next()
+                    }
+                }
+                else -> totalBytes += 3
+            }
+        }
+        return totalBytes
     }
 }
