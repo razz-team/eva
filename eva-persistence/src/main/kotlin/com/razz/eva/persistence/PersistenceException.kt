@@ -54,4 +54,14 @@ sealed class PersistenceException(message: String) : RuntimeException(message) {
     class PersistingGenericException(
         override val cause: Throwable
     ) : PersistenceException("Persisting failed")
+
+    class EventPayloadTooLargeException(
+        val modelId: ModelId<*>,
+        val modelEventId: UUID,
+        val eventId: UUID,
+        val payloadSize: Int,
+        val maxEventPayloadSize: Int,
+    ) : PersistenceException(
+        "Event [eventId=$eventId, modelEventId=$modelEventId] payload size is $payloadSize which exceeds maxEventPayloadSize $maxEventPayloadSize bytes"
+    )
 }

@@ -9,6 +9,7 @@ import com.razz.eva.events.db.tables.ModelEvents.MODEL_EVENTS
 import com.razz.eva.events.db.tables.UowEvents.UOW_EVENTS
 import com.razz.eva.events.db.tables.records.ModelEventsRecord
 import com.razz.eva.events.db.tables.records.UowEventsRecord
+import com.razz.eva.persistence.PersistenceException
 import com.razz.eva.persistence.PersistenceException.UniqueUowEventRecordViolationException
 import com.razz.eva.persistence.executor.QueryExecutor
 import com.razz.eva.repository.Fake.FakeModelEvent
@@ -33,7 +34,8 @@ import kotlin.coroutines.coroutineContext
 class JooqEventRepository(
     private val queryExecutor: QueryExecutor,
     private val dslContext: DSLContext,
-    private val tracer: Tracer
+    private val tracer: Tracer,
+    private val maxEventPayloadSize: Int = 1024 * 1024,
 ) : EventRepository {
 
     override suspend fun warmup() {
@@ -58,6 +60,19 @@ class JooqEventRepository(
         eventId: ModelEventId,
         modelEvent: ModelEvent<*>
     ): ModelEventsRecord {
+        val payloadString = modelEvent.payload(uowEvent.principal).toString()
+        val payloadSize = payloadString.toByteArray(Charsets.UTF_8).size
+
+        if (payloadSize > maxEventPayloadSize) {
+            throw PersistenceException.EventPayloadTooLargeException(
+                modelId = modelEvent.modelId,
+                modelEventId = eventId.uuidValue(),
+                eventId = uowEvent.id.uuidValue(),
+                payloadSize = payloadSize,
+                maxEventPayloadSize = maxEventPayloadSize,
+            )
+        }
+
         return ModelEventsRecord().apply {
             id = eventId.uuidValue()
             uowId = uowEvent.id.uuidValue()
@@ -65,7 +80,7 @@ class JooqEventRepository(
             name = modelEvent.eventName()
             modelName = modelEvent.modelName
             occurredAt = uowEvent.occurredAt
-            payload = modelEvent.payload(uowEvent.principal).toString()
+            payload = payloadString
         }
     }
 

@@ -17,12 +17,14 @@ import com.razz.eva.events.db.tables.ModelEvents.MODEL_EVENTS
 import com.razz.eva.events.db.tables.UowEvents.UOW_EVENTS
 import com.razz.eva.events.db.tables.records.ModelEventsRecord
 import com.razz.eva.events.db.tables.records.UowEventsRecord
+import com.razz.eva.persistence.PersistenceException
 import com.razz.eva.persistence.executor.FakeMemorizingQueryExecutor
 import com.razz.eva.persistence.executor.FakeMemorizingQueryExecutor.ExecutionStep.QueryExecuted
 import com.razz.eva.serialization.json.JsonFormat.json
 import com.razz.eva.uow.UowParams
 import com.razz.eva.tracing.Tracing.notReportingTracer
 import com.razz.eva.tracing.Tracing.withNewSpan
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.matchers.shouldBe
 import io.opentracing.SpanContext
@@ -381,6 +383,46 @@ class JooqEventRepositorySpec : BehaviorSpec({
                         )
                     )
                 }
+            }
+        }
+    }
+
+    Given("an sqlEventRepository with maxEventPayloadSize set to 100 bytes") {
+        val dslContext = DSL.using(POSTGRES)
+        val queryExecutor = FakeMemorizingQueryExecutor()
+        val eventRepo = JooqEventRepository(queryExecutor, dslContext, tracer, 100)
+
+        When("Max payload size is set to 100 bytes") {
+            val params = Params(1, "Nik", IdempotencyKey.random())
+            val eventId = UowEvent.Id(randomUUID())
+            val departmentId = randomDepartmentId()
+            val modelEventId = ModelEventId.random()
+            val uowEvent = UowEvent(
+                id = eventId,
+                uowName = UowName("TestUow"),
+                principal = TestPrincipal,
+                modelEvents = listOf(
+                    modelEventId to OrphanedDepartmentCreated(
+                        departmentId,
+                        "Engineering".repeat(100),
+                        1_333,
+                        Ration.SHAKSHOUKA
+                    ),
+                ),
+                idempotencyKey = params.idempotencyKey,
+                params = json.encodeToString(params.serialization(), params),
+                occurredAt = now
+            )
+
+            val exception = shouldThrow<PersistenceException.EventPayloadTooLargeException> {
+                eventRepo.add(uowEvent)
+            }
+
+            Then("It should reject the event and throw an IllegalStateException") {
+                exception.eventId shouldBe eventId.uuidValue()
+                exception.modelEventId shouldBe modelEventId.uuidValue()
+                exception.payloadSize shouldBe 1217
+                exception.maxEventPayloadSize shouldBe 100
             }
         }
     }
