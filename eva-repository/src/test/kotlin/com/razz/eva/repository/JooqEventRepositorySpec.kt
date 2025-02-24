@@ -418,7 +418,7 @@ class JooqEventRepositorySpec : BehaviorSpec({
                 eventRepo.add(uowEvent)
             }
 
-            Then("It should reject the event and throw an IllegalStateException") {
+            Then("It should reject the event and throw an EventPayloadTooLargeException") {
                 exception.eventId shouldBe eventId.uuidValue()
                 exception.modelEventId shouldBe modelEventId.uuidValue()
                 exception.payloadSize shouldBe 1217
