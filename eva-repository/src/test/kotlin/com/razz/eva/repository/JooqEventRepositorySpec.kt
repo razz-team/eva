@@ -104,7 +104,6 @@ class JooqEventRepositorySpec : BehaviorSpec({
                     contextMap(openTelemetry.propagators.textMapPropagator)
                 }
 
-
                 Then("Query executor should receive one uow event and two model events") {
                     queryExecutor.executionHistory shouldBe listOf(
                         QueryExecuted(
@@ -326,7 +325,7 @@ class JooqEventRepositorySpec : BehaviorSpec({
     Given("an sqlEventRepository with maxEventPayloadSize set to 100 bytes") {
         val dslContext = DSL.using(POSTGRES)
         val queryExecutor = FakeMemorizingQueryExecutor()
-        val eventRepo = JooqEventRepository(queryExecutor, dslContext, 100)
+        val eventRepo = JooqEventRepository(queryExecutor, dslContext, maxEventPayloadSize = 100)
 
         When("trying to insert an event with a payload size exceeding the maxEventPayloadSize") {
             val params = Params(1, "Nik", IdempotencyKey.random())
