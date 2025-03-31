@@ -24,7 +24,7 @@ class UowSpec<R> internal constructor(
 ) : UowSpecBase<R>(changes) {
 
     fun <RR : R> returnsEq(expected: RR) = returnsAs<RR> {
-        check(expected == this) { "Result doesn't match" }
+        check(expected == this) { "Result doesn't match got $this instead of $expected" }
     }
 
     fun returns(verifyResult: R.() -> Unit) {
