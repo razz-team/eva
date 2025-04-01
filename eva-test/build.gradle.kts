@@ -26,6 +26,8 @@ dependencies {
     implementation(libs.kotlin_logging)
     implementation(libs.flyway)
     implementation(libs.flyway_postgres)
+    implementation(libs.opentelemetry_sdk_testing)
+
 
     testImplementation(testFixtures(project(eva.eva_repository)))
     testImplementation(testFixtures(project(eva.eva_domain)))

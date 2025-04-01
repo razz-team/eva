@@ -1,32 +1,33 @@
-package com.razz.eva.tracing.testing
+package com.razz.eva.test.tracing
 
 import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator
 import io.opentelemetry.context.propagation.ContextPropagators
 import io.opentelemetry.sdk.OpenTelemetrySdk
 import io.opentelemetry.sdk.logs.SdkLoggerProvider
+import io.opentelemetry.sdk.logs.export.LogRecordExporter
 import io.opentelemetry.sdk.logs.export.SimpleLogRecordProcessor
 import io.opentelemetry.sdk.metrics.SdkMeterProvider
+import io.opentelemetry.sdk.metrics.export.MetricReader
 import io.opentelemetry.sdk.testing.exporter.InMemoryLogRecordExporter
 import io.opentelemetry.sdk.testing.exporter.InMemoryMetricReader
 import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter
 import io.opentelemetry.sdk.trace.SdkTracerProvider
 import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
+import io.opentelemetry.sdk.trace.export.SpanExporter
 
 object OpenTelemetryTestConfiguration {
-    fun create(): OpenTelemetrySdk {
-        val spanExporter = InMemorySpanExporter.create()
-
+    fun create(
+        spanExporter: SpanExporter = InMemorySpanExporter.create(),
+        metricReader: MetricReader = InMemoryMetricReader.create(),
+        logRecordExporter: LogRecordExporter = InMemoryLogRecordExporter.create(),
+    ): OpenTelemetrySdk {
         val tracerProvider =
             SdkTracerProvider.builder()
                 .addSpanProcessor(SimpleSpanProcessor.create(spanExporter))
                 .build()
 
-        val metricReader = InMemoryMetricReader.create()
-
         val meterProvider =
             SdkMeterProvider.builder().registerMetricReader(metricReader).build()
-
-        val logRecordExporter = InMemoryLogRecordExporter.create()
 
         val loggerProvider =
             SdkLoggerProvider.builder()
