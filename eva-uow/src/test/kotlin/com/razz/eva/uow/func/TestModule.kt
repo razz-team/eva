@@ -24,6 +24,8 @@ import com.razz.eva.uow.HireEmployeesUow
 import com.razz.eva.uow.Persisting
 import com.razz.eva.uow.UnitOfWorkExecutor
 import com.razz.eva.uow.withFactory
+import io.opentelemetry.sdk.testing.exporter.InMemoryMetricReader
+import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter
 import java.sql.Timestamp
 import java.time.Clock
 import java.time.Duration
@@ -59,7 +61,13 @@ class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
         modelRepos = repos
     )
 
-    val openTelemetry = OpenTelemetryTestConfiguration.create()
+    val spanExporter = InMemorySpanExporter.create()
+    val metricReader = InMemoryMetricReader.create()
+
+    val openTelemetry = OpenTelemetryTestConfiguration.create(
+        spanExporter = spanExporter,
+        metricReader = metricReader,
+    )
 
     val eventRepository = JooqEventRepository(
         queryExecutor = queryExecutor,

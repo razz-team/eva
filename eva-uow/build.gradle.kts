@@ -27,6 +27,7 @@ dependencies {
     testImplementation(project(eva.eva_persistence_vertx))
     testImplementation(project(eva.eva_test))
     testImplementation(project(eva.eva_serialization))
+    testImplementation(libs.opentelemetry_sdk_testing)
     testImplementation(testFixtures(project(eva.eva_domain)))
     testImplementation(testFixtures(project(eva.eva_uow)))
     testImplementation(testFixtures(project(eva.eva_repository)))

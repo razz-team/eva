@@ -121,6 +121,21 @@ class PersistenceSpec : PersistenceBaseSpec({
                     traceParent[2] shouldNotBe spanId
                 }
             }
+
+            And("the uow span has child perform and persist spans") {
+                val spans = module.spanExporter.finishedSpanItems
+                    .filter { it.traceId == traceId }
+                val performingSpan = spans.find { it.name == "Performing" }
+                val persistingSpan = spans.find { it.name == "Persisting" }
+                val uowSpan = spans.find { it.name == "CreateSoloDepartmentUow" }
+
+                performingSpan shouldNotBe null
+                persistingSpan shouldNotBe null
+                uowSpan shouldNotBe null
+                performingSpan?.parentSpanId shouldBe uowSpan?.spanId
+                persistingSpan?.parentSpanId shouldBe uowSpan?.spanId
+                uowSpan?.parentSpanId shouldBe spanId
+            }
         }
 
         When("Principal performs delete on query executor") {
