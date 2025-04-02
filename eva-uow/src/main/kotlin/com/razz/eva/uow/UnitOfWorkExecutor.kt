@@ -64,16 +64,17 @@ class UnitOfWorkExecutor(
                 if (currentAttempt == 0) {
                     name = uow.name()
                     uowSpan.updateName(name)
+                    uowSpan.setAttribute(UOW_NAME, name)
                 }
                 val constructedParams = params(InstantiationContext(currentAttempt))
                 val changes = withContext(PrimaryConnectionRequiredFlag + uowSpan.asContextElement()) {
-                    performingSpan().use {
+                    performingSpan(name).use {
                         uow.tryPerform(principal, constructedParams)
                     }
                 }
                 val persisted = try {
                     withContext(uowSpan.asContextElement()) {
-                        persistingSpan().use {
+                        persistingSpan(name).use {
                             persisting.persist(
                                 uowName = uow.name(),
                                 params = constructedParams,
@@ -165,26 +166,27 @@ class UnitOfWorkExecutor(
         return (factory as () -> UOW)()
     }
 
-    private fun performingSpan() = openTelemetry.getTracer("eva")
-        .spanBuilder(SPAN_PERFORMING)
-        .setAttribute(SPAN_SERVICE_KEY, SPAN_SERVICE)
-        .startSpan()
-
     private fun uowSpan() = openTelemetry.getTracer("eva")
         .spanBuilder("Uow")
-        .setAttribute(SPAN_SERVICE_KEY, SPAN_SERVICE)
         .startSpan()
 
-    private fun persistingSpan() = openTelemetry.getTracer("eva")
-        .spanBuilder(SPAN_PERSISTING)
-        .setAttribute(SPAN_SERVICE_KEY, SPAN_SERVICE)
+    private fun performingSpan(name: String) = openTelemetry.getTracer("eva")
+        .spanBuilder("$name-$SPAN_PERFORM")
+        .setAttribute(UOW_OPERATION, SPAN_PERFORM)
+        .setAttribute(UOW_NAME, name)
+        .startSpan()
+
+    private fun persistingSpan(name: String) = openTelemetry.getTracer("eva")
+        .spanBuilder("$name-$SPAN_PERSIST")
+        .setAttribute(UOW_OPERATION, SPAN_PERSIST)
+        .setAttribute(UOW_NAME, name)
         .startSpan()
 
     companion object {
-        private const val SPAN_PERSISTING = "Persisting"
-        private const val SPAN_PERFORMING = "Performing"
-        private const val SPAN_SERVICE = "UowExecutor"
-        private const val SPAN_SERVICE_KEY = "service.name"
+        private const val SPAN_PERSIST = "persist"
+        private const val SPAN_PERFORM = "perform"
+        private const val UOW_OPERATION = "uow.operation"
+        private const val UOW_NAME = "uow.name"
     }
 }
 

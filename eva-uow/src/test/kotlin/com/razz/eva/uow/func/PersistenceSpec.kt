@@ -125,8 +125,8 @@ class PersistenceSpec : PersistenceBaseSpec({
             And("the uow span has child perform and persist spans") {
                 val spans = module.spanExporter.finishedSpanItems
                     .filter { it.traceId == traceId }
-                val performingSpan = spans.find { it.name == "Performing" }
-                val persistingSpan = spans.find { it.name == "Persisting" }
+                val performingSpan = spans.find { it.name == "CreateSoloDepartmentUow-perform" }
+                val persistingSpan = spans.find { it.name == "CreateSoloDepartmentUow-persist" }
                 val uowSpan = spans.find { it.name == "CreateSoloDepartmentUow" }
 
                 performingSpan shouldNotBe null
