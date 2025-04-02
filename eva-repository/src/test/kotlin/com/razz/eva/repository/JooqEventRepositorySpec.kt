@@ -30,7 +30,6 @@ import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.matchers.shouldBe
 import io.opentelemetry.context.Context
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json.Default.parseToJsonElement
 import org.jooq.SQLDialect.POSTGRES
 import org.jooq.impl.DSL
@@ -99,9 +98,11 @@ class JooqEventRepositorySpec : BehaviorSpec({
                 val span = openTelemetry.tracerProvider.get("JooqEventRepositorySpec")
                     .spanBuilder("Test").setParent(Context.root()).startSpan()
 
-                val traceContext = span.use {
+                val spanId = span.spanContext.spanId
+                val traceId = span.spanContext.traceId
+
+                span.use {
                     eventRepo.add(uowEvent)
-                    contextMap(openTelemetry.propagators.textMapPropagator)
                 }
 
                 Then("Query executor should receive one uow event and two model events") {
@@ -155,7 +156,9 @@ class JooqEventRepositorySpec : BehaviorSpec({
                                                             "ration":"SHAKSHOUKA"
                                                         }
                                                     """).toString()
-                                                this.tracingContext = json.encodeToString(traceContext)
+                                                this.tracingContext = """
+                                                    {"traceparent":"00-$traceId-$spanId-01"}
+                                                """.trimIndent()
                                             }
                                         }
                                     )
@@ -177,7 +180,9 @@ class JooqEventRepositorySpec : BehaviorSpec({
                                                             "ration":"SHAKSHOUKA"
                                                         }
                                                     """).toString()
-                                                this.tracingContext = json.encodeToString(traceContext)
+                                                this.tracingContext = """
+                                                    {"traceparent":"00-$traceId-$spanId-01"}
+                                                """.trimIndent()
                                             }
                                         }
                                     )
@@ -198,7 +203,9 @@ class JooqEventRepositorySpec : BehaviorSpec({
                                                             "newEmail":"new@email.com"
                                                         }
                                                     """).toString()
-                                                this.tracingContext = json.encodeToString(traceContext)
+                                                this.tracingContext = """
+                                                    {"traceparent":"00-$traceId-$spanId-01"}
+                                                """.trimIndent()
                                             }
                                         }
                                     )

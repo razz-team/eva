@@ -15,9 +15,11 @@ import com.razz.eva.serialization.json.int
 import com.razz.eva.serialization.json.jsonObject
 import com.razz.eva.serialization.json.string
 import com.razz.eva.test.schema.Tables
+import com.razz.eva.tracing.use
 import com.razz.eva.uow.CreateSoloDepartmentUow
 import com.razz.eva.uow.TestPrincipal
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import java.util.UUID.randomUUID
 import kotlinx.serialization.json.Json.Default.parseToJsonElement
 import kotlinx.serialization.json.JsonPrimitive
@@ -36,7 +38,17 @@ class PersistenceSpec : PersistenceBaseSpec({
         lateinit var boss: Employee
 
         When("Principal performs uow with span") {
-            val mobileboys = module.uowx.execute(CreateSoloDepartmentUow::class, TestPrincipal) { params }
+            val span = module.openTelemetry
+                .getTracer("my-tracer")
+                .spanBuilder("solo-department")
+                .startSpan()
+
+            val traceId = span.spanContext.traceId
+            val spanId = span.spanContext.spanId
+
+            val mobileboys = span.use {
+                module.uowx.execute(CreateSoloDepartmentUow::class, TestPrincipal) { params }
+            }
 
             Then("New models persisted") {
                 boss = module.employeeRepo.findByDepartment(mobileboys.id()).single()
@@ -85,6 +97,11 @@ class PersistenceSpec : PersistenceBaseSpec({
                     uowId shouldBe UowId(uowEvent.id.uuidValue())
                     occurredAt shouldBe uowEvent.occurredAt
                 }
+                with(uowEvent.modelEvents[0].second) {
+                    val traceParent = string("traceparent").split("-")
+                    traceParent[1] shouldBe traceId
+                    traceParent[2] shouldNotBe spanId
+                }
                 with(uowEvent.modelEvents[1].first) {
                     payload.string("employeeId") shouldBe boss.id().id.toString()
                     payload.jsonObject("name").string("first") shouldBe boss.name.first
@@ -97,6 +114,11 @@ class PersistenceSpec : PersistenceBaseSpec({
                     modelId shouldBe ModelId(boss.id().stringValue())
                     uowId shouldBe UowId(uowEvent.id.uuidValue())
                     occurredAt shouldBe uowEvent.occurredAt
+                }
+                with(uowEvent.modelEvents[1].second) {
+                    val traceParent = string("traceparent").split("-")
+                    traceParent[1] shouldBe traceId
+                    traceParent[2] shouldNotBe spanId
                 }
             }
         }

@@ -18,6 +18,7 @@ import com.razz.eva.repository.PgHelpers.extractUniqueConstraintName
 import com.razz.eva.serialization.json.JsonFormat.json
 import com.razz.eva.tracing.contextMap
 import io.opentelemetry.api.OpenTelemetry
+import io.opentelemetry.context.Context
 import io.vertx.pgclient.PgException
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject

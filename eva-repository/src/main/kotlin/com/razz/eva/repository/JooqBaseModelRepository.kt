@@ -250,7 +250,8 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
                 ),
                 DSL.field(DSL.name(VALUES_ALIAS, version.unqualifiedName)).cast(version.dataType).eq(
                     DSL.field(DSL.name(ORIGIN_ALIAS, version.unqualifiedName)).cast(version.dataType).plus(1)
-                )
+                ),
+                // TODO map `partitionCond` to aliased fields
             )
         }
     }

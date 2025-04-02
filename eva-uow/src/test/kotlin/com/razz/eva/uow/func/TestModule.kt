@@ -15,6 +15,7 @@ import com.razz.eva.repository.ModelRepos
 import com.razz.eva.repository.PreModifyCallback
 import com.razz.eva.repository.hasRepo
 import com.razz.eva.test.repository.WritableModelRepository
+import com.razz.eva.test.tracing.OpenTelemetryTestConfiguration
 import com.razz.eva.uow.Clocks.fixedUTC
 import com.razz.eva.uow.Clocks.millisUTC
 import com.razz.eva.uow.CreateEmployeeUow
@@ -59,11 +60,12 @@ class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
         modelRepos = repos
     )
 
-    val openTelemetry = OpenTelemetry.noop()
+    val openTelemetry = OpenTelemetryTestConfiguration.create()
 
     val eventRepository = JooqEventRepository(
         queryExecutor = queryExecutor,
         dslContext = dslContext,
+        openTelemetry = openTelemetry,
     )
 
     val eventQueries = EventQueries(
@@ -74,7 +76,7 @@ class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
     val persisting = Persisting(
         transactionManager = transactionManager,
         modelRepos = repos,
-        eventRepository = eventRepository
+        eventRepository = eventRepository,
     )
 
     val uowx = UnitOfWorkExecutor(
