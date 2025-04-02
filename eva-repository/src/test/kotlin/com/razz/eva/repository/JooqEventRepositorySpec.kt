@@ -22,7 +22,6 @@ import com.razz.eva.persistence.executor.FakeMemorizingQueryExecutor
 import com.razz.eva.persistence.executor.FakeMemorizingQueryExecutor.ExecutionStep.QueryExecuted
 import com.razz.eva.serialization.json.JsonFormat.json
 import com.razz.eva.test.tracing.OpenTelemetryTestConfiguration
-import com.razz.eva.tracing.contextMap
 import com.razz.eva.tracing.use
 import com.razz.eva.uow.UowParams
 import io.kotest.assertions.throwables.shouldThrow

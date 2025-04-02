@@ -24,7 +24,6 @@ import com.razz.eva.uow.HireEmployeesUow
 import com.razz.eva.uow.Persisting
 import com.razz.eva.uow.UnitOfWorkExecutor
 import com.razz.eva.uow.withFactory
-import io.opentelemetry.api.OpenTelemetry
 import java.sql.Timestamp
 import java.time.Clock
 import java.time.Duration
