@@ -7,11 +7,12 @@ import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
 import com.razz.eva.domain.Version.Companion.version
 import com.razz.eva.paging.Page
+import com.razz.eva.paging.PagedList
 import com.razz.eva.persistence.PersistenceException
 import com.razz.eva.persistence.executor.QueryExecutor
 import com.razz.jooq.record.BaseEntityRecord
-import com.razz.eva.paging.PagedList
 import io.vertx.pgclient.PgException
+import java.time.Instant
 import org.jooq.Condition
 import org.jooq.DSLContext
 import org.jooq.Field
@@ -27,7 +28,6 @@ import org.jooq.exception.DataAccessException
 import org.jooq.exception.SQLStateClass
 import org.jooq.impl.DSL
 import org.jooq.impl.SQLDataType
-import java.time.Instant
 
 abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
     private val queryExecutor: QueryExecutor,
@@ -369,7 +369,8 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
     }
 
     protected suspend fun count(condition: Condition): Long {
-        return atMostOneRecord(dslContext.select(LONG_COUNT).from(table).where(condition))?.value1() ?: 0
+        return atMostOneRecord(dslContext.select(LONG_COUNT).from(table).where(condition))
+            ?.value1() ?: 0
     }
 
     protected suspend fun countGrouped(condition: Condition, groupFields: Set<TableField<R, *>>): Long {
@@ -456,9 +457,9 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
         }
     }
 
-    protected open fun mapConstraintViolation(ex: PersistenceException.ConstraintViolation): Exception? = null
-
     protected open fun partitionCond(model: M): Condition = DSL.noCondition()
+
+    protected open fun mapConstraintViolation(ex: PersistenceException.ConstraintViolation): Exception? = null
 
     private companion object {
         private const val MAX_RETURNED_RECORDS = 1000

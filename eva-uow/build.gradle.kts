@@ -21,6 +21,7 @@ dependencies {
     implementation(project(eva.eva_serialization))
     implementation(project(eva.eva_repository))
 
+    testImplementation(libs.opentelemetry_sdk_testing)
     testImplementation(project(eva.eva_migrations))
     testImplementation(project(eva.eva_persistence))
     testImplementation(project(eva.eva_persistence_jdbc))

@@ -13,7 +13,6 @@ import com.razz.eva.persistence.PersistenceException.UniqueModelRecordViolationE
 import com.razz.eva.persistence.PrimaryConnectionRequiredFlag
 import com.razz.eva.persistence.WithCtxConnectionTransactionManager
 import com.razz.eva.repository.ModelRepos
-import com.razz.eva.tracing.Tracing.noopTracer
 import com.razz.eva.uow.BaseUnitOfWork.Configuration
 import com.razz.eva.uow.Clocks.fixedUTC
 import com.razz.eva.uow.Clocks.millisUTC
@@ -23,13 +22,13 @@ import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.IsolationMode.InstancePerLeaf
 import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.matchers.shouldBe
-import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import io.mockk.Called
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import io.opentelemetry.api.OpenTelemetry
 import java.time.Clock
 import java.time.Duration.ofMillis
 import java.time.Instant.ofEpochMilli
@@ -84,8 +83,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
             val uowx = UnitOfWorkExecutor(
                 factories,
                 Persisting(WithCtxConnectionTransactionManager(), ModelRepos(), DummyEventRepository()),
-                noopTracer(),
-                SimpleMeterRegistry()
+                OpenTelemetry.noop(),
             )
 
             When("UnitOfWorkExecutor executes Uow") {
@@ -132,7 +130,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                 }
                 val txnManager = WithCtxConnectionTransactionManager()
                 val uowx = UnitOfWorkExecutor(
-                    factories, Persisting(txnManager, ModelRepos(), eventRepo), noopTracer(), SimpleMeterRegistry()
+                    factories, Persisting(txnManager, ModelRepos(), eventRepo), OpenTelemetry.noop(),
                 )
 
                 Then("Clock property wasn't called") {
@@ -167,8 +165,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                 val uowx = UnitOfWorkExecutor(
                     listOf(),
                     Persisting(WithCtxConnectionTransactionManager(), ModelRepos(), DummyEventRepository()),
-                    noopTracer(),
-                    SimpleMeterRegistry(),
+                    OpenTelemetry.noop(),
                 )
 
                 And("UnitOfWorkExecutor executes Uow") {
@@ -189,12 +186,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
 
             When("Principal creates UnitOfWorkExecutor") {
                 val attempt = {
-                    UnitOfWorkExecutor(
-                        persisting = mockk(),
-                        factories = factories,
-                        tracer = noopTracer(),
-                        meterRegistry = SimpleMeterRegistry()
-                    )
+                    UnitOfWorkExecutor(factories, mockk(), OpenTelemetry.noop())
                 }
 
                 Then("Exception is thrown") {
@@ -235,8 +227,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                 factories = listOf(
                     CreateDepartmentUow::class withFactory { unitOfWork }
                 ),
-                tracer = noopTracer(),
-                meterRegistry = SimpleMeterRegistry()
+                openTelemetry = OpenTelemetry.noop(),
             )
 
             And("UnitOfWork has one retry and returns result") {

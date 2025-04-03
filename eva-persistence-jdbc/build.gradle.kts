@@ -14,7 +14,4 @@ dependencies {
 
     implementation(libs.postgres)
     implementation(libs.jooq)
-
-    implementation(libs.opentracing_api)
-    implementation(libs.opentracing_noop)
 }
