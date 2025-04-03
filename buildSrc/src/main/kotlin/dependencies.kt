@@ -7,7 +7,6 @@ object versions {
     val kotest = "5.9.1"
     val jooq = "3.19.15"
     val flywaydb = "11.0.1"
-    val opentracing = "0.33.0"
     val opentelemetry = "1.40.0"
     val jaeger = "1.8.1"
     val micrometer = "1.14.1"

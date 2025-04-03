@@ -38,7 +38,6 @@ class QueryTracingListenerProvider(
             val ex = ctx.sqlException()
             if (ex != null) {
                 span?.recordException(ex)
-                span?.end()
             }
         }
     }

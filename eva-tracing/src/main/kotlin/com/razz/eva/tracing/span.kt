@@ -8,14 +8,13 @@ import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 
 suspend fun <R> Span?.use(
-    coroutineContext: CoroutineContext = EmptyCoroutineContext,
     block: suspend () -> R
 ): R {
     return if (this == null) {
         block()
     } else {
         try {
-            withContext(coroutineContext + this.asContextElement()) {
+            withContext(this.asContextElement()) {
                 block()
             }
         } catch (ex: Exception) {
