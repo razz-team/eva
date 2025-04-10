@@ -140,7 +140,10 @@ class PersistenceSpec : PersistenceBaseSpec({
             And("the uow timer metric is incremented") {
                 val metrics = module.metricReader.collectAllMetrics()
                 val metric = metrics.first()
-                metric.histogramData.points.count() shouldBe 1
+                val pointsForUow = metric.histogramData.points.filter {
+                    it.attributes.asMap().containsValue("CreateSoloDepartmentUow")
+                }
+                pointsForUow.size shouldBe 1
             }
         }
 

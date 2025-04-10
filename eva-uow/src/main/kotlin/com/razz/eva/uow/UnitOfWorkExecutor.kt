@@ -9,8 +9,6 @@ import com.razz.eva.uow.UnitOfWorkExecutor.ClassToUow
 import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
-import io.opentelemetry.api.metrics.DoubleHistogram
-import io.opentelemetry.api.metrics.LongHistogram
 import io.opentelemetry.api.trace.Span
 import io.opentelemetry.extension.kotlin.asContextElement
 import kotlinx.coroutines.delay
