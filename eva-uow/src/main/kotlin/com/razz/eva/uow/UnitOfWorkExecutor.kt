@@ -7,6 +7,10 @@ import com.razz.eva.persistence.PrimaryConnectionRequiredFlag
 import com.razz.eva.tracing.use
 import com.razz.eva.uow.UnitOfWorkExecutor.ClassToUow
 import io.opentelemetry.api.OpenTelemetry
+import io.opentelemetry.api.common.AttributeKey
+import io.opentelemetry.api.common.Attributes
+import io.opentelemetry.api.metrics.DoubleHistogram
+import io.opentelemetry.api.metrics.LongHistogram
 import io.opentelemetry.api.trace.Span
 import io.opentelemetry.extension.kotlin.asContextElement
 import kotlinx.coroutines.delay
@@ -52,6 +56,9 @@ class UnitOfWorkExecutor(
     ): RESULT where PRINCIPAL : Principal<*>,
           PARAMS : UowParams<PARAMS>,
           UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *> {
+        val startTime = System.nanoTime()
+        val timer = createTimer()
+
         lateinit var uowSpan: Span
         lateinit var name: String
         try {
@@ -100,6 +107,9 @@ class UnitOfWorkExecutor(
             uowSpan.recordException(ex)
             throw ex
         } finally {
+            val endTime = System.nanoTime()
+            val elapsedTime = endTime - startTime
+            timer.record(elapsedTime, Attributes.of(AttributeKey.stringKey("uow.name"), name))
             uowSpan.end()
         }
     }
@@ -181,6 +191,13 @@ class UnitOfWorkExecutor(
         .setAttribute(UOW_OPERATION, SPAN_PERSIST)
         .setAttribute(UOW_NAME, name)
         .startSpan()
+
+    private fun createTimer() = openTelemetry.getMeter("eva")
+        .histogramBuilder("uow.timer")
+        .setDescription("Unit of work execution time")
+        .setUnit("ns")
+        .ofLongs()
+        .build()
 
     companion object {
         private const val SPAN_PERSIST = "persist"

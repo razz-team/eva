@@ -136,6 +136,12 @@ class PersistenceSpec : PersistenceBaseSpec({
                 persistingSpan?.parentSpanId shouldBe uowSpan?.spanId
                 uowSpan?.parentSpanId shouldBe spanId
             }
+
+            And("the uow timer metric is incremented") {
+                val metrics = module.metricReader.collectAllMetrics()
+                val metric = metrics.first()
+                metric.histogramData.points.count() shouldBe 1
+            }
         }
 
         When("Principal performs delete on query executor") {
