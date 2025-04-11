@@ -9,22 +9,20 @@ import com.razz.eva.events.IntegrationModelEvent.EventName
 import com.razz.eva.events.IntegrationModelEvent.ModelId
 import com.razz.eva.events.IntegrationModelEvent.ModelName
 import com.razz.eva.events.IntegrationModelEvent.UowId
+import com.razz.eva.events.UowEvent.UowName
+import com.razz.eva.persistence.ConnectionMode.REQUIRE_NEW
 import com.razz.eva.serialization.json.int
 import com.razz.eva.serialization.json.jsonObject
 import com.razz.eva.serialization.json.string
-import com.razz.eva.tracing.Tracing.withNewSpan
+import com.razz.eva.test.schema.Tables
+import com.razz.eva.tracing.use
 import com.razz.eva.uow.CreateSoloDepartmentUow
 import com.razz.eva.uow.TestPrincipal
-import com.razz.eva.events.UowEvent.UowName
-import com.razz.eva.persistence.ConnectionMode.REQUIRE_NEW
-import com.razz.eva.test.schema.Tables
 import io.kotest.matchers.shouldBe
-import io.opentracing.Tracer
-import io.opentracing.propagation.Format
-import io.opentracing.propagation.TextMapAdapter
+import io.kotest.matchers.shouldNotBe
+import java.util.UUID.randomUUID
 import kotlinx.serialization.json.Json.Default.parseToJsonElement
 import kotlinx.serialization.json.JsonPrimitive
-import java.util.UUID.randomUUID
 
 class PersistenceSpec : PersistenceBaseSpec({
 
@@ -40,21 +38,15 @@ class PersistenceSpec : PersistenceBaseSpec({
         lateinit var boss: Employee
 
         When("Principal performs uow with span") {
-            val span = { tracer: Tracer ->
-                tracer.buildSpan("event-repo-spec").asChildOf(
-                    tracer.extract(
-                        Format.Builtin.TEXT_MAP,
-                        TextMapAdapter(
-                            mapOf(
-                                "x-b3-spanid" to "0000000001234567",
-                                "x-b3-traceid" to "0000000007654321",
-                                "x-b3-sampled" to "1"
-                            )
-                        )
-                    )
-                ).start()
-            }
-            val mobileboys = withNewSpan(module.tracer, span) {
+            val span = module.openTelemetry
+                .getTracer("my-tracer")
+                .spanBuilder("solo-department")
+                .startSpan()
+
+            val traceId = span.spanContext.traceId
+            val spanId = span.spanContext.spanId
+
+            val mobileboys = span.use {
                 module.uowx.execute(CreateSoloDepartmentUow::class, TestPrincipal) { params }
             }
 
@@ -105,16 +97,11 @@ class PersistenceSpec : PersistenceBaseSpec({
                     uowId shouldBe UowId(uowEvent.id.uuidValue())
                     occurredAt shouldBe uowEvent.occurredAt
                 }
-                uowEvent.modelEvents[0].second shouldBe parseToJsonElement(
-                    """
-                    {
-                    "X-B3-SpanId":"${module.tracer.traceToSpan["0000000007654321"]}",
-                    "X-B3-Sampled":"1",
-                    "X-B3-TraceId":"0000000007654321",
-                    "X-B3-ParentSpanId":"0000000001234567"
-                    }
-                    """
-                )
+                with(uowEvent.modelEvents[0].second) {
+                    val traceParent = string("traceparent").split("-")
+                    traceParent[1] shouldBe traceId
+                    traceParent[2] shouldNotBe spanId
+                }
                 with(uowEvent.modelEvents[1].first) {
                     payload.string("employeeId") shouldBe boss.id().id.toString()
                     payload.jsonObject("name").string("first") shouldBe boss.name.first
@@ -128,16 +115,35 @@ class PersistenceSpec : PersistenceBaseSpec({
                     uowId shouldBe UowId(uowEvent.id.uuidValue())
                     occurredAt shouldBe uowEvent.occurredAt
                 }
-                uowEvent.modelEvents[1].second shouldBe parseToJsonElement(
-                    """
-                    {
-                    "X-B3-SpanId":"${module.tracer.traceToSpan["0000000007654321"]}",
-                    "X-B3-Sampled":"1",
-                    "X-B3-TraceId":"0000000007654321",
-                    "X-B3-ParentSpanId":"0000000001234567"
-                    }
-                    """
-                )
+                with(uowEvent.modelEvents[1].second) {
+                    val traceParent = string("traceparent").split("-")
+                    traceParent[1] shouldBe traceId
+                    traceParent[2] shouldNotBe spanId
+                }
+            }
+
+            And("the uow span has child perform and persist spans") {
+                val spans = module.spanExporter.finishedSpanItems
+                    .filter { it.traceId == traceId }
+                val performingSpan = spans.find { it.name == "CreateSoloDepartmentUow-perform" }
+                val persistingSpan = spans.find { it.name == "CreateSoloDepartmentUow-persist" }
+                val uowSpan = spans.find { it.name == "CreateSoloDepartmentUow" }
+
+                performingSpan shouldNotBe null
+                persistingSpan shouldNotBe null
+                uowSpan shouldNotBe null
+                performingSpan?.parentSpanId shouldBe uowSpan?.spanId
+                persistingSpan?.parentSpanId shouldBe uowSpan?.spanId
+                uowSpan?.parentSpanId shouldBe spanId
+            }
+
+            And("the uow timer metric is incremented") {
+                val metrics = module.metricReader.collectAllMetrics()
+                val metric = metrics.first()
+                val pointsForUow = metric.histogramData.points.filter {
+                    it.attributes.asMap().containsValue("CreateSoloDepartmentUow")
+                }
+                pointsForUow.size shouldBe 1
             }
         }
 

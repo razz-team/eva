@@ -10,6 +10,10 @@ import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
 import io.vertx.sqlclient.SqlResult
 import io.vertx.sqlclient.impl.ArrayTuple
+import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.ZoneOffset.UTC
 import org.jooq.Converter
 import org.jooq.DMLQuery
 import org.jooq.DSLContext
@@ -23,10 +27,6 @@ import org.jooq.Table
 import org.jooq.exception.DataAccessException
 import org.jooq.impl.SQLDataType
 import org.jooq.postgres.extensions.types.Inet
-import java.time.Instant
-import java.time.LocalDate
-import java.time.LocalDateTime
-import java.time.ZoneOffset.UTC
 
 class VertxQueryExecutor(
     private val transactionManager: TransactionManager<PgConnection>,
