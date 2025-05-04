@@ -62,6 +62,18 @@ class JdbcQueryExecutor(
         }
     }
 
+    override suspend fun executeSetSession(
+        dslContext: DSLContext,
+        sessionParamName: String,
+        sessionParamValue: String
+    ) {
+        return transactionManager.withConnection { connection ->
+            dslContext.using(connection).execute(
+                "SET SESSION $sessionParamName = $sessionParamValue",
+            )
+        }
+    }
+
     private fun <R : Record> DSLContext.preparedQuery(
         jooqQuery: Query,
         table: Table<R>,
