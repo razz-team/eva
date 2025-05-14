@@ -190,7 +190,8 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                 }
 
                 Then("Exception is thrown") {
-                    shouldThrow<IllegalArgumentException> { attempt() }
+                    val ex = shouldThrow<IllegalArgumentException> { attempt() }
+                    ex.message shouldBe "Attempted to register multiple factories for CreateDepartmentUow"
                 }
             }
         }
