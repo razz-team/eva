@@ -44,7 +44,8 @@ class UnitOfWorkExecutor(
 
     private val logger = KotlinLogging.logger {}
     private val classToFactory = factories.groupBy(ClassToUow<*, *, *, *>::uowClass).mapValues {
-        it.value.single().uowFactory
+        it.value.singleOrNull()?.uowFactory
+            ?: throw IllegalArgumentException("Attempted to register multiple factories for ${it.key.simpleName}")
     }
 
     suspend fun <PRINCIPAL, PARAMS, RESULT, UOW> execute(
