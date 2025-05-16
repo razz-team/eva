@@ -19,7 +19,7 @@ abstract class PersistenceBaseSpec(
 ) : FunctionalSpec<TestModule>({ sharedModule }, body) {
 
     companion object {
-        private val DB = DatabaseContainerHelper.create("eva", DatabaseContainer.BASIC)
+        private val∑ DB = DatabaseContainerHelper.create("eva", DatabaseContainer.BASIC)
 
         val dbConfig = DatabaseConfig(
             nodes = listOf(DbNodeAddress(DB.dbHost(), DB.dbPort())),
