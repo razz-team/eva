@@ -19,10 +19,15 @@ class QueryTracingListenerProvider(
 
         override fun executeStart(context: ExecuteContext) {
             val rootSpan = Span.fromContextOrNull(Context.current())
+            val spanName = context.sql()
+                ?.split(" ")
+                ?.take(2)
+                ?.joinToString(" ")
+                ?: "PostgreSQL"
             // We don't want to record queries out of requests/jobs/consumers (f.e. module init or migrations)
             if (rootSpan != null) {
                 span = openTelemetry.getTracer("JOOQ")
-                    .spanBuilder("PostgreSQL")
+                    .spanBuilder(spanName)
                     .setAttribute("db.system", "postgresql")
                     .setAttribute("db.statement", context.sql() ?: "")
                     .setSpanKind(CLIENT)
