@@ -78,8 +78,11 @@ class JdbcQueryExecutor(
     }
 
     private fun DSLContext.using(connection: Connection): DSLContext {
-        val newContext = DSL.using(connection, settings())
-        newContext.configuration().set(QueryTracingListenerProvider(openTelemetry))
-        return newContext
+        val configWithConnection = configuration()
+            .derive(connection)
+            .derive(settings())
+            .derive(QueryTracingListenerProvider(openTelemetry))
+
+        return DSL.using(configWithConnection)
     }
 }
