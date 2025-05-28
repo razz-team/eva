@@ -122,7 +122,7 @@ class VertxQueryExecutor(
 
         val record = dslContext.newRecord(table)
         record.fromArray(*values)
-        record.changed(false)
+        record.touched(false)
         return record.into(table)
     }
 
