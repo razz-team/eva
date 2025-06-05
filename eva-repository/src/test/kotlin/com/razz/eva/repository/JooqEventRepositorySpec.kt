@@ -117,6 +117,7 @@ class JooqEventRepositorySpec : BehaviorSpec({
                                             this.idempotencyKey = uowEvent.idempotencyKey?.stringValue()
                                             this.principalName = "TEST_PRINCIPAL"
                                             this.principalId = "THIS_IS_SINGLETON"
+                                            this.principalContext = """{"AGENT":"Mozilla/5.0 (X11; Linux x86_64)"}"""
                                             this.occurredAt = now
                                             this.modelEvents = uowEvent
                                                 .modelEvents.map { (id, _) -> id.uuidValue() }.toTypedArray()
@@ -250,6 +251,7 @@ class JooqEventRepositorySpec : BehaviorSpec({
                                             this.idempotencyKey = uowEvent.idempotencyKey?.stringValue()
                                             this.principalName = "TEST_PRINCIPAL"
                                             this.principalId = "THIS_IS_SINGLETON"
+                                            this.principalContext = """{"AGENT":"Mozilla/5.0 (X11; Linux x86_64)"}"""
                                             this.occurredAt = now
                                             this.modelEvents = uowEvent
                                                 .modelEvents.map { (id, _) -> id.uuidValue() }.toTypedArray()
@@ -306,6 +308,7 @@ class JooqEventRepositorySpec : BehaviorSpec({
                                             idempotencyKey = uowEvent.idempotencyKey?.stringValue()
                                             principalName = "TEST_PRINCIPAL"
                                             principalId = "THIS_IS_SINGLETON"
+                                            principalContext = """{"AGENT":"Mozilla/5.0 (X11; Linux x86_64)"}"""
                                             occurredAt = now
                                             modelEvents = uowEvent
                                                 .modelEvents.map { (id, _) -> id.uuidValue() }.toTypedArray()
