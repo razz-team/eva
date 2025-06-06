@@ -78,6 +78,12 @@ class UnitOfWorkExecutor(
                         uow.tryPerform(principal, constructedParams)
                     }
                 }
+
+                uowSpan.setAttribute(
+                    MODEL_ID,
+                    changes.toPersist.map { it.id.stringValue() }
+                )
+
                 val persisted = try {
                     withContext(uowSpan.asContextElement()) {
                         persistingSpan(name).use {
@@ -203,6 +209,7 @@ class UnitOfWorkExecutor(
         private const val SPAN_PERFORM = "perform"
         private const val UOW_OPERATION = "uow.operation"
         private const val UOW_NAME = "uow.name"
+        private val MODEL_ID = AttributeKey.stringArrayKey("model.id")
     }
 }
 
