@@ -5,12 +5,12 @@ import com.razz.eva.uow.Clocks.fixedUTC
 import com.razz.eva.uow.Clocks.millisUTC
 import com.razz.eva.uow.verify.EqualityVerifier
 import com.razz.eva.uow.verify.EqualityVerifierAware
-import io.kotest.core.spec.style.BehaviorSpec
+import io.kotest.core.spec.style.ShouldSpec
 import io.kotest.matchers.shouldBe
 
-abstract class UowBehaviorSpec(
-    body: UowBehaviorSpec.() -> Unit = {},
-) : BehaviorSpec(), UowSpecBase, EqualityVerifierAware {
+abstract class UowShouldSpec(
+    body: UowShouldSpec.() -> Unit = {},
+) : ShouldSpec(), UowSpecBase, EqualityVerifierAware {
 
     val now = millisUTC().instant()
     val clock = fixedUTC(now)

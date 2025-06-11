@@ -7,6 +7,7 @@ import com.razz.eva.domain.Principal
 import com.razz.eva.uow.BaseUnitOfWork
 import com.razz.eva.uow.Changes
 import com.razz.eva.uow.ChangesAccumulator
+import com.razz.eva.uow.InstantiationContext
 import com.razz.eva.uow.UowParams
 
 class ChangesDsl internal constructor(initial: ChangesAccumulator) {
@@ -89,13 +90,13 @@ class ChangesDsl internal constructor(initial: ChangesAccumulator) {
     suspend fun <PRINCIPAL, PARAMS, RESULT, UOW> execute(
         uow: UOW,
         principal: PRINCIPAL,
-        params: () -> PARAMS,
+        params: InstantiationContext.() -> PARAMS,
     ): RESULT
         where PRINCIPAL : Principal<*>,
               PARAMS : UowParams<PARAMS>,
               RESULT : Any,
               UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *> {
-        val subChanges = uow.tryPerform(principal, params())
+        val subChanges = uow.tryPerform(principal, params(InstantiationContext(0)))
         tail = tail?.merge(head.merge(subChanges)) ?: head.merge(subChanges)
         head = ChangesAccumulator()
         return subChanges.result
