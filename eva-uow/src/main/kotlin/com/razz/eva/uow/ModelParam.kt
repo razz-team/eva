@@ -55,14 +55,7 @@ class ModelParam<MID : ModelId<out Comparable<*>>, M : Model<MID, *>> private co
             return modelParam
         }
 
-        fun <MID : ModelId<out Comparable<*>>, M : Model<MID, *>> modelParam(
-            model: M,
-            modelQueries: suspend (MID) -> M,
-        ): ModelParam<MID, M> {
-            return ModelParam(model, modelQueries)
-        }
-
-        fun <MID : ModelId<out Comparable<*>>, M : Model<MID, *>> constantModelParam(
+        fun <MID : ModelId<out Comparable<*>>, M : Model<MID, *>> InstantiationContext.constantModelParam(
             model: M,
         ): ModelParam<MID, M> {
             return ModelParam(model) { model }
