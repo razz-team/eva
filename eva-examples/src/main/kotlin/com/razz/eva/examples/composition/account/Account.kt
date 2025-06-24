@@ -48,7 +48,7 @@ class Account(
     fun debit(amount: Long) = existingAccount(
         id = id(),
         balance = this.balance - amount,
-        entityState = entityState().raiseEvent(
+        entityState = raiseEvent(
             AccountDebited(
                 modelId = id(),
                 oldBalance = balance,

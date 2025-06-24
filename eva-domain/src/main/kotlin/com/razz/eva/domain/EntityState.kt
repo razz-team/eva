@@ -22,9 +22,11 @@ sealed class EntityState<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>>(
 
     override fun isPersisted(): Boolean = this is PersistentState<ID, E>
 
-    fun raiseEvent(firstEvent: E, vararg newEvents: E): EntityState<ID, E> = raiseEvent(listOf(firstEvent, *newEvents))
+    internal fun raiseEvent(firstEvent: E, vararg newEvents: E): EntityState<ID, E> =
+        raiseEvent(listOf(firstEvent, *newEvents))
 
-    fun raiseEvent(newEvent: E): EntityState<ID, E> = raiseEvent(listOf(newEvent))
+    internal fun raiseEvent(newEvent: E): EntityState<ID, E> =
+        raiseEvent(listOf(newEvent))
 
     private fun raiseEvent(newEvents: List<E>): EntityState<ID, E> {
         check(newEvents.isNotEmpty()) {

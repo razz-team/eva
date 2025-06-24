@@ -13,5 +13,9 @@ abstract class Model<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>>(
 
     override fun id(): ID = id
 
-    protected fun entityState(): EntityState<ID, E> = entityState
+    protected fun raiseEvent(firstEvent: E, vararg newEvents: E): EntityState<ID, E> =
+        entityState.raiseEvent(firstEvent, *newEvents)
+
+    protected fun raiseEvent(newEvent: E): EntityState<ID, E> =
+        entityState.raiseEvent(newEvent)
 }
