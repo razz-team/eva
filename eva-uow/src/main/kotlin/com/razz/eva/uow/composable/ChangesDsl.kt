@@ -4,12 +4,7 @@ import com.razz.eva.domain.Model
 import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
 import com.razz.eva.domain.Principal
-import com.razz.eva.tracing.OtelAttributes.MODEL_CHANGE
 import com.razz.eva.tracing.OtelAttributes.MODEL_ID
-import com.razz.eva.tracing.OtelAttributes.PRE_MERGE_HEAD_MODEL_CHANGE
-import com.razz.eva.tracing.OtelAttributes.PRE_MERGE_HEAD_MODEL_ID
-import com.razz.eva.tracing.OtelAttributes.PRE_MERGE_TAIL_MODEL_CHANGE
-import com.razz.eva.tracing.OtelAttributes.PRE_MERGE_TAIL_MODEL_ID
 import com.razz.eva.tracing.use
 import com.razz.eva.uow.BaseUnitOfWork
 import com.razz.eva.uow.Changes

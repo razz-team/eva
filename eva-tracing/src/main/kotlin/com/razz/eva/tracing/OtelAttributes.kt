@@ -8,9 +8,4 @@ object OtelAttributes {
     const val UOW_OPERATION = "uow.operation"
     const val UOW_NAME = "uow.name"
     val MODEL_ID = AttributeKey.stringArrayKey("model.id")
-    val MODEL_CHANGE = AttributeKey.stringArrayKey("model.change")
-    val PRE_MERGE_HEAD_MODEL_ID = AttributeKey.stringArrayKey("pre.merge.head.model.id")
-    val PRE_MERGE_HEAD_MODEL_CHANGE = AttributeKey.stringArrayKey("pre.merge.head.model.change")
-    val PRE_MERGE_TAIL_MODEL_ID = AttributeKey.stringArrayKey("pre.merge.tail.model.id")
-    val PRE_MERGE_TAIL_MODEL_CHANGE = AttributeKey.stringArrayKey("pre.merge.tail.model.change")
 }
