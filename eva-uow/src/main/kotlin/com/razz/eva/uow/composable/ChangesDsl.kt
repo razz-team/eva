@@ -104,17 +104,14 @@ class ChangesDsl internal constructor(initial: ChangesAccumulator) {
             val subChanges = performingSpan(uow.otel, uow.name()).use {
                 uow.tryPerform(principal, params(InstantiationContext(0)))
             }
-
             span.setAttribute(
                 MODEL_ID,
                 subChanges.toPersist.map { it.id.stringValue() }
             )
-
             mergingSpan(uow.otel, uow.name()).use {
                 tail = tail?.merge(head.merge(subChanges)) ?: head.merge(subChanges)
             }
             head = ChangesAccumulator()
-
             subChanges.result
         }
     }
