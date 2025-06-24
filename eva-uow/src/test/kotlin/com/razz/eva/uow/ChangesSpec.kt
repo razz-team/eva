@@ -289,7 +289,7 @@ class ChangesSpec : BehaviorSpec({
 
                     Then("original changes contain only models were added to it directly") {
                         val ex = shouldThrow<IllegalStateException>(attempt)
-                        ex.message shouldStartWith "Failed to merge changes for model"
+                        ex.message shouldBe "Failed to merge changes for model [${newModel.id()}]"
                     }
                 }
             }

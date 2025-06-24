@@ -114,22 +114,8 @@ class ChangesDsl internal constructor(initial: ChangesAccumulator, private val o
                 MODEL_ID,
                 subChanges.toPersist.map { it.id.stringValue() }
             )
-            span.setAttribute(
-                MODEL_CHANGE,
-                subChanges.toPersist.map { it::class.simpleName ?: "UnknownChange" }
-            )
+
             mergingSpan(uow.name()).use {
-                span.setAttribute(PRE_MERGE_HEAD_MODEL_ID, head.modelIds().map { it.stringValue() })
-                tail?.let {
-                    span.setAttribute(PRE_MERGE_TAIL_MODEL_ID, it.modelIds().map { m -> m.stringValue() })
-                }
-                span.setAttribute(PRE_MERGE_HEAD_MODEL_CHANGE, head.modelChanges())
-                tail?.let {
-                    span.setAttribute(
-                        PRE_MERGE_TAIL_MODEL_CHANGE,
-                        it.modelChanges()
-                    )
-                }
                 tail = tail?.merge(head.merge(subChanges)) ?: head.merge(subChanges)
             }
             head = ChangesAccumulator()
