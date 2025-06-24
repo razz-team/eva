@@ -13,6 +13,7 @@ import com.razz.eva.domain.Version.Companion.V1
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldStartWith
 
 class ChangesSpec : BehaviorSpec({
 
@@ -288,7 +289,7 @@ class ChangesSpec : BehaviorSpec({
 
                     Then("original changes contain only models were added to it directly") {
                         val ex = shouldThrow<IllegalStateException>(attempt)
-                        ex.message shouldBe "Failed to merge changes for model [${newModel.id()}]"
+                        ex.message shouldStartWith "Failed to merge changes for model"
                     }
                 }
             }

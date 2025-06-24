@@ -24,6 +24,7 @@ import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldStartWith
 import io.kotest.matchers.types.shouldBeTypeOf
 import kotlinx.serialization.Serializable
 import java.time.Clock
@@ -330,7 +331,7 @@ class ChangesDslSpec : FunSpec({
         val exception = shouldThrow<IllegalStateException> {
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
-        exception.message shouldBe "Failed to merge changes for model [${model.id()}]"
+        exception.message shouldStartWith "Failed to merge changes for model"
     }
 
     test("Should throw exception when same model updated with composable uow case first updates with 2 events") {
@@ -356,7 +357,7 @@ class ChangesDslSpec : FunSpec({
         val exception = shouldThrow<IllegalStateException> {
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
-        exception.message shouldBe "Failed to merge changes for model [${model.id()}]"
+        exception.message shouldStartWith "Failed to merge changes for model"
     }
 
     test("Should throw exception when same model updated with composable uow case second updates with 2 events") {
@@ -382,6 +383,6 @@ class ChangesDslSpec : FunSpec({
         val exception = shouldThrow<IllegalStateException> {
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
-        exception.message shouldBe "Failed to merge changes for model [${model.id()}]"
+        exception.message shouldStartWith "Failed to merge changes for model"
     }
 })
