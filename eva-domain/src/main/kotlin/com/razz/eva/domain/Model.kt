@@ -2,7 +2,7 @@ package com.razz.eva.domain
 
 abstract class Model<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>>(
     private val id: ID,
-    private val entityState: EntityState<ID, E>
+    private val entityState: EntityState<ID, E>,
 ) : Identifiable<ID>, EntityStateMixin<ID, E> {
 
     final override fun isDirty(): Boolean = entityState.isDirty()

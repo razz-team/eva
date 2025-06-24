@@ -106,6 +106,13 @@ sealed class EntityState<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>>(
                 @Suppress("UNCHECKED_CAST")
                 return NewState(listOf(createdEvent as E))
             }
+            fun <ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>, C : ModelCreatedEvent<ID>> newState(
+                createdEvent: C,
+                vararg newEvents: E,
+            ): NewState<ID, E> {
+                @Suppress("UNCHECKED_CAST")
+                return NewState(listOf(createdEvent as E, *newEvents))
+            }
         }
     }
 }
