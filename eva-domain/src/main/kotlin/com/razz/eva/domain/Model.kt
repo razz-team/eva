@@ -2,7 +2,7 @@ package com.razz.eva.domain
 
 abstract class Model<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>>(
     private val id: ID,
-    private val entityState: EntityState<ID, E>
+    private val entityState: EntityState<ID, E>,
 ) : Identifiable<ID>, EntityStateMixin<ID, E> {
 
     final override fun isDirty(): Boolean = entityState.isDirty()
@@ -13,5 +13,9 @@ abstract class Model<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>>(
 
     override fun id(): ID = id
 
-    protected fun entityState(): EntityState<ID, E> = entityState
+    protected fun raiseEvent(firstEvent: E, vararg newEvents: E): EntityState<ID, E> =
+        entityState.raiseEvent(firstEvent, *newEvents)
+
+    protected fun raiseEvent(newEvent: E): EntityState<ID, E> =
+        entityState.raiseEvent(newEvent)
 }

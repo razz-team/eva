@@ -41,7 +41,7 @@ class Employee(
             newDepartment.id(),
             email,
             ration,
-            entityState().raiseEvent(DepartmentChanged(id(), departmentId, newDepartment.id()))
+            raiseEvent(DepartmentChanged(id(), departmentId, newDepartment.id()))
         )
     }
 

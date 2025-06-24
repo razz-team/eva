@@ -1,5 +1,6 @@
 package com.razz.eva.uow
 
+import com.razz.eva.domain.Identifiable
 import com.razz.eva.domain.Model
 import com.razz.eva.domain.ModelId
 import com.razz.eva.uow.ModelParam.Serializer
@@ -14,12 +15,12 @@ class ModelParam<MID : ModelId<out Comparable<*>>, M : Model<MID, *>> private co
     private var model: M?,
     private val id: MID,
     private val modelQueries: suspend (MID) -> M,
-) {
+) : Identifiable<MID> {
 
     private constructor(model: M, modelQueries: suspend (MID) -> M) : this(model, model.id(), modelQueries)
     private constructor(id: MID, modelQueries: suspend (MID) -> M) : this(null, id, modelQueries)
 
-    fun id(): MID = id
+    override fun id(): MID = id
     suspend fun model(): M {
         val currentModel = model
         return if (currentModel == null) {

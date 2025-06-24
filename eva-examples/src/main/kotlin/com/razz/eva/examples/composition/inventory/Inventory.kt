@@ -65,7 +65,7 @@ class Inventory(
         return existingInventory(
             id = id(),
             stock = reducedStock,
-            entityState = entityState().raiseEvent(StockReduced(id(), items))
+            entityState = raiseEvent(StockReduced(id(), items))
         )
     }
 

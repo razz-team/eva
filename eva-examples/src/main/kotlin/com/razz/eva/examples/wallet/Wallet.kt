@@ -54,7 +54,6 @@ class Wallet(
         currency = currency,
         id = id(),
         expireAt = expireAt,
-        entityState = entityState()
-            .raiseEvent(WalletEvent.Deposit(id(), amount, toDeposit))
+        entityState = raiseEvent(WalletEvent.Deposit(id(), amount, toDeposit))
     )
 }

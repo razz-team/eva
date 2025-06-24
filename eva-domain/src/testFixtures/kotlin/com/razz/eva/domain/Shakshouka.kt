@@ -40,7 +40,7 @@ sealed class Shakshouka(
                 employeeId,
                 eggsCount,
                 withPita,
-                entityState().raiseEvent(ShakshoukaConsumed(id))
+                raiseEvent(ShakshoukaConsumed(id))
             )
         }
     }
