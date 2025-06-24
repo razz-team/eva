@@ -206,7 +206,6 @@ class UnitOfWorkExecutor(
         .setUnit("ns")
         .ofLongs()
         .build()
-
 }
 
 class UowFactoryNotFoundException(uowClass: KClass<*>) :
