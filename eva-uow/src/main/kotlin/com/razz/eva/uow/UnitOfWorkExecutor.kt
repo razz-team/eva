@@ -207,7 +207,7 @@ class UnitOfWorkExecutor(
         private const val SPAN_PERFORM = "perform"
         private const val UOW_OPERATION = "uow.operation"
         private const val UOW_NAME = "uow.name"
-        private val MODEL_ID = AttributeKey.stringArrayKey("model.id")
+        val MODEL_ID = AttributeKey.stringArrayKey("model.id")
     }
 }
 
