@@ -4,7 +4,12 @@ import com.razz.eva.domain.Model
 import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
 import com.razz.eva.domain.Principal
+import com.razz.eva.tracing.OtelAttributes.MODEL_CHANGE
 import com.razz.eva.tracing.OtelAttributes.MODEL_ID
+import com.razz.eva.tracing.OtelAttributes.PRE_MERGE_HEAD_MODEL_CHANGE
+import com.razz.eva.tracing.OtelAttributes.PRE_MERGE_HEAD_MODEL_ID
+import com.razz.eva.tracing.OtelAttributes.PRE_MERGE_TAIL_MODEL_CHANGE
+import com.razz.eva.tracing.OtelAttributes.PRE_MERGE_TAIL_MODEL_ID
 import com.razz.eva.tracing.use
 import com.razz.eva.uow.BaseUnitOfWork
 import com.razz.eva.uow.Changes
@@ -109,7 +114,22 @@ class ChangesDsl internal constructor(initial: ChangesAccumulator, private val o
                 MODEL_ID,
                 subChanges.toPersist.map { it.id.stringValue() }
             )
+            span.setAttribute(
+                MODEL_CHANGE,
+                subChanges.toPersist.map { it::class.simpleName ?: "UnknownChange" }
+            )
             mergingSpan(uow.name()).use {
+                span.setAttribute(PRE_MERGE_HEAD_MODEL_ID, head.modelIds().map { it.stringValue() })
+                tail?.let {
+                    span.setAttribute(PRE_MERGE_TAIL_MODEL_ID, it.modelIds().map { m -> m.stringValue() })
+                }
+                span.setAttribute(PRE_MERGE_HEAD_MODEL_CHANGE, head.modelChanges())
+                tail?.let {
+                    span.setAttribute(
+                        PRE_MERGE_TAIL_MODEL_CHANGE,
+                        it.modelChanges()
+                    )
+                }
                 tail = tail?.merge(head.merge(subChanges)) ?: head.merge(subChanges)
             }
             head = ChangesAccumulator()

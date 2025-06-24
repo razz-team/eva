@@ -45,6 +45,10 @@ class ChangesAccumulator private constructor(
         return ChangesAccumulator(into)
     }
 
+    fun modelIds(): Set<ModelId<out Comparable<*>>> = changes.keys
+
+    fun modelChanges(): List<String> = changes.keys.map { changes.getValue(it)::class.simpleName!! }
+
     fun merge(after: ChangesAccumulator): ChangesAccumulator = merge(after.changes.values)
 
     fun merge(after: Changes<*>): ChangesAccumulator = merge(after.toPersist)
