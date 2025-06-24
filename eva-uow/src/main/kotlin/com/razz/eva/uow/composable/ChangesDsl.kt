@@ -6,6 +6,7 @@ import com.razz.eva.domain.ModelId
 import com.razz.eva.domain.Principal
 import com.razz.eva.tracing.OtelAttributes.MODEL_ID
 import com.razz.eva.tracing.use
+import com.razz.eva.uow.BaseUnitOfWork
 import com.razz.eva.uow.Changes
 import com.razz.eva.uow.ChangesAccumulator
 import com.razz.eva.uow.InstantiationContext
@@ -13,7 +14,7 @@ import com.razz.eva.uow.UowParams
 import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.api.trace.Span
 
-class ChangesDsl internal constructor(initial: ChangesAccumulator) {
+class ChangesDsl internal constructor(initial: ChangesAccumulator, private val otel: OpenTelemetry) {
     private var tail: ChangesAccumulator? = null
     private var head: ChangesAccumulator = initial
 
@@ -98,17 +99,17 @@ class ChangesDsl internal constructor(initial: ChangesAccumulator) {
         where PRINCIPAL : Principal<*>,
               PARAMS : UowParams<PARAMS>,
               RESULT : Any,
-              UOW : UnitOfWork<PRINCIPAL, PARAMS, RESULT> {
-        val span = uowSpan(uow.otel, uow.name())
+              UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *> {
+        val span = uowSpan(uow.name())
         return span.use {
-            val subChanges = performingSpan(uow.otel, uow.name()).use {
+            val subChanges = performingSpan(uow.name()).use {
                 uow.tryPerform(principal, params(InstantiationContext(0)))
             }
             span.setAttribute(
                 MODEL_ID,
                 subChanges.toPersist.map { it.id.stringValue() }
             )
-            mergingSpan(uow.otel, uow.name()).use {
+            mergingSpan(uow.name()).use {
                 tail = tail?.merge(head.merge(subChanges)) ?: head.merge(subChanges)
             }
             head = ChangesAccumulator()
@@ -119,24 +120,25 @@ class ChangesDsl internal constructor(initial: ChangesAccumulator) {
     companion object {
         internal suspend inline fun <R> changes(
             changes: ChangesAccumulator,
+            otel: OpenTelemetry,
             @Suppress("REDUNDANT_INLINE_SUSPEND_FUNCTION_TYPE")
             init: suspend ChangesDsl.() -> R
         ): Changes<R> {
-            val dsl = ChangesDsl(changes)
+            val dsl = ChangesDsl(changes, otel)
             val res = init(dsl)
             return dsl.withResult(res)
         }
     }
 
-    private fun uowSpan(otel: OpenTelemetry, name: String): Span = otel.getTracer("eva")
+    private fun uowSpan(name: String): Span = otel.getTracer("eva")
         .spanBuilder(name)
         .startSpan()
 
-    private fun performingSpan(otel: OpenTelemetry, name: String): Span = otel.getTracer("eva")
+    private fun performingSpan(name: String): Span = otel.getTracer("eva")
         .spanBuilder("$name-perform")
         .startSpan()
 
-    private fun mergingSpan(otel: OpenTelemetry, name: String): Span = otel.getTracer("eva")
+    private fun mergingSpan(name: String): Span = otel.getTracer("eva")
         .spanBuilder("$name-merge")
         .startSpan()
 }

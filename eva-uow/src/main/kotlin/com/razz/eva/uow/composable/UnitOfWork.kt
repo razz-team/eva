@@ -16,6 +16,6 @@ abstract class UnitOfWork<PRINCIPAL, PARAMS, RESULT>(
     where PRINCIPAL : Principal<*>, PARAMS : UowParams<PARAMS>, RESULT : Any {
 
     final override suspend fun changes(init: suspend ChangesDsl.() -> RESULT): Changes<RESULT> {
-        return ChangesDsl.changes(ChangesAccumulator(), init)
+        return ChangesDsl.changes(ChangesAccumulator(), otel, init)
     }
 }
