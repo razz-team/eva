@@ -1,4 +1,5 @@
 import org.gradle.api.tasks.testing.logging.TestLogEvent.STANDARD_ERROR
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
@@ -33,8 +34,8 @@ val testFunctional = tasks.register<Test>("testFunctional") {
 tasks.check { dependsOn(testFunctional) }
 
 tasks.named<KotlinCompile>("compileTestFunctionalKotlin") {
-    kotlinOptions {
-        jvmTarget = versions.jvm
+    compilerOptions {
+        jvmTarget.set(JvmTarget.fromTarget(versions.jvm))
     }
 }
 
