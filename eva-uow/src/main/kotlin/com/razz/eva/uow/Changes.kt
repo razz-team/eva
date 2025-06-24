@@ -39,7 +39,10 @@ class ChangesAccumulator private constructor(
         from.forEach { new ->
             into.merge(new.id, new) { change, succ ->
                 val merged = change.merge(succ)
-                checkNotNull(merged) { "Failed to merge changes for model [${change.id}]" }
+                checkNotNull(merged) { "Failed to merge changes for model [${change.id}, " +
+                    "${change::class.simpleName}, ${change.modelEvents.map { it.eventName() }}] " +
+                    "and succ [${succ.id}, ${succ::class.simpleName}, " +
+                    "${succ.modelEvents.map { it.eventName() }}]" }
             }
         }
         return ChangesAccumulator(into)
