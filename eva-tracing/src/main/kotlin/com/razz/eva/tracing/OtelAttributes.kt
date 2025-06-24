@@ -13,5 +13,4 @@ object OtelAttributes {
     val PRE_MERGE_HEAD_MODEL_CHANGE = AttributeKey.stringArrayKey("pre.merge.head.model.change")
     val PRE_MERGE_TAIL_MODEL_ID = AttributeKey.stringArrayKey("pre.merge.tail.model.id")
     val PRE_MERGE_TAIL_MODEL_CHANGE = AttributeKey.stringArrayKey("pre.merge.tail.model.change")
-
 }
