@@ -4,6 +4,11 @@ import com.razz.eva.domain.Model
 import com.razz.eva.domain.Principal
 import com.razz.eva.persistence.PersistenceException
 import com.razz.eva.persistence.PrimaryConnectionRequiredFlag
+import com.razz.eva.tracing.OtelAttributes.MODEL_ID
+import com.razz.eva.tracing.OtelAttributes.SPAN_PERFORM
+import com.razz.eva.tracing.OtelAttributes.SPAN_PERSIST
+import com.razz.eva.tracing.OtelAttributes.UOW_NAME
+import com.razz.eva.tracing.OtelAttributes.UOW_OPERATION
 import com.razz.eva.tracing.use
 import com.razz.eva.uow.UnitOfWorkExecutor.ClassToUow
 import io.opentelemetry.api.OpenTelemetry
@@ -202,13 +207,6 @@ class UnitOfWorkExecutor(
         .ofLongs()
         .build()
 
-    companion object {
-        private const val SPAN_PERSIST = "persist"
-        private const val SPAN_PERFORM = "perform"
-        private const val UOW_OPERATION = "uow.operation"
-        private const val UOW_NAME = "uow.name"
-        val MODEL_ID = AttributeKey.stringArrayKey("model.id")
-    }
 }
 
 class UowFactoryNotFoundException(uowClass: KClass<*>) :

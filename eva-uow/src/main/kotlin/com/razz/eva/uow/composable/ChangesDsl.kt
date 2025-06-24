@@ -4,11 +4,11 @@ import com.razz.eva.domain.Model
 import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
 import com.razz.eva.domain.Principal
+import com.razz.eva.tracing.OtelAttributes.MODEL_ID
 import com.razz.eva.tracing.use
 import com.razz.eva.uow.Changes
 import com.razz.eva.uow.ChangesAccumulator
 import com.razz.eva.uow.InstantiationContext
-import com.razz.eva.uow.UnitOfWorkExecutor.Companion.MODEL_ID
 import com.razz.eva.uow.UowParams
 import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.api.trace.Span
@@ -98,7 +98,7 @@ class ChangesDsl internal constructor(initial: ChangesAccumulator) {
         where PRINCIPAL : Principal<*>,
               PARAMS : UowParams<PARAMS>,
               RESULT : Any,
-              UOW : com.razz.eva.uow.composable.UnitOfWork<PRINCIPAL, PARAMS, RESULT> {
+              UOW : UnitOfWork<PRINCIPAL, PARAMS, RESULT> {
         val span = uowSpan(uow.otel, uow.name())
         return span.use {
             val subChanges = performingSpan(uow.otel, uow.name()).use {
