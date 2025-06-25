@@ -7,5 +7,5 @@ object OtelAttributes {
     const val SPAN_PERFORM = "perform"
     const val UOW_OPERATION = "uow.operation"
     const val UOW_NAME = "uow.name"
-    val MODEL_ID = AttributeKey.stringArrayKey("model.id")
+    internal val MODEL_ID = AttributeKey.stringArrayKey("model.id")
 }

@@ -131,15 +131,15 @@ class ChangesDsl internal constructor(initial: ChangesAccumulator, private val o
         }
     }
 
-    private fun uowSpan(name: String): Span = otel.getTracer("eva")
+    private fun uowSpan(name: String): Span = otel.getEvaTracer()
         .spanBuilder(name)
         .startSpan()
 
-    private fun performingSpan(name: String): Span = otel.getTracer("eva")
+    private fun performingSpan(name: String): Span = otel.getEvaTracer()
         .spanBuilder("$name-perform")
         .startSpan()
 
-    private fun mergingSpan(name: String): Span = otel.getTracer("eva")
+    private fun mergingSpan(name: String): Span = otel.getEvaTracer()
         .spanBuilder("$name-merge")
         .startSpan()
 }
