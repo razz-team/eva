@@ -4,7 +4,8 @@ import com.razz.eva.domain.Model
 import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
 import com.razz.eva.domain.Principal
-import com.razz.eva.tracing.OtelAttributes.MODEL_ID
+import com.razz.eva.uow.OtelAttributes.MODEL_ID
+import com.razz.eva.tracing.getEvaTracer
 import com.razz.eva.tracing.use
 import com.razz.eva.uow.BaseUnitOfWork
 import com.razz.eva.uow.Changes

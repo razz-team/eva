@@ -4,11 +4,11 @@ import com.razz.eva.domain.Model
 import com.razz.eva.domain.Principal
 import com.razz.eva.persistence.PersistenceException
 import com.razz.eva.persistence.PrimaryConnectionRequiredFlag
-import com.razz.eva.tracing.OtelAttributes.MODEL_ID
-import com.razz.eva.tracing.OtelAttributes.SPAN_PERFORM
-import com.razz.eva.tracing.OtelAttributes.SPAN_PERSIST
-import com.razz.eva.tracing.OtelAttributes.UOW_NAME
-import com.razz.eva.tracing.OtelAttributes.UOW_OPERATION
+import com.razz.eva.uow.OtelAttributes.MODEL_ID
+import com.razz.eva.uow.OtelAttributes.SPAN_PERFORM
+import com.razz.eva.uow.OtelAttributes.SPAN_PERSIST
+import com.razz.eva.uow.OtelAttributes.UOW_NAME
+import com.razz.eva.uow.OtelAttributes.UOW_OPERATION
 import com.razz.eva.tracing.getEvaMeter
 import com.razz.eva.tracing.getEvaTracer
 import com.razz.eva.tracing.use
