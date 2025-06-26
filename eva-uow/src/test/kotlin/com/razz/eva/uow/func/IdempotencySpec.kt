@@ -25,7 +25,7 @@ class IdempotencySpec : PersistenceBaseSpec({
                 bossEmail = "sergey.z@razz.team",
                 departmentName = "android boys",
                 ration = BUBALEH,
-                idempotencyKey = idempotencyKey
+                idempotencyKey = idempotencyKey,
             )
 
             lateinit var androidBoys: OwnedDepartment
@@ -54,7 +54,7 @@ class IdempotencySpec : PersistenceBaseSpec({
                             bossEmail = "ilia.v@razz.team",
                             departmentName = "new android boys",
                             ration = BUBALEH,
-                            idempotencyKey = idempotencyKey
+                            idempotencyKey = idempotencyKey,
                         )
                     }
                 }
@@ -86,7 +86,7 @@ class IdempotencySpec : PersistenceBaseSpec({
                             bossEmail = "ilia.v@razz.team",
                             departmentName = "new android boys",
                             ration = BUBALEH,
-                            idempotencyKey = idempotencyKey
+                            idempotencyKey = idempotencyKey,
                         )
                     }
                 }
@@ -117,7 +117,7 @@ class IdempotencySpec : PersistenceBaseSpec({
                         name = Name("Ilia", "Voitcekhovskii"),
                         email = "ilia.v@razz.team",
                         ration = BUBALEH,
-                        idempotencyKey = idempotencyKey
+                        idempotencyKey = idempotencyKey,
                     )
                 }
 

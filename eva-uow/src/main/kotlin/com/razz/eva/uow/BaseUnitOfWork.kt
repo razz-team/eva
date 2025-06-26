@@ -7,17 +7,17 @@ import com.razz.eva.uow.Retry.StaleRecordFixedRetry.Companion.DEFAULT
 import java.time.Clock
 
 abstract class BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, C>(
-    protected val clock: Clock,
+    executionContext: ExecutionContext,
     private val configuration: Configuration = default()
 ) where PRINCIPAL : Principal<*>, PARAMS : UowParams<PARAMS>, RESULT : Any, C : Any {
+
+    protected val clock: Clock = executionContext.clock
 
     abstract suspend fun tryPerform(principal: PRINCIPAL, params: PARAMS): Changes<RESULT>
 
     open fun name(): String = this.javaClass.simpleName
 
     internal fun configuration(): Configuration = configuration
-
-    internal fun clock(): Clock = clock
 
     open suspend fun onFailure(params: PARAMS, ex: PersistenceException): RESULT = throw ex
 

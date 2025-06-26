@@ -20,7 +20,6 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.serialization.StringFormat
-import java.time.Clock
 import java.time.Instant
 import java.util.UUID.randomUUID
 
@@ -40,10 +39,10 @@ class Persisting(
         params: PARAMS,
         principal: Principal<*>,
         changes: Collection<Change>,
-        clock: Clock,
+        now: Instant,
         uowSupportsOutOfOrderPersisting: Boolean
     ): List<Model<*, *>> {
-        val (uowEvent, flushed) = inTransaction(clock, uowSupportsOutOfOrderPersisting) { persisting, startedAt ->
+        val (uowEvent, flushed) = inTransaction(now, uowSupportsOutOfOrderPersisting) { persisting, startedAt ->
             val events = changes.flatMap(Change::modelEvents)
             changes.forEach { change ->
                 change.persist(persisting)
@@ -63,7 +62,7 @@ class Persisting(
     }
 
     private suspend fun inTransaction(
-        clock: Clock,
+        now: Instant,
         uowSupportsOutOfOrderPersisting: Boolean,
         block: (ModelPersisting, Instant) -> UowEvent
     ): Pair<UowEvent, List<Model<*, *>>> {
@@ -72,7 +71,6 @@ class Persisting(
         } else {
             SEQUENTIAL_FIFO
         }
-        val now = clock.instant()
         val persisting = newPersistingAccumulator(uowSupportsOutOfOrderPersisting, modelRepos)
         val uowEvent = block(persisting, now)
         val flushed = transactionManager.inTransaction(

@@ -4,18 +4,16 @@ import com.razz.eva.domain.Principal
 import com.razz.eva.uow.BaseUnitOfWork
 import com.razz.eva.uow.Changes
 import com.razz.eva.uow.ChangesAccumulator
+import com.razz.eva.uow.ExecutionContext
 import com.razz.eva.uow.UowParams
-import io.opentelemetry.api.OpenTelemetry
-import java.time.Clock
 
 abstract class UnitOfWork<PRINCIPAL, PARAMS, RESULT>(
-    clock: Clock,
+    private val executionContext: ExecutionContext,
     configuration: Configuration = Configuration.default(),
-    internal val otel: OpenTelemetry = OpenTelemetry.noop(),
-) : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, ChangesDsl>(clock, configuration)
+) : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, ChangesDsl>(executionContext, configuration)
     where PRINCIPAL : Principal<*>, PARAMS : UowParams<PARAMS>, RESULT : Any {
 
     final override suspend fun changes(init: suspend ChangesDsl.() -> RESULT): Changes<RESULT> {
-        return ChangesDsl.changes(ChangesAccumulator(), otel, init)
+        return ChangesDsl.changes(ChangesAccumulator(), executionContext.otel, init)
     }
 }

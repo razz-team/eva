@@ -11,7 +11,6 @@ import com.razz.eva.uow.BaseUnitOfWork
 import com.razz.eva.uow.Changes
 import com.razz.eva.uow.ChangesAccumulator
 import com.razz.eva.uow.InstantiationContext
-import com.razz.eva.uow.UnitOfWorkExecutor.Companion.MODEL_ID
 import com.razz.eva.uow.UowParams
 import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.api.trace.Span
@@ -111,7 +110,6 @@ class ChangesDsl internal constructor(initial: ChangesAccumulator, private val o
                 MODEL_ID,
                 subChanges.toPersist.map { it.id.stringValue() }
             )
-
             mergingSpan(uow.name()).use {
                 tail = tail?.merge(head.merge(subChanges)) ?: head.merge(subChanges)
             }

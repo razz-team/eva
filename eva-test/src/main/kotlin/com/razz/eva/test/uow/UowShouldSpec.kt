@@ -7,6 +7,7 @@ import com.razz.eva.uow.verify.EqualityVerifier
 import com.razz.eva.uow.verify.EqualityVerifierAware
 import io.kotest.core.spec.style.ShouldSpec
 import io.kotest.matchers.shouldBe
+import io.opentelemetry.api.OpenTelemetry
 
 abstract class UowShouldSpec(
     body: UowShouldSpec.() -> Unit = {},
@@ -15,6 +16,7 @@ abstract class UowShouldSpec(
     val now = millisUTC().instant()
     val clock = fixedUTC(now)
     val principal: Principal<String> = UowSpecPrincipal
+    val executionContext = executionContext(clock, OpenTelemetry.noop())
 
     private object KotestEqualityVerifier : EqualityVerifier {
         override fun <T> verify(expected: T, actual: T) {
