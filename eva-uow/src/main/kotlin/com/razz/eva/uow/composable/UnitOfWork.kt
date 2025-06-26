@@ -11,7 +11,7 @@ import java.time.Clock
 abstract class UnitOfWork<PRINCIPAL, PARAMS, RESULT>(
     clock: Clock,
     configuration: Configuration = Configuration.default(),
-    private val otel: OpenTelemetry = OpenTelemetry.noop(),
+    internal val otel: OpenTelemetry = OpenTelemetry.noop(),
 ) : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, ChangesDsl>(clock, configuration)
     where PRINCIPAL : Principal<*>, PARAMS : UowParams<PARAMS>, RESULT : Any {
 

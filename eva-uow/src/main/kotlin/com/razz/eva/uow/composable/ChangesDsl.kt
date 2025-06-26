@@ -4,6 +4,8 @@ import com.razz.eva.domain.Model
 import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
 import com.razz.eva.domain.Principal
+import com.razz.eva.uow.OtelAttributes.MODEL_ID
+import com.razz.eva.tracing.getEvaTracer
 import com.razz.eva.tracing.use
 import com.razz.eva.uow.BaseUnitOfWork
 import com.razz.eva.uow.Changes
@@ -105,7 +107,6 @@ class ChangesDsl internal constructor(initial: ChangesAccumulator, private val o
             val subChanges = performingSpan(uow.name()).use {
                 uow.tryPerform(principal, params(InstantiationContext(0)))
             }
-
             span.setAttribute(
                 MODEL_ID,
                 subChanges.toPersist.map { it.id.stringValue() }
@@ -115,7 +116,6 @@ class ChangesDsl internal constructor(initial: ChangesAccumulator, private val o
                 tail = tail?.merge(head.merge(subChanges)) ?: head.merge(subChanges)
             }
             head = ChangesAccumulator()
-
             subChanges.result
         }
     }
@@ -123,7 +123,7 @@ class ChangesDsl internal constructor(initial: ChangesAccumulator, private val o
     companion object {
         internal suspend inline fun <R> changes(
             changes: ChangesAccumulator,
-            otel: OpenTelemetry = OpenTelemetry.noop(),
+            otel: OpenTelemetry,
             @Suppress("REDUNDANT_INLINE_SUSPEND_FUNCTION_TYPE")
             init: suspend ChangesDsl.() -> R
         ): Changes<R> {
@@ -133,15 +133,15 @@ class ChangesDsl internal constructor(initial: ChangesAccumulator, private val o
         }
     }
 
-    private fun uowSpan(name: String): Span = otel.getTracer("eva")
+    private fun uowSpan(name: String): Span = otel.getEvaTracer()
         .spanBuilder(name)
         .startSpan()
 
-    private fun performingSpan(name: String): Span = otel.getTracer("eva")
+    private fun performingSpan(name: String): Span = otel.getEvaTracer()
         .spanBuilder("$name-perform")
         .startSpan()
 
-    private fun mergingSpan(name: String): Span = otel.getTracer("eva")
+    private fun mergingSpan(name: String): Span = otel.getEvaTracer()
         .spanBuilder("$name-merge")
         .startSpan()
 }

@@ -65,7 +65,7 @@ sealed class Department<SELF : Department<SELF>>(
                 boss.id(),
                 headcount.inc(),
                 ration,
-                entityState().raiseEvent(BossAdded(id(), boss.id()))
+                raiseEvent(BossAdded(id(), boss.id()))
             )
         }
 
@@ -117,7 +117,7 @@ sealed class Department<SELF : Department<SELF>>(
                 newBoss.id(),
                 headcount,
                 ration,
-                entityState().raiseEvent(BossChanged(id(), boss!!, newBoss.id()))
+                raiseEvent(BossChanged(id(), boss!!, newBoss.id()))
             )
         }
     }
@@ -125,7 +125,7 @@ sealed class Department<SELF : Department<SELF>>(
     fun rename(newName: String): SELF {
         check(newName != name) { "Same name" }
         return copy(
-            id(), newName, boss, headcount, ration, entityState().raiseEvent(NameChanged(id(), name, newName))
+            id(), newName, boss, headcount, ration, raiseEvent(NameChanged(id(), name, newName))
         )
     }
 
@@ -138,7 +138,7 @@ sealed class Department<SELF : Department<SELF>>(
             boss,
             headcount.inc(),
             ration,
-            entityState().raiseEvent(EmployeeAdded(id(), employee.id(), headcount.inc()))
+            raiseEvent(EmployeeAdded(id(), employee.id(), headcount.inc()))
         )
     }
 
@@ -151,7 +151,7 @@ sealed class Department<SELF : Department<SELF>>(
             boss,
             headcount.dec(),
             ration,
-            entityState().raiseEvent(EmployeeRemoved(id(), employee.id(), headcount.dec()))
+            raiseEvent(EmployeeRemoved(id(), employee.id(), headcount.dec()))
         )
     }
 

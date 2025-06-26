@@ -56,7 +56,7 @@ class Cart(
             items = this.items,
             paidFrom = accountId,
             state = CHECKED_OUT,
-            entityState = entityState().raiseEvent(CartCheckedOut(modelId = id()))
+            entityState = raiseEvent(CartCheckedOut(modelId = id()))
         )
     }
 

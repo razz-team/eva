@@ -47,7 +47,7 @@ sealed class Bubaleh(
 
         fun consume(): Consumed {
             return Consumed(
-                id, employeeId, taste, producedOn, volume, entityState().raiseEvent(BubalehConsumed(id()))
+                id, employeeId, taste, producedOn, volume, raiseEvent(BubalehConsumed(id()))
             )
         }
     }

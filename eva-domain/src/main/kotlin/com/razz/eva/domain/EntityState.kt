@@ -5,7 +5,7 @@ import com.razz.eva.domain.Version.Companion.V0
 
 sealed class EntityState<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>>(
     protected val version: Version,
-    events: Collection<E>
+    events: Collection<E>,
 ) : EntityStateMixin<ID, E>, Versioned {
 
     protected val occurredEvents = events.toList()
@@ -22,9 +22,11 @@ sealed class EntityState<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>>(
 
     override fun isPersisted(): Boolean = this is PersistentState<ID, E>
 
-    fun raiseEvent(firstEvent: E, vararg newEvents: E): EntityState<ID, E> = raiseEvent(listOf(firstEvent, *newEvents))
+    internal fun raiseEvent(firstEvent: E, vararg newEvents: E): EntityState<ID, E> =
+        raiseEvent(listOf(firstEvent, *newEvents))
 
-    fun raiseEvent(newEvent: E): EntityState<ID, E> = raiseEvent(listOf(newEvent))
+    internal fun raiseEvent(newEvent: E): EntityState<ID, E> =
+        raiseEvent(listOf(newEvent))
 
     private fun raiseEvent(newEvents: List<E>): EntityState<ID, E> {
         check(newEvents.isNotEmpty()) {
@@ -36,7 +38,7 @@ sealed class EntityState<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>>(
     protected abstract fun raiseEvent0(newEvents: List<E>): EntityState<ID, E>
 
     class PersistentState<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>> private constructor(
-        version: Version
+        version: Version,
     ) : EntityState<ID, E>(version, listOf()) {
 
         init {
@@ -51,7 +53,7 @@ sealed class EntityState<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>>(
 
         companion object {
             fun <ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>> persistentState(
-                version: Version
+                version: Version,
             ): PersistentState<ID, E> {
                 return PersistentState(version)
             }
@@ -60,7 +62,7 @@ sealed class EntityState<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>>(
 
     class DirtyState<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>> private constructor(
         version: Version,
-        events: Collection<E>
+        events: Collection<E>,
     ) : EntityState<ID, E>(version, events) {
 
         init {
@@ -76,7 +78,7 @@ sealed class EntityState<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>>(
         companion object {
             internal fun <ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>> dirtyState(
                 version: Version,
-                events: Collection<E>
+                events: Collection<E>,
             ): DirtyState<ID, E> {
                 return DirtyState(version, events)
             }
@@ -84,7 +86,7 @@ sealed class EntityState<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>>(
     }
 
     class NewState<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>> private constructor(
-        events: Collection<E>
+        events: Collection<E>,
     ) : EntityState<ID, E>(V0, events) {
 
         init {
@@ -99,10 +101,17 @@ sealed class EntityState<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>>(
 
         companion object {
             fun <ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>, C : ModelCreatedEvent<ID>> newState(
-                createdEvent: C
+                createdEvent: C,
             ): NewState<ID, E> {
                 @Suppress("UNCHECKED_CAST")
                 return NewState(listOf(createdEvent as E))
+            }
+            fun <ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>, C : ModelCreatedEvent<ID>> newState(
+                createdEvent: C,
+                vararg newEvents: E,
+            ): NewState<ID, E> {
+                @Suppress("UNCHECKED_CAST")
+                return NewState(listOf(createdEvent as E, *newEvents))
             }
         }
     }

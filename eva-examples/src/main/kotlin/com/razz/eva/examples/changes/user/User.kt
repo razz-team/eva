@@ -119,7 +119,7 @@ class User(
         firstName = firstName,
         lastName = lastName,
         address = address,
-        entityState = entityState().raiseEvent(
+        entityState = raiseEvent(
             UserFirstNameChanged(
                 modelId = id(),
                 oldFirstName = this.firstName,
@@ -133,7 +133,7 @@ class User(
         firstName = firstName,
         lastName = lastName,
         address = address,
-        entityState = entityState().raiseEvent(
+        entityState = raiseEvent(
             UserLastNameChanged(
                 modelId = id(),
                 oldLastName = this.lastName,
@@ -147,7 +147,7 @@ class User(
         firstName = firstName,
         lastName = lastName,
         address = address,
-        entityState = entityState().raiseEvent(
+        entityState = raiseEvent(
             UserAddressChanged(
                 modelId = id(),
                 oldAddress = this.address,

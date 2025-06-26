@@ -41,7 +41,7 @@ sealed class TestModel private constructor(
                 id = id(),
                 param1 = param1,
                 param2 = param2,
-                entityState = entityState().raiseEvent(
+                entityState = raiseEvent(
                     TestModelStatusChanged(
                         testModelId = id(),
                         newStatus = ACTIVE,
@@ -74,7 +74,7 @@ sealed class TestModel private constructor(
                 id = id(),
                 param1 = param1,
                 param2 = param2,
-                entityState().raiseEvent(raisedEvent)
+                raiseEvent(raisedEvent)
             )
         }
     }
