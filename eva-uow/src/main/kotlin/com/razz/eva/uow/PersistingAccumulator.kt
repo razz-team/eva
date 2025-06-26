@@ -13,6 +13,8 @@ internal sealed interface PersistingAccumulator : ModelPersisting {
         suspend operator fun invoke(context: TransactionalContext): List<Model<*, *>>
     }
 
+    fun adhoc(block: suspend () -> Unit)
+
     fun accumulated(): List<FlushOperation>
 
     class ChangesAccumulator(private val repos: ModelRepos) : PersistingAccumulator {
@@ -26,12 +28,20 @@ internal sealed interface PersistingAccumulator : ModelPersisting {
             changes.add { context -> repos.repoFor(model).update(context, model).let(::listOf) }
         }
 
+        override fun adhoc(block: suspend () -> Unit) {
+            changes.add { context ->
+                block()
+                listOf()
+            }
+        }
+
         override fun accumulated() = changes
     }
 
     class BatchesAccumulator(private val repos: ModelRepos) : PersistingAccumulator {
         private val updates: MutableMap<KClass<out Model<*, *>>, Batch.Update<*, *>> = mutableMapOf()
         private val inserts: MutableMap<KClass<out Model<*, *>>, Batch.Add<*, *>> = mutableMapOf()
+        private val adhocs: MutableList<FlushOperation> = mutableListOf()
 
         override fun <ID : ModelId<out Comparable<*>>, M : Model<ID, *>> add(model: M) {
             inserts.compute(model::class) { _, v ->
@@ -45,9 +55,16 @@ internal sealed interface PersistingAccumulator : ModelPersisting {
             }
         }
 
+        override fun adhoc(block: suspend () -> Unit) {
+            adhocs.add { context ->
+                block()
+                listOf()
+            }
+        }
+
         override fun accumulated() = listOf(updates.values, inserts.values).flatMap {
             it.map { b -> FlushOperation { context -> b.persist(context, repos) } }
-        }
+        } + adhocs
     }
 
     companion object Factory {

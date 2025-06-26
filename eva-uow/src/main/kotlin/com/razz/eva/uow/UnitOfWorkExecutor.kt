@@ -80,7 +80,7 @@ class UnitOfWorkExecutor(
                 }
                 uowSpan.setAttribute(
                     MODEL_ID,
-                    changes.toPersist.map { it.id.stringValue() }
+                    changes.toPersist.mapNotNull { (it as? ModelChange)?.id?.stringValue() },
                 )
                 val persisted = try {
                     withContext(uowSpan.asContextElement()) {
@@ -95,14 +95,14 @@ class UnitOfWorkExecutor(
                             )
                         }
                     }
-                } catch (e: PersistenceException) {
+                } catch (ex: PersistenceException) {
                     val config = uow.configuration()
-                    if (config.retry.shouldRetry(currentAttempt, e)) {
+                    if (config.retry.shouldRetry(currentAttempt, ex)) {
                         currentAttempt += 1
                         logger.warn { "Retrying UnitOfWork: ${uow.name()}. Attempt: $currentAttempt" }
                         continue
                     }
-                    return uow.onFailure(constructedParams, e)
+                    return uow.onFailure(constructedParams, ex)
                 }
                 return if (uow.configuration().returnRoundtrippedModels) result(changes, persisted) else changes.result
             }
@@ -123,7 +123,7 @@ class UnitOfWorkExecutor(
     ) = when (val result = changes.result) {
         is Model<*, *> -> {
             // don't try to find persisted data for returned values such as `notChanged(model)`
-            if (changes.toPersist.any { it !is Noop && it.id == result.id() }) {
+            if (changes.toPersist.any { it is ModelChange && it !is Noop && it.id == result.id() }) {
                 @Suppress("UNCHECKED_CAST")
                 val roundtripped = persisted.singleOrNull { it.id() == result.id() } as? RESULT
                 if (roundtripped == null) logger.warn {
@@ -136,7 +136,8 @@ class UnitOfWorkExecutor(
             val models = result.filterIsInstance<Model<*, *>>()
             if (models.isEmpty()) result
             else {
-                val toPersist = changes.toPersist.mapNotNull { if (it is Noop) null else it.id }.toSet()
+                val toPersist = changes.toPersist.mapNotNull {
+                    if (it !is ModelChange || it is Noop) null else it.id }.toSet()
                 // don't try to find persisted data for returned values such as `notChanged(model)`
                 val persistedById = persisted.associateBy { it.id() }
                 val matched = models.mapNotNull { model ->

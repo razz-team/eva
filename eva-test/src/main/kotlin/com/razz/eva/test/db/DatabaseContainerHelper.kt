@@ -52,15 +52,15 @@ class DatabaseContainerHelper private constructor(
                 )
             }
         }
-    } catch (e: SQLException) {
+    } catch (ex: SQLException) {
         // DUPLICATE DATABASE ; there is no CREATE DATABASE IF NOT EXISTS in postgres
         // also sometimes it could throw
         // ERROR: duplicate key value violates unique constraint "pg_database_datname_index"
         // which is a postgres bug according to google
-        if (e.sqlState == "42P04") {
-            logger.debug(e) { "42P04" }
+        if (ex.sqlState == "42P04") {
+            logger.debug(ex) { "42P04" }
         } else {
-            logger.error(e) { "Most likely pg_database_datname_index" }
+            logger.error(ex) { "Most likely pg_database_datname_index" }
         }
     }
 

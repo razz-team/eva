@@ -43,7 +43,7 @@ class UnitOfWorkSpec : UowBehaviorSpec({
                 And("Changes contain Change.Add<Departent>") {
                     changes.toPersist should {
                         it.size shouldBe 1
-                        it.single().persist(object : ModelPersisting {
+                        it.filterIsInstance<ModelChange>().single().persist(object : ModelPersisting {
                             override fun <ID : ModelId<out Comparable<*>>, M : Model<ID, *>> add(model: M) {
                                 val dep = model as OwnedDepartment
                                 dep.boss shouldBe empId

@@ -3,6 +3,7 @@ package com.razz.eva.uow
 import com.razz.eva.domain.Model
 import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
+import kotlin.collections.partition
 
 private fun existingChangeExceptionMessage(modelId: ModelId<*>) =
     "Change for a given model [$modelId] was already registered"
@@ -13,9 +14,10 @@ abstract class Changes<R> {
 }
 
 class ChangesAccumulator private constructor(
-    private val changes: Map<ModelId<out Comparable<*>>, Change>
+    private val modelChanges: Map<ModelId<out Comparable<*>>, ModelChange>,
+    private val otherChanges: List<AdhocChange>,
 ) {
-    constructor() : this(emptyMap())
+    constructor() : this(mapOf(), listOf())
 
     fun <MID : ModelId<out Comparable<*>>, E : ModelEvent<MID>, M : Model<MID, E>>
     withAdded(model: M): ChangesAccumulator {
@@ -34,33 +36,41 @@ class ChangesAccumulator private constructor(
         return changes(model, emptyList()) { m, _ -> Noop(m) }
     }
 
-    private fun merge(from: Collection<Change>): ChangesAccumulator {
-        val into = LinkedHashMap(changes)
-        from.forEach { new ->
-            into.merge(new.id, new) { change, succ ->
+    private fun merge(fromModels: Collection<ModelChange>, fromOther: Collection<AdhocChange>): ChangesAccumulator {
+        val intoModels = LinkedHashMap(modelChanges)
+        fromModels.forEach { new ->
+            intoModels.merge(new.id, new) { change, succ ->
                 val merged = change.merge(succ)
                 checkNotNull(merged) { "Failed to merge changes for model [${change.id}]" }
             }
         }
-        return ChangesAccumulator(into)
+        return ChangesAccumulator(intoModels, otherChanges + fromOther)
     }
 
-    fun merge(after: ChangesAccumulator): ChangesAccumulator = merge(after.changes.values)
+    fun merge(after: ChangesAccumulator): ChangesAccumulator {
+        return merge(after.modelChanges.values, after.otherChanges)
+    }
 
-    fun merge(after: Changes<*>): ChangesAccumulator = merge(after.toPersist)
+    fun merge(after: Changes<*>): ChangesAccumulator {
+        val partitioned = after.toPersist.partition { change -> change is ModelChange }
+        @Suppress("UNCHECKED_CAST") val modelChanges = partitioned.first as List<ModelChange>
+        @Suppress("UNCHECKED_CAST") val otherChanges = partitioned.second as List<AdhocChange>
+        return merge(modelChanges, otherChanges)
+    }
 
     fun <R> withResult(result: R): Changes<R> {
-        require(changes.isNotEmpty()) { "No changes to persist" }
-        return RealisedChanges(result, changes.values.toList())
+        require(modelChanges.isNotEmpty()) { "No changes to persist" }
+        return RealisedChanges(result, modelChanges.values.toList())
     }
 
     private fun <E : ModelEvent<MID>, M : Model<MID, E>, MID : ModelId<out Comparable<*>>>
-    changes(model: M, modelEvents: List<E>, changer: (M, List<E>) -> Change): ChangesAccumulator {
-        return when (changes[model.id()]) {
+    changes(model: M, modelEvents: List<E>, changer: (M, List<E>) -> ModelChange): ChangesAccumulator {
+        return when (modelChanges[model.id()]) {
             null -> ChangesAccumulator(
-                LinkedHashMap(changes).apply {
+                LinkedHashMap(modelChanges).apply {
                     put(model.id(), changer(model, modelEvents))
-                }
+                },
+                otherChanges,
             )
             else -> throw IllegalStateException(existingChangeExceptionMessage(model.id()))
         }

@@ -4,7 +4,7 @@ import com.razz.eva.domain.Model
 import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
 import com.razz.eva.uow.Add
-import com.razz.eva.uow.Change
+import com.razz.eva.uow.ModelChange
 import com.razz.eva.uow.Changes
 import com.razz.eva.uow.Noop
 import com.razz.eva.uow.Update
@@ -13,7 +13,7 @@ import java.util.Deque
 
 open class UowSpecBase<R> private constructor(
     private val result: R,
-    private val executionHistory: Deque<Change>,
+    private val executionHistory: Deque<ModelChange>,
     private val publishedEvents: Deque<ModelEvent<out ModelId<out Comparable<*>>>>,
     private val peekingPersisting: PeekingPersisting = PeekingPersisting()
 ) {
@@ -22,8 +22,8 @@ open class UowSpecBase<R> private constructor(
         changes: Changes<R>,
     ) : this(
         result = changes.result,
-        executionHistory = ArrayDeque(changes.toPersist.filter { it !is Noop }),
-        publishedEvents = ArrayDeque(changes.toPersist.flatMap { it.modelEvents })
+        executionHistory = ArrayDeque(changes.toPersist.filterIsInstance<ModelChange>().filter { it !is Noop }),
+        publishedEvents = ArrayDeque(changes.toPersist.flatMap { (it as? ModelChange)?.modelEvents ?: listOf() })
     )
 
     fun verifyEnd() {

@@ -1,6 +1,8 @@
 package com.razz.eva.uow
 
 import com.razz.eva.domain.Model
+import com.razz.eva.domain.ModelEvent
+import com.razz.eva.domain.ModelId
 import com.razz.eva.domain.Principal
 import com.razz.eva.events.EventPublisher
 import com.razz.eva.events.UowEvent
@@ -15,6 +17,7 @@ import com.razz.eva.uow.PersistingMode.PARALLEL_OUT_OF_ORDER
 import com.razz.eva.uow.PersistingMode.SEQUENTIAL_FIFO
 import com.razz.eva.events.UowEvent.ModelEventId
 import com.razz.eva.events.UowEvent.UowName
+import com.razz.eva.serialization.json.JsonFormat
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -29,7 +32,7 @@ class Persisting(
     private val modelRepos: ModelRepos,
     private val eventRepository: EventRepository,
     private val eventPublisher: EventPublisher = NoopEventPublisher,
-    private val json: StringFormat = com.razz.eva.serialization.json.JsonFormat.json,
+    private val json: StringFormat = JsonFormat.json,
 ) {
     private object NoopEventPublisher : EventPublisher {
         override suspend fun publish(uowEvent: UowEvent) = Unit
@@ -41,12 +44,19 @@ class Persisting(
         principal: Principal<*>,
         changes: Collection<Change>,
         clock: Clock,
-        uowSupportsOutOfOrderPersisting: Boolean
+        uowSupportsOutOfOrderPersisting: Boolean,
     ): List<Model<*, *>> {
         val (uowEvent, flushed) = inTransaction(clock, uowSupportsOutOfOrderPersisting) { persisting, startedAt ->
-            val events = changes.flatMap(Change::modelEvents)
-            changes.forEach { change ->
+            val partitioned = changes.partition { change -> change is ModelChange }
+            @Suppress("UNCHECKED_CAST") val modelChanges = partitioned.first as List<ModelChange>
+            @Suppress("UNCHECKED_CAST") val otherChanges = partitioned.second as List<AdhocChange>
+            val events = mutableListOf<ModelEvent<out ModelId<out Comparable<*>>>>()
+            modelChanges.forEach { change ->
+                events.addAll(change.modelEvents)
                 change.persist(persisting)
+            }
+            otherChanges.forEach {
+                persisting.adhoc(it.block)
             }
             UowEvent(
                 id = UowEvent.Id(randomUUID()),
@@ -65,7 +75,7 @@ class Persisting(
     private suspend fun inTransaction(
         clock: Clock,
         uowSupportsOutOfOrderPersisting: Boolean,
-        block: (ModelPersisting, Instant) -> UowEvent
+        block: (PersistingAccumulator, Instant) -> UowEvent,
     ): Pair<UowEvent, List<Model<*, *>>> {
         val persistingMode = if (transactionManager.supportsPipelining() && uowSupportsOutOfOrderPersisting) {
             PARALLEL_OUT_OF_ORDER
@@ -86,7 +96,7 @@ class Persisting(
         accumulator: PersistingAccumulator,
         uowEvent: UowEvent,
         context: TransactionalContext,
-        mode: PersistingMode
+        mode: PersistingMode,
     ): List<Model<*, *>> = when (mode) {
         PARALLEL_OUT_OF_ORDER -> coroutineScope {
             val flushed = accumulator.accumulated().map { operation ->
