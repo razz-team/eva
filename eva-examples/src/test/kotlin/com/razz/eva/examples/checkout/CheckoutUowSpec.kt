@@ -64,7 +64,7 @@ class CheckoutUowSpec : UowBehaviorSpec({
                             require(id == inventory.id())
                             inventory
                         },
-                        clock = clock,
+                        executionContext = executionContext,
                     )
 
                     When("Principal tries to perform UOW") {

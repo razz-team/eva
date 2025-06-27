@@ -192,8 +192,8 @@ private fun consumer(
             try {
                 matcher(event)
                 chan.send(Result.Ok)
-            } catch (e: Throwable) {
-                chan.send(Result.Error(e))
+            } catch (ex: Throwable) {
+                chan.send(Result.Error(ex))
             }
         }
     }

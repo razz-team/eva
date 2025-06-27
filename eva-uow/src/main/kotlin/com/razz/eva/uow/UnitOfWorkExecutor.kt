@@ -4,6 +4,13 @@ import com.razz.eva.domain.Model
 import com.razz.eva.domain.Principal
 import com.razz.eva.persistence.PersistenceException
 import com.razz.eva.persistence.PrimaryConnectionRequiredFlag
+import com.razz.eva.uow.OtelAttributes.MODEL_ID
+import com.razz.eva.uow.OtelAttributes.SPAN_PERFORM
+import com.razz.eva.uow.OtelAttributes.SPAN_PERSIST
+import com.razz.eva.uow.OtelAttributes.UOW_NAME
+import com.razz.eva.uow.OtelAttributes.UOW_OPERATION
+import com.razz.eva.tracing.getEvaMeter
+import com.razz.eva.tracing.getEvaTracer
 import com.razz.eva.tracing.use
 import com.razz.eva.uow.UnitOfWorkExecutor.ClassToUow
 import io.opentelemetry.api.OpenTelemetry
@@ -15,13 +22,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import mu.KotlinLogging
 import kotlin.reflect.KClass
-
-data class InstantiationContext internal constructor(
-    internal val attempt: Int,
-)
+import java.time.InstantSource
 
 infix fun <PRINCIPAL, PARAMS, RESULT, UOW> KClass<UOW>.withFactory(
-    factory: () -> UOW
+    factory: (ExecutionContext) -> UOW,
 ) where PRINCIPAL : Principal<*>,
       PARAMS : UowParams<PARAMS>,
       UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *>,
@@ -31,12 +35,13 @@ infix fun <PRINCIPAL, PARAMS, RESULT, UOW> KClass<UOW>.withFactory(
 class UnitOfWorkExecutor(
     factories: List<ClassToUow<*, *, *, *>>,
     private val persisting: Persisting,
+    private val clock: InstantSource,
     private val openTelemetry: OpenTelemetry,
 ) {
 
     class ClassToUow<PRINCIPAL, PARAMS, RESULT, UOW> internal constructor(
         internal val uowClass: KClass<UOW>,
-        internal val uowFactory: () -> UOW
+        internal val uowFactory: (ExecutionContext) -> UOW,
     ) where PRINCIPAL : Principal<*>,
           UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *>,
           PARAMS : UowParams<PARAMS>,
@@ -50,14 +55,13 @@ class UnitOfWorkExecutor(
 
     suspend fun <PRINCIPAL, PARAMS, RESULT, UOW> execute(
         principal: PRINCIPAL,
-        uowFactory: () -> UOW,
-        params: InstantiationContext.() -> PARAMS
+        uowFactory: (ExecutionContext) -> UOW,
+        params: InstantiationContext.() -> PARAMS,
     ): RESULT where PRINCIPAL : Principal<*>,
           PARAMS : UowParams<PARAMS>,
           UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *> {
         val startTime = System.nanoTime()
         val timer = createTimer()
-
         lateinit var uowSpan: Span
         lateinit var name: String
         try {
@@ -66,7 +70,8 @@ class UnitOfWorkExecutor(
                 if (currentAttempt == 0) {
                     uowSpan = uowSpan()
                 }
-                val uow = uowFactory()
+                val now = clock.instant()
+                val uow = uowFactory(ExecutionContext(Clocks.fixedUTC(now), openTelemetry))
                 if (currentAttempt == 0) {
                     name = uow.name()
                     uowSpan.updateName(name)
@@ -90,19 +95,19 @@ class UnitOfWorkExecutor(
                                 params = constructedParams,
                                 principal = principal,
                                 changes = changes.toPersist,
-                                clock = uow.clock(),
+                                now = now,
                                 uowSupportsOutOfOrderPersisting = uow.configuration().supportsOutOfOrderPersisting
                             )
                         }
                     }
-                } catch (e: PersistenceException) {
+                } catch (ex: PersistenceException) {
                     val config = uow.configuration()
-                    if (config.retry.shouldRetry(currentAttempt, e)) {
+                    if (config.retry.shouldRetry(currentAttempt, ex)) {
                         currentAttempt += 1
                         logger.warn { "Retrying UnitOfWork: ${uow.name()}. Attempt: $currentAttempt" }
                         continue
                     }
-                    return uow.onFailure(constructedParams, e)
+                    return uow.onFailure(constructedParams, ex)
                 }
                 return if (uow.configuration().returnRoundtrippedModels) result(changes, persisted) else changes.result
             }
@@ -163,7 +168,7 @@ class UnitOfWorkExecutor(
     ): RESULT where PRINCIPAL : Principal<*>,
           PARAMS : UowParams<PARAMS>,
           UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *> {
-        return execute(principal, { create(target) }, params)
+        return execute(principal, { exCtx -> create(exCtx, target) }, params)
     }
 
     private suspend fun Retry?.shouldRetry(currentAttempt: Int, ex: PersistenceException): Boolean =
@@ -174,41 +179,33 @@ class UnitOfWorkExecutor(
 
     @Suppress("UNCHECKED_CAST")
     private fun <PRINCIPAL : Principal<*>, PARAMS, RESULT, UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *>>
-    create(target: KClass<UOW>): UOW {
+    create(executionContext: ExecutionContext, target: KClass<UOW>): UOW {
         val factory = classToFactory[target] ?: throw UowFactoryNotFoundException(target)
-        return (factory as () -> UOW)()
+        return (factory as (ExecutionContext) -> UOW)(executionContext)
     }
 
-    private fun uowSpan() = openTelemetry.getTracer("eva")
+    private fun uowSpan() = openTelemetry.getEvaTracer()
         .spanBuilder("Uow")
         .startSpan()
 
-    private fun performingSpan(name: String) = openTelemetry.getTracer("eva")
+    private fun performingSpan(name: String) = openTelemetry.getEvaTracer()
         .spanBuilder("$name-$SPAN_PERFORM")
         .setAttribute(UOW_OPERATION, SPAN_PERFORM)
         .setAttribute(UOW_NAME, name)
         .startSpan()
 
-    private fun persistingSpan(name: String) = openTelemetry.getTracer("eva")
+    private fun persistingSpan(name: String) = openTelemetry.getEvaTracer()
         .spanBuilder("$name-$SPAN_PERSIST")
         .setAttribute(UOW_OPERATION, SPAN_PERSIST)
         .setAttribute(UOW_NAME, name)
         .startSpan()
 
-    private fun createTimer() = openTelemetry.getMeter("eva")
+    private fun createTimer() = openTelemetry.getEvaMeter()
         .histogramBuilder("uow.timer")
         .setDescription("Unit of work execution time")
         .setUnit("ns")
         .ofLongs()
         .build()
-
-    companion object {
-        private const val SPAN_PERSIST = "persist"
-        private const val SPAN_PERFORM = "perform"
-        private const val UOW_OPERATION = "uow.operation"
-        private const val UOW_NAME = "uow.name"
-        private val MODEL_ID = AttributeKey.stringArrayKey("model.id")
-    }
 }
 
 class UowFactoryNotFoundException(uowClass: KClass<*>) :

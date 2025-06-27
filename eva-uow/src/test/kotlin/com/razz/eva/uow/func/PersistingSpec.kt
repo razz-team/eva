@@ -177,7 +177,7 @@ class PersistingSpec : BehaviorSpec({
                         .withUpdated(boss2)
                         .withResult(Unit)
                         .toPersist,
-                    clock = clock,
+                    now = clock.instant(),
                     uowSupportsOutOfOrderPersisting = outOfOrder
                 )
             }
@@ -360,7 +360,7 @@ class PersistingSpec : BehaviorSpec({
                                 )
                             ),
                         ),
-                        clock = clock,
+                        now = clock.instant(),
                         uowSupportsOutOfOrderPersisting = outOfOrder
                     )
 

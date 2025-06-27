@@ -18,9 +18,9 @@ class WithCtxConnectionTransactionManager(
             } ?: block(connectionProvider.acquire())
             afterTxn(mode, res as Any)
             return res
-        } catch (e: Exception) {
+        } catch (ex: Exception) {
             afterFailedTransaction()
-            throw e
+            throw ex
         }
     }
 

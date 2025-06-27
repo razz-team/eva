@@ -55,7 +55,7 @@ class JooqEventRepository(
     private fun toMERecord(
         uowEvent: UowEvent,
         eventId: ModelEventId,
-        modelEvent: ModelEvent<*>
+        modelEvent: ModelEvent<*>,
     ): ModelEventsRecord {
         val payloadString = modelEvent.payload(uowEvent.principal).toString()
         val payloadSize = payloadString.utf8SizeInBytes()
@@ -104,17 +104,17 @@ class JooqEventRepository(
                 },
             )
         } catch (ex: Exception) {
-            val constraintName = when {
-                ex is DataAccessException && ex.sqlState() == PG_UNIQUE_VIOLATION ->
+            val constraintName = when (ex) {
+                is DataAccessException if ex.sqlState() == PG_UNIQUE_VIOLATION ->
                     extractUniqueConstraintName(queryExecutor, UOW_EVENTS, ex)
-                ex is PgException && ex.sqlState == PG_UNIQUE_VIOLATION -> ex.constraint
+                is PgException if ex.sqlState == PG_UNIQUE_VIOLATION -> ex.constraint
                 else -> throw ex
             }
             throw UniqueUowEventRecordViolationException(
                 uowEvent.id.uuidValue(),
                 uowEvent.uowName.stringValue(),
                 uowEvent.idempotencyKey,
-                constraintName
+                constraintName,
             )
         }
 
@@ -122,7 +122,7 @@ class JooqEventRepository(
             toMERecord(
                 uowEvent = uowEvent,
                 eventId = id,
-                modelEvent = event
+                modelEvent = event,
             ).also {
                 val tracingContext = contextMap(openTelemetry.propagators.textMapPropagator)
                 if (tracingContext.isNotEmpty()) {

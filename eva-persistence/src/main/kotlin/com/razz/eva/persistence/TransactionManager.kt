@@ -50,9 +50,9 @@ abstract class TransactionManager<C>(
                             val result = block(newConn)
                             ctx.commit()
                             result
-                        } catch (e: Exception) {
+                        } catch (ex: Exception) {
                             ctx.rollback()
-                            throw e
+                            throw ex
                         }
                     }
                 } finally {

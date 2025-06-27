@@ -46,7 +46,7 @@ class UpdateUserUowSpec : UowBehaviorSpec({
                 val principal = ServicePrincipal(Principal.Id("1337"), Principal.Name("test"))
 
                 And("UpdateUserUow") {
-                    val uow = UpdateUserUow(userQueries, clock)
+                    val uow = UpdateUserUow(userQueries, executionContext)
 
                     When("Principal tries to perform UOW") {
                         val changes = uow.tryPerform(principal, params)
