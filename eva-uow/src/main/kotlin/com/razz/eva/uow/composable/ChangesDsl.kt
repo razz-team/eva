@@ -110,7 +110,6 @@ class ChangesDsl internal constructor(initial: ChangesAccumulator, private val o
                 MODEL_ID,
                 subChanges.toPersist.map { it.id.stringValue() }
             )
-
             mergingSpan(uow.name()).use {
                 tail = tail?.merge(head.merge(subChanges)) ?: head.merge(subChanges)
             }

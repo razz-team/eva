@@ -43,8 +43,8 @@ class InMemoryEventBus(
                     consumerMap[EventKey(event.eventName, event.modelName)]?.forEach { consumer ->
                         try {
                             consumer.consume(event)
-                        } catch (e: Exception) {
-                            logger.error(e) {
+                        } catch (ex: Exception) {
+                            logger.error(ex) {
                                 "Unable to consume event [${event.eventName}]:[${event.id}] " +
                                     "by consumer [${consumer::class.simpleName}]"
                             }

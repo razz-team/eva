@@ -58,6 +58,7 @@ class WalletModule(databaseConfig: DatabaseConfig) {
     val uowx: UnitOfWorkExecutor = UnitOfWorkExecutor(
         persisting = persisting,
         openTelemetry = noop(),
+        clock = clock,
         factories = listOf(
             CreateWalletUow::class withFactory { CreateWalletUow(walletRepo, frozenClock()) }
         )

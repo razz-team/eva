@@ -2,15 +2,15 @@ package com.razz.eva.examples.composition.account
 
 import com.razz.eva.examples.ServicePrincipal
 import com.razz.eva.examples.composition.account.DebitAccountUow.Params
+import com.razz.eva.uow.ExecutionContext
 import com.razz.eva.uow.composable.UnitOfWork
 import com.razz.eva.uow.UowParams
 import kotlinx.serialization.Serializable
-import java.time.Clock
 
 class DebitAccountUow(
     private val accountQueries: (Account.Id) -> Account,
-    clock: Clock,
-) : UnitOfWork<ServicePrincipal, Params, Account.Id>(clock) {
+    executionContext: ExecutionContext,
+) : UnitOfWork<ServicePrincipal, Params, Account.Id>(executionContext) {
 
     @Serializable
     data class Params(

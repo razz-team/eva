@@ -13,22 +13,6 @@ import com.razz.eva.uow.Clocks.millisUTC
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
-import kotlinx.serialization.Serializable
-import java.time.Clock
-
-internal abstract class DummyUow(clock: Clock) : UnitOfWork<TestPrincipal, DummyUow.Params, String>(clock) {
-    @Serializable
-    object Params : UowParams<Params> {
-        override fun serialization() = serializer()
-    }
-}
-
-internal abstract class DummyUnitUow(clock: Clock) : UnitOfWork<TestPrincipal, DummyUnitUow.Params, Unit>(clock) {
-    @Serializable
-    object Params : UowParams<Params> {
-        override fun serialization() = serializer()
-    }
-}
 
 class ChangesDslSpec : FunSpec({
 

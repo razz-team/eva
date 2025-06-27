@@ -89,6 +89,7 @@ class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
     val uowx = UnitOfWorkExecutor(
         factories = factories(clock),
         persisting = persisting,
+        clock = clock,
         openTelemetry = openTelemetry,
     )
 
@@ -115,6 +116,7 @@ class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
                 dslContext = dslContext,
             )
         ),
+        clock = fixedUTC(now + Duration.ofDays(6)),
         openTelemetry = openTelemetry,
     )
 
@@ -125,6 +127,7 @@ class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
             }
         ),
         persisting = persisting,
+        clock = clock,
         openTelemetry = openTelemetry,
     )
 

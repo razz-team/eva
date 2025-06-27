@@ -15,7 +15,6 @@ import com.razz.eva.persistence.WithCtxConnectionTransactionManager
 import com.razz.eva.repository.ModelRepos
 import com.razz.eva.uow.BaseUnitOfWork.Configuration
 import com.razz.eva.uow.Clocks.fixedUTC
-import com.razz.eva.uow.Clocks.millisUTC
 import com.razz.eva.uow.CreateDepartmentUow.Params
 import com.razz.eva.uow.Retry.StaleRecordFixedRetry
 import io.kotest.assertions.throwables.shouldThrow
@@ -29,15 +28,18 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import io.opentelemetry.api.OpenTelemetry
-import java.time.Clock
 import java.time.Duration.ofMillis
 import java.time.Instant.ofEpochMilli
 import java.util.*
+import com.razz.eva.uow.composable.DummyUow
+import kotlin.reflect.KClass
+import java.time.InstantSource
 
 class UnitOfWorkExecutorSpec : BehaviorSpec({
 
     isolationMode = InstancePerLeaf
 
+    val clock = fixedUTC(ofEpochMilli(0))
     val departmentId = randomDepartmentId()
     val bossId = EmployeeId(UUID.randomUUID())
     val department = OwnedDepartment(
@@ -62,13 +64,13 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
         val params = Params(
             boss = bossId,
             departmentName = "KazahDepartment",
-            ration = Ration.BUBALEH
+            ration = Ration.BUBALEH,
         )
 
         And("Factory which reads connection context") {
-            val factories = listOf(
-                DummyUow::class withFactory {
-                    object : DummyUow(millisUTC()) {
+            @Suppress("UNCHECKED_CAST") val factories = listOf(
+                (DummyUow::class as KClass<DummyUow<String>>) withFactory {
+                    object : DummyUow<String>(it) {
                         override suspend fun tryPerform(
                             principal: TestPrincipal,
                             params: Params,
@@ -83,11 +85,13 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
             val uowx = UnitOfWorkExecutor(
                 factories,
                 Persisting(WithCtxConnectionTransactionManager(), ModelRepos(), DummyEventRepository()),
+                clock,
                 OpenTelemetry.noop(),
             )
 
             When("UnitOfWorkExecutor executes Uow") {
-                val observedContext = uowx.execute(DummyUow::class, TestPrincipal) { DummyUow.Params }
+                val observedContext = uowx
+                    .execute((DummyUow::class as KClass<DummyUow<String>>), TestPrincipal) { DummyUow.Params }
 
                 Then("Uow observed connection context") {
                     observedContext shouldBe "not null"
@@ -95,21 +99,24 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
             }
         }
 
-        var tickingClock: Clock = fixedUTC(ofEpochMilli(0))
-        fun frozenClock(): Clock {
-            val tmp = fixedUTC(tickingClock.instant().plusMillis(1))
-            tickingClock = fixedUTC(tickingClock.instant().plusMillis(2))
-            return tmp
+        var tick = ofEpochMilli(0)
+        val crawlingInstant = InstantSource {
+            var tock = tick.plusMillis(1)
+            tick = tock.plusMillis(1)
+            tock
         }
 
         And("Factory which reads clock value") {
             val factories = listOf(
-                DummyUow::class withFactory {
-                    object : DummyUow(frozenClock()) {
+                (DummyUow::class as KClass<DummyUow<String>>) withFactory {
+                    object : DummyUow<String>(it) {
                         override suspend fun tryPerform(
                             principal: TestPrincipal,
                             params: Params,
-                        ) = noChanges(clock.instant().toEpochMilli().toString())
+                        ): Changes<String> {
+                            val i = this.clock.instant()
+                            return noChanges(i.toEpochMilli().toString())
+                        }
                     }
                 }
             )
@@ -130,30 +137,34 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                 }
                 val txnManager = WithCtxConnectionTransactionManager()
                 val uowx = UnitOfWorkExecutor(
-                    factories, Persisting(txnManager, ModelRepos(), eventRepo), OpenTelemetry.noop(),
+                    factories,
+                    Persisting(txnManager, ModelRepos(), eventRepo),
+                    crawlingInstant,
+                    OpenTelemetry.noop(),
                 )
 
                 Then("Clock property wasn't called") {
-                    tickingClock.instant() shouldBe ofEpochMilli(0)
+                    tick shouldBe ofEpochMilli(0)
                 }
 
                 And("UnitOfWorkExecutor executes Uow") {
-                    val observedMilli = uowx.execute(DummyUow::class, TestPrincipal) { DummyUow.Params }
+                    val observedMilli = uowx
+                        .execute((DummyUow::class as KClass<DummyUow<String>>), TestPrincipal) { DummyUow.Params }
 
                     Then("Uow observed frozen clock twice") {
                         observedMilli shouldBe "3"
                     }
 
                     And("Clock fabric was called two times due to retries") {
-                        tickingClock.instant() shouldBe ofEpochMilli(4)
+                        tick shouldBe ofEpochMilli(4)
                     }
                 }
             }
         }
 
         And("Ad hoc factory") {
-            val factory = {
-                object : DummyUow(frozenClock()) {
+            val factory = { exCtx: ExecutionContext ->
+                object : DummyUow<String>(exCtx) {
                     override suspend fun tryPerform(
                         principal: TestPrincipal,
                         params: Params,
@@ -165,6 +176,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                 val uowx = UnitOfWorkExecutor(
                     listOf(),
                     Persisting(WithCtxConnectionTransactionManager(), ModelRepos(), DummyEventRepository()),
+                    clock,
                     OpenTelemetry.noop(),
                 )
 
@@ -186,7 +198,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
 
             When("Principal creates UnitOfWorkExecutor") {
                 val attempt = {
-                    UnitOfWorkExecutor(factories, mockk(), OpenTelemetry.noop())
+                    UnitOfWorkExecutor(factories, mockk(), clock, OpenTelemetry.noop())
                 }
 
                 Then("Exception is thrown") {
@@ -217,17 +229,16 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
             val unitOfWork = mockk<CreateDepartmentUow>()
             val rawUnitOfWork = unitOfWork as UnitOfWork<TestPrincipal, Params, OwnedDepartment>
             val persisting = mockk<Persisting>(relaxed = true)
-            val clock = fixedUTC(ofEpochMilli(0))
 
             every { unitOfWork.name() } returns "MockOfCreateDepartmentUow"
             every { rawUnitOfWork.configuration().supportsOutOfOrderPersisting } returns true
-            every { rawUnitOfWork.clock() } returns clock
 
             val uowx = UnitOfWorkExecutor(
                 persisting = persisting,
                 factories = listOf(
                     CreateDepartmentUow::class withFactory { unitOfWork }
                 ),
+                clock = clock,
                 openTelemetry = OpenTelemetry.noop(),
             )
 
@@ -238,7 +249,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                         params = params,
                         principal = TestPrincipal,
                         changes = listOf(),
-                        clock = clock,
+                        now = clock.instant(),
                         uowSupportsOutOfOrderPersisting = true
                     )
                 } returns listOf(anotherModel, department)
@@ -263,7 +274,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                                 params = params,
                                 principal = TestPrincipal,
                                 changes = changes.toPersist,
-                                clock = clock,
+                                now = clock.instant(),
                                 uowSupportsOutOfOrderPersisting = true
                             )
                         }
@@ -306,7 +317,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                         params = params,
                         principal = TestPrincipal,
                         changes = listOf(),
-                        clock = clock,
+                        now = clock.instant(),
                         uowSupportsOutOfOrderPersisting = true
                     )
                 } throws ex andThen listOf(department)
@@ -337,7 +348,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                         eq(params),
                         TestPrincipal,
                         listOf(),
-                        fixedUTC(ofEpochMilli(0)),
+                        ofEpochMilli(0),
                         true
                     )
                 } throws ex andThenThrows ex
@@ -366,7 +377,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                         eq(params),
                         TestPrincipal,
                         listOf(),
-                        fixedUTC(ofEpochMilli(0)),
+                        ofEpochMilli(0),
                         false
                     )
                 } throws ex
@@ -398,7 +409,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                         eq(params),
                         TestPrincipal,
                         listOf(),
-                        fixedUTC(ofEpochMilli(0)),
+                        ofEpochMilli(0),
                         false
                     )
                 } throws ex
@@ -430,7 +441,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                         eq(params),
                         TestPrincipal,
                         listOf(),
-                        fixedUTC(ofEpochMilli(0)),
+                        ofEpochMilli(0),
                         false
                     )
                 } throws ex
@@ -459,7 +470,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                         eq(params),
                         TestPrincipal,
                         listOf(),
-                        fixedUTC(ofEpochMilli(0)),
+                        ofEpochMilli(0),
                         false
                     )
                 } throws ex
@@ -489,7 +500,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                         eq(params),
                         TestPrincipal,
                         listOf(),
-                        fixedUTC(ofEpochMilli(0)),
+                        ofEpochMilli(0),
                         false
                     )
                 } throws ex

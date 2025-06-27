@@ -6,14 +6,14 @@ import com.razz.eva.examples.changes.user.UpdateUserUow.Params
 import com.razz.eva.examples.changes.user.User.Address
 import com.razz.eva.examples.changes.user.User.FirstName
 import com.razz.eva.examples.changes.user.User.LastName
+import com.razz.eva.uow.ExecutionContext
 import com.razz.eva.uow.UowParams
 import kotlinx.serialization.Serializable
-import java.time.Clock
 
 class UpdateUserUow(
     private val userQueries: UserQueries,
-    clock: Clock
-) : UnitOfWork<ServicePrincipal, Params, User>(clock) {
+    executionContext: ExecutionContext,
+) : UnitOfWork<ServicePrincipal, Params, User>(executionContext) {
 
     @Serializable
     data class Params(
