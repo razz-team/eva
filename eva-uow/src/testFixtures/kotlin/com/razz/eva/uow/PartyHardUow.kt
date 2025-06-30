@@ -10,11 +10,11 @@ import kotlinx.serialization.Serializable
 import java.time.Clock
 
 class PartyHardUow(
-    clock: Clock,
+    executionContext: ExecutionContext,
     private val departmentRepo: DepartmentRepository,
     private val shakshoukaRepo: ShakshoukaRepository,
     private val bubalehRepo: BubalehRepository,
-) : UnitOfWork<TestPrincipal, PartyHardUow.Params, Unit>(clock, Configuration(retry = null)) {
+) : UnitOfWork<TestPrincipal, PartyHardUow.Params, Unit>(executionContext, Configuration(retry = null)) {
 
     @Serializable
     data class Params(

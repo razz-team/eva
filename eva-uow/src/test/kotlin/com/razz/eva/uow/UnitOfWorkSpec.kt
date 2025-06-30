@@ -21,7 +21,7 @@ class UnitOfWorkSpec : UowBehaviorSpec({
 
     Given("A simple UnitOfWork with repository") {
         val departmentRepo = mockk<DepartmentRepository>()
-        val uow = CreateDepartmentUow(clock, departmentRepo)
+        val uow = CreateDepartmentUow(executionContext, departmentRepo)
             as UnitOfWork<TestPrincipal, Params, OwnedDepartment>
 
         And("Department is not found") {

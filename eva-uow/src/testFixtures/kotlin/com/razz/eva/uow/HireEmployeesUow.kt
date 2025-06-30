@@ -16,13 +16,13 @@ import java.time.Duration
 import java.util.UUID.randomUUID
 
 class HireEmployeesUow(
-    clock: Clock,
+    executionContext: ExecutionContext,
     private val departmentRepo: DepartmentRepository,
     private val employeeRepo: EmployeeRepository,
     retries: Int,
     private val forceAdd: Boolean,
 ) : UnitOfWork<TestPrincipal, Params, List<Employee>>(
-    clock,
+    executionContext,
     Configuration(retry = StaleRecordFixedRetry(retries, Duration.ofMillis(100)))
 ) {
 

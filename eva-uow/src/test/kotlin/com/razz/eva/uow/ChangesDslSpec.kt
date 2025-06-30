@@ -13,11 +13,13 @@ import com.razz.eva.uow.Clocks.millisUTC
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
+import io.opentelemetry.api.OpenTelemetry
 
 class ChangesDslSpec : FunSpec({
 
     val now = millisUTC().instant()
     val clock = fixedUTC(now)
+    val executionContext = ExecutionContext(clock, OpenTelemetry.noop())
 
     test("""
         Should return properly built RealisedChanges when
@@ -28,7 +30,7 @@ class ChangesDslSpec : FunSpec({
             .activate()
         val model2 = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
 
-        val uow = object : DummyUow(clock) {
+        val uow = object : DummyUow(executionContext) {
             override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
                 add(model0)
                 update(model1)
@@ -55,7 +57,7 @@ class ChangesDslSpec : FunSpec({
     test("Should return properly built RealisedChanges when unchanged model updated") {
         val model = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
 
-        val uow = object : DummyUow(clock) {
+        val uow = object : DummyUow(executionContext) {
             override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
                 update(model)
                 "K P A C U B O"
@@ -70,7 +72,7 @@ class ChangesDslSpec : FunSpec({
     test("Should throw exception when unchanged model required updated") {
         val model = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
 
-        val uow = object : DummyUow(clock) {
+        val uow = object : DummyUow(executionContext) {
             override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
                 update(model, required = true)
                 "K P A C U B O"
@@ -85,7 +87,7 @@ class ChangesDslSpec : FunSpec({
     test("Should throw exception when unchanged model added") {
         val model = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
 
-        val uow = object : DummyUow(clock) {
+        val uow = object : DummyUow(executionContext) {
             override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
                 add(model)
                 "K P A C U B O"
@@ -100,7 +102,7 @@ class ChangesDslSpec : FunSpec({
     test("Should throw exception when changed model added") {
         val model = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1).activate()
 
-        val uow = object : DummyUow(clock) {
+        val uow = object : DummyUow(executionContext) {
             override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
                 add(model)
                 "K P A C U B O"
@@ -115,7 +117,7 @@ class ChangesDslSpec : FunSpec({
     test("Should throw exception when changed model marked as not changed") {
         val model = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1).activate()
 
-        val uow = object : DummyUow(clock) {
+        val uow = object : DummyUow(executionContext) {
             override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
                 notChanged(model)
                 "K P A C U B O"
@@ -130,7 +132,7 @@ class ChangesDslSpec : FunSpec({
     test("Should throw exception when new model marked as not changed") {
         val model = createdTestModel("MLG", 420).activate()
 
-        val uow = object : DummyUow(clock) {
+        val uow = object : DummyUow(executionContext) {
             override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
                 notChanged(model)
                 "K P A C U B O"
@@ -145,7 +147,7 @@ class ChangesDslSpec : FunSpec({
     test("Should throw exception when new model updated") {
         val model = createdTestModel("MLG", 420).activate()
 
-        val uow = object : DummyUow(clock) {
+        val uow = object : DummyUow(executionContext) {
             override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
                 update(model)
                 "K P A C U B O"
@@ -159,7 +161,7 @@ class ChangesDslSpec : FunSpec({
 
     test("Should throw exception when no models were added or updated with result") {
 
-        val uow = object : DummyUow(clock) {
+        val uow = object : DummyUow(executionContext) {
             override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
                 "K P A C U B O"
             }
@@ -173,7 +175,7 @@ class ChangesDslSpec : FunSpec({
 
     test("Should throw exception when no models were added or updated without result") {
 
-        val uow = object : DummyUnitUow(clock) {
+        val uow = object : DummyUnitUow(executionContext) {
             override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {}
         }
 
@@ -186,7 +188,7 @@ class ChangesDslSpec : FunSpec({
     test("Should return properly built RealisedChanges when unchanged model not changed") {
         val model = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
 
-        val uow = object : DummyUow(clock) {
+        val uow = object : DummyUow(executionContext) {
             override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
                 notChanged(model)
                 "K P A C U B O"

@@ -19,10 +19,10 @@ import java.time.Clock
 import java.util.UUID.randomUUID
 
 class CreateSoloDepartmentUow(
-    clock: Clock,
+    executionContext: ExecutionContext,
     private val employeeRepo: EmployeeRepository,
     private val departmentRepo: DepartmentRepository,
-) : UnitOfWork<TestPrincipal, Params, OwnedDepartment>(clock) {
+) : UnitOfWork<TestPrincipal, Params, OwnedDepartment>(executionContext) {
 
     @Serializable
     data class Params(

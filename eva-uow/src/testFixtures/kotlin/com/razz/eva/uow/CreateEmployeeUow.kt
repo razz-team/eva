@@ -14,9 +14,9 @@ import java.time.Clock
 import java.util.UUID.randomUUID
 
 class CreateEmployeeUow(
-    clock: Clock,
+    executionContext: ExecutionContext,
     private val departmentRepo: DepartmentRepository,
-) : UnitOfWork<TestPrincipal, CreateEmployeeUow.Params, Employee>(clock) {
+) : UnitOfWork<TestPrincipal, CreateEmployeeUow.Params, Employee>(executionContext) {
 
     @Serializable
     data class Params(
