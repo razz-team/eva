@@ -18,9 +18,9 @@ import java.util.*
 import java.util.UUID.randomUUID
 
 class TapUow(
-    clock: Clock,
+    executionContext: ExecutionContext,
     private val employeeRepo: EmployeeRepository
-) : UnitOfWork<TestPrincipal, TapUow.Params, List<Bubaleh>>(clock) {
+) : UnitOfWork<TestPrincipal, TapUow.Params, List<Bubaleh>>(executionContext) {
 
     private val random = Random()
 

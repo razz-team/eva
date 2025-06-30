@@ -64,7 +64,7 @@ class UnitOfWorkDemoSpec : UowBehaviorSpec({
             coEvery { employeeRepo.find(zoomerId) } coAnswers { zoomer }
             coEvery { employeeRepo.find(boomerId) } coAnswers { boomer }
 
-            val changes = InternalMobilityUow(clock, employeeRepo, departmentRepo)
+            val changes = InternalMobilityUow(executionContext, employeeRepo, departmentRepo)
                 .tryPerform(TestPrincipal, InternalMobilityUow.Params(listOf(zoomerId, boomerId), newDepId))
 
             Then("First zoomer moved then boomer moved then new dep got two emps then old dep lost two emps") {

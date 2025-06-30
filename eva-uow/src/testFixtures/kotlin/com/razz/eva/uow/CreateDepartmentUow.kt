@@ -13,9 +13,9 @@ import java.time.Clock
 import java.util.*
 
 class CreateDepartmentUow(
-    clock: Clock,
+    executionContext: ExecutionContext,
     private val departmentRepo: DepartmentRepository
-) : UnitOfWork<TestPrincipal, Params, OwnedDepartment>(clock) {
+) : UnitOfWork<TestPrincipal, Params, OwnedDepartment>(executionContext) {
 
     @Serializable
     data class Params(

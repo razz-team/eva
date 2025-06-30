@@ -8,7 +8,6 @@ import com.razz.eva.persistence.jdbc.executor.JdbcQueryExecutor
 import com.razz.eva.repository.JooqEventRepository
 import com.razz.eva.repository.ModelRepos
 import com.razz.eva.repository.hasRepo
-import com.razz.eva.uow.Clocks
 import com.razz.eva.uow.Persisting
 import com.razz.eva.uow.UnitOfWorkExecutor
 import com.razz.eva.uow.withFactory
@@ -53,14 +52,13 @@ class WalletModule(databaseConfig: DatabaseConfig) {
      * Unit of work executor definition
      */
     val clock = Clock.tickMillis(UTC)
-    private fun frozenClock(): Clock = Clocks.fixedUTC(clock.instant())
 
     val uowx: UnitOfWorkExecutor = UnitOfWorkExecutor(
         persisting = persisting,
         openTelemetry = noop(),
         clock = clock,
         factories = listOf(
-            CreateWalletUow::class withFactory { CreateWalletUow(walletRepo, frozenClock()) }
+            CreateWalletUow::class withFactory { executionContext -> CreateWalletUow(walletRepo, executionContext) }
         )
     )
 }
