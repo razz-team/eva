@@ -10,10 +10,10 @@ import kotlinx.serialization.Serializable
 import java.time.Clock
 
 class InternalMobilityUow(
-    clock: Clock,
+    executionContext: ExecutionContext,
     private val employeeRepo: EmployeeRepository,
     private val departmentRepo: DepartmentRepository
-) : UnitOfWork<TestPrincipal, Params, Unit>(clock) {
+) : UnitOfWork<TestPrincipal, Params, Unit>(executionContext) {
 
     @Serializable
     data class Params(

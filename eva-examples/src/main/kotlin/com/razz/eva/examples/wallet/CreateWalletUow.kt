@@ -7,17 +7,18 @@ import com.razz.eva.persistence.PersistenceException
 import com.razz.eva.persistence.PersistenceException.ModelRecordConstraintViolationException
 import com.razz.eva.persistence.PersistenceException.UniqueModelRecordViolationException
 import com.razz.eva.uow.Changes
+import com.razz.eva.uow.ExecutionContext
 import com.razz.eva.uow.UnitOfWork
 import com.razz.eva.uow.UowParams
 import kotlinx.serialization.Serializable
-import java.time.Clock
 import java.time.Duration
-import java.util.*
+import java.util.Currency
+import java.util.UUID
 
 class CreateWalletUow(
     private val queries: WalletQueries,
-    clock: Clock
-) : UnitOfWork<ServicePrincipal, Params, Wallet>(clock) {
+    executionContext: ExecutionContext,
+) : UnitOfWork<ServicePrincipal, Params, Wallet>(executionContext) {
 
     @Serializable
     data class Params(val id: String, val currency: String) : UowParams<Params> {
