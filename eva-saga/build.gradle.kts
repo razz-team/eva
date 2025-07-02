@@ -5,4 +5,5 @@ plugins {
 
 dependencies {
     implementation(project(eva.eva_domain))
+    api(project(eva.eva_tracing))
 }
