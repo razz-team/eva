@@ -8,7 +8,7 @@ import com.razz.eva.tracing.use
 import kotlin.reflect.KClass
 
 abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
-    private val sagaExecutionContext: SagaExecutionContext = defaultSagaExecutionContext()
+    private val sagaExecutionContext: SagaExecutionContext = sagaExecutionContext()
 )
     where PRINCIPAL : Principal<*>,
           IS : Intermediary<SELF>,
