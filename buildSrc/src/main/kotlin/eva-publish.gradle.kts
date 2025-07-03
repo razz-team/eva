@@ -15,9 +15,9 @@ publishing {
         maven {
             name = "MavenCentral"
             url = if (Ci.publishRelease) {
-                URI("https://s01.oss.sonatype.org/content/repositories/releases/")
+                URI("https://ossrh-staging-api.central.sonatype.com/service/local/staging/deploy/maven2/content/repositories/releases/")
             } else {
-                URI("https://s01.oss.sonatype.org/content/repositories/snapshots/")
+                URI("https://ossrh-staging-api.central.sonatype.com/service/local/staging/deploy/maven2/content/repositories/snapshots/")
             }
             credentials {
                 username = System.getenv("SONATYPE_TOKEN")
