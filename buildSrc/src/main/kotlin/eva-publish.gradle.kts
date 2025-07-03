@@ -32,6 +32,9 @@ publishing {
             artifact(sourcesJar)
             groupId = "team.razz.eva"
             version = Ci.publishVersion
+
+            suppressPomMetadataWarningsFor("testFixturesApiElements")
+            suppressPomMetadataWarningsFor("testFixturesRuntimeElements")
         }
     }
 }
