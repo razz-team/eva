@@ -3,9 +3,13 @@ package com.razz.eva.saga
 import com.razz.eva.saga.Saga.Intermediary
 import com.razz.eva.saga.Saga.Terminal
 import com.razz.eva.domain.Principal
+import com.razz.eva.tracing.getEvaTracer
+import com.razz.eva.tracing.use
 import kotlin.reflect.KClass
 
-abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>
+abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
+    private val sagaExecutionContext: SagaExecutionContext = sagaExecutionContext()
+)
     where PRINCIPAL : Principal<*>,
           IS : Intermediary<SELF>,
           TS : Terminal<SELF>,
@@ -50,15 +54,27 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>
     ): TS = try {
         when (step) {
             is Intermediary<*> -> {
-                val nextStep = next(principal, step as IS)
+                val nextStep = sagaIntermediateSpan(step::class.simpleName).use {
+                    next(principal, step as IS)
+                }
                 if (nextStep::class in trail) {
                     throw SagaHaltException(nextStep as IS)
                 }
                 run(principal, params, trail + nextStep::class, nextStep)
             }
-            is Terminal<*> -> step as TS
+            is Terminal<*> -> sagaTerminalSpan(step::class.simpleName).use {
+                step as TS
+            }
         }
     } catch (ex: Exception) {
         onException(ex, principal, params, step as IS) ?: resume(principal, params)
     }
+
+    private fun sagaIntermediateSpan(stepName: String?) = sagaExecutionContext.otel.getEvaTracer()
+        .spanBuilder(stepName?.let { "$it-intermediate" } ?: "SagaIntermediateStep")
+        .startSpan()
+
+    private fun sagaTerminalSpan(stepName: String?) = sagaExecutionContext.otel.getEvaTracer()
+        .spanBuilder(stepName?.let { "$it-terminal" } ?: "SagaTerminalStep")
+        .startSpan()
 }
