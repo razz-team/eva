@@ -27,4 +27,9 @@ dependencies {
     implementation(libs.kotlin_serialization)
     implementation(libs.detekt_plugin)
     implementation(libs.kotlin_plugin)
+
+    // publishing
+    implementation("org.jetbrains.dokka:dokka-gradle-plugin:1.9.20")
+    implementation("com.vanniktech:gradle-maven-publish-plugin:0.30.0")
+
 }

@@ -1,36 +1,33 @@
+import com.vanniktech.maven.publish.SonatypeHost
+
 plugins {
-    id("maven-publish")
-    id("java")
+    id("org.jetbrains.dokka")
+    id("com.vanniktech.maven.publish")
 }
 
-val sourcesJar by tasks.registering(Jar::class) {
-    archiveClassifier.set("sources")
-    from(sourceSets.getByName("main").allSource)
-}
+mavenPublishing {
+    publishToMavenCentral(SonatypeHost.CENTRAL_PORTAL)
 
-publishing {
-    // repositories {
-    //     maven {
-    //         name = "MavenCentral"
-    //         url = if (Ci.publishRelease) {
-    //             URI("https://s01.oss.sonatype.org/content/repositories/releases/")
-    //         } else {
-    //             URI("https://s01.oss.sonatype.org/content/repositories/snapshots/")
-    //         }
-    //         credentials {
-    //             username = System.getenv("SONATYPE_TOKEN")
-    //             password = System.getenv("SONATYPE_TOKEN_PASS")
-    //         }
-    //     }
-    // }
-    publications {
-        register<MavenPublication>("eva") {
-            val javaComponent = (components["java"] as AdhocComponentWithVariants)
-            from(javaComponent)
-            artifact(sourcesJar)
-            groupId = "team.razz.eva"
-            version = Ci.publishVersion
+    signAllPublications()
+
+    pom {
+        name = "eva"
+        description = "Kotlin open-source framework, which helps you to write your code in DDD style and using CQRS approach."
+        url = "https://github.com/razz-team/eva"
+        licenses {
+            license {
+                name = "The Apache License, Version 2.0"
+                url = "https://www.apache.org/licenses/LICENSE-2.0.txt"
+            }
+        }
+        scm {
+            connection = "https://github.com/razz-team/eva"
+            url = "https://github.com/razz-team/eva"
+        }
+        developers {
+            developer {
+                name = "razz-team"
+            }
         }
     }
 }
-
