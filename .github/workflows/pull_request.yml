@@ -33,9 +33,6 @@ jobs:
       - name: Build project
         run: ./gradlew build
 
-      - name: Cleanup gradle daemon cache
-        run: ./gradlew --stop
-
       - run: echo "::set-output name=short::$(git rev-parse --short HEAD)"
         id: git_sha
 
