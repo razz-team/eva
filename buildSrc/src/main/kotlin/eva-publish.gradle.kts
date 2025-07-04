@@ -1,9 +1,6 @@
-import java.net.URI
-
 plugins {
     id("maven-publish")
     id("java")
-    id("io.github.gradle-nexus.publish-plugin")
 }
 
 val sourcesJar by tasks.registering(Jar::class) {
@@ -12,7 +9,6 @@ val sourcesJar by tasks.registering(Jar::class) {
 }
 
 publishing {
-    sonatype()
     // repositories {
     //     maven {
     //         name = "MavenCentral"
@@ -38,14 +34,3 @@ publishing {
     }
 }
 
-nexusPublishing {
-    repositories {
-        create("MavenCentral") {
-            nexusUrl.set(uri("https://ossrh-staging-api.central.sonatype.com/service/local/"))
-            snapshotRepositoryUrl.set(uri("https://central.sonatype.com/repository/maven-snapshots/"))
-
-            username = System.getenv("SONATYPE_TOKEN")
-            password = System.getenv("SONATYPE_TOKEN_PASS")
-        }
-    }
-}
