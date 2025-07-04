@@ -30,6 +30,6 @@ dependencies {
 
     // publishing
     implementation("org.jetbrains.dokka:dokka-gradle-plugin:1.9.20")
-    implementation("com.vanniktech:gradle-maven-publish-plugin:0.30.0")
+    implementation("com.vanniktech:gradle-maven-publish-plugin:0.33.0")
 
 }

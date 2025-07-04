@@ -11,6 +11,13 @@ defaults:
 jobs:
   build_pr:
     runs-on: ubuntu-latest
+    env:
+      ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.SONATYPE_TOKEN }}
+      ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.SONATYPE_TOKEN_PASS }}
+      ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.GPG_KEY }}
+      ORG_GRADLE_PROJECT_signingInMemoryKeyId: ${{ secrets.GPG_KEY_ID }}
+      ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.GPG_KEY_PASSWORD }}
+
     steps:
       - name: Checkout the repo
         uses: actions/checkout@v3
@@ -33,8 +40,6 @@ jobs:
         id: git_sha
 
       - name: Publish to Maven snapshots
-        run: ./gradlew publish -Drelease=false
+        run: ./gradlew publishToMavenCentral -Drelease=false
         env:
-          SONATYPE_TOKEN: ${{ secrets.SONATYPE_TOKEN }}
-          SONATYPE_TOKEN_PASS: ${{ secrets.SONATYPE_TOKEN_PASS }}
           GITHUB_SHA: ${{ steps.git_sha.outputs.short }}
