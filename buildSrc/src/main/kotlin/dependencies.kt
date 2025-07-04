@@ -21,6 +21,7 @@ object versions {
     val ongres_scram = "2.1"
     val hikari = "6.3.0"
     val kafka_clients = "3.8.0"
+    val nexus_publish_plugin = "2.0.0"
 }
 
 object libs {
@@ -63,4 +64,5 @@ object libs {
 
     val detekt_plugin = "io.gitlab.arturbosch.detekt:detekt-gradle-plugin:${versions.detekt}"
     val kotlin_plugin = "org.jetbrains.kotlin:kotlin-gradle-plugin:${versions.kotlin}"
+    val nexus_publish_plugin = "io.github.gradle-nexus.publish-plugin:${versions.nexus_publish_plugin}"
 }
