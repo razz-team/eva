@@ -22,14 +22,16 @@ allprojects {
 }
 
 nexusPublishing {
-    repositories {
-        sonatype()
-    }
-//    repositories {
-//        // see https://central.sonatype.org/publish/publish-portal-ossrh-staging-api/#configuration
-//        sonatype {
-//            nexusUrl.set(uri("https://ossrh-staging-api.central.sonatype.com/service/local/"))
-//            snapshotRepositoryUrl.set(uri("https://central.sonatype.com/repository/maven-snapshots/"))
-//        }
-//    }
+    // repositories {
+    //     sonatype()
+    // }
+   repositories {
+       // see https://central.sonatype.org/publish/publish-portal-ossrh-staging-api/#configuration
+       sonatype {
+            nexusUrl.set(uri("https://ossrh-staging-api.central.sonatype.com/service/local/"))
+            snapshotRepositoryUrl.set(uri("https://central.sonatype.com/repository/maven-snapshots/"))
+            username = System.getenv("SONATYPE_TOKEN")
+            password = System.getenv("SONATYPE_TOKEN_PASS")
+       }
+   }
 }
