@@ -67,10 +67,13 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
     }
 
     private fun fromRecord(record: R): M {
+        val original = record.original().apply { detach() }
+//        original.intoArray()
         return fromRecord(
             record,
             persistentState(
-                version(record.getVersion()!!)
+                version(record.getVersion()!!),
+                original,
             )
         )
     }
@@ -238,6 +241,16 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
 
     private fun <Q : StoreQuery<R>> prepareQuery(context: TransactionalContext, model: M, storeQuery: Q): Q {
         val record = toRecord(context, model)
+        val proto = model.proto<R>()
+        if (proto != null) {
+            for (i in 0..record.size() - 1) {
+                val origin = proto.getValue(i)
+                val changed = record.getValue(i)
+                if (origin == changed) {
+                    record.reset(i)
+                }
+            }
+        }
         storeQuery.setRecord(record)
         return storeQuery
     }

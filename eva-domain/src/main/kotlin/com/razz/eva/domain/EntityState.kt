@@ -39,6 +39,7 @@ sealed class EntityState<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>>(
 
     class PersistentState<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>> private constructor(
         version: Version,
+        internal val proto: Any,
     ) : EntityState<ID, E>(version, listOf()) {
 
         init {
@@ -48,14 +49,15 @@ sealed class EntityState<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>>(
         }
 
         override fun raiseEvent0(newEvents: List<E>): DirtyState<ID, E> {
-            return dirtyState(version, newEvents)
+            return dirtyState(version, newEvents, proto)
         }
 
         companion object {
             fun <ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>> persistentState(
                 version: Version,
+                proto: Any,
             ): PersistentState<ID, E> {
-                return PersistentState(version)
+                return PersistentState(version, proto)
             }
         }
     }
@@ -63,6 +65,7 @@ sealed class EntityState<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>>(
     class DirtyState<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>> private constructor(
         version: Version,
         events: Collection<E>,
+        internal val proto: Any,
     ) : EntityState<ID, E>(version, events) {
 
         init {
@@ -72,15 +75,16 @@ sealed class EntityState<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>>(
         }
 
         override fun raiseEvent0(newEvents: List<E>): DirtyState<ID, E> {
-            return DirtyState(version, occurredEvents + newEvents)
+            return DirtyState(version, occurredEvents + newEvents, proto)
         }
 
         companion object {
             internal fun <ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>> dirtyState(
                 version: Version,
                 events: Collection<E>,
+                proto: Any,
             ): DirtyState<ID, E> {
-                return DirtyState(version, events)
+                return DirtyState(version, events, proto)
             }
         }
     }

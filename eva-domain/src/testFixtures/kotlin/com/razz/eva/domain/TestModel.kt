@@ -101,13 +101,14 @@ sealed class TestModel private constructor(
             id: TestModelId = randomTestModelId(),
             param1: String?,
             param2: Long,
-            version: Version = V1
+            version: Version = V1,
+            proto: Any = Unit,
         ): CreatedTestModel {
             return CreatedTestModel(
                 id = id,
                 param1 = param1,
                 param2 = param2,
-                persistentState(version)
+                persistentState(version, proto)
             )
         }
     }
