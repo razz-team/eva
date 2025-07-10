@@ -14,9 +14,9 @@ import java.util.*
 import java.util.UUID.randomUUID
 
 class CookUow(
-    clock: Clock,
+    executionContext: ExecutionContext,
     private val employeeRepo: EmployeeRepository,
-) : UnitOfWork<TestPrincipal, CookUow.Params, List<Shakshouka>>(clock) {
+) : UnitOfWork<TestPrincipal, CookUow.Params, List<Shakshouka>>(executionContext) {
 
     private val random = Random()
 

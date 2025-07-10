@@ -20,10 +20,12 @@ import com.razz.eva.uow.Clocks.fixedUTC
 import com.razz.eva.uow.Clocks.millisUTC
 import com.razz.eva.uow.CreateEmployeeUow
 import com.razz.eva.uow.CreateSoloDepartmentUow
+import com.razz.eva.uow.ExecutionContext
 import com.razz.eva.uow.HireEmployeesUow
 import com.razz.eva.uow.Persisting
 import com.razz.eva.uow.UnitOfWorkExecutor
 import com.razz.eva.uow.withFactory
+import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.sdk.testing.exporter.InMemoryMetricReader
 import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter
 import java.sql.Timestamp
@@ -42,6 +44,7 @@ class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
 
     val now = millisUTC().instant()
     val clock = fixedUTC(now)
+    val executionContext = ExecutionContext(clock, OpenTelemetry.noop())
 
     val departmentPreUpdate = PreModifyCallback<UUID, DepartmentId, Department<*>>()
 
@@ -123,7 +126,7 @@ class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
     val uowxRetries = UnitOfWorkExecutor(
         factories = listOf(
             HireEmployeesUow::class withFactory {
-                HireEmployeesUow(clock, departmentRepo, employeeRepo, 1, false)
+                HireEmployeesUow(executionContext, departmentRepo, employeeRepo, 1, false)
             }
         ),
         persisting = persisting,
@@ -133,13 +136,13 @@ class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
 
     fun factories(clock: Clock) = listOf(
         CreateEmployeeUow::class withFactory {
-            CreateEmployeeUow(clock, departmentRepo)
+            CreateEmployeeUow(executionContext, departmentRepo)
         },
         CreateSoloDepartmentUow::class withFactory {
-            CreateSoloDepartmentUow(clock, employeeRepo, departmentRepo)
+            CreateSoloDepartmentUow(executionContext, employeeRepo, departmentRepo)
         },
         HireEmployeesUow::class withFactory {
-            HireEmployeesUow(clock, departmentRepo, employeeRepo, 0, true)
+            HireEmployeesUow(executionContext, departmentRepo, employeeRepo, 0, true)
         }
     )
 }
