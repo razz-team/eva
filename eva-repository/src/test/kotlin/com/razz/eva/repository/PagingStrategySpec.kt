@@ -198,7 +198,7 @@ fun model(record: BubalehsRecord): Bubaleh {
             BubalehTaste.valueOf(record.taste),
             record.producedOn,
             BubalehBottleVol.valueOf(record.volume),
-            persistentState(V1),
+            persistentState(V1, record),
         )
         CONSUMED -> Bubaleh.Consumed(
             BubalehId(record.id),
@@ -206,7 +206,7 @@ fun model(record: BubalehsRecord): Bubaleh {
             BubalehTaste.valueOf(record.taste),
             record.producedOn,
             BubalehBottleVol.valueOf(record.volume),
-            persistentState(V1),
+            persistentState(V1, record),
         )
     }
 }

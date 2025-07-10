@@ -79,7 +79,7 @@ class PersistingSpec : BehaviorSpec({
     val oldDepId = randomDepartmentId()
     val boss1 = Employee(
         bossId1, Name("Nursultan", "N"), oldDepId, "nursultan@001.kz", BUBALEH,
-        persistentState(V1)
+        persistentState(V1, Unit)
     ).changeDepartment(department1)
 
     val departmentId2 = randomDepartmentId()
@@ -101,7 +101,7 @@ class PersistingSpec : BehaviorSpec({
     )
     val boss2 = Employee(
         bossId2, Name("Vladimir", "P"), oldDepId, "vladimir@001.ru", BUBALEH,
-        persistentState(V1)
+        persistentState(V1, Unit)
     ).changeDepartment(department2)
 
     val departmentId3 = randomDepartmentId()
@@ -112,7 +112,7 @@ class PersistingSpec : BehaviorSpec({
         headcount = 1,
         ration = BUBALEH,
         boss = bossId3,
-        entityState = persistentState(V1)
+        entityState = persistentState(V1, Unit)
     ).changeBoss(boss2)
 
     val params = Params("Nik")
