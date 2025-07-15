@@ -99,7 +99,7 @@ class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
     private val patchingQueryExecutor = object : QueryExecutor by queryExecutor {
         override suspend fun <R : Record> executeQuery(dslContext: DSLContext, jooqQuery: DMLQuery<R>): Int {
             if (jooqQuery is InsertQuery<*> && jooqQuery.sql.contains("uow_events")) {
-                val occurredAtParam = jooqQuery.getParam("6") as Field<Timestamp>
+                val occurredAtParam = jooqQuery.getParam("7") as Field<Timestamp>
                 jooqQuery.addValue(
                     DSL.field("inserted_at", SQLDataType.TIMESTAMP),
                     occurredAtParam,

@@ -8,18 +8,29 @@ import com.razz.eva.events.db.Events;
 import com.razz.eva.events.db.Indexes;
 import com.razz.eva.events.db.tables.records.UowEventsTemplateRecord;
 import com.razz.jooq.converter.InstantConverter;
-import org.jooq.Record;
-import org.jooq.*;
-import org.jooq.impl.DSL;
-import org.jooq.impl.SQLDataType;
-import org.jooq.impl.TableImpl;
-
-import javax.annotation.processing.Generated;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 import java.util.function.Function;
+import org.jooq.Field;
+import org.jooq.ForeignKey;
+import org.jooq.Function11;
+import org.jooq.Index;
+import org.jooq.Name;
+import org.jooq.Record;
+import org.jooq.Records;
+import org.jooq.Row11;
+import org.jooq.Schema;
+import org.jooq.SelectField;
+import org.jooq.Table;
+import org.jooq.TableField;
+import org.jooq.TableOptions;
+import org.jooq.impl.DSL;
+import org.jooq.impl.SQLDataType;
+import org.jooq.impl.TableImpl;
+
+import javax.annotation.processing.Generated;
 
 
 /**
@@ -75,6 +86,11 @@ public class UowEventsTemplate extends TableImpl<UowEventsTemplateRecord> {
      * The column <code>events.uow_events_template.principal_id</code>.
      */
     public final TableField<UowEventsTemplateRecord, String> PRINCIPAL_ID = createField(DSL.name("principal_id"), SQLDataType.CLOB.nullable(false), this, "");
+
+    /**
+     * The column <code>events.uow_events_template.principal_context</code>.
+     */
+    public final TableField<UowEventsTemplateRecord, String> PRINCIPAL_CONTEXT = createField(DSL.name("principal_context"), SQLDataType.CLOB.nullable(false), this, "");
 
     /**
      * The column <code>events.uow_events_template.occurred_at</code>.
@@ -184,18 +200,18 @@ public class UowEventsTemplate extends TableImpl<UowEventsTemplateRecord> {
     }
 
     // -------------------------------------------------------------------------
-    // Row10 type methods
+    // Row11 type methods
     // -------------------------------------------------------------------------
 
     @Override
-    public Row10<UUID, String, String, String, String, Instant, Instant, UUID[], String, Long> fieldsRow() {
-        return (Row10) super.fieldsRow();
+    public Row11<UUID, String, String, String, String, String, Instant, Instant, UUID[], String, Long> fieldsRow() {
+        return (Row11) super.fieldsRow();
     }
 
     /**
      * Convenience mapping calling {@link SelectField#convertFrom(Function)}.
      */
-    public <U> SelectField<U> mapping(Function10<? super UUID, ? super String, ? super String, ? super String, ? super String, ? super Instant, ? super Instant, ? super UUID[], ? super String, ? super Long, ? extends U> from) {
+    public <U> SelectField<U> mapping(Function11<? super UUID, ? super String, ? super String, ? super String, ? super String, ? super String, ? super Instant, ? super Instant, ? super UUID[], ? super String, ? super Long, ? extends U> from) {
         return convertFrom(Records.mapping(from));
     }
 
@@ -203,7 +219,7 @@ public class UowEventsTemplate extends TableImpl<UowEventsTemplateRecord> {
      * Convenience mapping calling {@link SelectField#convertFrom(Class,
      * Function)}.
      */
-    public <U> SelectField<U> mapping(Class<U> toType, Function10<? super UUID, ? super String, ? super String, ? super String, ? super String, ? super Instant, ? super Instant, ? super UUID[], ? super String, ? super Long, ? extends U> from) {
+    public <U> SelectField<U> mapping(Class<U> toType, Function11<? super UUID, ? super String, ? super String, ? super String, ? super String, ? super String, ? super Instant, ? super Instant, ? super UUID[], ? super String, ? super Long, ? extends U> from) {
         return convertFrom(toType, Records.mapping(from));
     }
 }
