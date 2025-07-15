@@ -19,17 +19,12 @@ tasks.test {
 apply<ProjectsPlugin>()
 
 dependencies {
-    implementation(platform(libs.kotlinx_coroutines_bom))
-    implementation(platform(libs.kotlin_bom))
-    implementation(platform(libs.jackson_bom))
-
     detektPlugins(libs.detekt)
 
     api(libs.kotlinx_serialization)
     api(libs.kotlinx_serialization_json)
     api(libs.kotlin_coroutines)
 
-    testImplementation(platform(libs.testcontainers_bom))
     testImplementation(libs.mockk)
     testImplementation(libs.kotest_assertions_core)
     testImplementation(libs.kotest_assertions_json)
