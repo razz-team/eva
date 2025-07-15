@@ -25,15 +25,15 @@ object versions {
 }
 
 object libs {
-    val kotlin_stdlib = "org.jetbrains.kotlin:kotlin-stdlib"
-    val kotlin_reflect = "org.jetbrains.kotlin:kotlin-reflect"
+    val kotlin_stdlib = "org.jetbrains.kotlin:kotlin-stdlib:${versions.kotlin}"
+    val kotlin_reflect = "org.jetbrains.kotlin:kotlin-reflect:${versions.kotlin}"
     val kotlin_serialization = "org.jetbrains.kotlin:kotlin-serialization:${versions.kotlin}"
     val kotlin_logging = "io.github.microutils:kotlin-logging:${versions.kotlin_logging}"
     val kotlin_slf4 = "org.jetbrains.kotlinx:kotlinx-coroutines-slf4j:${versions.kotlin_slf4}"
     val kotlinx_coroutines_bom = "org.jetbrains.kotlinx:kotlinx-coroutines-bom:${versions.kotlin_coroutines}"
     val kotlin_bom = "org.jetbrains.kotlin:kotlin-bom:${versions.kotlin}"
     val kotlin_coroutines = "org.jetbrains.kotlinx:kotlinx-coroutines-core:${versions.kotlin_coroutines}"
-    val kotlinx_serialization = "org.jetbrains.kotlinx:kotlinx-serialization-core-jvm"
+    val kotlinx_serialization = "org.jetbrains.kotlinx:kotlinx-serialization-core-jvm:${versions.kotlin_serialization_json}"
     val kotlinx_serialization_json = "org.jetbrains.kotlinx:kotlinx-serialization-json:${versions.kotlin_serialization_json}"
     val kotest_runner = "io.kotest:kotest-runner-junit5-jvm:${versions.kotest}"
     val kotest_assertions_json = "io.kotest:kotest-assertions-json-jvm:${versions.kotest}"
@@ -57,8 +57,8 @@ object libs {
     val mockk = "io.mockk:mockk:${versions.mockk}"
     val kafka_clients = "org.apache.kafka:kafka-clients:${versions.kafka_clients}"
     val testcontainers_bom = "org.testcontainers:testcontainers-bom:${versions.testcontainers}"
-    val testcontainers = "org.testcontainers:testcontainers"
-    val testcontainers_postgres = "org.testcontainers:postgresql"
+    val testcontainers = "org.testcontainers:testcontainers:${versions.testcontainers}"
+    val testcontainers_postgres = "org.testcontainers:postgresql:${versions.testcontainers}"
     val detekt = "io.gitlab.arturbosch.detekt:detekt-formatting:${versions.detekt}"
     val micrometer_prometheus = "io.micrometer:micrometer-registry-prometheus:${versions.micrometer}"
 
