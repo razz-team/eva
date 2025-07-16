@@ -42,6 +42,20 @@ class DatabaseContainerHelper private constructor(
 
     private fun localConn() = db.localPool(dbName, 4).connection
 
+    private fun createUser(userName: String) {
+        db.managementPool.connection.use { conn ->
+            conn.createStatement().use { stmt ->
+                stmt.execute(
+                    """
+                        CREATE USER $userName WITH PASSWORD '$userName';
+                        GRANT pg_read_all_data TO $userName;
+                        GRANT pg_write_all_data TO $userName;
+                    """.trimIndent()
+                )
+            }
+        }
+    }
+
     private fun createDb() = try {
         db.managementPool.connection.use { conn ->
             conn.createStatement().use { stmt ->
