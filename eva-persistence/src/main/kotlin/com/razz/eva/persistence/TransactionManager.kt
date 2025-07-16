@@ -47,10 +47,6 @@ abstract class TransactionManager<C>(
                     val ctx = wrapConnection(newConn)
                     withContext(ctx) {
                         try {
-                            val res = coroutineContext[GovernedCompanyIds]
-                            if (res != null) {
-
-                            }
                             ctx.begin()
                             val result = block(newConn)
                             ctx.commit()
@@ -87,14 +83,4 @@ abstract class TransactionManager<C>(
     protected abstract fun wrapConnection(newConn: C): ConnectionWrapper<C>
 
     protected abstract suspend fun ctxConnection(): C?
-}
-
-data class GovernedCompanyIds(
-    val companyIds: Set<UUID>
-) : CoroutineContext.Element {
-
-    companion object Key : CoroutineContext.Key<GovernedCompanyIds>
-
-    override val key: CoroutineContext.Key<GovernedCompanyIds>
-        get() = GovernedCompanyIds
 }
