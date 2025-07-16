@@ -3,7 +3,6 @@ package com.razz.eva.persistence
 import com.razz.eva.persistence.ConnectionMode.REQUIRE_EXISTING
 import com.razz.eva.persistence.ConnectionMode.REQUIRE_NEW
 import kotlinx.coroutines.withContext
-import java.util.UUID
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.coroutineContext
 

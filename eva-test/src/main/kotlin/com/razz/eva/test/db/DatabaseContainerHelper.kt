@@ -112,13 +112,18 @@ class DatabaseContainerHelper private constructor(
 
         private val DB_NAME_FORMAT = "[a-z0-9_]+".toRegex()
 
-        fun create(dbName: String, databaseContainer: DatabaseContainer = BASIC): DatabaseContainerHelper {
+        fun create(
+            dbName: String,
+            databaseContainer: DatabaseContainer = BASIC,
+            userName: String = "myuser"
+        ): DatabaseContainerHelper {
             require(DB_NAME_FORMAT.matches(dbName)) {
                 "Wrong DB name: $dbName. DB name should have only lowercase chars and numbers."
             }
             return DatabaseContainerHelper(dbName, databaseContainer).apply {
                 createDb()
                 createSchemas()
+                createUser(userName)
             }
         }
     }
