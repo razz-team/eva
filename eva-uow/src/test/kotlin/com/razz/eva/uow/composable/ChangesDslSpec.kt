@@ -378,4 +378,21 @@ class ChangesDslSpec : FunSpec({
         }
         exception.message shouldBe "Failed to merge changes for model [${model.id()}]"
     }
+
+    test("Should not throw exception when nested uow returns no changes") {
+        val innerUow = object : DummyUow<Unit>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = noChanges()
+        }
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                execute(innerUow, TestPrincipal) { Params }
+                "K P A C U B O"
+            }
+        }
+
+        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
+
+        changes.toPersist shouldHaveSize 0
+        changes.result shouldBe "K P A C U B O"
+    }
 })

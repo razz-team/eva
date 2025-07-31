@@ -49,8 +49,8 @@ class ChangesAccumulator private constructor(
 
     fun merge(after: Changes<*>): ChangesAccumulator = merge(after.toPersist)
 
-    fun <R> withResult(result: R): Changes<R> {
-        require(changes.isNotEmpty()) { "No changes to persist" }
+    fun <R> withResult(result: R, expectChanges: Boolean = true): Changes<R> {
+        require(changes.isNotEmpty() || !expectChanges) { "No changes to persist" }
         return RealisedChanges(result, changes.values.toList())
     }
 

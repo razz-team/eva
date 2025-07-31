@@ -4,13 +4,13 @@ import com.razz.eva.domain.Model
 import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
 import com.razz.eva.domain.Principal
-import com.razz.eva.uow.OtelAttributes.MODEL_ID
 import com.razz.eva.tracing.getEvaTracer
 import com.razz.eva.tracing.use
 import com.razz.eva.uow.BaseUnitOfWork
 import com.razz.eva.uow.Changes
 import com.razz.eva.uow.ChangesAccumulator
 import com.razz.eva.uow.InstantiationContext
+import com.razz.eva.uow.OtelAttributes.MODEL_ID
 import com.razz.eva.uow.UowParams
 import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.api.trace.Span
@@ -20,7 +20,8 @@ class ChangesDsl internal constructor(initial: ChangesAccumulator, private val o
     private var head: ChangesAccumulator = initial
 
     private fun <R> withResult(result: R): Changes<R> {
-        return tail?.merge(head)?.withResult(result) ?: head.withResult(result)
+        val changes = tail?.merge(head) ?: head
+        return changes.withResult(result, expectChanges = false)
     }
 
     // Under no circumstances should this method accept a model that is not new
