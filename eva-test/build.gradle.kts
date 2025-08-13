@@ -13,8 +13,6 @@ dependencies {
     implementation(project(eva.eva_persistence_vertx))
     implementation(testFixtures(project(eva.eva_uow)))
 
-    implementation(platform(libs.testcontainers_bom))
-
     implementation(libs.kotlin_reflect)
     implementation(libs.kotest_framework)
     implementation(libs.postgres)
