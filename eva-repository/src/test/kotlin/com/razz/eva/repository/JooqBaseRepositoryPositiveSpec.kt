@@ -122,7 +122,6 @@ class JooqBaseRepositoryPositiveSpec : BehaviorSpec({
                 When("Principal updating model") {
                     repo.update(updateContext, addedDep.rename("UPDATE TEST"))
                     val recordUpdatedAt = InstantConverter.instance.to(updateContext.startedAt)
-                    val boss = requireNotNull(dep.boss)
 
                     Then(
                         "Query executor should receive record with RECORD_CREATED_AT and RECORD_UPDATED_AT" +
@@ -132,10 +131,6 @@ class JooqBaseRepositoryPositiveSpec : BehaviorSpec({
                         update.jooqQuery.getSQL(INLINED) shouldBe """
                             update "departments" set
                             "name" = 'UPDATE TEST',
-                            "boss" = cast('${boss.id}' as uuid),
-                            "headcount" = 1,
-                            "ration" = 'BUBALEH',
-                            "state" = cast('OWNED' as "departments_state"),
                             "record_updated_at" = timestamp '$recordUpdatedAt',
                             "version" = 2
                             where ("departments"."id" = cast('${dep.id().id}' as uuid) and "departments"."version" = 1 and "departments"."ration" = 'BUBALEH')
