@@ -158,32 +158,6 @@ class ChangesDslSpec : FunSpec({
         exception.message shouldBe "Attempted to register changed model [${model.id().stringValue()}] as unchanged"
     }
 
-    test("Should throw exception when no models were added or updated with result") {
-
-        val uow = object : DummyUow<String>(executionContext) {
-            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
-                "K P A C U B O"
-            }
-        }
-
-        val exception = shouldThrow<IllegalArgumentException> {
-            uow.tryPerform(TestPrincipal, DummyUow.Params)
-        }
-        exception.message shouldBe "No changes to persist"
-    }
-
-    test("Should throw exception when no models were added or updated without result") {
-
-        val uow = object : DummyUow<Unit>(executionContext) {
-            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {}
-        }
-
-        val exception = shouldThrow<IllegalArgumentException> {
-            uow.tryPerform(TestPrincipal, DummyUow.Params)
-        }
-        exception.message shouldBe "No changes to persist"
-    }
-
     test("Should return properly built RealisedChanges when unchanged model not changed") {
         val model = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
 
@@ -377,5 +351,22 @@ class ChangesDslSpec : FunSpec({
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
         exception.message shouldBe "Failed to merge changes for model [${model.id()}]"
+    }
+
+    test("Should not throw exception when nested uow returns no changes") {
+        val innerUow = object : DummyUow<Unit>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = noChanges()
+        }
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                execute(innerUow, TestPrincipal) { Params }
+                "K P A C U B O"
+            }
+        }
+
+        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
+
+        changes.toPersist shouldHaveSize 0
+        changes.result shouldBe "K P A C U B O"
     }
 })
