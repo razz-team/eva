@@ -12,6 +12,7 @@ import com.razz.eva.uow.OtelAttributes.UOW_OPERATION
 import com.razz.eva.tracing.getEvaMeter
 import com.razz.eva.tracing.getEvaTracer
 import com.razz.eva.tracing.use
+import com.razz.eva.uow.OtelAttributes.PRINCIPAL_ID
 import com.razz.eva.uow.UnitOfWorkExecutor.ClassToUow
 import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.api.common.AttributeKey
@@ -86,6 +87,10 @@ class UnitOfWorkExecutor(
                 uowSpan.setAttribute(
                     MODEL_ID,
                     changes.toPersist.map { it.id.stringValue() }
+                )
+                uowSpan.setAttribute(
+                    PRINCIPAL_ID,
+                    principal.id.toString(),
                 )
                 val persisted = try {
                     withContext(uowSpan.asContextElement()) {
