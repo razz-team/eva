@@ -6,6 +6,7 @@ CREATE TABLE uow_events (
   idempotency_key       TEXT,
   principal_name        TEXT                NOT NULL,
   principal_id          TEXT                NOT NULL,
+  principal_context     TEXT                NOT NULL DEFAULT '{}',
   occurred_at           TIMESTAMP           NOT NULL,
   inserted_at           TIMESTAMP           NOT NULL DEFAULT LOCALTIMESTAMP,
   model_events          UUID[]              NOT NULL,
@@ -22,6 +23,8 @@ ALTER TABLE uow_events ADD CONSTRAINT uow_events_principal_name_length
     CHECK (char_length(principal_name) > 0 AND char_length(principal_name) <= 100);
 ALTER TABLE uow_events ADD CONSTRAINT uow_events_principal_id_length
     CHECK (char_length(principal_id) > 0 AND char_length(principal_id) <= 100);
+ALTER TABLE uow_events ADD CONSTRAINT uow_events_principal_context_length
+    CHECK (char_length(principal_context) > 0 AND char_length(principal_context) <= 1000);
 
 CREATE OR REPLACE FUNCTION
     check_prev_partitions_for_idempotency_key() RETURNS TRIGGER AS
