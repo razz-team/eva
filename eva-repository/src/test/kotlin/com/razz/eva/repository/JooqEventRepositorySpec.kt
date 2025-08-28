@@ -150,6 +150,9 @@ class JooqEventRepositorySpec : BehaviorSpec({
                                                         {
                                                             "principalId":"THIS_IS_SINGLETON",
                                                             "principalName":"TEST_PRINCIPAL",
+                                                            "principalContext": {
+                                                              "AGENT":"Mozilla/5.0 (X11; Linux x86_64)"
+                                                            },
                                                             "name":"PoContrE",
                                                             "headcount":1337,
                                                             "ration":"SHAKSHOUKA"
@@ -198,6 +201,9 @@ class JooqEventRepositorySpec : BehaviorSpec({
                                                         {
                                                             "principalId":"ANOTHER_ID",
                                                             "principalName":"TEST_PRINCIPAL",
+                                                            "principalContext": {
+                                                              "AGENT":"Mozilla/5.0 (X11; Linux x86_64)"
+                                                            },
                                                             "oldEmail":"old@email.com",
                                                             "newEmail":"new@email.com"
                                                         }
@@ -362,7 +368,7 @@ class JooqEventRepositorySpec : BehaviorSpec({
             Then("it should reject the event and throw an EventPayloadTooLargeException") {
                 exception.eventId shouldBe eventId.uuidValue()
                 exception.modelEventId shouldBe modelEventId.uuidValue()
-                exception.payloadSize shouldBe 1217
+                exception.payloadSize shouldBe 1280
                 exception.maxEventPayloadSize shouldBe 100
             }
         }
