@@ -109,7 +109,9 @@ class UnitOfWorkExecutor(
                     val config = uow.configuration()
                     if (config.retry.shouldRetry(currentAttempt, ex)) {
                         currentAttempt += 1
-                        logger.warn { "Retrying UnitOfWork: ${uow.name()}. Attempt: $currentAttempt" }
+                        logger.warn(ex) {
+                            "Retrying UnitOfWork: ${uow.name()}. Attempt: $currentAttempt"
+                        }
                         continue
                     }
                     return uow.onFailure(constructedParams, ex)
