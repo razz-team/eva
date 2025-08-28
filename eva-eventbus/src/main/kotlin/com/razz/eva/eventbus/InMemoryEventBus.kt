@@ -86,17 +86,10 @@ class InMemoryEventBus(
     private fun ModelEvent<*>.payload(principal: Principal<*>): JsonObject {
         return when (this) {
             is ModelWithPrincipalEvent -> {
-                println("FFFFF")
-                println(principal.context())
                 val principalPayload = buildJsonObject {
                     put("principalId", principal.id.toString())
                     put("principalName", principal.name.toString())
-                    put("principalContext", JsonObject(principal.context().
-                        also {
-                            println("AAA")
-                            println(it)
-                        }.
-                    mapValues { JsonPrimitive(it.value) }))
+                    put("principalContext", JsonObject(principal.context().mapValues { JsonPrimitive(it.value) }))
                 }
                 return JsonObject(principalPayload + integrationEvent())
             }

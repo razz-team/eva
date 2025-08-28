@@ -152,13 +152,10 @@ class JooqEventRepository(
     private fun ModelEvent<*>.payload(principal: Principal<*>): JsonObject {
         return when (this) {
             is ModelWithPrincipalEvent -> {
-                println("FFFF")
-                println(principal.context())
                 val principalPayload = buildJsonObject {
                     put("principalId", principal.id.toString())
                     put("principalName", principal.name.toString())
-                    put("principalContext", JsonObject(principal.context().mapValues { JsonPrimitive(it.value) })
-                        .also { println("GGGG"); println(it) })
+                    put("principalContext", JsonObject(principal.context().mapValues { JsonPrimitive(it.value) }))
                 }
                 return JsonObject(principalPayload + integrationEvent())
             }
