@@ -127,7 +127,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                     when (execution++) {
                         0 -> {
                             uowEvent.occurredAt shouldBe ofEpochMilli(1)
-                            throw StaleRecordException(randomDepartmentId())
+                            throw StaleRecordException(randomDepartmentId(), "department")
                         }
                         1 -> {
                             uowEvent.occurredAt shouldBe ofEpochMilli(3)
@@ -305,7 +305,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
 
             And("UnitOfWork has one retry and persisting saves result on second attempt") {
                 val retry = mockk<StaleRecordFixedRetry>()
-                val ex = StaleRecordException(depId)
+                val ex = StaleRecordException(depId, "department")
                 every { rawUnitOfWork.configuration() } returns Configuration(retry, true)
                 every { retry.getNextDelay(eq(0), eq(ex)) } returns ofMillis(0)
                 coEvery {
@@ -335,7 +335,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
 
             And("UnitOfWork has one retry and returns onFailure result on second attempt") {
                 val retry = mockk<StaleRecordFixedRetry>()
-                val ex = StaleRecordException(depId)
+                val ex = StaleRecordException(depId, "department")
                 every { rawUnitOfWork.configuration() } returns Configuration(retry, true)
                 every { retry.getNextDelay(eq(0), eq(ex)) } returns ofMillis(0)
                 every { retry.getNextDelay(eq(1), eq(ex)) } returns null
@@ -366,7 +366,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
             }
 
             And("UnitOfWork has one retry and Persisting throws StaleRecordException constantly") {
-                val ex = StaleRecordException(depId)
+                val ex = StaleRecordException(depId, "department")
                 every { rawUnitOfWork.configuration() } returns Configuration.default()
                 coEvery {
                     rawUnitOfWork.tryPerform(TestPrincipal, eq(params))
@@ -381,7 +381,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                         false
                     )
                 } throws ex
-                coEvery { rawUnitOfWork.onFailure(eq(params), eq(ex)) } throws StaleRecordException(depId)
+                coEvery { rawUnitOfWork.onFailure(eq(params), eq(ex)) } throws StaleRecordException(depId, "department")
 
                 When("Principal executes UnitOfWork") {
                     val execution = suspend {
@@ -398,7 +398,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                 "UnitOfWork has one retry, has custom exception mapping " +
                     "and Persisting throws StaleRecordException constantly"
             ) {
-                val ex = StaleRecordException(depId)
+                val ex = StaleRecordException(depId, "department")
                 every { rawUnitOfWork.configuration() } returns Configuration.default()
                 coEvery {
                     rawUnitOfWork.tryPerform(TestPrincipal, eq(params))
