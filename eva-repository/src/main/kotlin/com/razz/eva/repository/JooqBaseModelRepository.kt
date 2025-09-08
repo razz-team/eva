@@ -8,8 +8,11 @@ import com.razz.eva.domain.ModelId
 import com.razz.eva.domain.Version.Companion.version
 import com.razz.eva.paging.Page
 import com.razz.eva.paging.PagedList
-import com.razz.eva.persistence.PersistenceException
+import com.razz.eva.persistence.PersistenceException.ConstraintViolation
+import com.razz.eva.persistence.PersistenceException.ModelPersistingGenericException
+import com.razz.eva.persistence.PersistenceException.ModelRecordConstraintViolationException
 import com.razz.eva.persistence.PersistenceException.StaleRecordException
+import com.razz.eva.persistence.PersistenceException.UniqueModelRecordViolationException
 import com.razz.eva.persistence.executor.QueryExecutor
 import com.razz.jooq.record.BaseEntityRecord
 import io.vertx.pgclient.PgException
@@ -413,7 +416,7 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
         when {
             ex.sqlState() == PgHelpers.PG_UNIQUE_VIOLATION -> {
                 val constraintName = PgHelpers.extractUniqueConstraintName(queryExecutor, table, ex)
-                val uex = PersistenceException.UniqueModelRecordViolationException(
+                val uex = UniqueModelRecordViolationException(
                     model.id(),
                     table.name,
                     constraintName,
@@ -422,19 +425,19 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
             }
             ex.sqlStateClass() == SQLStateClass.C23_INTEGRITY_CONSTRAINT_VIOLATION -> {
                 val constraintName = PgHelpers.extractConstraintName(queryExecutor, ex)
-                val cex = PersistenceException.ModelRecordConstraintViolationException(
+                val cex = ModelRecordConstraintViolationException(
                     model.id(),
                     table.name,
                     constraintName,
                 )
                 throw mapConstraintViolation(cex) ?: cex
             }
-            else -> throw PersistenceException.ModelPersistingGenericException(model.id(), ex)
+            else -> throw ModelPersistingGenericException(model.id(), ex)
         }
     } catch (ex: PgException) {
         when {
             ex.sqlState == PgHelpers.PG_UNIQUE_VIOLATION -> {
-                val uex = PersistenceException.UniqueModelRecordViolationException(
+                val uex = UniqueModelRecordViolationException(
                     model.id(),
                     table.name,
                     ex.constraint,
@@ -442,20 +445,20 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
                 throw mapConstraintViolation(uex) ?: uex
             }
             SQLStateClass.fromCode(ex.sqlState) == SQLStateClass.C23_INTEGRITY_CONSTRAINT_VIOLATION -> {
-                val cex = PersistenceException.ModelRecordConstraintViolationException(
+                val cex = ModelRecordConstraintViolationException(
                     model.id(),
                     table.name,
                     ex.constraint,
                 )
                 throw mapConstraintViolation(cex) ?: cex
             }
-            else -> throw PersistenceException.ModelPersistingGenericException(model.id(), ex)
+            else -> throw ModelPersistingGenericException(model.id(), ex)
         }
     }
 
     protected open fun partitionCond(model: M): Condition = DSL.noCondition()
 
-    protected open fun mapConstraintViolation(ex: PersistenceException.ConstraintViolation): Exception? = null
+    protected open fun mapConstraintViolation(ex: ConstraintViolation): Exception? = null
 
     private companion object {
         private const val MAX_RETURNED_RECORDS = 1000
