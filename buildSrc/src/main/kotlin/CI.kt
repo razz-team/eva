@@ -7,5 +7,7 @@ object Ci {
     private val githubSha = System.getenv("GITHUB_SHA") ?: "latest"
 
     val publishRelease = System.getProperty("release", "true").let(::parseBoolean)
-    val publishVersion = if (publishRelease) RELEASE_VERSION else "$SNAPSHOT_BASE-$githubSha-SNAPSHOT"
+    val publishVersion = (if (publishRelease) RELEASE_VERSION else "$SNAPSHOT_BASE-$githubSha-SNAPSHOT").also {
+        println("Publishing version $it")
+    }
 }
