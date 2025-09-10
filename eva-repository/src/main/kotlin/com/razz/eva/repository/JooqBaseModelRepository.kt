@@ -45,7 +45,7 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
     private val version: TableField<R, Long> = table.recordVersion as TableField<R, Long>,
     @Suppress("UNCHECKED_CAST")
     private val createdAt: TableField<R, Instant> = table.field("record_created_at") as TableField<R, Instant>,
-    private val stripNotModifiedFields: Boolean = true,
+    private val stripNotModifiedFields: Boolean = false,
 ) : ModelRepository<MID, M>
     where ID : Comparable<ID>,
           MID : ModelId<out Comparable<*>>,

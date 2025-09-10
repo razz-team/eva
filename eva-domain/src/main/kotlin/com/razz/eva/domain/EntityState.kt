@@ -39,7 +39,7 @@ sealed class EntityState<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>>(
 
     class PersistentState<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>> private constructor(
         version: Version,
-        internal val proto: Any,
+        internal val proto: Any?,
     ) : EntityState<ID, E>(version, listOf()) {
 
         init {
@@ -55,7 +55,7 @@ sealed class EntityState<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>>(
         companion object {
             fun <ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>> persistentState(
                 version: Version,
-                proto: Any,
+                proto: Any?,
             ): PersistentState<ID, E> {
                 return PersistentState(version, proto)
             }
@@ -65,7 +65,7 @@ sealed class EntityState<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>>(
     class DirtyState<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>> private constructor(
         version: Version,
         events: Collection<E>,
-        internal val proto: Any,
+        internal val proto: Any?,
     ) : EntityState<ID, E>(version, events) {
 
         init {
@@ -82,7 +82,7 @@ sealed class EntityState<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>>(
             internal fun <ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>> dirtyState(
                 version: Version,
                 events: Collection<E>,
-                proto: Any,
+                proto: Any?,
             ): DirtyState<ID, E> {
                 return DirtyState(version, events, proto)
             }

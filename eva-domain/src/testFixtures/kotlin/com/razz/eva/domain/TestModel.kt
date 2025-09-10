@@ -102,7 +102,7 @@ sealed class TestModel private constructor(
             param1: String?,
             param2: Long,
             version: Version = V1,
-            proto: Any = Unit,
+            proto: Any? = null,
         ): CreatedTestModel {
             return CreatedTestModel(
                 id = id,

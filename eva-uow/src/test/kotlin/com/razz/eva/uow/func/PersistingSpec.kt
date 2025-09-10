@@ -113,7 +113,7 @@ class PersistingSpec : BehaviorSpec({
         headcount = 1,
         ration = BUBALEH,
         boss = bossId3,
-        entityState = persistentState(V1, Unit),
+        entityState = persistentState(V1, null),
     ).changeBoss(boss2)
 
     val params = Params("Nik")

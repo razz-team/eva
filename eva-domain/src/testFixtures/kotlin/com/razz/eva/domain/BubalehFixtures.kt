@@ -25,7 +25,7 @@ object BubalehFixtures {
         taste = taste,
         producedOn = producedOn,
         volume = volume,
-        persistentState(V1, Unit),
+        persistentState(V1, null),
     )
 
     fun aConsumedBubaleh(
@@ -40,6 +40,6 @@ object BubalehFixtures {
         taste = taste,
         producedOn = producedOn,
         volume = volume,
-        persistentState(V1, Unit),
+        persistentState(V1, null),
     )
 }

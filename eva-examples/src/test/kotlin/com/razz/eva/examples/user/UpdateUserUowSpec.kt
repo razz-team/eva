@@ -26,7 +26,7 @@ class UpdateUserUowSpec : UowBehaviorSpec({
             firstName = FirstName("Jane"),
             lastName = null,
             address = Address("123 Main St"),
-            entityState = persistentState(V1, Unit),
+            entityState = persistentState(V1, null),
         )
         val userQueries = mockk<UserQueries> {
             coEvery {
