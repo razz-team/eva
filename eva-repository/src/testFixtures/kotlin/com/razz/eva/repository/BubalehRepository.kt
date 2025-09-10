@@ -22,7 +22,13 @@ class BubalehRepository(
     queryExecutor: QueryExecutor,
     dslContext: DSLContext
 ) : JooqStatefulModelRepository<UUID, BubalehId, Bubaleh, BubalehEvent, BubalehsRecord, BubalehsState>(
-    queryExecutor, dslContext, BUBALEHS, BUBALEHS.ID, { it.id }, BUBALEHS.VERSION
+    queryExecutor = queryExecutor,
+    dslContext = dslContext,
+    table = BUBALEHS,
+    tableId = BUBALEHS.ID,
+    dbId = { it.id },
+    version = BUBALEHS.VERSION,
+    stripNotModifiedFields = true,
 ) {
 
     override fun stateOf(model: Bubaleh) = when (model.state()) {

@@ -16,7 +16,8 @@ class WalletRepository(
 ) : WalletQueries, JooqBaseModelRepository<UUID, Wallet.Id, Wallet, WalletEvent, WalletRecord>(
     queryExecutor = queryExecutor,
     dslContext = dslContext,
-    table = WALLET
+    table = WALLET,
+    stripNotModifiedFields = true,
 ) {
     override fun toRecord(model: Wallet) = WalletRecord().apply {
         currency = model.currency.currencyCode

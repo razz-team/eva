@@ -17,7 +17,8 @@ class UserRepository(
 ) : UserQueries, JooqBaseModelRepository<UUID, Id, User, UserEvent, UserRecord>(
     queryExecutor = queryExecutor,
     dslContext = dslContext,
-    table = USER
+    table = USER,
+    stripNotModifiedFields = true,
 ) {
 
     override suspend fun get(id: Id) = find(id) ?: throw UserNotFoundException(id)

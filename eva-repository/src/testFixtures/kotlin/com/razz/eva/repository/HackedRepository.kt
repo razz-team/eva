@@ -30,9 +30,10 @@ abstract class HackedRepository<ID, MID, M, ME, R, S>(
     table: Table<R>,
     private val preUpdate: PreModifyCallback<ID, MID, M>
 ) : JooqStatefulModelRepository<ID, MID, M, ME, R, S>(
-    queryExecutor,
-    dslContext,
-    table
+    queryExecutor = queryExecutor,
+    dslContext = dslContext,
+    table = table,
+    stripNotModifiedFields = true,
 ) where ID : Comparable<ID>,
         MID : ModelId<ID>,
         ME : ModelEvent<MID>,

@@ -160,9 +160,10 @@ class BadDepartmentRepository(
 ) : JooqStatefulModelRepository<
     UUID, DepartmentId, Department<*>, DepartmentEvent, DepartmentsRecord, DepartmentsState
     >(
-    queryExecutor,
-    dslContext,
-    DEPARTMENTS
+    queryExecutor = queryExecutor,
+    dslContext = dslContext,
+    table = DEPARTMENTS,
+    stripNotModifiedFields = true,
 ) {
     override fun stateOf(model: Department<*>): DepartmentsState {
         return when (model) {
