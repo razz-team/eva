@@ -13,7 +13,7 @@ sealed class PersistenceException(message: String) : RuntimeException(message) {
     open class UniqueModelRecordViolationException(
         val modelId: ModelId<*>,
         val tableName: String,
-        override val constraintName: String?
+        override val constraintName: String?,
     ) : ConstraintViolation, PersistenceException(
         "Uniqueness of [$tableName]:[${modelId.stringValue()}]" +
             " violated ${constraintName?.let { ": [$it]" }}"
@@ -22,7 +22,7 @@ sealed class PersistenceException(message: String) : RuntimeException(message) {
     open class ModelRecordConstraintViolationException(
         val modelId: ModelId<*>,
         val tableName: String,
-        override val constraintName: String?
+        override val constraintName: String?,
     ) : ConstraintViolation, PersistenceException(
         "Constraint for [$tableName]:[${modelId.stringValue()}]" +
             " violated ${constraintName?.let { ": [$it]" }}"
@@ -39,20 +39,26 @@ sealed class PersistenceException(message: String) : RuntimeException(message) {
     )
 
     class StaleRecordException(
-        val modelIds: Set<ModelId<*>>
+        val modelIds: Set<ModelId<*>>,
+        val tableName: String,
     ) : PersistenceException(
-        "Rows for ${modelIds.joinToString(prefix = "[", postfix = "]") { it.stringValue() }} were concurrently updated"
+        $$"Rows for $${
+            modelIds.joinToString(
+                prefix = "[",
+                postfix = "]"
+            ) { modelId -> tableName + ": " + modelId.stringValue() }
+        } were concurrently updated"
     ) {
-        constructor(modelId: ModelId<*>) : this(setOf(modelId))
+        constructor(modelId: ModelId<*>, tableName: String) : this(setOf(modelId), tableName)
     }
 
     class ModelPersistingGenericException(
-        val modelId: ModelId<*>,
-        override val cause: Throwable
+        modelId: ModelId<*>,
+        override val cause: Throwable,
     ) : PersistenceException("Persisting [${modelId.stringValue()}] failed")
 
     class PersistingGenericException(
-        override val cause: Throwable
+        override val cause: Throwable,
     ) : PersistenceException("Persisting failed")
 
     class EventPayloadTooLargeException(
@@ -62,7 +68,7 @@ sealed class PersistenceException(message: String) : RuntimeException(message) {
         val payloadSize: Int,
         val maxEventPayloadSize: Int,
     ) : PersistenceException(
-        "Event [eventId=$eventId, modelEventId=$modelEventId] " +
+        "Event [eventId=$eventId, modelEventId=$modelEventId], modelId=$modelId " +
             "payload size is $payloadSize which exceeds " +
             "maxEventPayloadSize $maxEventPayloadSize bytes"
     )

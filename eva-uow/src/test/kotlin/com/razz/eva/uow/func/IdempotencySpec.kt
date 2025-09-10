@@ -64,7 +64,7 @@ class IdempotencySpec : PersistenceBaseSpec({
                         attempt()
                     }
                     ex.uowName shouldBe "CreateSoloDepartmentUow"
-                    val fmt = DateTimeFormatter.ofPattern("yyyyMMdd").withZone(UTC)
+                    val fmt = DateTimeFormatter.ofPattern("yyyy_MM_dd").withZone(UTC)
                     val partitionSubName = fmt.format(sharedModule.clock.instant())
                     ex.constraintName shouldBe "uow_events_p${partitionSubName}_name_idempotency_key_idx"
                     // ^ trigger and unique index are reporting different constraints
@@ -96,7 +96,7 @@ class IdempotencySpec : PersistenceBaseSpec({
                         attempt()
                     }
                     ex.uowName shouldBe "CreateSoloDepartmentUow"
-                    val fmt = DateTimeFormatter.ofPattern("yyyyMMdd").withZone(UTC)
+                    val fmt = DateTimeFormatter.ofPattern("yyyy_MM_dd").withZone(UTC)
                     val partitionSubName = fmt.format(sharedModule.clock.instant() + Duration.ofDays(5))
                     ex.constraintName shouldBe "uow_events_p${partitionSubName}_name_idempotency_key_idx"
                     // ^ trigger and unique index are reporting different constraints

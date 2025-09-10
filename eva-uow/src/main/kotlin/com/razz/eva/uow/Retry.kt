@@ -7,7 +7,7 @@ import com.razz.eva.persistence.PersistenceException.UniqueModelRecordViolationE
 import java.time.Duration
 import java.time.Duration.ofMillis
 
-sealed class Retry {
+abstract class Retry {
 
     abstract fun getNextDelay(currentAttempt: Int, ex: PersistenceException): Duration?
 

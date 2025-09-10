@@ -18,6 +18,13 @@ dependencies {
 }
 ```
 
+For snapshot version you also need to add the sonatype snapshots repository:
+```kotlin
+repositories {
+    maven { url = URI.create("https://central.sonatype.com/repository/maven-snapshots/") }
+}
+```
+
 ### Model
 Define events for your business domain.
 You can read more about domain and integration events [here](https://docs.microsoft.com/en-us/dotnet/architecture/microservices/microservice-ddd-cqrs-patterns/domain-events-design-implementation). 

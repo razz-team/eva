@@ -1,9 +1,10 @@
 package com.razz.eva.uow
 
 import kotlinx.serialization.Serializable
-import java.time.Clock
 
-internal abstract class DummyUnitUow(clock: Clock) : UnitOfWork<TestPrincipal, DummyUnitUow.Params, Unit>(clock) {
+internal abstract class DummyUnitUow(
+    executionContext: ExecutionContext
+) : UnitOfWork<TestPrincipal, DummyUnitUow.Params, Unit>(executionContext) {
     @Serializable
     object Params : UowParams<Params> {
         override fun serialization() = serializer()

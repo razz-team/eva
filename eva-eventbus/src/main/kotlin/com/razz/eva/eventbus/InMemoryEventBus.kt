@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import mu.KotlinLogging
@@ -88,6 +89,7 @@ class InMemoryEventBus(
                 val principalPayload = buildJsonObject {
                     put("principalId", principal.id.toString())
                     put("principalName", principal.name.toString())
+                    put("principalContext", JsonObject(principal.context().mapValues { JsonPrimitive(it.value) }))
                 }
                 return JsonObject(principalPayload + integrationEvent())
             }

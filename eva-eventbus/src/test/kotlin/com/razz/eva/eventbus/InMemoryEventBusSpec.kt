@@ -17,6 +17,7 @@ import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import java.time.Instant
@@ -94,6 +95,9 @@ class InMemoryEventBusSpec : FunSpec({
                 payload = buildJsonObject {
                     put("principalId", uowEvent.principal.id.toString())
                     put("principalName", uowEvent.principal.name.toString())
+                    put("principalContext",
+                        JsonObject(uowEvent.principal.context().mapValues { JsonPrimitive(it.value) })
+                    )
                 }
             )
         }

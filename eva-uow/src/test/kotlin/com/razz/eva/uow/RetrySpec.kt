@@ -21,7 +21,7 @@ class RetrySpec : BehaviorSpec({
         val retry = StaleRecordFixedRetry(0, ofMillis(0))
 
         When("Retry is polled for next delay for zeroth attempt") {
-            val nextDelay = retry.getNextDelay(0, StaleRecordException(whateverModelId))
+            val nextDelay = retry.getNextDelay(0, StaleRecordException(whateverModelId, "cool_table"))
 
             Then("Next delay should be null") {
                 nextDelay shouldBe null
@@ -33,7 +33,7 @@ class RetrySpec : BehaviorSpec({
         val retry = StaleRecordFixedRetry(1, ofMillis(0))
 
         When("Retry is polled for next delay for zeroth attempt") {
-            val nextDelay = retry.getNextDelay(0, StaleRecordException(whateverModelId))
+            val nextDelay = retry.getNextDelay(0, StaleRecordException(whateverModelId, "cool_table"))
 
             Then("Next delay should be 0 millis") {
                 nextDelay shouldBe ofMillis(0)

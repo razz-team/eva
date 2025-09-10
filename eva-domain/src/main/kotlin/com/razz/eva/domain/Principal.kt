@@ -4,6 +4,7 @@ interface Principal<T> {
 
     val id: Id<out T>
     val name: Name
+    fun context(): Map<String, String> = emptyMap()
 
     data class Id<T>(private val id: T) {
 

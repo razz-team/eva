@@ -23,6 +23,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.JsonPrimitive
 import org.jooq.DSLContext
 import org.jooq.InsertQuery
 import org.jooq.Record
@@ -154,6 +155,7 @@ class JooqEventRepository(
                 val principalPayload = buildJsonObject {
                     put("principalId", principal.id.toString())
                     put("principalName", principal.name.toString())
+                    put("principalContext", JsonObject(principal.context().mapValues { JsonPrimitive(it.value) }))
                 }
                 return JsonObject(principalPayload + integrationEvent())
             }
