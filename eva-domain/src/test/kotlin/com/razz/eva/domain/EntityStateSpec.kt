@@ -72,7 +72,8 @@ class EntityStateSpec : BehaviorSpec({
         val secondTestModelEvent = TestModelEvent2(modelId)
         val dirtyState = dirtyState(
             version = V1,
-            events = listOf(firstTestModelEvent, secondTestModelEvent)
+            events = listOf(firstTestModelEvent, secondTestModelEvent),
+            proto = Unit,
         )
         And("Event drive") {
             val eventDrive = mockk<ModelEventDrive<TestModelEvent>>()
@@ -98,7 +99,8 @@ class EntityStateSpec : BehaviorSpec({
 
     Given("Persistent entity state") {
         val persistentState = persistentState<TestModelId, TestModelEvent>(
-            version = V1
+            version = V1,
+            proto = Unit,
         )
 
         When("Get version") {
@@ -131,7 +133,7 @@ class EntityStateSpec : BehaviorSpec({
 
         When("Create persistent state") {
             val action = {
-                persistentState<TestModelId, TestModelEvent>(version)
+                persistentState<TestModelId, TestModelEvent>(version, Unit)
             }
 
             Then("Exception is thrown") {
