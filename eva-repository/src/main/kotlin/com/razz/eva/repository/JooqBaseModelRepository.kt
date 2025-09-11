@@ -82,6 +82,11 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
         )
     }
 
+    protected fun protoRecord(model: M): R? {
+        if (!stripNotModifiedFields) return null
+        return model.proto<R>()
+    }
+
     protected abstract fun toRecord(model: M): R
 
     protected abstract fun fromRecord(record: R, entityState: PersistentState<MID, ME>): M
@@ -240,10 +245,10 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
 
     private fun <Q : StoreQuery<R>> prepareQuery(context: TransactionalContext, model: M, storeQuery: Q): Q {
         val record = toRecord(context, model)
-        val proto = model.proto<R>()
-        if (proto != null && stripNotModifiedFields) {
+        val protoRecord = protoRecord(model)
+        if (protoRecord != null) {
             for (i in 0..<record.size()) {
-                val origin = proto.getValue(i)
+                val origin = protoRecord.getValue(i)
                 val changed = record.getValue(i)
                 if (origin == changed) {
                     record.reset(i)
