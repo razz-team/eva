@@ -19,7 +19,8 @@ class EmployeeRepository(
 ) : JooqBaseModelRepository<UUID, EmployeeId, Employee, EmployeeEvent, EmployeesRecord>(
     queryExecutor,
     dslContext,
-    EMPLOYEES
+    EMPLOYEES,
+    stripNotModifiedFields = true,
 ) {
 
     override fun toRecord(model: Employee): EmployeesRecord =

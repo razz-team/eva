@@ -134,7 +134,6 @@ class JooqBaseRepositoryNegativeSpec : BehaviorSpec({
                 When("Principal updating model through malicious repository") {
                     repo.update(updateContext, addedDep.rename("UPDATE TEST"))
                     val recordUpdatedAt = InstantConverter.instance.to(updateContext.startedAt)
-                    val boss = requireNotNull(dep.boss)
 
                     Then(
                         "Query executor should receive record with RECORD_CREATED_AT and RECORD_UPDATED_AT" +
@@ -144,10 +143,6 @@ class JooqBaseRepositoryNegativeSpec : BehaviorSpec({
                         update.jooqQuery.getSQL(INLINED) shouldBe """
                             update "departments" set 
                             "name" = 'UPDATE TEST',
-                            "boss" = cast('${boss.id}' as uuid),
-                            "headcount" = 1,
-                            "ration" = 'BUBALEH',
-                            "state" = cast('OWNED' as "departments_state"),
                             "record_updated_at" = timestamp '$recordUpdatedAt',
                             "version" = 2
                             where ("departments"."id" = cast('${dep.id().id}' as uuid) and "departments"."version" = 1)
@@ -165,9 +160,10 @@ class BadDepartmentRepository(
 ) : JooqStatefulModelRepository<
     UUID, DepartmentId, Department<*>, DepartmentEvent, DepartmentsRecord, DepartmentsState
     >(
-    queryExecutor,
-    dslContext,
-    DEPARTMENTS
+    queryExecutor = queryExecutor,
+    dslContext = dslContext,
+    table = DEPARTMENTS,
+    stripNotModifiedFields = true,
 ) {
     override fun stateOf(model: Department<*>): DepartmentsState {
         return when (model) {

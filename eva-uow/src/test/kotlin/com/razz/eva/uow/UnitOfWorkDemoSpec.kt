@@ -7,10 +7,9 @@ import com.razz.eva.domain.DepartmentId.Companion.randomDepartmentId
 import com.razz.eva.domain.Employee
 import com.razz.eva.domain.EmployeeEvent.DepartmentChanged
 import com.razz.eva.domain.EmployeeId
-import com.razz.eva.domain.EntityState.PersistentState.Companion.persistentState
 import com.razz.eva.domain.Name
 import com.razz.eva.domain.Ration.BUBALEH
-import com.razz.eva.domain.Version.Companion.V1
+import com.razz.eva.test.domain.persistentStateV1
 import com.razz.eva.repository.DepartmentRepository
 import com.razz.eva.repository.EmployeeRepository
 import com.razz.eva.test.uow.UowBehaviorSpec
@@ -30,13 +29,13 @@ class UnitOfWorkDemoSpec : UowBehaviorSpec({
         val newBossId = EmployeeId(randomUUID())
         val newDep = OwnedDepartment(
             newDepId, "new and cool", newBossId, 1, BUBALEH,
-            persistentState(V1)
+            persistentStateV1(),
         )
         val oldDepId = randomDepartmentId()
         val oldBossId = EmployeeId(randomUUID())
         val oldDep = OwnedDepartment(
             oldDepId, "old and lame", oldBossId, 3, BUBALEH,
-            persistentState(V1)
+            persistentStateV1()
         )
 
         When("Zoomer and Boomer are doing internal mobility") {
@@ -47,7 +46,7 @@ class UnitOfWorkDemoSpec : UowBehaviorSpec({
                 departmentId = oldDepId,
                 email = "old.zoomer@lame.dep",
                 ration = BUBALEH,
-                entityState = persistentState(V1)
+                entityState = persistentStateV1()
             )
             val boomerId = EmployeeId(randomUUID())
             val boomer = Employee(
@@ -56,7 +55,7 @@ class UnitOfWorkDemoSpec : UowBehaviorSpec({
                 departmentId = oldDepId,
                 email = "old.boomer@lame.dep",
                 ration = BUBALEH,
-                entityState = persistentState(V1)
+                entityState = persistentStateV1()
             )
 
             coEvery { departmentRepo.find(newDepId) } coAnswers { newDep }

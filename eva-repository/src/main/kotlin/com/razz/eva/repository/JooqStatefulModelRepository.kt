@@ -22,8 +22,9 @@ abstract class JooqStatefulModelRepository<ID, MID, M, ME, R, S>(
     version: TableField<R, Long> = table.recordVersion as TableField<R, Long>,
     @Suppress("UNCHECKED_CAST")
     createdAt: TableField<R, Instant> = table.field("record_created_at") as TableField<R, Instant>,
+    stripNotModifiedFields: Boolean = false,
 ) : JooqBaseModelRepository<ID, MID, M, ME, R>(
-    queryExecutor, dslContext, table, tableId, dbId, version, createdAt
+    queryExecutor, dslContext, table, tableId, dbId, version, createdAt, stripNotModifiedFields,
 ) where ID : Comparable<ID>,
       MID : ModelId<out Comparable<*>>,
       ME : ModelEvent<MID>,

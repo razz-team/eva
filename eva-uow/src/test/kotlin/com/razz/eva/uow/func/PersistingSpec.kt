@@ -38,6 +38,7 @@ import com.razz.eva.uow.SpyRepo
 import com.razz.eva.uow.TestPrincipal
 import com.razz.eva.events.UowEvent
 import com.razz.eva.events.UowEvent.UowName
+import com.razz.eva.test.domain.persistentStateV1
 import com.razz.eva.uow.ExecutionStep.UowEventPublished
 import com.razz.eva.uow.UowParams
 import io.kotest.core.spec.style.BehaviorSpec
@@ -79,7 +80,7 @@ class PersistingSpec : BehaviorSpec({
     val oldDepId = randomDepartmentId()
     val boss1 = Employee(
         bossId1, Name("Nursultan", "N"), oldDepId, "nursultan@001.kz", BUBALEH,
-        persistentState(V1)
+        persistentStateV1()
     ).changeDepartment(department1)
 
     val departmentId2 = randomDepartmentId()
@@ -101,7 +102,7 @@ class PersistingSpec : BehaviorSpec({
     )
     val boss2 = Employee(
         bossId2, Name("Vladimir", "P"), oldDepId, "vladimir@001.ru", BUBALEH,
-        persistentState(V1)
+        persistentStateV1()
     ).changeDepartment(department2)
 
     val departmentId3 = randomDepartmentId()
@@ -112,7 +113,7 @@ class PersistingSpec : BehaviorSpec({
         headcount = 1,
         ration = BUBALEH,
         boss = bossId3,
-        entityState = persistentState(V1)
+        entityState = persistentState(V1, null),
     ).changeBoss(boss2)
 
     val params = Params("Nik")
@@ -346,7 +347,7 @@ class PersistingSpec : BehaviorSpec({
                                     headcount = 1,
                                     ration = BUBALEH,
                                     boss = bossId1,
-                                    entityState = persistentState(V1),
+                                    entityState = persistentStateV1(),
                                 )
                             ),
                             Noop(
@@ -356,7 +357,7 @@ class PersistingSpec : BehaviorSpec({
                                     headcount = 1,
                                     ration = BUBALEH,
                                     boss = bossId2,
-                                    entityState = persistentState(V1),
+                                    entityState = persistentStateV1(),
                                 )
                             ),
                         ),

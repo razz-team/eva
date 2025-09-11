@@ -1,6 +1,15 @@
+import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinWithJavaTarget
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+
 plugins {
     id("eva-kotlin")
     id("eva-publish")
+}
+
+tasks.withType<KotlinCompile>().configureEach {
+    friendPaths.from(
+        rootProject.project("eva-domain").layout.buildDirectory.dir("classes/kotlin/main"),
+    )
 }
 
 dependencies {
