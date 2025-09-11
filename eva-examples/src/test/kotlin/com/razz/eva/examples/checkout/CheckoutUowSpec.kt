@@ -1,8 +1,6 @@
 package com.razz.eva.examples.checkout
 
-import com.razz.eva.domain.EntityState.PersistentState.Companion.persistentState
 import com.razz.eva.domain.Principal
-import com.razz.eva.domain.Version.Companion.V1
 import com.razz.eva.examples.ServicePrincipal
 import com.razz.eva.examples.composition.CheckoutUow
 import com.razz.eva.examples.composition.account.Account
@@ -18,6 +16,7 @@ import com.razz.eva.examples.composition.inventory.Inventory
 import com.razz.eva.examples.composition.inventory.Inventory.Factory.existingInventory
 import com.razz.eva.examples.composition.inventory.Inventory.InventoryItem
 import com.razz.eva.examples.composition.inventory.InventoryEvent.StockReduced
+import com.razz.eva.test.domain.persistentStateV1
 import com.razz.eva.test.uow.UowBehaviorSpec
 import com.razz.eva.uow.verify.verifyInOrder
 import io.kotest.matchers.shouldBe
@@ -29,15 +28,15 @@ class CheckoutUowSpec : UowBehaviorSpec({
             items = listOf(CartItem("iphone-silver-256", 999), CartItem("iphone-gold-256", 999)),
             paidFrom = null,
             state = SHOPPING,
-            entityState = persistentState(V1),
+            entityState = persistentStateV1(),
         )
         val account = existingAccount(
             balance = 2000,
-            entityState = persistentState(V1),
+            entityState = persistentStateV1(),
         )
         val inventory = existingInventory(
             stock = mapOf(InventoryItem("iphone-silver-256") to 10, InventoryItem("iphone-gold-256") to 20),
-            entityState = persistentState(V1),
+            entityState = persistentStateV1(),
         )
 
         And("Params to checkout") {

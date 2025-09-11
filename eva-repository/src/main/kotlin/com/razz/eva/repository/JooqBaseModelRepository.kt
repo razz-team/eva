@@ -45,6 +45,7 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
     private val version: TableField<R, Long> = table.recordVersion as TableField<R, Long>,
     @Suppress("UNCHECKED_CAST")
     private val createdAt: TableField<R, Instant> = table.field("record_created_at") as TableField<R, Instant>,
+    private val stripNotModifiedFields: Boolean = false,
 ) : ModelRepository<MID, M>
     where ID : Comparable<ID>,
           MID : ModelId<out Comparable<*>>,
@@ -71,12 +72,19 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
     }
 
     private fun fromRecord(record: R): M {
+        val original = record.original().apply { detach() }
         return fromRecord(
             record,
             persistentState(
-                version(record.getVersion()!!)
+                version(record.getVersion()!!),
+                original,
             )
         )
+    }
+
+    protected fun protoRecord(model: M): R? {
+        if (!stripNotModifiedFields) return null
+        return model.proto<R>()
     }
 
     protected abstract fun toRecord(model: M): R
@@ -237,6 +245,16 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
 
     private fun <Q : StoreQuery<R>> prepareQuery(context: TransactionalContext, model: M, storeQuery: Q): Q {
         val record = toRecord(context, model)
+        val protoRecord = protoRecord(model)
+        if (protoRecord != null) {
+            for (i in 0..<record.size()) {
+                val origin = protoRecord.getValue(i)
+                val changed = record.getValue(i)
+                if (origin == changed) {
+                    record.reset(i)
+                }
+            }
+        }
         storeQuery.setRecord(record)
         return storeQuery
     }

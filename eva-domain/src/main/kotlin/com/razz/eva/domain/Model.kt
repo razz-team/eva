@@ -18,4 +18,10 @@ abstract class Model<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>>(
 
     protected fun raiseEvent(newEvent: E): EntityState<ID, E> =
         entityState.raiseEvent(newEvent)
+
+    internal fun <T> proto(): T? {
+        val proto = (entityState as? EntityState.DirtyState<ID, E>)?.proto
+        @Suppress("UNCHECKED_CAST")
+        return proto as? T
+    }
 }
