@@ -107,6 +107,17 @@ class UnitOfWorkExecutor(
                     }
                 } catch (ex: PersistenceException) {
                     val config = uow.configuration()
+                    retries()
+                        .add(1,
+                            Attributes.of(
+                                AttributeKey.stringKey("uow.name"),
+                                uow.name(),
+                                AttributeKey.stringKey("exception-$currentAttempt"),
+                                ex::class.simpleName ?: "unknown",
+                                AttributeKey.stringKey("attempt.number"),
+                                currentAttempt.toString(),
+                            )
+                        )
                     if (config.retry.shouldRetry(currentAttempt, ex)) {
                         currentAttempt += 1
                         logger.warn(ex) {
@@ -212,6 +223,12 @@ class UnitOfWorkExecutor(
         .setDescription("Unit of work execution time")
         .setUnit("ns")
         .ofLongs()
+        .build()
+
+    private fun retries() = openTelemetry.getEvaMeter()
+        .counterBuilder("my.counter")
+        .setDescription("fss")
+        .setUnit("count")
         .build()
 }
 
