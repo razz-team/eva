@@ -13,6 +13,7 @@ import com.razz.eva.tracing.getEvaMeter
 import com.razz.eva.tracing.getEvaTracer
 import com.razz.eva.tracing.use
 import com.razz.eva.uow.OtelAttributes.PRINCIPAL_ID
+import com.razz.eva.uow.OtelAttributes.UOW_EXCEPTION_TYPE
 import com.razz.eva.uow.UnitOfWorkExecutor.ClassToUow
 import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.api.common.AttributeKey
@@ -119,6 +120,7 @@ class UnitOfWorkExecutor(
                 return if (uow.configuration().returnRoundtrippedModels) result(changes, persisted) else changes.result
             }
         } catch (ex: Exception) {
+            uowSpan.setAttribute(UOW_EXCEPTION_TYPE, ex::class.java.name)
             uowSpan.recordException(ex)
             throw ex
         } finally {
