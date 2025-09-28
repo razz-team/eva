@@ -106,6 +106,15 @@ class UnitOfWorkExecutor(
                         }
                     }
                 } catch (ex: PersistenceException) {
+                    uowSpan.addEvent(
+                        "persistence.exception",
+                        Attributes.of(
+                            SpanAttributes.peristenceException,
+                            ex::class.simpleName ?: "Unknown",
+                            SpanAttributes.modelIds,
+                            (ex as? PersistenceException.ModelAware)?.modelIds?.map { it.stringValue() } ?: listOf(),
+                        ),
+                    )
                     val config = uow.configuration()
                     if (config.retry.shouldRetry(currentAttempt, ex)) {
                         currentAttempt += 1
@@ -213,7 +222,10 @@ class UnitOfWorkExecutor(
         .setUnit("ns")
         .ofLongs()
         .build()
-}
 
-class UowFactoryNotFoundException(uowClass: KClass<*>) :
-    IllegalStateException("There is no configured factory to create ${uowClass.simpleName}")
+    private object SpanAttributes {
+
+        val peristenceException = AttributeKey.stringKey("com.razz.eva.persistence.PersistenceException")
+        val modelIds = AttributeKey.stringArrayKey("com.razz.eva.domain.ModelId")
+    }
+}

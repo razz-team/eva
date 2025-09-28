@@ -6,6 +6,10 @@ import java.util.UUID
 
 sealed class PersistenceException(message: String) : RuntimeException(message) {
 
+    sealed interface ModelAware {
+        val modelIds: Set<ModelId<*>>
+    }
+
     sealed interface ConstraintViolation {
         val constraintName: String?
     }
@@ -14,19 +18,25 @@ sealed class PersistenceException(message: String) : RuntimeException(message) {
         val modelId: ModelId<*>,
         val tableName: String,
         override val constraintName: String?,
-    ) : ConstraintViolation, PersistenceException(
+    ) : ConstraintViolation, ModelAware, PersistenceException(
         "Uniqueness of [$tableName]:[${modelId.stringValue()}]" +
             " violated ${constraintName?.let { ": [$it]" }}"
-    )
+    ) {
+        override val modelIds: Set<ModelId<*>>
+            get() = setOf(modelId)
+    }
 
     open class ModelRecordConstraintViolationException(
         val modelId: ModelId<*>,
         val tableName: String,
         override val constraintName: String?,
-    ) : ConstraintViolation, PersistenceException(
+    ) : ConstraintViolation, ModelAware, PersistenceException(
         "Constraint for [$tableName]:[${modelId.stringValue()}]" +
             " violated ${constraintName?.let { ": [$it]" }}"
-    )
+    ) {
+        override val modelIds: Set<ModelId<*>>
+            get() = setOf(modelId)
+    }
 
     class UniqueUowEventRecordViolationException(
         val uowId: UUID,
@@ -39,9 +49,9 @@ sealed class PersistenceException(message: String) : RuntimeException(message) {
     )
 
     class StaleRecordException(
-        val modelIds: Set<ModelId<*>>,
+        override val modelIds: Set<ModelId<*>>,
         val tableName: String,
-    ) : PersistenceException(
+    ) : ModelAware, PersistenceException(
         $$"Rows for $${
             modelIds.joinToString(
                 prefix = "[",
@@ -53,9 +63,12 @@ sealed class PersistenceException(message: String) : RuntimeException(message) {
     }
 
     class ModelPersistingGenericException(
-        modelId: ModelId<*>,
+        val modelId: ModelId<*>,
         override val cause: Throwable,
-    ) : PersistenceException("Persisting [${modelId.stringValue()}] failed")
+    ) : ModelAware, PersistenceException("Persisting [${modelId.stringValue()}] failed") {
+        override val modelIds: Set<ModelId<*>>
+            get() = setOf(modelId)
+    }
 
     class PersistingGenericException(
         override val cause: Throwable,
@@ -67,9 +80,12 @@ sealed class PersistenceException(message: String) : RuntimeException(message) {
         val eventId: UUID,
         val payloadSize: Int,
         val maxEventPayloadSize: Int,
-    ) : PersistenceException(
+    ) : ModelAware, PersistenceException(
         "Event [eventId=$eventId, modelEventId=$modelEventId], modelId=$modelId " +
             "payload size is $payloadSize which exceeds " +
             "maxEventPayloadSize $maxEventPayloadSize bytes"
-    )
+    ) {
+        override val modelIds: Set<ModelId<*>>
+            get() = setOf(modelId)
+    }
 }
