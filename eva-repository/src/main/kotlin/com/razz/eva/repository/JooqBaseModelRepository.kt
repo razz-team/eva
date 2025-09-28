@@ -386,8 +386,20 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
     }
 
     protected suspend fun count(condition: Condition): Long {
-        return atMostOneRecord(dslContext.select(LONG_COUNT).from(table).where(condition))
-            ?.value1() ?: 0
+        return atMostOneRecord(
+            dslContext.select(LONG_COUNT).from(table).where(condition),
+        )?.value1() ?: 0
+    }
+
+    protected suspend fun count(condition: Condition, limit: Long): Long {
+        return atMostOneRecord(
+            dslContext.select(LONG_COUNT).from(
+                dslContext.selectOne()
+                    .from(table)
+                    .where(condition)
+                    .limit(limit),
+            ),
+        )?.value1() ?: 0
     }
 
     protected suspend fun countGrouped(condition: Condition, groupFields: Set<TableField<R, *>>): Long {
