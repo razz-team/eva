@@ -7,6 +7,7 @@ import com.razz.eva.domain.DepartmentId.Companion.randomDepartmentId
 import com.razz.eva.domain.EmployeeId
 import com.razz.eva.domain.EntityState.NewState.Companion.newState
 import com.razz.eva.domain.Ration
+import com.razz.eva.events.UowEvent
 import com.razz.eva.persistence.PersistenceException.ModelRecordConstraintViolationException
 import com.razz.eva.persistence.PersistenceException.StaleRecordException
 import com.razz.eva.persistence.PersistenceException.UniqueModelRecordViolationException
@@ -252,7 +253,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                         now = clock.instant(),
                         uowSupportsOutOfOrderPersisting = true
                     )
-                } returns listOf(anotherModel, department)
+                } returns Pair(UowEvent.Id.random(), listOf(anotherModel, department))
                 every { rawUnitOfWork.configuration() } returns
                     Configuration(StaleRecordFixedRetry(1, ofMillis(100)), true)
                 val changes = RealisedChanges(department, listOf())
@@ -320,7 +321,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                         now = clock.instant(),
                         uowSupportsOutOfOrderPersisting = true
                     )
-                } throws ex andThen listOf(department)
+                } throws ex andThen Pair(UowEvent.Id.random(), listOf(department))
                 coEvery { rawUnitOfWork.onFailure(eq(params), eq(ex)) } throws ex
 
                 When("Principal executes UnitOfWork") {

@@ -13,6 +13,7 @@ import com.razz.eva.tracing.getEvaMeter
 import com.razz.eva.tracing.getEvaTracer
 import com.razz.eva.tracing.use
 import com.razz.eva.uow.OtelAttributes.PRINCIPAL_ID
+import com.razz.eva.uow.OtelAttributes.UOW_ID
 import com.razz.eva.uow.UnitOfWorkExecutor.ClassToUow
 import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.api.common.AttributeKey
@@ -92,7 +93,7 @@ class UnitOfWorkExecutor(
                     PRINCIPAL_ID,
                     principal.id.toString(),
                 )
-                val persisted = try {
+                val (uowId, persisted) = try {
                     withContext(uowSpan.asContextElement()) {
                         persistingSpan(name).use {
                             persisting.persist(
@@ -125,6 +126,10 @@ class UnitOfWorkExecutor(
                     }
                     return uow.onFailure(constructedParams, ex)
                 }
+                uowSpan.setAttribute(
+                    UOW_ID,
+                    uowId.toString(),
+                )
                 return if (uow.configuration().returnRoundtrippedModels) result(changes, persisted) else changes.result
             }
         } catch (ex: Exception) {
