@@ -41,7 +41,7 @@ class Persisting(
         changes: Collection<Change>,
         now: Instant,
         uowSupportsOutOfOrderPersisting: Boolean
-    ): List<Model<*, *>> {
+    ): Pair<UowEvent.Id, List<Model<*, *>>> {
         val (uowEvent, flushed) = inTransaction(now, uowSupportsOutOfOrderPersisting) { persisting, startedAt ->
             val events = changes.flatMap(Change::modelEvents)
             changes.forEach { change ->
@@ -58,7 +58,7 @@ class Persisting(
             )
         }
         eventPublisher.publish(uowEvent)
-        return flushed
+        return uowEvent.id to flushed
     }
 
     private suspend fun inTransaction(
