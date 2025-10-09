@@ -24,19 +24,20 @@ data class DatabaseContainer(
         HikariDataSource(this)
     }
 
-    fun localPool(dbName: String, size: Int, cached: Boolean = false) = synchronized(pgContainer) {
-        localPools.getOrPut(dbName + cached) {
+    fun localPool(dbName: String, size: Int) = synchronized(pgContainer) {
+        localPools.getOrPut(dbName) {
             HikariConfig().run {
                 jdbcUrl = jdbcUrl(dbName)
                 username = "test"
                 password = "test"
                 maximumPoolSize = size
                 initializationFailTimeout = -1
-                dataSource = if (cached) HikariCachingPgDataSource().apply {
+                // we have to specify credentials here, as Hikari does not reuse the ones from config
+                dataSource = HikariCachingPgDataSource().apply {
                     setUrl(jdbcUrl(dbName))
                     setUser("test")
                     setPassword("test")
-                } else null
+                }
                 HikariDataSource(this)
             }
         }

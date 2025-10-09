@@ -6,7 +6,7 @@ plugins {
 mavenPublishing {
     publishToMavenCentral()
 
-//    signAllPublications()
+    signAllPublications()
 
     pom {
         name = "eva"

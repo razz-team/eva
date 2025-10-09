@@ -22,6 +22,7 @@ import org.postgresql.util.PSQLException
 class JdbcQueryExecutor(
     private val transactionManager: TransactionManager<Connection>,
     private val openTelemetry: OpenTelemetry = noop(),
+    private val cachePreparedStatements: Boolean,
 ) : QueryExecutor {
 
     override suspend fun <R : Record> executeSelect(
@@ -62,6 +63,16 @@ class JdbcQueryExecutor(
         }
     }
 
+    /**
+     * If `cachePreparedStatements` is true, we are delegating the statement lifecycle to the connection pool
+     * We are instructing jooq to keep the statement open after the execution
+     * https://www.jooq.org/doc/latest/manual/sql-execution/reusing-statements/
+     * In that case, jooq will create an instance of `CloseableResultQuery`
+     * which is an implementation of `java.lang.AutoCloseable`. We are not closing it, so the statement remains open.
+     * The connection pool will close the statement when the connection is closed (returned to the pool)
+     * If `cachePreparedStatements` is false, jooq will close the statement after execution
+     * as it is the default behavior.
+     */
     private fun <R : Record> DSLContext.preparedQuery(
         jooqQuery: Query,
         table: Table<R>,
@@ -71,7 +82,7 @@ class JdbcQueryExecutor(
             .values
             .filterNot(Param<*>::isInline)
             .toTypedArray()
-    ).keepStatement(true) // delegate statement lifecycle to the connection pool
+    ).keepStatement(cachePreparedStatements)
         .coerce(table)
         .fetch()
 

@@ -41,7 +41,7 @@ comments:
     active: false
     licenseTemplateFile: 'license.template'
   CommentOverPrivateFunction:
-    active: true
+    active: false
   CommentOverPrivateProperty:
     active: true
   EndOfSentenceFormat:
