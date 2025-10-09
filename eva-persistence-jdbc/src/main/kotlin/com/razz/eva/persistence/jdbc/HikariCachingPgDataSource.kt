@@ -3,13 +3,24 @@ package com.razz.eva.persistence.jdbc
 import org.postgresql.ds.PGSimpleDataSource
 import java.sql.Connection
 
-class HikariCachingPgDataSource : PGSimpleDataSource() {
+class HikariCachingPgDataSource(
+    private val cacheSize: Int = 1024,
+    private val preparedStatementCacheSqlFilter: (String) -> Boolean = { true },
+) : PGSimpleDataSource() {
 
     override fun getConnection(): Connection {
-        return CachingConnection(super.getConnection())
+        return CachingConnection(
+            delegate = super.getConnection(),
+            preparedStatementCache = LruCache(cacheSize),
+            preparedStatementCacheSqlFilter = preparedStatementCacheSqlFilter,
+        )
     }
 
     override fun getConnection(user: String?, password: String?): Connection {
-        return CachingConnection(super.getConnection(user, password))
+        return CachingConnection(
+            delegate = super.getConnection(user, password),
+            preparedStatementCache = LruCache(cacheSize),
+            preparedStatementCacheSqlFilter = preparedStatementCacheSqlFilter,
+        )
     }
 }

@@ -32,7 +32,7 @@ class WalletModule(databaseConfig: DatabaseConfig) {
         replicaProvider = HikariPoolConnectionProvider(dataSource(databaseConfig, isPrimary = false)),
         blockingJdbcContext = newFixedThreadPool(databaseConfig.maxPoolSize.value()).asCoroutineDispatcher()
     )
-    val queryExecutor = JdbcQueryExecutor(transactionManager, noop())
+    val queryExecutor = JdbcQueryExecutor(transactionManager, noop(), false)
     val dslContext: DSLContext = DSL.using(
         POSTGRES,
         Settings().withRenderNamedParamPrefix("$").withParamType(ParamType.NAMED)

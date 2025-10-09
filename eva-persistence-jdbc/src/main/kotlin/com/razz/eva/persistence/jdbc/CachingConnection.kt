@@ -6,10 +6,14 @@ import java.sql.ShardingKey
 
 internal class CachingConnection(
     private val delegate: Connection,
-    private val preparedStatementCache: LruCache<String, CachedPreparedStatement> = LruCache(1024),
+    private val preparedStatementCache: LruCache<String, CachedPreparedStatement>,
+    private val preparedStatementCacheSqlFilter: (String) -> Boolean,
 ) : Connection by delegate {
 
     override fun prepareStatement(sql: String): PreparedStatement {
+        if (!preparedStatementCacheSqlFilter(sql)) {
+            return delegate.prepareStatement(sql)
+        }
         val (added, evicted) = preparedStatementCache.cache(sql) { _ ->
             val delegated = delegate.prepareStatement(sql)
             CachedPreparedStatement(delegated)

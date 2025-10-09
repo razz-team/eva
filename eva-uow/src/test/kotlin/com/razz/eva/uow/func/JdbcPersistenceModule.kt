@@ -6,6 +6,7 @@ import com.razz.eva.persistence.jdbc.JdbcTransactionManager
 import com.razz.eva.persistence.jdbc.executor.JdbcQueryExecutor
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
+import io.opentelemetry.api.OpenTelemetry.noop
 import kotlinx.coroutines.asCoroutineDispatcher
 import java.time.Duration
 import java.util.concurrent.Executors.newFixedThreadPool
@@ -22,7 +23,7 @@ class JdbcPersistenceModule(
     private val replicaProvider = HikariPoolConnectionProvider(replicaPool, blockingJdbcContext)
 
     override val transactionManager = JdbcTransactionManager(primaryProvider, replicaProvider, blockingJdbcContext)
-    override val queryExecutor = JdbcQueryExecutor(transactionManager)
+    override val queryExecutor = JdbcQueryExecutor(transactionManager, noop(), false)
 
     override fun close() {
         primaryPool.close()
