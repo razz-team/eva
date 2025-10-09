@@ -7,7 +7,7 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import java.sql.Connection
 import javax.sql.DataSource
-import kotlin.coroutines.coroutineContext
+import kotlinx.coroutines.currentCoroutineContext
 
 typealias HikariPoolConnectionProvider = DataSourceConnectionProvider
 
@@ -17,7 +17,8 @@ class DataSourceConnectionProvider(
 ) : JdbcConnectionProvider {
 
     override suspend fun acquire(): Connection {
-        coroutineContext.ensureActive() // fail-fast if current coroutine was cancelled before acquiring a connection
+        // fail-fast if current coroutine was cancelled before acquiring a connection
+        currentCoroutineContext().ensureActive()
 
         // here are 2 issues to solve:
         // 1. if the current coroutine is cancelled and we don't have NonCancellable at all,

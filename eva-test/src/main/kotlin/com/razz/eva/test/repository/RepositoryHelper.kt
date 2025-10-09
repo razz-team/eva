@@ -31,6 +31,7 @@ open class RepositoryHelper(
     trimmedPackagePrefix: String = "com/razz/",
     schema: DbSchema = DbSchema.ModelsSchema,
     private val databaseContainer: DatabaseContainer = DatabaseContainer.BASIC,
+    cached: Boolean = false,
 ) {
 
     companion object {
@@ -64,15 +65,15 @@ open class RepositoryHelper(
         db.createSchemas(createPartman)
         flywayProvider(db.dbName(), modelsMigration).migrate()
         val (txnManager, queryExecutor) = when (executorType) {
-            ExecutorType.JDBC -> jdbcEngine()
+            ExecutorType.JDBC -> jdbcEngine(cached)
             ExecutorType.VERTX -> vertxEngine(db.dbName())
         }
         this.txnManager = txnManager
         this.queryExecutor = queryExecutor
     }
 
-    private fun jdbcEngine(): Pair<TransactionManager<*>, QueryExecutor> {
-        val pool = databaseContainer.localPool(db.dbName(), hikariPoolSize)
+    private fun jdbcEngine(cached: Boolean): Pair<TransactionManager<*>, QueryExecutor> {
+        val pool = databaseContainer.localPool(db.dbName(), hikariPoolSize, cached)
         val provider = HikariPoolConnectionProvider(pool)
         val jdbcManager = JdbcTransactionManager(provider, provider)
         return jdbcManager to JdbcQueryExecutor(jdbcManager, noop())

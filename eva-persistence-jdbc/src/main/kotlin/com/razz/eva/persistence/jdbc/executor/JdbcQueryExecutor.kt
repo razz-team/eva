@@ -71,7 +71,9 @@ class JdbcQueryExecutor(
             .values
             .filterNot(Param<*>::isInline)
             .toTypedArray()
-    ).coerce(table).fetch()
+    ).keepStatement(true) // delegate statement lifecycle to the connection pool
+        .coerce(table)
+        .fetch()
 
     override fun getConstraintName(ex: DataAccessException): String? {
         return ex.getCause(PSQLException::class.java)?.serverErrorMessage?.constraint

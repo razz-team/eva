@@ -1,5 +1,6 @@
 package com.razz.eva.test.db
 
+import com.razz.eva.persistence.jdbc.HikariCachingPgDataSource
 import com.razz.eva.test.db.DockerImageName.PostgrePartmanImage16
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
@@ -23,14 +24,19 @@ data class DatabaseContainer(
         HikariDataSource(this)
     }
 
-    fun localPool(dbName: String, size: Int) = synchronized(pgContainer) {
-        localPools.getOrPut(dbName) {
+    fun localPool(dbName: String, size: Int, cached: Boolean = false) = synchronized(pgContainer) {
+        localPools.getOrPut(dbName + cached) {
             HikariConfig().run {
                 jdbcUrl = jdbcUrl(dbName)
                 username = "test"
                 password = "test"
                 maximumPoolSize = size
                 initializationFailTimeout = -1
+                dataSource = if (cached) HikariCachingPgDataSource().apply {
+                    setUrl(jdbcUrl(dbName))
+                    setUser("test")
+                    setPassword("test")
+                } else null
                 HikariDataSource(this)
             }
         }
