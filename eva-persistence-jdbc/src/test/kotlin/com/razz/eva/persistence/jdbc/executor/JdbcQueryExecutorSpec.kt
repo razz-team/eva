@@ -28,7 +28,7 @@ class JdbcQueryExecutorSpec : BehaviorSpec({
     Given("Jdbc query executor with connection provider") {
         val connectionProvider = mockk<JdbcConnectionProvider>(relaxed = true)
         val jdbcTransactionManager = spyk(JdbcTransactionManager(connectionProvider, connectionProvider))
-        val jdbcExecutor = JdbcQueryExecutor(jdbcTransactionManager, noop())
+        val jdbcExecutor = JdbcQueryExecutor(jdbcTransactionManager, noop(), true)
 
         And("Connection from provider") {
             clearMocks(connectionProvider, answers = false)

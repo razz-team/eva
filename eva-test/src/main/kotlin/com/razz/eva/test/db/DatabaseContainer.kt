@@ -1,5 +1,6 @@
 package com.razz.eva.test.db
 
+import com.razz.eva.persistence.jdbc.HikariCachingPgDataSource
 import com.razz.eva.test.db.DockerImageName.PostgrePartmanImage16
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
@@ -31,6 +32,12 @@ data class DatabaseContainer(
                 password = "test"
                 maximumPoolSize = size
                 initializationFailTimeout = -1
+                // we have to specify credentials here, as Hikari does not reuse the ones from config
+                dataSource = HikariCachingPgDataSource().apply {
+                    setUrl(jdbcUrl(dbName))
+                    setUser("test")
+                    setPassword("test")
+                }
                 HikariDataSource(this)
             }
         }

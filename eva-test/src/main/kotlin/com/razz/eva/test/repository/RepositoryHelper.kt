@@ -75,7 +75,7 @@ open class RepositoryHelper(
         val pool = databaseContainer.localPool(db.dbName(), hikariPoolSize)
         val provider = HikariPoolConnectionProvider(pool)
         val jdbcManager = JdbcTransactionManager(provider, provider)
-        return jdbcManager to JdbcQueryExecutor(jdbcManager, noop())
+        return jdbcManager to JdbcQueryExecutor(jdbcManager, noop(), true)
     }
 
     private fun vertxEngine(dbName: String): Pair<TransactionManager<*>, QueryExecutor> {

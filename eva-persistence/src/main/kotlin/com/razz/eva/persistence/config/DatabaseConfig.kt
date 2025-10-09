@@ -8,6 +8,7 @@ data class DatabaseConfig(
     val maxPoolSize: MaxPoolSize,
     val executorType: ExecutorType,
     val shouldInstrument: Boolean = true,
+    val preparedStatementCacheOptions: PreparedStatementCacheOptions? = null,
     val additionalProperties: Map<String, String> = emptyMap(),
 ) {
     val jdbcURL: JdbcURL = JdbcURL("jdbc:postgresql://${nodes.joinToString(",")}/$name")
@@ -48,6 +49,11 @@ value class MaxPoolSize(private val maxPoolSize: Int) {
     override fun toString() = maxPoolSize.toString()
     fun value() = maxPoolSize
 }
+
+data class PreparedStatementCacheOptions(
+    val preparedStatementCacheSqlLengthLimit: Int,
+    val preparedStatementCacheSize: Int,
+)
 
 enum class ExecutorType {
     JDBC,
