@@ -12,4 +12,6 @@ data class ExecutionContext internal constructor(
 }
 
 @RequiresOptIn
+@Retention(AnnotationRetention.BINARY)
+@Target(AnnotationTarget.CLASS, AnnotationTarget.FUNCTION)
 annotation class ExecutionContextApi
