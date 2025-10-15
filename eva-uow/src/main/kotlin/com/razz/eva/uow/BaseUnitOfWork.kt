@@ -4,14 +4,14 @@ import com.razz.eva.domain.Principal
 import com.razz.eva.persistence.PersistenceException
 import com.razz.eva.uow.BaseUnitOfWork.Configuration.Companion.default
 import com.razz.eva.uow.Retry.StaleRecordFixedRetry.Companion.DEFAULT
-import java.time.Clock
+import java.time.InstantSource
 
 abstract class BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, C>(
     executionContext: ExecutionContext,
     private val configuration: Configuration = default()
 ) where PRINCIPAL : Principal<*>, PARAMS : UowParams<PARAMS>, RESULT : Any, C : Any {
 
-    protected val clock: Clock = executionContext.clock
+    protected val clock: InstantSource = executionContext.clock
 
     abstract suspend fun tryPerform(principal: PRINCIPAL, params: PARAMS): Changes<RESULT>
 
