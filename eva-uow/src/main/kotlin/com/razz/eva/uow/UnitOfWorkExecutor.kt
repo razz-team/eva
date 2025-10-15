@@ -40,6 +40,7 @@ class UnitOfWorkExecutor(
     private val clock: InstantSource,
     private val openTelemetry: OpenTelemetry,
 ) {
+    @ExecutionContextApi
     fun executionContext() = ExecutionContext(clock, openTelemetry)
 
     class ClassToUow<PRINCIPAL, PARAMS, RESULT, UOW> internal constructor(
