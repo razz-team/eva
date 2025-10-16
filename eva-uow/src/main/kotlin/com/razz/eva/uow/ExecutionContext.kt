@@ -1,6 +1,7 @@
 package com.razz.eva.uow
 
 import io.opentelemetry.api.OpenTelemetry
+import java.time.Clock
 import java.time.InstantSource
 
 data class ExecutionContext internal constructor(
@@ -8,7 +9,7 @@ data class ExecutionContext internal constructor(
     internal val otel: OpenTelemetry,
 ) {
     @ExecutionContextApi
-    fun withClock(clock: InstantSource) = copy(clock = clock)
+    fun withClock(clock: Clock) = copy(clock = clock)
 }
 
 @RequiresOptIn

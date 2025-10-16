@@ -18,6 +18,7 @@ import com.razz.eva.uow.BaseUnitOfWork.Configuration
 import com.razz.eva.uow.Clocks.fixedUTC
 import com.razz.eva.uow.CreateDepartmentUow.Params
 import com.razz.eva.uow.Retry.StaleRecordFixedRetry
+import com.razz.eva.uow.composable.DummyUow
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.IsolationMode.InstancePerLeaf
 import io.kotest.core.spec.style.BehaviorSpec
@@ -31,10 +32,9 @@ import io.mockk.verify
 import io.opentelemetry.api.OpenTelemetry
 import java.time.Duration.ofMillis
 import java.time.Instant.ofEpochMilli
-import java.util.*
-import com.razz.eva.uow.composable.DummyUow
-import kotlin.reflect.KClass
 import java.time.InstantSource
+import java.util.UUID
+import kotlin.reflect.KClass
 
 class UnitOfWorkExecutorSpec : BehaviorSpec({
 
