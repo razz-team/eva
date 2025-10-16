@@ -4,16 +4,16 @@ import com.razz.eva.domain.Model
 import com.razz.eva.domain.Principal
 import com.razz.eva.persistence.PersistenceException
 import com.razz.eva.persistence.PrimaryConnectionRequiredFlag
-import com.razz.eva.uow.OtelAttributes.MODEL_ID
-import com.razz.eva.uow.OtelAttributes.SPAN_PERFORM
-import com.razz.eva.uow.OtelAttributes.SPAN_PERSIST
-import com.razz.eva.uow.OtelAttributes.UOW_NAME
-import com.razz.eva.uow.OtelAttributes.UOW_OPERATION
 import com.razz.eva.tracing.getEvaMeter
 import com.razz.eva.tracing.getEvaTracer
 import com.razz.eva.tracing.use
+import com.razz.eva.uow.OtelAttributes.MODEL_ID
 import com.razz.eva.uow.OtelAttributes.PRINCIPAL_ID
+import com.razz.eva.uow.OtelAttributes.SPAN_PERFORM
+import com.razz.eva.uow.OtelAttributes.SPAN_PERSIST
 import com.razz.eva.uow.OtelAttributes.UOW_ID
+import com.razz.eva.uow.OtelAttributes.UOW_NAME
+import com.razz.eva.uow.OtelAttributes.UOW_OPERATION
 import com.razz.eva.uow.UnitOfWorkExecutor.ClassToUow
 import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.api.common.AttributeKey
@@ -23,8 +23,8 @@ import io.opentelemetry.extension.kotlin.asContextElement
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import mu.KotlinLogging
-import kotlin.reflect.KClass
 import java.time.InstantSource
+import kotlin.reflect.KClass
 
 infix fun <PRINCIPAL, PARAMS, RESULT, UOW> KClass<UOW>.withFactory(
     factory: (ExecutionContext) -> UOW,
@@ -40,6 +40,8 @@ class UnitOfWorkExecutor(
     private val clock: InstantSource,
     private val openTelemetry: OpenTelemetry,
 ) {
+    @ExecutionContextApi
+    fun executionContext() = ExecutionContext(clock, openTelemetry)
 
     class ClassToUow<PRINCIPAL, PARAMS, RESULT, UOW> internal constructor(
         internal val uowClass: KClass<UOW>,
