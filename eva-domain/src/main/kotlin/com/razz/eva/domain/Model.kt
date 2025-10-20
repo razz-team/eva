@@ -25,3 +25,13 @@ abstract class Model<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>>(
         return proto as? T
     }
 }
+
+abstract class AllModel<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>>(
+    id: ID,
+    entityState: EntityState<ID, E>,
+) : Model<ID, E>(id, entityState)
+
+abstract class ReadOnlyModel<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>>(
+    id: ID,
+    entityState: EntityState<ID, E>,
+) : Model<ID, E>(id, entityState)

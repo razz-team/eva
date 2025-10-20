@@ -3,6 +3,7 @@ package com.razz.eva.uow
 import com.razz.eva.domain.Identifiable
 import com.razz.eva.domain.Model
 import com.razz.eva.domain.ModelId
+import com.razz.eva.domain.ReadOnlyModel
 import com.razz.eva.uow.ModelParam.Serializer
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
@@ -59,7 +60,8 @@ class ModelParam<MID : ModelId<out Comparable<*>>, M : Model<MID, *>> private co
         fun <MID : ModelId<out Comparable<*>>, M : Model<MID, *>> InstantiationContext.constantModelParam(
             model: M,
         ): ModelParam<MID, M> {
-            return ModelParam(model) { model }
+            val f = model as ReadOnlyModel<MID, *>
+            return ModelParam(f) { model }
         }
 
         fun <MID : ModelId<out Comparable<*>>, M : Model<MID, *>> idModelParam(

@@ -1,5 +1,6 @@
 package com.razz.eva.uow
 
+import com.razz.eva.domain.AllModel
 import com.razz.eva.domain.Model
 import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
@@ -39,7 +40,7 @@ internal data class Add<MID : ModelId<out Comparable<*>>, M : Model<MID, *>, E :
     }
 }
 
-internal data class Update<MID : ModelId<out Comparable<*>>, M : Model<MID, *>, E : ModelEvent<MID>>(
+internal data class Update<MID : ModelId<out Comparable<*>>, M : AllModel<MID, *>, E : ModelEvent<MID>>(
     private val model: M,
     override val modelEvents: List<E>
 ) : Change {
