@@ -95,7 +95,7 @@ class ChangesDsl internal constructor(initial: ChangesAccumulator, private val o
     suspend fun <PRINCIPAL, PARAMS, RESULT, UOW> execute(
         uow: UOW,
         principal: PRINCIPAL,
-        params: InstantiationContext.() -> PARAMS,
+        params: InstantiationContext.Internal.() -> PARAMS,
     ): RESULT
         where PRINCIPAL : Principal<*>,
               PARAMS : UowParams<PARAMS>,
@@ -104,7 +104,7 @@ class ChangesDsl internal constructor(initial: ChangesAccumulator, private val o
         val span = uowSpan(uow.name())
         return span.use {
             val subChanges = performingSpan(uow.name()).use {
-                uow.tryPerform(principal, params(InstantiationContext(0)))
+                uow.tryPerform(principal, params(InstantiationContext.Internal(0)))
             }
             span.setAttribute(
                 MODEL_ID,
