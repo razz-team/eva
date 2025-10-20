@@ -56,6 +56,17 @@ class ModelParam<MID : ModelId<out Comparable<*>>, M : Model<MID, *>> private co
             return modelParam
         }
 
+        suspend fun <MID : ModelId<out Comparable<*>>, M : Model<MID, *>> InstantiationContext.smartModelParam(
+            model: M,
+        ): ModelParam<MID, M> {
+            val modelParam = if (attempt == 0) {
+                ModelParam(model, { id -> repos.repoFor(model).find(id)!! })
+            } else {
+                ModelParam(model, { id -> repos.repoFor(model).find(id)!! })
+            }
+            return modelParam
+        }
+
         fun <MID : ModelId<out Comparable<*>>, M : Model<MID, *>> InstantiationContext.constantModelParam(
             model: M,
         ): ModelParam<MID, M> {

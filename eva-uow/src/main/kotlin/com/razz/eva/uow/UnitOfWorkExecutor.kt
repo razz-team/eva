@@ -81,7 +81,7 @@ class UnitOfWorkExecutor(
                     uowSpan.updateName(name)
                     uowSpan.setAttribute(UOW_NAME, name)
                 }
-                val constructedParams = params(InstantiationContext(currentAttempt))
+                val constructedParams = params(InstantiationContext(currentAttempt, persisting.modelRepos))
                 val changes = withContext(PrimaryConnectionRequiredFlag + uowSpan.asContextElement()) {
                     performingSpan(name).use {
                         uow.tryPerform(principal, constructedParams)

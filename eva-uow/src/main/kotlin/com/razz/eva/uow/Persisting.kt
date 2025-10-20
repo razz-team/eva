@@ -25,7 +25,7 @@ import java.util.UUID.randomUUID
 
 class Persisting(
     private val transactionManager: TransactionManager<*>,
-    private val modelRepos: ModelRepos,
+    val modelRepos: ModelRepos,
     private val eventRepository: EventRepository,
     private val eventPublisher: EventPublisher = NoopEventPublisher,
     private val json: StringFormat = com.razz.eva.serialization.json.JsonFormat.json,
