@@ -56,7 +56,7 @@ class ModelParam<MID : ModelId<out Comparable<*>>, M : Model<MID, *>> private co
             return modelParam
         }
 
-        fun <MID : ModelId<out Comparable<*>>, M : Model<MID, *>> InstantiationContext.constantModelParam(
+        fun <MID : ModelId<out Comparable<*>>, M : Model<MID, *>> InstantiationContext.Internal.constantModelParam(
             model: M,
         ): ModelParam<MID, M> {
             return ModelParam(model) { model }
