@@ -44,7 +44,6 @@ class JooqEventRepository(
             modelEvent = FakeModelEvent
         )
         val select = dslContext.selectFrom(MODEL_EVENTS)
-            .orderBy(MODEL_EVENTS.INSERTED_AT.desc())
             .limit(1)
         queryExecutor.executeSelect(
             dslContext = dslContext,
