@@ -2,6 +2,7 @@ package com.razz.eva.test.repository
 
 import com.razz.eva.migrations.DbSchema
 import com.razz.eva.migrations.Migration
+import com.razz.eva.migrations.Migrations
 import com.razz.eva.persistence.TransactionManager
 import com.razz.eva.persistence.config.ExecutorType
 import com.razz.eva.persistence.executor.QueryExecutor
@@ -17,21 +18,34 @@ import io.opentelemetry.api.OpenTelemetry.noop
 import io.vertx.pgclient.PgConnectOptions
 import io.vertx.sqlclient.Pool
 import io.vertx.sqlclient.PoolOptions
-import java.util.function.Predicate
-import org.flywaydb.core.Flyway
 import org.jooq.SQLDialect
 import org.jooq.conf.ParamType
 import org.jooq.conf.Settings
 import org.jooq.impl.DSL
+import java.util.function.Predicate
 
 open class RepositoryHelper(
-    migrationPath: String,
-    additionalMigrationPaths: List<String> = emptyList(),
+    mainMigration: Migration,
+    vararg otherMigrations: Migration = arrayOf(),
     createPartman: Boolean = false,
     trimmedPackagePrefix: String = "com/razz/",
-    schema: DbSchema = DbSchema.ModelsSchema,
     private val databaseContainer: DatabaseContainer = DatabaseContainer.BASIC,
 ) {
+
+    constructor(
+        migrationPath: String,
+        additionalMigrationPaths: List<String> = emptyList(),
+        createPartman: Boolean = false,
+        trimmedPackagePrefix: String = "com/razz/",
+        schema: DbSchema = DbSchema.ModelsSchema,
+        databaseContainer: DatabaseContainer = DatabaseContainer.BASIC,
+    ) : this(
+        mainMigration = Migration(migrationPath, schema, additionalMigrationPaths),
+        otherMigrations = arrayOf<Migration>(),
+        createPartman = createPartman,
+        trimmedPackagePrefix = trimmedPackagePrefix,
+        databaseContainer = databaseContainer,
+    )
 
     companion object {
         val executorType: ExecutorType
@@ -52,7 +66,7 @@ open class RepositoryHelper(
     val queryExecutor: QueryExecutor
 
     private val db = DatabaseContainerHelper.create(
-        dbName = migrationPath
+        dbName = mainMigration.path
             .replace(trimmedPackagePrefix, "")
             .replace("/db", "")
             .replace("/", "") + "_repo_test",
@@ -60,9 +74,8 @@ open class RepositoryHelper(
     )
 
     init {
-        val modelsMigration = Migration(migrationPath, schema, additionalMigrationPaths)
         db.createSchemas(createPartman)
-        flywayProvider(db.dbName(), modelsMigration).migrate()
+        Migrations(databaseContainer.localPool(db.dbName(), 4), mainMigration, *otherMigrations).start()
         val (txnManager, queryExecutor) = when (executorType) {
             ExecutorType.JDBC -> jdbcEngine()
             ExecutorType.VERTX -> vertxEngine(db.dbName())
@@ -98,13 +111,5 @@ open class RepositoryHelper(
             port = db.dbPort()
         }
         return Pool.pool(options, PoolOptions())
-    }
-
-    private fun flywayProvider(dbName: String, migration: Migration): Flyway {
-        return Flyway.configure()
-            .dataSource(databaseContainer.localPool(dbName, 4))
-            .schemas(migration.schema.stringValue())
-            .locations(*migration.classpathLocations().toTypedArray())
-            .load()
     }
 }

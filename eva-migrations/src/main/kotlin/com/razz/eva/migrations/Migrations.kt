@@ -7,22 +7,30 @@ import org.flywaydb.core.Flyway
 import javax.sql.DataSource
 
 class Migrations(
-    config: MigrationsDatabaseConfig,
+    private val dataSource: HikariDataSource,
     mainMigration: Migration,
     vararg otherMigrations: Migration = arrayOf(EventsMigration),
-) {
+) : AutoCloseable {
 
-    private val hikariDataSource = HikariDataSource(
-        HikariConfig().apply {
-            jdbcUrl = config.jdbcURL.toString()
-            username = config.ddlUser.toString()
-            password = config.ddlPassword.showPassword()
-            maximumPoolSize = 2 // need at least two for pg advisory lock and ddl connection
-        }
+    constructor(
+        config: MigrationsDatabaseConfig,
+        mainMigration: Migration,
+        vararg otherMigrations: Migration = arrayOf(EventsMigration),
+    ) : this(
+        HikariDataSource(
+            HikariConfig().apply {
+                jdbcUrl = config.jdbcURL.toString()
+                username = config.ddlUser.toString()
+                password = config.ddlPassword.showPassword()
+                maximumPoolSize = 2 // need at least two for pg advisory lock and ddl connection
+            }
+        ),
+        mainMigration,
+        *otherMigrations,
     )
 
     private val flywayMigrators: List<Flyway> = listOf(mainMigration, *otherMigrations).map { migration ->
-        flywayProvider(config, migration, hikariDataSource)
+        flywayProvider(migration, dataSource)
     }
 
     fun start(withRepair: Boolean = false) {
@@ -30,13 +38,15 @@ class Migrations(
             if (withRepair) flyway.repair()
             flyway.migrate()
         }
-        hikariDataSource.close()
+    }
+
+    override fun close() {
+        dataSource.close()
     }
 
     companion object {
 
         private fun flywayProvider(
-            config: MigrationsDatabaseConfig,
             migration: Migration,
             dataSource: DataSource
         ): Flyway = Flyway
