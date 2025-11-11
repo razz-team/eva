@@ -23,7 +23,7 @@ data class DatabaseContainer(
         HikariDataSource(this)
     }
 
-    fun localPool(dbName: String, size: Int) = synchronized(pgContainer) {
+    fun localPool(dbName: String, size: Int): HikariDataSource = synchronized(pgContainer) {
         localPools.getOrPut(dbName) {
             HikariConfig().run {
                 jdbcUrl = jdbcUrl(dbName)
