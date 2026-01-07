@@ -447,20 +447,23 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
             ex.sqlState() == PgHelpers.PG_UNIQUE_VIOLATION -> {
                 val constraintName = PgHelpers.extractUniqueConstraintName(queryExecutor, table, ex)
                 val uex = UniqueModelRecordViolationException(
-                    model.id(),
-                    table.name,
-                    constraintName,
+                    modelId = model.id(),
+                    tableName = table.name,
+                    constraintName = constraintName,
                 )
                 throw mapConstraintViolation(uex) ?: uex
             }
             ex.sqlStateClass() == SQLStateClass.C23_INTEGRITY_CONSTRAINT_VIOLATION -> {
                 val constraintName = PgHelpers.extractConstraintName(queryExecutor, ex)
                 val cex = ModelRecordConstraintViolationException(
-                    model.id(),
-                    table.name,
-                    constraintName,
+                    modelId = model.id(),
+                    tableName = table.name,
+                    constraintName = constraintName,
                 )
                 throw mapConstraintViolation(cex) ?: cex
+            }
+            ex.sqlStateClass() == SQLStateClass.C40_TRANSACTION_ROLLBACK -> {
+                throw StaleRecordException(model.id(), table.name)
             }
             else -> throw ModelPersistingGenericException(model.id(), ex)
         }
@@ -468,19 +471,22 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
         when {
             ex.sqlState == PgHelpers.PG_UNIQUE_VIOLATION -> {
                 val uex = UniqueModelRecordViolationException(
-                    model.id(),
-                    table.name,
-                    ex.constraint,
+                    modelId = model.id(),
+                    tableName = table.name,
+                    constraintName = ex.constraint,
                 )
                 throw mapConstraintViolation(uex) ?: uex
             }
             SQLStateClass.fromCode(ex.sqlState) == SQLStateClass.C23_INTEGRITY_CONSTRAINT_VIOLATION -> {
                 val cex = ModelRecordConstraintViolationException(
-                    model.id(),
-                    table.name,
-                    ex.constraint,
+                    modelId = model.id(),
+                    tableName = table.name,
+                    constraintName = ex.constraint,
                 )
                 throw mapConstraintViolation(cex) ?: cex
+            }
+            SQLStateClass.fromCode(ex.sqlState) == SQLStateClass.C40_TRANSACTION_ROLLBACK -> {
+                throw StaleRecordException(model.id(), table.name)
             }
             else -> throw ModelPersistingGenericException(model.id(), ex)
         }
