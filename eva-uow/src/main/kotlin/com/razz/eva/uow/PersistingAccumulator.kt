@@ -4,7 +4,6 @@ import com.razz.eva.domain.Model
 import com.razz.eva.domain.ModelId
 import com.razz.eva.repository.ModelRepos
 import com.razz.eva.repository.TransactionalContext
-import com.razz.eva.uow.PersistingAccumulator.FlushOperation
 import kotlin.reflect.KClass
 
 internal sealed interface PersistingAccumulator : ModelPersisting {

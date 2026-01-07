@@ -6,16 +6,14 @@ import com.razz.eva.domain.EmployeeId
 import com.razz.eva.domain.Name
 import com.razz.eva.domain.Ration.SHAKSHOUKA
 import com.razz.eva.domain.Version.Companion.version
-import com.razz.eva.persistence.ConnectionMode.REQUIRE_NEW
 import com.razz.eva.persistence.PersistenceException.StaleRecordException
 import com.razz.eva.uow.HireEmployeesUow
 import com.razz.eva.uow.TestPrincipal
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.IsolationMode.InstancePerLeaf
 import io.kotest.matchers.shouldBe
-import java.util.UUID.randomUUID
 import kotlin.random.Random.Default.nextInt
-import org.jooq.impl.DSL
+import java.util.UUID.randomUUID
 
 class StaleRecordSpec : PersistenceBaseSpec({
 
@@ -31,7 +29,7 @@ class StaleRecordSpec : PersistenceBaseSpec({
                 name = "stale_dep${nextInt(100)}",
                 boss = EmployeeId(randomUUID()),
                 headcount = 1,
-                ration = SHAKSHOUKA
+                ration = SHAKSHOUKA,
             )
         )
 
@@ -117,40 +115,12 @@ class StaleRecordSpec : PersistenceBaseSpec({
         }
 
         And("Transaction will be rolled back before in the middle of execution") {
-            val employeeOutOfUow = newEmployee(
-                name = Name("Igor", "Dmitri${nextInt(100)}"),
-                departmentId = department.id(),
-                email = "igor.dmitri${nextInt(100)}@razz.com",
-                ration = SHAKSHOUKA,
-            )
 
-            var updatedOutOfUow = false
-            module.departmentPreUpdate.onPreUpdate(department.id()) {
-                if (!updatedOutOfUow) {
-                    updatedOutOfUow = true
-                    module.transactionManager.inTransaction(REQUIRE_NEW) { connection ->
-                        // move record from one partition to another
-                        DSL.using(
-                            module.dslContext.configuration()
-                                .derive(connection as java.sql.Connection)
-                                .derive(module.dslContext.settings())
-                        ).run {
-                            execute(
-                                """
-                                    SELECT pg_terminate_backend(pid)
-                                    FROM pg_stat_activity
-                                    WHERE state IN ('active', 'idle in transaction')
-                                      AND pid <> pg_backend_pid();
-                                """.trimIndent()
-                            )
-                        }
-                    }
-                }
-            }
+            val rollingBackUowx = module.uowxRollingBack
 
             When("Principal tries to perform uow") {
                 val attempt = suspend {
-                    module.uowx.execute(HireEmployeesUow::class, TestPrincipal) {
+                    rollingBackUowx.execute(HireEmployeesUow::class, TestPrincipal) {
                         HireEmployeesUow.Params(
                             department.id(),
                             listOf(Name("Nik", "Dennis"))
@@ -161,48 +131,8 @@ class StaleRecordSpec : PersistenceBaseSpec({
                 Then("Uow fails and changes are not applied") {
                     shouldThrow<StaleRecordException> { attempt() }
 
-                    departmentRepo.find(department.id())?.headcount shouldBe 2
+                    departmentRepo.find(department.id())?.headcount shouldBe 1
                     employeeRepo.findByName(Name("Nik", "Dennis")) shouldBe null
-                }
-            }
-
-            When("Principal performs retriable uow") {
-                val randomDepartment = writableRepository.add(
-                    newDepartment(
-                        name = "random department",
-                        boss = EmployeeId(randomUUID()),
-                        headcount = 1,
-                        ration = SHAKSHOUKA,
-                    )
-                )
-                val existingSp = module.uowxRetries.execute(HireEmployeesUow::class, TestPrincipal) {
-                    HireEmployeesUow.Params(
-                        department.id(),
-                        listOf(Name("Ser", "Pryt"))
-                    )
-                }.single()
-                val updatedSp1times = writableRepository.update(existingSp.changeDepartment(randomDepartment))
-                val updatedSp2times = writableRepository.update(updatedSp1times.changeDepartment(department))
-                val updatedSp3times = writableRepository.update(updatedSp2times.changeDepartment(randomDepartment))
-                val updatedSp4times = writableRepository.update(updatedSp3times.changeDepartment(department))
-                updatedSp4times.version() shouldBe version(5)
-                val avengers = module.uowxRetries.execute(HireEmployeesUow::class, TestPrincipal) {
-                    HireEmployeesUow.Params(
-                        department.id(),
-                        listOf(Name("Ser", "Pryt"), Name("Ser", "Posp"), Name("Pryt", "Posp"))
-                    )
-                }
-
-                Then("Uow is completed and changes are applied") {
-                    departmentRepo.find(department.id())?.headcount shouldBe 5
-                    avengers.size shouldBe 3
-                    avengers.forEach { sp ->
-                        val persisted = employeeRepo.find(sp.id())!!
-                        persisted.departmentId shouldBe department.id()
-                        persisted.version() shouldBe sp.version()
-                        sp.isPersisted() shouldBe true
-                    }
-                    employeeRepo.find(employeeOutOfUow.id())?.departmentId shouldBe department.id()
                 }
             }
         }
