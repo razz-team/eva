@@ -14,7 +14,6 @@ dependencies {
     implementation(testFixtures(project(eva.eva_uow)))
 
     implementation(libs.kotlin_reflect)
-    implementation(libs.kotest_framework)
     implementation(libs.postgres)
     implementation(libs.kotest_runner)
     implementation(libs.mockk)

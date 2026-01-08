@@ -9,7 +9,7 @@ import io.vertx.pgclient.PgConnection
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
 import io.vertx.sqlclient.SqlResult
-import io.vertx.sqlclient.impl.ArrayTuple
+import io.vertx.sqlclient.impl.ListTuple
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -77,7 +77,7 @@ class VertxQueryExecutor(
     private fun bindParams(
         dslContext: DSLContext,
         jooqQuery: Query,
-    ): ArrayTuple = ArrayTuple(
+    ): ListTuple = ListTuple(
         dslContext.extractParams(jooqQuery).values.filterNot { it.isInline }.map { bound ->
             when (val value = bound.value) {
                 is JSON -> Json.decodeValue(value.data())

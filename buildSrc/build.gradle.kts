@@ -29,7 +29,7 @@ dependencies {
     implementation(libs.kotlin_plugin)
 
     // publishing
-    implementation("org.jetbrains.dokka:dokka-gradle-plugin:1.9.20")
+    implementation("org.jetbrains.dokka:dokka-gradle-plugin:2.1.0")
     implementation("com.vanniktech:gradle-maven-publish-plugin:0.33.0")
 
 }

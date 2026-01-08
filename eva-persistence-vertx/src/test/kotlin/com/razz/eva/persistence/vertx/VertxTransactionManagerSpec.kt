@@ -14,14 +14,14 @@ import io.mockk.verify
 import io.mockk.verifyOrder
 import io.vertx.core.Future.succeededFuture
 import io.vertx.pgclient.PgConnection
-import io.vertx.pgclient.PgPool
+import io.vertx.sqlclient.Pool
 import io.vertx.sqlclient.Transaction
 import kotlinx.coroutines.withContext
 
 class VertxTransactionManagerSpec : BehaviorSpec({
 
-    val primaryPool = mockk<PgPool>()
-    val replicaPool = mockk<PgPool>()
+    val primaryPool = mockk<Pool>()
+    val replicaPool = mockk<Pool>()
 
     Given("Vertx transaction manager with pooled connection provider") {
         val primaryProvider = PgPoolConnectionProvider(primaryPool)

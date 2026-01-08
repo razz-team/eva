@@ -1,3 +1,6 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.jetbrains.kotlin.gradle.dsl.KotlinVersion
+
 plugins {
     `kotlin-dsl`
 }
@@ -12,9 +15,9 @@ sourceSets.main {
 tasks.compileJava {
     options.release.set(21)
 }
-tasks.compileKotlin {
-    kotlinOptions {
-        languageVersion = "2.1"
-        jvmTarget = "21"
+kotlin {
+    compilerOptions {
+        languageVersion.set(KotlinVersion.KOTLIN_2_2)
+        jvmTarget.set(JvmTarget.JVM_21)
     }
 }

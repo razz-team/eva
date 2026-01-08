@@ -6,8 +6,9 @@ import com.razz.eva.persistence.vertx.VertxTransactionManager
 import com.razz.eva.persistence.vertx.executor.VertxQueryExecutor
 import io.vertx.core.Vertx.vertx
 import io.vertx.core.VertxOptions
+import io.vertx.pgclient.PgBuilder
 import io.vertx.pgclient.PgConnectOptions
-import io.vertx.pgclient.PgPool
+import io.vertx.sqlclient.Pool
 import io.vertx.sqlclient.PoolOptions
 import java.util.function.Predicate
 
@@ -31,7 +32,7 @@ class VertxPersistenceModule(
 
     companion object Provider {
 
-        fun poolProvider(config: DatabaseConfig, isPrimary: Boolean): PgPool {
+        fun poolProvider(config: DatabaseConfig, isPrimary: Boolean): Pool {
             val vertx = vertx(VertxOptions())
             check(config.nodes.size == 1 || !isPrimary) {
                 "Primary pool must be configured with single db node"
@@ -49,7 +50,12 @@ class VertxPersistenceModule(
                     port = node.port()
                 }
             }
-            return PgPool.pool(vertx, options, PoolOptions().apply { maxSize = config.maxPoolSize.value() })
+            return PgBuilder
+                .pool()
+                .connectingTo(options)
+                .with(PoolOptions().apply { maxSize = config.maxPoolSize.value() })
+                .using(vertx)
+                .build()
         }
     }
 }
