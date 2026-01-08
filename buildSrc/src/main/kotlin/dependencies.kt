@@ -19,7 +19,6 @@ object versions {
     val testcontainers_postgres = "1.21.4"
     val postgresql = "42.7.8"
     val vertx = "5.0.6"
-    val ongres_scram = "2.1"
     val hikari = "7.0.2"
     val kafka_clients = "3.8.0"
 }
@@ -49,7 +48,6 @@ object libs {
     val vertx_pg = "io.vertx:vertx-pg-client:${versions.vertx}"
     val vertx_kotlin = "io.vertx:vertx-lang-kotlin:${versions.vertx}"
     val vertx_kotlin_coroutines = "io.vertx:vertx-lang-kotlin-coroutines:${versions.vertx}"
-    val ongres_scram = "com.ongres.scram:client:${versions.ongres_scram}"
     val mockk = "io.mockk:mockk:${versions.mockk}"
     val kafka_clients = "org.apache.kafka:kafka-clients:${versions.kafka_clients}"
     val testcontainers = "org.testcontainers:testcontainers:${versions.testcontainers}"
