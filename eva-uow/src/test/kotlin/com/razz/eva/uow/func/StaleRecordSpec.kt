@@ -12,8 +12,8 @@ import com.razz.eva.uow.TestPrincipal
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.IsolationMode.InstancePerLeaf
 import io.kotest.matchers.shouldBe
-import java.util.UUID.randomUUID
 import kotlin.random.Random.Default.nextInt
+import java.util.UUID.randomUUID
 
 class StaleRecordSpec : PersistenceBaseSpec({
 
@@ -29,7 +29,7 @@ class StaleRecordSpec : PersistenceBaseSpec({
                 name = "stale_dep${nextInt(100)}",
                 boss = EmployeeId(randomUUID()),
                 headcount = 1,
-                ration = SHAKSHOUKA
+                ration = SHAKSHOUKA,
             )
         )
 
@@ -110,6 +110,29 @@ class StaleRecordSpec : PersistenceBaseSpec({
                         sp.isPersisted() shouldBe true
                     }
                     employeeRepo.find(employeeOutOfUow.id())?.departmentId shouldBe department.id()
+                }
+            }
+        }
+
+        And("Transaction will be rolled back before in the middle of execution") {
+
+            val rollingBackUowx = module.uowxRollingBack
+
+            When("Principal tries to perform uow") {
+                val attempt = suspend {
+                    rollingBackUowx.execute(HireEmployeesUow::class, TestPrincipal) {
+                        HireEmployeesUow.Params(
+                            department.id(),
+                            listOf(Name("Nik", "Dennis"))
+                        )
+                    }
+                }
+
+                Then("Uow fails and changes are not applied") {
+                    shouldThrow<StaleRecordException> { attempt() }
+
+                    departmentRepo.find(department.id())?.headcount shouldBe 1
+                    employeeRepo.findByName(Name("Nik", "Dennis")) shouldBe null
                 }
             }
         }

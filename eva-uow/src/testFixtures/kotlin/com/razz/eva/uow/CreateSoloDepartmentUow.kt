@@ -15,7 +15,6 @@ import com.razz.eva.repository.DepartmentRepository
 import com.razz.eva.repository.EmployeeRepository
 import com.razz.eva.uow.CreateSoloDepartmentUow.Params
 import kotlinx.serialization.Serializable
-import java.time.Clock
 import java.util.UUID.randomUUID
 
 class CreateSoloDepartmentUow(

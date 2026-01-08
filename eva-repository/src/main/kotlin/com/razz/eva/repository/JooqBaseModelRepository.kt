@@ -447,20 +447,30 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
             ex.sqlState() == PgHelpers.PG_UNIQUE_VIOLATION -> {
                 val constraintName = PgHelpers.extractUniqueConstraintName(queryExecutor, table, ex)
                 val uex = UniqueModelRecordViolationException(
-                    model.id(),
-                    table.name,
-                    constraintName,
+                    modelId = model.id(),
+                    tableName = table.name,
+                    constraintName = constraintName,
                 )
                 throw mapConstraintViolation(uex) ?: uex
             }
             ex.sqlStateClass() == SQLStateClass.C23_INTEGRITY_CONSTRAINT_VIOLATION -> {
                 val constraintName = PgHelpers.extractConstraintName(queryExecutor, ex)
                 val cex = ModelRecordConstraintViolationException(
-                    model.id(),
-                    table.name,
-                    constraintName,
+                    modelId = model.id(),
+                    tableName = table.name,
+                    constraintName = constraintName,
                 )
                 throw mapConstraintViolation(cex) ?: cex
+            }
+            // https://www.postgresql.org/message-id/flat/CANbGkDhq9gZnEouo2PZHP3HGMAJKk7fZf3eU3Q8g46Y-1uGZ-w%40mail.gmail.com#e5de345d77abe0184e394f0701bb8bc5
+            //  According to the thread above, transaction error with message message
+            //  "tuple to be locked was already moved to another partition due to concurrent update"
+            //  is thrown when a record was moved to another partition in transaction T1,
+            //  and concurrent transaction T0 is trying to update the same record.
+            //  This should not cause transaction rollback in T0 due to serialisation error,
+            //  rather we should fail due to version mismatch (stale record).
+            ex.sqlStateClass() == SQLStateClass.C40_TRANSACTION_ROLLBACK -> {
+                throw StaleRecordException(model.id(), table.name)
             }
             else -> throw ModelPersistingGenericException(model.id(), ex)
         }
@@ -468,19 +478,29 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
         when {
             ex.sqlState == PgHelpers.PG_UNIQUE_VIOLATION -> {
                 val uex = UniqueModelRecordViolationException(
-                    model.id(),
-                    table.name,
-                    ex.constraint,
+                    modelId = model.id(),
+                    tableName = table.name,
+                    constraintName = ex.constraint,
                 )
                 throw mapConstraintViolation(uex) ?: uex
             }
             SQLStateClass.fromCode(ex.sqlState) == SQLStateClass.C23_INTEGRITY_CONSTRAINT_VIOLATION -> {
                 val cex = ModelRecordConstraintViolationException(
-                    model.id(),
-                    table.name,
-                    ex.constraint,
+                    modelId = model.id(),
+                    tableName = table.name,
+                    constraintName = ex.constraint,
                 )
                 throw mapConstraintViolation(cex) ?: cex
+            }
+            // https://www.postgresql.org/message-id/flat/CANbGkDhq9gZnEouo2PZHP3HGMAJKk7fZf3eU3Q8g46Y-1uGZ-w%40mail.gmail.com#e5de345d77abe0184e394f0701bb8bc5
+            //  According to the thread above, transaction error with message message
+            //  "tuple to be locked was already moved to another partition due to concurrent update"
+            //  is thrown when a record was moved to another partition in transaction T1,
+            //  and concurrent transaction T0 is trying to update the same record.
+            //  This should not cause transaction rollback in T0 due to serialisation error,
+            //  rather we should fail due to version mismatch (stale record).
+            SQLStateClass.fromCode(ex.sqlState) == SQLStateClass.C40_TRANSACTION_ROLLBACK -> {
+                throw StaleRecordException(model.id(), table.name)
             }
             else -> throw ModelPersistingGenericException(model.id(), ex)
         }

@@ -28,12 +28,16 @@ sealed class Page<P : Comparable<P>> {
 
     fun next(maxOrdering: P, offset: Offset): Next<P> = Next(maxOrdering, offset, size)
 
+    abstract fun <R : Comparable<R>> map(f: (P) -> R): Page<R>
+
     @Serializable
     data class First<P : Comparable<P>>(
         override val size: Size
     ) : Page<P>() {
 
         override fun withMinSize(size: Size) = copy(size = this.size.minSize(size))
+
+        override fun <R : Comparable<R>> map(f: (P) -> R): Page<R> = First(size)
     }
 
     @Serializable
@@ -47,10 +51,16 @@ sealed class Page<P : Comparable<P>> {
          */
         val offset: Offset,
 
-        override val size: Size
+        override val size: Size,
     ) : Page<P>() {
 
         override fun withMinSize(size: Size) = copy(size = this.size.minSize(size))
+
+        override fun <R : Comparable<R>> map(f: (P) -> R): Page<R> = Next(
+            maxOrdering = f(maxOrdering),
+            offset = offset,
+            size = size,
+        )
     }
 
     companion object Factory {

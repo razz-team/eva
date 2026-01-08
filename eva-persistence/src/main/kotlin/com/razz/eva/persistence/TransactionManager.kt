@@ -4,7 +4,7 @@ import com.razz.eva.persistence.ConnectionMode.REQUIRE_EXISTING
 import com.razz.eva.persistence.ConnectionMode.REQUIRE_NEW
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.CoroutineContext
-import kotlin.coroutines.coroutineContext
+import kotlinx.coroutines.currentCoroutineContext
 
 abstract class TransactionManager<C>(
     private val primaryProvider: ConnectionProvider<C>,
@@ -16,10 +16,10 @@ abstract class TransactionManager<C>(
             null -> {
                 var newConn: C? = null
                 try {
-                    newConn = connectionProvider(coroutineContext).acquire()
+                    newConn = connectionProvider(currentCoroutineContext()).acquire()
                     block(newConn)
                 } finally {
-                    newConn?.let { connectionProvider(coroutineContext).release(it) }
+                    newConn?.let { connectionProvider(currentCoroutineContext()).release(it) }
                 }
             }
             else -> block(existingConn)

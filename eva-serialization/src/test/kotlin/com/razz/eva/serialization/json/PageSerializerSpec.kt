@@ -8,7 +8,6 @@ import io.kotest.matchers.shouldBe
 import java.time.Clock
 import java.time.Instant
 import java.time.temporal.ChronoUnit
-import kotlinx.serialization.encodeToString
 
 class PageSerializerSpec : BehaviorSpec({
     val clock = Clock.fixed(Instant.parse("2021-01-01T00:00:00Z"), Clock.systemUTC().zone)
