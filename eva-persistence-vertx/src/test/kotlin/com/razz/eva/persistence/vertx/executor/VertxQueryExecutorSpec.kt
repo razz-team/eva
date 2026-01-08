@@ -17,7 +17,7 @@ import io.vertx.pgclient.PgConnection
 import io.vertx.sqlclient.PreparedQuery
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
-import io.vertx.sqlclient.impl.ArrayTuple
+import io.vertx.sqlclient.impl.ListTuple
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.jooq.SQLDialect.POSTGRES
@@ -36,7 +36,7 @@ class VertxQueryExecutorSpec : BehaviorSpec({
         val vertxTransactionManager = spyk(VertxTransactionManager(connectionProvider, connectionProvider))
         val vertxExecutor = VertxQueryExecutor(vertxTransactionManager)
         val preparedQueryMock = mockk<PreparedQuery<RowSet<Row>>> {
-            every { execute(any<ArrayTuple>()) } returns succeededFuture(
+            every { execute(any<ListTuple>()) } returns succeededFuture(
                 mockk {
                     every { rowCount() } returns 0
                     every { iterator() } answers {
@@ -49,7 +49,7 @@ class VertxQueryExecutorSpec : BehaviorSpec({
             )
             every { mapping(any<Function<Row, Any>>()) } answers {
                 mockk {
-                    every { execute(any<ArrayTuple>()) } returns succeededFuture(
+                    every { execute(any<ListTuple>()) } returns succeededFuture(
                         mockk {
                             every { iterator() } answers {
                                 mockk {
