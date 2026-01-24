@@ -45,11 +45,11 @@ class ChangesDslSpec : FunSpec({
                 model0,
                 listOf(
                     TestModelCreated(model0.id()),
-                    TestModelStatusChanged(model0.id(), CREATED, ACTIVE)
-                )
+                    TestModelStatusChanged(model0.id(), CREATED, ACTIVE),
+                ),
             ),
             Update(model1, listOf(TestModelStatusChanged(model1.id(), CREATED, ACTIVE))),
-            Noop(model2)
+            Noop(model2),
         )
         changes.result shouldBe "K P A C U B O"
     }

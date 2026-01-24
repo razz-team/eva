@@ -23,7 +23,7 @@ class Migrations(
                 username = config.ddlUser.toString()
                 password = config.ddlPassword.showPassword()
                 maximumPoolSize = 2 // need at least two for pg advisory lock and ddl connection
-            }
+            },
         ),
         mainMigration,
         *otherMigrations,
@@ -48,7 +48,7 @@ class Migrations(
 
         private fun flywayProvider(
             migration: Migration,
-            dataSource: DataSource
+            dataSource: DataSource,
         ): Flyway = Flyway
             .configure()
             // true by default in flyway 8.0.0

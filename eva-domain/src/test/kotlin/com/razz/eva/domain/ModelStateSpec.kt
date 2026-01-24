@@ -24,7 +24,7 @@ class ModelStateSpec : BehaviorSpec({
     Given("New model state") {
         val createdEvent = TestModelCreated(randomTestModelId())
         val newState = newState(
-            createdEvent = createdEvent
+            createdEvent = createdEvent,
         )
 
         When("Get version") {
@@ -82,8 +82,8 @@ class ModelStateSpec : BehaviorSpec({
                 eventDrive.with(
                     listOf(
                         firstTestModelEvent,
-                        secondTestModelEvent
-                    )
+                        secondTestModelEvent,
+                    ),
                 )
             } returns eventDriveWithTwoTestEvents
 

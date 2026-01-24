@@ -12,7 +12,7 @@ data class IntegrationModelEvent(
     val modelId: ModelId,
     val modelName: ModelName,
     val occurredAt: Instant,
-    val payload: JsonObject
+    val payload: JsonObject,
 ) {
 
     data class EventId(private val id: UUID) {

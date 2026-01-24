@@ -47,6 +47,6 @@ internal object Fake {
         params = buildJsonObject {
             put("id", FakeId.id.toString())
         }.toString(),
-        occurredAt = now()
+        occurredAt = now(),
     )
 }

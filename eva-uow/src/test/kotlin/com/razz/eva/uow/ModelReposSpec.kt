@@ -33,7 +33,7 @@ class ModelReposSpec : BehaviorSpec({
 
         val modelRepos = ModelRepos(
             Department::class hasRepo departmentRepo,
-            Employee::class hasRepo employeeRepo
+            Employee::class hasRepo employeeRepo,
         )
 
         And("Owned department model is defined") {
@@ -51,9 +51,9 @@ class ModelReposSpec : BehaviorSpec({
                         name = "Test Department",
                         boss = boss,
                         headcount = 1,
-                        ration = Ration.BUBALEH
-                    )
-                )
+                        ration = Ration.BUBALEH,
+                    ),
+                ),
             )
 
             When("Principal gets repository for model") {
@@ -80,9 +80,9 @@ class ModelReposSpec : BehaviorSpec({
                         name = Name("Sergey", "P"),
                         departmentId = depId,
                         email = "sergey@razz.team",
-                        ration = Ration.BUBALEH
-                    )
-                )
+                        ration = Ration.BUBALEH,
+                    ),
+                ),
             )
 
             When("Principal gets repository for model") {
@@ -105,9 +105,9 @@ class ModelReposSpec : BehaviorSpec({
                         shakshoukaId = ShakshoukaId(),
                         employeeId = EmployeeId(),
                         eggsCount = EggsCount.FIVE,
-                        withPita = true
-                    )
-                )
+                        withPita = true,
+                    ),
+                ),
             )
 
             When("Principal gets repository for model") {

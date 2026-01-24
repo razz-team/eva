@@ -60,9 +60,9 @@ class JooqBaseRepositoryNegativeSpec : BehaviorSpec({
                         name = "store me in the repo",
                         boss = bossId,
                         headcount = 1,
-                        ration = BUBALEH
-                    )
-                )
+                        ration = BUBALEH,
+                    ),
+                ),
             )
 
             And("Query executor accepts good insert") {
@@ -77,7 +77,7 @@ class JooqBaseRepositoryNegativeSpec : BehaviorSpec({
                         setRecordUpdatedAt(addContext.startedAt)
                         setRecordCreatedAt(addContext.startedAt)
                         setVersion(V1.version)
-                    }
+                    },
                 )
 
                 When("Principal saving model through malicious repository") {
@@ -87,7 +87,7 @@ class JooqBaseRepositoryNegativeSpec : BehaviorSpec({
 
                     Then(
                         "Query executor should receive record with RECORD_CREATED_AT and RECORD_UPDATED_AT" +
-                            " matching context.startedAt and V1"
+                            " matching context.startedAt and V1",
                     ) {
                         val insert = queryExecutor.lastExecution.shouldBeTypeOf<StoreExecuted>()
                         insert.jooqQuery.getSQL(INLINED) shouldBe """
@@ -128,7 +128,7 @@ class JooqBaseRepositoryNegativeSpec : BehaviorSpec({
                         setRecordUpdatedAt(updateContext.startedAt)
                         setRecordCreatedAt(addContext.startedAt)
                         setVersion(2)
-                    }
+                    },
                 )
 
                 When("Principal updating model through malicious repository") {
@@ -137,7 +137,7 @@ class JooqBaseRepositoryNegativeSpec : BehaviorSpec({
 
                     Then(
                         "Query executor should receive record with RECORD_CREATED_AT and RECORD_UPDATED_AT" +
-                            " matching context.startedAt and V2"
+                            " matching context.startedAt and V2",
                     ) {
                         val update = queryExecutor.lastExecution.shouldBeTypeOf<StoreExecuted>()
                         update.jooqQuery.getSQL(INLINED) shouldBe """
@@ -156,9 +156,9 @@ class JooqBaseRepositoryNegativeSpec : BehaviorSpec({
 
 class BadDepartmentRepository(
     queryExecutor: QueryExecutor,
-    dslContext: DSLContext
+    dslContext: DSLContext,
 ) : JooqStatefulModelRepository<
-    UUID, DepartmentId, Department<*>, DepartmentEvent, DepartmentsRecord, DepartmentsState
+    UUID, DepartmentId, Department<*>, DepartmentEvent, DepartmentsRecord, DepartmentsState,
     >(
     queryExecutor = queryExecutor,
     dslContext = dslContext,
@@ -185,7 +185,7 @@ class BadDepartmentRepository(
 
     override fun fromRecord(
         record: DepartmentsRecord,
-        modelState: PersistentState<DepartmentId, DepartmentEvent>
+        modelState: PersistentState<DepartmentId, DepartmentEvent>,
     ): Department<*> {
         when (record.boss) {
             null -> return OrphanedDepartment(
@@ -193,7 +193,7 @@ class BadDepartmentRepository(
                 record.name,
                 record.headcount,
                 Ration.valueOf(record.ration),
-                modelState
+                modelState,
             )
             else -> return OwnedDepartment(
                 DepartmentId(record.id),
@@ -201,7 +201,7 @@ class BadDepartmentRepository(
                 EmployeeId(record.boss),
                 record.headcount,
                 Ration.valueOf(record.ration),
-                modelState
+                modelState,
             )
         }
     }

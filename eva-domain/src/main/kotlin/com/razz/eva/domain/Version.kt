@@ -4,7 +4,7 @@ import com.razz.eva.domain.Version.Companion.version
 
 @JvmInline
 value class Version private constructor(
-    val version: Long
+    val version: Long,
 ) {
     init {
         check(version >= 0) {

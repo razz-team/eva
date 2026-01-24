@@ -27,7 +27,7 @@ class InMemoryEventBus(
     consumers: List<EventConsumer>,
     extraBufferCapacity: Int = 100,
     onBufferOverflow: BufferOverflow = BufferOverflow.SUSPEND,
-    private val context: CoroutineDispatcher = newSingleThreadExecutor().asCoroutineDispatcher()
+    private val context: CoroutineDispatcher = newSingleThreadExecutor().asCoroutineDispatcher(),
 ) : EventPublisher, Closeable {
 
     private val logger = KotlinLogging.logger {}
@@ -76,7 +76,7 @@ class InMemoryEventBus(
 
     private data class EventKey(
         val eventName: IntegrationModelEvent.EventName,
-        val modelName: IntegrationModelEvent.ModelName
+        val modelName: IntegrationModelEvent.ModelName,
     )
 
     override fun close() {

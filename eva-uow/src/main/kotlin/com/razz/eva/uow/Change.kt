@@ -14,7 +14,7 @@ internal sealed interface Change {
 
 internal data class Add<MID : ModelId<out Comparable<*>>, M : Model<MID, *>, E : ModelEvent<MID>>(
     private val model: M,
-    override val modelEvents: List<E>
+    override val modelEvents: List<E>,
 ) : Change {
 
     override val id: ModelId<out Comparable<*>> = model.id()
@@ -41,7 +41,7 @@ internal data class Add<MID : ModelId<out Comparable<*>>, M : Model<MID, *>, E :
 
 internal data class Update<MID : ModelId<out Comparable<*>>, M : Model<MID, *>, E : ModelEvent<MID>>(
     private val model: M,
-    override val modelEvents: List<E>
+    override val modelEvents: List<E>,
 ) : Change {
 
     override val id: ModelId<out Comparable<*>> = model.id()

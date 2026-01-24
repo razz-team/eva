@@ -5,7 +5,7 @@ import java.sql.Connection
 import kotlin.coroutines.CoroutineContext
 
 internal class JdbcConnectionElement(
-    internal val connection: Connection
+    internal val connection: Connection,
 ) : ConnectionWrapper<Connection> {
 
     private val initialAutoCommit = connection.autoCommit

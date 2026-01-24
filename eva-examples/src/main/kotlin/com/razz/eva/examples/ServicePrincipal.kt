@@ -5,7 +5,7 @@ import com.razz.eva.domain.Principal.Id
 
 class ServicePrincipal(
     override val id: Id<String>,
-    override val name: Principal.Name
+    override val name: Principal.Name,
 ) : Principal<String> {
 
     override fun equals(other: Any?): Boolean {

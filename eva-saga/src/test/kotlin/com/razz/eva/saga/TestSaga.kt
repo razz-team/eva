@@ -13,7 +13,7 @@ internal object TestSaga : Saga<TestPrincipal, Params, Intermediary, Terminal, T
 
     data class TestPrincipal(
         override val id: Id<String>,
-        override val name: Name = Name("Test principal")
+        override val name: Name = Name("Test principal"),
     ) : Principal<String>
 
     sealed interface Intermediary : Saga.Intermediary<TestSaga> {
@@ -28,7 +28,7 @@ internal object TestSaga : Saga<TestPrincipal, Params, Intermediary, Terminal, T
 
     data class Params(
         val succ: (Intermediary) -> Step<TestSaga>,
-        val onException: (Exception, TestPrincipal, Params, Intermediary?) -> Terminal? = { e, _, _, _ -> throw e }
+        val onException: (Exception, TestPrincipal, Params, Intermediary?) -> Terminal? = { e, _, _, _ -> throw e },
     )
 
     private lateinit var params: Params

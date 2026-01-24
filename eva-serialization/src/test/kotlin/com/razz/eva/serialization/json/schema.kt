@@ -13,22 +13,22 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class User(
-    val id: @Contextual UUID
+    val id: @Contextual UUID,
 )
 
 @Serializable
 data class Image(
-    val uri: @Contextual URI
+    val uri: @Contextual URI,
 )
 
 @Serializable
 data class Template(
-    val locale: @Contextual Locale
+    val locale: @Contextual Locale,
 )
 
 @Serializable
 data class Agent(
-    val timezone: @Contextual ZoneId
+    val timezone: @Contextual ZoneId,
 )
 
 @Serializable
@@ -37,7 +37,7 @@ sealed class TestError {
     @Serializable
     @SerialName("UserNotFound")
     data class UserNotFound(
-        val user: User
+        val user: User,
     ) : TestError()
 
     @Serializable

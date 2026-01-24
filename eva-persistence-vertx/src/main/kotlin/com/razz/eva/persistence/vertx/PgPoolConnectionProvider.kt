@@ -7,7 +7,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 
 class PgPoolConnectionProvider(
-    private val pool: Pool
+    private val pool: Pool,
 ) : PgConnectionProvider {
 
     override suspend fun acquire(): PgConnection {

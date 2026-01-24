@@ -5,11 +5,11 @@ import com.razz.eva.domain.ModelId
 import kotlin.reflect.KClass
 
 class ModelRepos(
-    vararg repos: ClassToRepo<*>
+    vararg repos: ClassToRepo<*>,
 ) {
     data class ClassToRepo<M : Model<*, *>> internal constructor(
         val modelClass: KClass<out M>,
-        val repository: ModelRepository<*, M>
+        val repository: ModelRepository<*, M>,
     ) {
         internal fun withSealedSubclasses(): List<ClassToRepo<out M>> = modelClass.sealedSubclasses
             .flatMap { sealedClass -> ClassToRepo(sealedClass, repository).withSealedSubclasses() }
