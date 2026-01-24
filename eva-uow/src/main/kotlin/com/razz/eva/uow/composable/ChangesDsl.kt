@@ -108,7 +108,7 @@ class ChangesDsl internal constructor(initial: ChangesAccumulator, private val o
             }
             span.setAttribute(
                 MODEL_ID,
-                subChanges.toPersist.map { it.id.stringValue() }
+                subChanges.toPersist.map { it.id.stringValue() },
             )
             mergingSpan(uow.name()).use {
                 tail = tail?.merge(head.merge(subChanges)) ?: head.merge(subChanges)
@@ -123,7 +123,7 @@ class ChangesDsl internal constructor(initial: ChangesAccumulator, private val o
             changes: ChangesAccumulator,
             otel: OpenTelemetry,
             @Suppress("REDUNDANT_INLINE_SUSPEND_FUNCTION_TYPE")
-            init: suspend ChangesDsl.() -> R
+            init: suspend ChangesDsl.() -> R,
         ): Changes<R> {
             val dsl = ChangesDsl(changes, otel)
             val res = init(dsl)

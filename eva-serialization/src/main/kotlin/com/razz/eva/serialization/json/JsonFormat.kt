@@ -37,7 +37,7 @@ object JsonFormat {
 fun Map<*, *>.toJsonObject(): JsonObject = JsonObject(
     map {
         it.key.toString() to it.value.toJsonElement()
-    }.toMap()
+    }.toMap(),
 )
 
 fun Any?.toJsonElement(): JsonElement = when (this) {

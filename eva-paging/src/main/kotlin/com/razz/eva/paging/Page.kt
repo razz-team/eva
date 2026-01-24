@@ -32,7 +32,7 @@ sealed class Page<P : Comparable<P>> {
 
     @Serializable
     data class First<P : Comparable<P>>(
-        override val size: Size
+        override val size: Size,
     ) : Page<P>() {
 
         override fun withMinSize(size: Size) = copy(size = this.size.minSize(size))
@@ -125,7 +125,7 @@ sealed class Page<P : Comparable<P>> {
 fun <E, P : Comparable<P>> List<E>.nextPage(
     prevPage: Page<P>,
     maxOrdering: (E) -> P,
-    offset: (E) -> Offset
+    offset: (E) -> Offset,
 ): Page.Next<P>? {
     return if (size < prevPage.sizeValue() || isEmpty()) {
         null
@@ -134,7 +134,7 @@ fun <E, P : Comparable<P>> List<E>.nextPage(
         Page.Next(
             maxOrdering = maxOrdering(lastElement),
             offset = offset(lastElement),
-            size = prevPage.size
+            size = prevPage.size,
         )
     }
 }

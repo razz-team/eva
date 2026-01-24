@@ -52,7 +52,7 @@ internal sealed interface PersistingAccumulator : ModelPersisting {
     companion object Factory {
         fun newPersistingAccumulator(
             doBatching: Boolean,
-            repos: ModelRepos
+            repos: ModelRepos,
         ): PersistingAccumulator = if (doBatching) {
             BatchesAccumulator(repos)
         } else {

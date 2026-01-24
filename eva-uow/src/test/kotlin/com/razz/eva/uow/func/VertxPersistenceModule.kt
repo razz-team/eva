@@ -14,7 +14,7 @@ import java.util.function.Predicate
 
 class VertxPersistenceModule(
     primaryConfig: DatabaseConfig,
-    replicaConfig: DatabaseConfig
+    replicaConfig: DatabaseConfig,
 ) : PersistenceModule() {
 
     private val primaryPool = poolProvider(primaryConfig, true)

@@ -32,7 +32,7 @@ sealed class AccountEvent : ModelEvent<Id> {
 class Account(
     id: Id,
     val balance: Long,
-    entityState: EntityState<Id, AccountEvent>
+    entityState: EntityState<Id, AccountEvent>,
 ) : Model<Id, AccountEvent>(id, entityState) {
 
     @Serializable
@@ -53,8 +53,8 @@ class Account(
                 modelId = id(),
                 oldBalance = balance,
                 newBalance = this.balance - amount,
-            )
-        )
+            ),
+        ),
     )
 
     companion object Factory {
@@ -62,11 +62,11 @@ class Account(
         fun existingAccount(
             id: Id = Id.random(),
             balance: Long,
-            entityState: EntityState<Id, AccountEvent>
+            entityState: EntityState<Id, AccountEvent>,
         ) = Account(
             id = id,
             balance = balance,
-            entityState = entityState
+            entityState = entityState,
         )
     }
 }

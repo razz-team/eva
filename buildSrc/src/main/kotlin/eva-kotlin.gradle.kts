@@ -72,6 +72,7 @@ tasks.jar {
 }
 
 detekt {
+    autoCorrect = true
     parallel = true
     config.setFrom(files("$rootDir/buildSrc/src/main/resources/detekt-config.yml"))
 }

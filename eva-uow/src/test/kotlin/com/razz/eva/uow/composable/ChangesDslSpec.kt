@@ -58,11 +58,11 @@ class ChangesDslSpec : FunSpec({
                 model0,
                 listOf(
                     TestModelCreated(model0.id()),
-                    TestModelStatusChanged(model0.id(), CREATED, ACTIVE)
-                )
+                    TestModelStatusChanged(model0.id(), CREATED, ACTIVE),
+                ),
             ),
             Update(model1, listOf(TestModelStatusChanged(model1.id(), CREATED, ACTIVE))),
-            Noop(model2)
+            Noop(model2),
         )
         changes.result shouldBe "K P A C U B O"
     }
@@ -222,7 +222,7 @@ class ChangesDslSpec : FunSpec({
         add.id shouldBe model0.id()
         add.modelEvents shouldBe listOf(
             TestModelCreated(model0.id()),
-            TestModelStatusChanged(model0.id(), CREATED, ACTIVE)
+            TestModelStatusChanged(model0.id(), CREATED, ACTIVE),
         )
         changes.result shouldBe "K P A C U B O"
     }
@@ -249,7 +249,7 @@ class ChangesDslSpec : FunSpec({
         add.id shouldBe model0.id()
         add.modelEvents shouldBe listOf(
             TestModelCreated(model0.id()),
-            TestModelStatusChanged(model0.id(), CREATED, ACTIVE)
+            TestModelStatusChanged(model0.id(), CREATED, ACTIVE),
         )
         changes.result shouldBe "K P A C U B O"
     }
@@ -287,14 +287,14 @@ class ChangesDslSpec : FunSpec({
         update.shouldBeTypeOf<Update<TestModelId, ActiveTestModel, TestModelEvent>>()
         update.id shouldBe model1.id()
         update.modelEvents shouldBe listOf(
-            TestModelStatusChanged(model1.id(), CREATED, ACTIVE)
+            TestModelStatusChanged(model1.id(), CREATED, ACTIVE),
         )
         add.shouldBeTypeOf<Add<TestModelId, ActiveTestModel, TestModelEvent>>()
         add.id shouldBe model0.id()
         add.modelEvents shouldBe listOf(
             TestModelCreated(model0.id()),
             TestModelEvent1(model0.id()),
-            TestModelStatusChanged(model0.id(), CREATED, ACTIVE)
+            TestModelStatusChanged(model0.id(), CREATED, ACTIVE),
         )
         noop.shouldBeTypeOf<Noop>()
         noop.id shouldBe model2.id()

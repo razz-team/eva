@@ -28,14 +28,14 @@ abstract class TransactionManager<C>(
 
     suspend fun <R> inTransaction(
         mode: ConnectionMode,
-        block: suspend () -> R
+        block: suspend () -> R,
     ): R {
         return inTransaction(mode) { _ -> block() }
     }
 
     open suspend fun <R> inTransaction(
         mode: ConnectionMode,
-        block: suspend (C) -> R
+        block: suspend (C) -> R,
     ): R {
         return when (val existingConn = ctxConnection()) {
             null -> {

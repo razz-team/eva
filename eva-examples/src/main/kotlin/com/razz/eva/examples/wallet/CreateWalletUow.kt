@@ -40,7 +40,7 @@ class CreateWalletUow(
                 currency = currency,
                 amount = amount,
                 expireAt = expireAt,
-                entityState = newState(WalletEvent.Created(walletId, currency, amount, expireAt))
+                entityState = newState(WalletEvent.Created(walletId, currency, amount, expireAt)),
             )
             changes {
                 add(newWallet)

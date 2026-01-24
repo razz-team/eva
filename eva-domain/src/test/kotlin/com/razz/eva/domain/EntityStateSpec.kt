@@ -24,7 +24,7 @@ class EntityStateSpec : BehaviorSpec({
     Given("New entity state") {
         val createdEvent = TestModelCreated(randomTestModelId())
         val newState = newState(
-            createdEvent = createdEvent
+            createdEvent = createdEvent,
         )
 
         When("Get version") {
@@ -82,8 +82,8 @@ class EntityStateSpec : BehaviorSpec({
                 eventDrive.with(
                     listOf(
                         firstTestModelEvent,
-                        secondTestModelEvent
-                    )
+                        secondTestModelEvent,
+                    ),
                 )
             } returns eventDriveWithTwoTestEvents
 

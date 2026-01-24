@@ -39,9 +39,9 @@ class PagingStrategySpec : BehaviorSpec({
         Bubaleh,
         Bubaleh.Served,
         Instant,
-        BubalehsRecord
+        BubalehsRecord,
         >(
-        Bubaleh.Served::class
+        Bubaleh.Served::class,
     ) {
         override fun tableOrdering(): TableField<BubalehsRecord, Instant> = BUBALEHS.PRODUCED_ON
         override fun tableId(): TableField<BubalehsRecord, UUID> = BUBALEHS.ID
@@ -95,7 +95,7 @@ class PagingStrategySpec : BehaviorSpec({
                 val page = Page.Next(
                     maxOrdering = maxTimestamp,
                     offset = "a5e15308-3a8d-462b-b96c-6f1137e30f0d",
-                    size = size
+                    size = size,
                 )
                 val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS").withZone(UTC)
                 val renderedTimestamp = formatter.format(maxTimestamp)
@@ -147,8 +147,8 @@ class PagingStrategySpec : BehaviorSpec({
                             Page.Next(
                                 maxOrdering = model.producedOn,
                                 offset = model.id().stringValue(),
-                                size = size
-                            )
+                                size = size,
+                            ),
                         )
                     }
                 }
@@ -157,7 +157,7 @@ class PagingStrategySpec : BehaviorSpec({
             And("Selection has models of different type") {
                 val model = aServedBubaleh()
                 val anotherModel = aConsumedBubaleh(
-                    id = BubalehId.fromString("401b9b20-db2d-463b-a4ed-0840a18dcb52")
+                    id = BubalehId.fromString("401b9b20-db2d-463b-a4ed-0840a18dcb52"),
                 )
                 val result = listOf(anotherModel, model).map(::record)
 
@@ -185,7 +185,7 @@ private fun record(model: Bubaleh) = BubalehsRecord().apply {
         when (model.state()) {
             BubalehState.SERVED -> SERVED
             BubalehState.CONSUMED -> CONSUMED
-        }
+        },
     )
 }
 

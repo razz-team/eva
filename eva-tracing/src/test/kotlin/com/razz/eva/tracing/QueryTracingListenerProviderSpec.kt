@@ -27,7 +27,7 @@ class QueryTracingListenerProviderSpec : AnnotationSpec() {
         .setTracerProvider(
             SdkTracerProvider.builder()
                 .addSpanProcessor(SimpleSpanProcessor.create(spanExporter))
-                .build()
+                .build(),
         )
         .build()
     val listenerProvider = QueryTracingListenerProvider(telemetry)

@@ -21,16 +21,16 @@ class ConstraintSpec : PersistenceBaseSpec({
                 name = "backend",
                 boss = EmployeeId(randomUUID()),
                 headcount = 1,
-                ration = SHAKSHOUKA
-            )
+                ration = SHAKSHOUKA,
+            ),
         )
         val employee = module.writableRepository.add(
             newEmployee(
                 name = Name("K", "🍄"),
                 departmentId = department.id(),
                 email = "K.🍄@backend.razz.team",
-                ration = SHAKSHOUKA
-            )
+                ration = SHAKSHOUKA,
+            ),
         )
 
         When("Principal tries to perform uow and break unique constraints") {
@@ -38,7 +38,7 @@ class ConstraintSpec : PersistenceBaseSpec({
                 module.uowx.execute(HireEmployeesUow::class, TestPrincipal) {
                     HireEmployeesUow.Params(
                         department.id(),
-                        listOf(Name("K", "🍄"), Name("I", "🍋"), Name("A", "Kaplin"))
+                        listOf(Name("K", "🍄"), Name("I", "🍋"), Name("A", "Kaplin")),
                     )
                 }
             }
@@ -60,7 +60,7 @@ class ConstraintSpec : PersistenceBaseSpec({
                 module.uowx.execute(HireEmployeesUow::class, TestPrincipal) {
                     HireEmployeesUow.Params(
                         department.id(),
-                        listOf(Name("Nursultan Äbishuly Nazarbayev", "01"))
+                        listOf(Name("Nursultan Äbishuly Nazarbayev", "01")),
                     )
                 }
             }

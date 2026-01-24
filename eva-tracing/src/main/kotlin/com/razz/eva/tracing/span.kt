@@ -6,7 +6,7 @@ import io.opentelemetry.extension.kotlin.asContextElement
 import kotlinx.coroutines.withContext
 
 suspend fun <R> Span?.use(
-    block: suspend () -> R
+    block: suspend () -> R,
 ): R {
     return if (this == null) {
         block()

@@ -12,7 +12,7 @@ import java.util.*
 
 class WalletRepository(
     queryExecutor: QueryExecutor,
-    dslContext: DSLContext
+    dslContext: DSLContext,
 ) : WalletQueries, JooqBaseModelRepository<UUID, Wallet.Id, Wallet, WalletEvent, WalletRecord>(
     queryExecutor = queryExecutor,
     dslContext = dslContext,
@@ -27,13 +27,13 @@ class WalletRepository(
 
     override fun fromRecord(
         record: WalletRecord,
-        entityState: PersistentState<Wallet.Id, WalletEvent>
+        entityState: PersistentState<Wallet.Id, WalletEvent>,
     ) = Wallet(
         id = Wallet.Id(record.id),
         currency = Currency.getInstance(record.currency),
         amount = record.amount.toULong(),
         expireAt = record.expireAt,
-        entityState = entityState
+        entityState = entityState,
     )
 
     suspend fun wallets(currency: Currency, page: Page<Instant>) = findPage(

@@ -342,6 +342,12 @@ formatting:
   StringTemplate:
     active: true
     autoCorrect: true
+  TrailingCommaOnCallSite:
+    active: true
+    autoCorrect: true
+  TrailingCommaOnDeclarationSite:
+    active: true
+    autoCorrect: true
 
 naming:
   active: true

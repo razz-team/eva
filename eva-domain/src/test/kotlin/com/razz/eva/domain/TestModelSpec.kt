@@ -53,7 +53,7 @@ class TestModelSpec : BehaviorSpec({
             id = randomTestModelId(),
             param1 = "initial",
             param2 = 100_00L,
-            version = V1
+            version = V1,
         )
 
         When("Principal invokes change different param methods sequentially") {
@@ -80,8 +80,8 @@ class TestModelSpec : BehaviorSpec({
                 eventDrive.with(
                     listOf(
                         TestModelEvent1(model.id()),
-                        TestModelEvent2(model.id())
-                    )
+                        TestModelEvent2(model.id()),
+                    ),
                 )
             } returns eventDriveWithTwoSequentialEvents
 
@@ -125,8 +125,8 @@ class TestModelSpec : BehaviorSpec({
                         TestModelEvent1(model.id()),
                         TestModelEvent2(model.id()),
                         TestModelEvent1(model.id()),
-                        TestModelEvent2(model.id())
-                    )
+                        TestModelEvent2(model.id()),
+                    ),
                 )
             } returns eventDriveWithFourSequentialEvents
 

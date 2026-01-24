@@ -51,5 +51,5 @@ value class MaxPoolSize(private val maxPoolSize: Int) {
 
 enum class ExecutorType {
     JDBC,
-    VERTX
+    VERTX,
 }

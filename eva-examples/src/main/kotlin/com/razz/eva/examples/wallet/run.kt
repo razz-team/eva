@@ -19,7 +19,7 @@ fun main(vararg args: String) = runBlocking {
         user = DbUser("test"),
         password = DbPassword("test"),
         maxPoolSize = MaxPoolSize(4),
-        executorType = ExecutorType.JDBC
+        executorType = ExecutorType.JDBC,
     )
     val module = WalletModule(config)
     val principal = ServicePrincipal(Principal.Id("eva-id"), Principal.Name("eva"))
@@ -27,7 +27,7 @@ fun main(vararg args: String) = runBlocking {
     val createdWallet = module.uowx.execute(CreateWalletUow::class, principal) {
         CreateWalletUow.Params(
             id = "45dfd599-4d62-47f1-8e47-a779df4f6bbc",
-            currency = "USD"
+            currency = "USD",
         )
     }
 }

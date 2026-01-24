@@ -14,7 +14,7 @@ import java.time.ZoneOffset.UTC
 
 abstract class RepositorySpec(
     helper: RepositoryHelper,
-    body: RepositorySpec.() -> Unit = {}
+    body: RepositorySpec.() -> Unit = {},
 ) : BehaviorSpec() {
 
     val dslContext: DSLContext = helper.dslContext
