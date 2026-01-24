@@ -1,7 +1,7 @@
 package com.razz.eva.repository
 
-import com.razz.eva.domain.EntityState.PersistentState
-import com.razz.eva.domain.EntityState.PersistentState.Companion.persistentState
+import com.razz.eva.domain.ModelState.PersistentState
+import com.razz.eva.domain.ModelState.PersistentState.Companion.persistentState
 import com.razz.eva.domain.Model
 import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
@@ -14,7 +14,7 @@ import com.razz.eva.persistence.PersistenceException.ModelRecordConstraintViolat
 import com.razz.eva.persistence.PersistenceException.StaleRecordException
 import com.razz.eva.persistence.PersistenceException.UniqueModelRecordViolationException
 import com.razz.eva.persistence.executor.QueryExecutor
-import com.razz.jooq.record.BaseEntityRecord
+import com.razz.jooq.record.BaseModelRecord
 import io.vertx.pgclient.PgException
 import java.time.Instant
 import org.jooq.Condition
@@ -51,7 +51,7 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
           MID : ModelId<out Comparable<*>>,
           M : Model<MID, ME>,
           ME : ModelEvent<MID>,
-          R : BaseEntityRecord<ID> {
+          R : BaseModelRecord<ID> {
 
     private fun toRecord(context: TransactionalContext, model: M): R {
         return modelBaseToRecord(context, toRecord(model), model)
@@ -89,7 +89,7 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
 
     protected abstract fun toRecord(model: M): R
 
-    protected abstract fun fromRecord(record: R, entityState: PersistentState<MID, ME>): M
+    protected abstract fun fromRecord(record: R, modelState: PersistentState<MID, ME>): M
 
     private fun Table<*>.onlyModifiableFields(): Array<Field<*>> = this.fields().filterNot { field ->
         field.unqualifiedName == createdAt.unqualifiedName || field.unqualifiedName == tableId.unqualifiedName

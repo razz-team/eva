@@ -2,7 +2,7 @@ package com.razz.eva.uow
 
 import com.razz.eva.domain.DepartmentId
 import com.razz.eva.domain.EggsCount
-import com.razz.eva.domain.EntityState.NewState.Companion.newState
+import com.razz.eva.domain.ModelState.NewState.Companion.newState
 import com.razz.eva.domain.Ration
 import com.razz.eva.domain.Shakshouka
 import com.razz.eva.domain.ShakshoukaEvent.ShakshoukaCreated

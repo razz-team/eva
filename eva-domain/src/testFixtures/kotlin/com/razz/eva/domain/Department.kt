@@ -6,7 +6,7 @@ import com.razz.eva.domain.DepartmentEvent.EmployeeAdded
 import com.razz.eva.domain.DepartmentEvent.EmployeeRemoved
 import com.razz.eva.domain.DepartmentEvent.NameChanged
 import com.razz.eva.domain.DepartmentEvent.OwnedDepartmentCreated
-import com.razz.eva.domain.EntityState.NewState.Companion.newState
+import com.razz.eva.domain.ModelState.NewState.Companion.newState
 import kotlinx.serialization.Contextual
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.buildJsonObject
@@ -28,8 +28,8 @@ sealed class Department<SELF : Department<SELF>>(
     val boss: EmployeeId?,
     val headcount: Int,
     val ration: Ration,
-    entityState: EntityState<DepartmentId, DepartmentEvent>
-) : Model<DepartmentId, DepartmentEvent>(id, entityState) {
+    modelState: ModelState<DepartmentId, DepartmentEvent>
+) : Model<DepartmentId, DepartmentEvent>(id, modelState) {
 
     abstract fun copy(
         id: DepartmentId,
@@ -37,7 +37,7 @@ sealed class Department<SELF : Department<SELF>>(
         boss: EmployeeId?,
         headcount: Int,
         ration: Ration,
-        entityState: EntityState<DepartmentId, DepartmentEvent>
+        modelState: ModelState<DepartmentId, DepartmentEvent>
     ): SELF
 
     class OrphanedDepartment(
@@ -45,8 +45,8 @@ sealed class Department<SELF : Department<SELF>>(
         name: String,
         headcount: Int,
         ration: Ration,
-        entityState: EntityState<DepartmentId, DepartmentEvent>
-    ) : Department<OrphanedDepartment>(id, name, null, headcount, ration, entityState) {
+        modelState: ModelState<DepartmentId, DepartmentEvent>
+    ) : Department<OrphanedDepartment>(id, name, null, headcount, ration, modelState) {
 
         override fun copy(
             id: DepartmentId,
@@ -54,8 +54,8 @@ sealed class Department<SELF : Department<SELF>>(
             boss: EmployeeId?,
             headcount: Int,
             ration: Ration,
-            entityState: EntityState<DepartmentId, DepartmentEvent>
-        ): OrphanedDepartment = OrphanedDepartment(id, name, headcount, ration, entityState)
+            modelState: ModelState<DepartmentId, DepartmentEvent>
+        ): OrphanedDepartment = OrphanedDepartment(id, name, headcount, ration, modelState)
 
         fun addBoss(boss: Employee): OwnedDepartment {
             checkRation(boss)
@@ -92,8 +92,8 @@ sealed class Department<SELF : Department<SELF>>(
         boss: EmployeeId,
         headcount: Int,
         ration: Ration,
-        entityState: EntityState<DepartmentId, DepartmentEvent>
-    ) : Department<OwnedDepartment>(id, name, boss, headcount, ration, entityState) {
+        modelState: ModelState<DepartmentId, DepartmentEvent>
+    ) : Department<OwnedDepartment>(id, name, boss, headcount, ration, modelState) {
 
         init {
             check(headcount > 0) { "Мёртвые души" }
@@ -105,8 +105,8 @@ sealed class Department<SELF : Department<SELF>>(
             boss: EmployeeId?,
             headcount: Int,
             ration: Ration,
-            entityState: EntityState<DepartmentId, DepartmentEvent>
-        ): OwnedDepartment = OwnedDepartment(id, name, boss!!, headcount, ration, entityState)
+            modelState: ModelState<DepartmentId, DepartmentEvent>
+        ): OwnedDepartment = OwnedDepartment(id, name, boss!!, headcount, ration, modelState)
 
         fun changeBoss(newBoss: Employee): OwnedDepartment {
             check(newBoss.id() != boss) { "Same boss" }
@@ -189,7 +189,7 @@ sealed class Department<SELF : Department<SELF>>(
                 boss = boss,
                 headcount = headcount,
                 ration = ration,
-                entityState = newState(OwnedDepartmentCreated(depId, name, boss, 1, ration))
+                modelState = newState(OwnedDepartmentCreated(depId, name, boss, 1, ration))
             )
         }
     }

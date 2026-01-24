@@ -2,7 +2,7 @@ package com.razz.jooq.record
 
 import org.jooq.Record
 
-interface TypedStatefulEntityRecord<ID : Comparable<ID>, S : Enum<S>> : BaseEntityRecord<ID> {
+interface TypedStatefulModelRecord<ID : Comparable<ID>, S : Enum<S>> : BaseModelRecord<ID> {
 
     fun setState(value: S): Record
     val state: S

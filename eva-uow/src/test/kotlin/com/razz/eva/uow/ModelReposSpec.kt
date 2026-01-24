@@ -8,7 +8,7 @@ import com.razz.eva.domain.EggsCount
 import com.razz.eva.domain.Employee
 import com.razz.eva.domain.EmployeeEvent
 import com.razz.eva.domain.EmployeeId
-import com.razz.eva.domain.EntityState.NewState.Companion.newState
+import com.razz.eva.domain.ModelState.NewState.Companion.newState
 import com.razz.eva.domain.Name
 import com.razz.eva.domain.Ration
 import com.razz.eva.domain.Shakshouka
@@ -45,7 +45,7 @@ class ModelReposSpec : BehaviorSpec({
                 boss = boss,
                 headcount = 1,
                 ration = Ration.BUBALEH,
-                entityState = newState(
+                modelState = newState(
                     OwnedDepartmentCreated(
                         departmentId = depId,
                         name = "Test Department",
@@ -74,7 +74,7 @@ class ModelReposSpec : BehaviorSpec({
                 departmentId = depId,
                 email = "sergey@razz.team",
                 ration = Ration.BUBALEH,
-                entityState = newState(
+                modelState = newState(
                     createdEvent = EmployeeEvent.EmployeeCreated(
                         employeeId = employeeId,
                         name = Name("Sergey", "P"),
@@ -100,7 +100,7 @@ class ModelReposSpec : BehaviorSpec({
                 employeeId = EmployeeId(),
                 eggsCount = EggsCount.FIVE,
                 withPita = true,
-                entityState = newState(
+                modelState = newState(
                     createdEvent = ShakshoukaCreated(
                         shakshoukaId = ShakshoukaId(),
                         employeeId = EmployeeId(),

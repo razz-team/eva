@@ -1,7 +1,7 @@
 package com.razz.eva.examples.changes.user
 
-import com.razz.eva.domain.EntityState
-import com.razz.eva.domain.EntityState.NewState.Companion.newState
+import com.razz.eva.domain.ModelState
+import com.razz.eva.domain.ModelState.NewState.Companion.newState
 import com.razz.eva.domain.Model
 import com.razz.eva.domain.ModelCreatedEvent
 import com.razz.eva.domain.ModelEvent
@@ -80,8 +80,8 @@ class User(
     val firstName: FirstName?,
     val lastName: LastName?,
     val address: Address?,
-    entityState: EntityState<Id, UserEvent>
-) : Model<Id, UserEvent>(id, entityState) {
+    modelState: ModelState<Id, UserEvent>
+) : Model<Id, UserEvent>(id, modelState) {
 
     @Serializable
     @JvmInline
@@ -119,7 +119,7 @@ class User(
         firstName = firstName,
         lastName = lastName,
         address = address,
-        entityState = raiseEvent(
+        modelState = raiseEvent(
             UserFirstNameChanged(
                 modelId = id(),
                 oldFirstName = this.firstName,
@@ -133,7 +133,7 @@ class User(
         firstName = firstName,
         lastName = lastName,
         address = address,
-        entityState = raiseEvent(
+        modelState = raiseEvent(
             UserLastNameChanged(
                 modelId = id(),
                 oldLastName = this.lastName,
@@ -147,7 +147,7 @@ class User(
         firstName = firstName,
         lastName = lastName,
         address = address,
-        entityState = raiseEvent(
+        modelState = raiseEvent(
             UserAddressChanged(
                 modelId = id(),
                 oldAddress = this.address,
@@ -168,7 +168,7 @@ class User(
             firstName = firstName,
             lastName = lastName,
             address = address,
-            entityState = newState(
+            modelState = newState(
                 UserCreated(
                     modelId = id,
                     firstName = firstName,
@@ -183,13 +183,13 @@ class User(
             firstName: FirstName? = null,
             lastName: LastName? = null,
             address: Address? = null,
-            entityState: EntityState<Id, UserEvent>
+            modelState: ModelState<Id, UserEvent>
         ) = User(
             id = id,
             firstName = firstName,
             lastName = lastName,
             address = address,
-            entityState = entityState
+            modelState = modelState
         )
     }
 }

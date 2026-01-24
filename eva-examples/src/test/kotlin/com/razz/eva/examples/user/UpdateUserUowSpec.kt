@@ -1,6 +1,6 @@
 package com.razz.eva.examples.user
 
-import com.razz.eva.domain.EntityState.PersistentState.Companion.persistentState
+import com.razz.eva.domain.ModelState.PersistentState.Companion.persistentState
 import com.razz.eva.domain.Principal
 import com.razz.eva.domain.Version.Companion.V1
 import com.razz.eva.examples.ServicePrincipal
@@ -26,7 +26,7 @@ class UpdateUserUowSpec : UowBehaviorSpec({
             firstName = FirstName("Jane"),
             lastName = null,
             address = Address("123 Main St"),
-            entityState = persistentState(V1, null),
+            modelState = persistentState(V1, null),
         )
         val userQueries = mockk<UserQueries> {
             coEvery {

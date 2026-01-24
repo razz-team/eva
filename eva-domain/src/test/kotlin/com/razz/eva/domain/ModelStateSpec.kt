@@ -1,10 +1,10 @@
 package com.razz.eva.domain
 
-import com.razz.eva.domain.EntityState.DirtyState
-import com.razz.eva.domain.EntityState.DirtyState.Companion.dirtyState
-import com.razz.eva.domain.EntityState.NewState
-import com.razz.eva.domain.EntityState.NewState.Companion.newState
-import com.razz.eva.domain.EntityState.PersistentState.Companion.persistentState
+import com.razz.eva.domain.ModelState.DirtyState
+import com.razz.eva.domain.ModelState.DirtyState.Companion.dirtyState
+import com.razz.eva.domain.ModelState.NewState
+import com.razz.eva.domain.ModelState.NewState.Companion.newState
+import com.razz.eva.domain.ModelState.PersistentState.Companion.persistentState
 import com.razz.eva.domain.TestModelEvent.TestModelCreated
 import com.razz.eva.domain.TestModelEvent.TestModelEvent1
 import com.razz.eva.domain.TestModelEvent.TestModelEvent2
@@ -19,9 +19,9 @@ import io.kotest.matchers.types.beInstanceOf
 import io.mockk.coEvery
 import io.mockk.mockk
 
-class EntityStateSpec : BehaviorSpec({
+class ModelStateSpec : BehaviorSpec({
 
-    Given("New entity state") {
+    Given("New model state") {
         val createdEvent = TestModelCreated(randomTestModelId())
         val newState = newState(
             createdEvent = createdEvent
@@ -59,14 +59,14 @@ class EntityStateSpec : BehaviorSpec({
                 And("Version is zero") {
                     dirtyState.version() shouldBe V0
                 }
-                And("Entity state should be new") {
+                And("Model state should be new") {
                     dirtyState shouldBe beInstanceOf<NewState<TestModelId, TestModelEvent>>()
                 }
             }
         }
     }
 
-    Given("Dirty entity state") {
+    Given("Dirty model state") {
         val modelId = randomTestModelId()
         val firstTestModelEvent = TestModelEvent1(modelId)
         val secondTestModelEvent = TestModelEvent2(modelId)
@@ -97,7 +97,7 @@ class EntityStateSpec : BehaviorSpec({
         }
     }
 
-    Given("Persistent entity state") {
+    Given("Persistent model state") {
         val persistentState = persistentState<TestModelId, TestModelEvent>(
             version = V1,
             proto = null,
@@ -121,7 +121,7 @@ class EntityStateSpec : BehaviorSpec({
                 And("Version is one") {
                     dirtyState.version() shouldBe V1
                 }
-                And("Entity state is dirty") {
+                And("Model state is dirty") {
                     dirtyState shouldBe beInstanceOf<DirtyState<TestModelId, TestModelEvent>>()
                 }
             }

@@ -18,8 +18,8 @@ sealed class Shakshouka(
     val employeeId: EmployeeId,
     val eggsCount: EggsCount,
     val withPita: Boolean,
-    entityState: EntityState<ShakshoukaId, ShakshoukaEvent>
-) : Model<ShakshoukaId, ShakshoukaEvent>(id, entityState) {
+    modelState: ModelState<ShakshoukaId, ShakshoukaEvent>
+) : Model<ShakshoukaId, ShakshoukaEvent>(id, modelState) {
 
     fun state(): ShakshoukaState = when (this) {
         is Served -> SERVED
@@ -31,8 +31,8 @@ sealed class Shakshouka(
         employeeId: EmployeeId,
         eggsCount: EggsCount,
         withPita: Boolean,
-        entityState: EntityState<ShakshoukaId, ShakshoukaEvent>
-    ) : Shakshouka(id, employeeId, eggsCount, withPita, entityState) {
+        modelState: ModelState<ShakshoukaId, ShakshoukaEvent>
+    ) : Shakshouka(id, employeeId, eggsCount, withPita, modelState) {
 
         fun consume(): Consumed {
             return Consumed(
@@ -50,8 +50,8 @@ sealed class Shakshouka(
         employeeId: EmployeeId,
         eggsCount: EggsCount,
         withPita: Boolean,
-        entityState: EntityState<ShakshoukaId, ShakshoukaEvent>
-    ) : Shakshouka(id, employeeId, eggsCount, withPita, entityState)
+        modelState: ModelState<ShakshoukaId, ShakshoukaEvent>
+    ) : Shakshouka(id, employeeId, eggsCount, withPita, modelState)
 }
 
 sealed class ShakshoukaEvent(

@@ -1,12 +1,12 @@
 package com.razz.eva.domain
 
-import com.razz.eva.domain.EntityState.DirtyState.Companion.dirtyState
+import com.razz.eva.domain.ModelState.DirtyState.Companion.dirtyState
 import com.razz.eva.domain.Version.Companion.V0
 
-sealed class EntityState<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>>(
+sealed class ModelState<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>>(
     protected val version: Version,
     events: Collection<E>,
-) : EntityStateMixin<ID, E>, Versioned {
+) : ModelStateMixin<ID, E> {
 
     protected val occurredEvents = events.toList()
 
@@ -22,25 +22,18 @@ sealed class EntityState<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>>(
 
     override fun isPersisted(): Boolean = this is PersistentState<ID, E>
 
-    internal fun raiseEvent(firstEvent: E, vararg newEvents: E): EntityState<ID, E> =
-        raiseEvent(listOf(firstEvent, *newEvents))
+    internal fun raiseEvent(firstEvent: E, vararg newEvents: E): ModelState<ID, E> =
+        raiseEvents(listOf(firstEvent, *newEvents))
 
-    internal fun raiseEvent(newEvent: E): EntityState<ID, E> =
-        raiseEvent(listOf(newEvent))
+    internal fun raiseEvent(newEvent: E): ModelState<ID, E> =
+        raiseEvents(listOf(newEvent))
 
-    private fun raiseEvent(newEvents: List<E>): EntityState<ID, E> {
-        check(newEvents.isNotEmpty()) {
-            "new events should be present"
-        }
-        return raiseEvent0(newEvents)
-    }
-
-    protected abstract fun raiseEvent0(newEvents: List<E>): EntityState<ID, E>
+    protected abstract fun raiseEvents(newEvents: List<E>): ModelState<ID, E>
 
     class PersistentState<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>> private constructor(
         version: Version,
         internal val proto: Any?,
-    ) : EntityState<ID, E>(version, listOf()) {
+    ) : ModelState<ID, E>(version, listOf()) {
 
         init {
             check(version() != V0 && occurredEvents.isEmpty()) {
@@ -48,7 +41,7 @@ sealed class EntityState<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>>(
             }
         }
 
-        override fun raiseEvent0(newEvents: List<E>): DirtyState<ID, E> {
+        override fun raiseEvents(newEvents: List<E>): DirtyState<ID, E> {
             return dirtyState(version, newEvents, proto)
         }
 
@@ -66,7 +59,7 @@ sealed class EntityState<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>>(
         version: Version,
         events: Collection<E>,
         internal val proto: Any?,
-    ) : EntityState<ID, E>(version, events) {
+    ) : ModelState<ID, E>(version, events) {
 
         init {
             check(occurredEvents.isNotEmpty()) {
@@ -74,8 +67,8 @@ sealed class EntityState<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>>(
             }
         }
 
-        override fun raiseEvent0(newEvents: List<E>): DirtyState<ID, E> {
-            return DirtyState(version, occurredEvents + newEvents, proto)
+        override fun raiseEvents(newEvents: List<E>): DirtyState<ID, E> {
+            return dirtyState(version, occurredEvents + newEvents, proto)
         }
 
         companion object {
@@ -91,7 +84,7 @@ sealed class EntityState<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>>(
 
     class NewState<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>> private constructor(
         events: Collection<E>,
-    ) : EntityState<ID, E>(V0, events) {
+    ) : ModelState<ID, E>(V0, events) {
 
         init {
             check(version() == V0 && occurredEvents.isNotEmpty()) {
@@ -99,7 +92,7 @@ sealed class EntityState<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>>(
             }
         }
 
-        override fun raiseEvent0(newEvents: List<E>): NewState<ID, E> {
+        override fun raiseEvents(newEvents: List<E>): NewState<ID, E> {
             return NewState(occurredEvents + newEvents)
         }
 
@@ -121,7 +114,7 @@ sealed class EntityState<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>>(
     }
 }
 
-interface EntityStateMixin<MID : ModelId<out Comparable<*>>, E : ModelEvent<MID>> : Versioned {
+interface ModelStateMixin<MID : ModelId<out Comparable<*>>, E : ModelEvent<MID>> : Versioned {
 
     fun writeEvents(drive: ModelEventDrive<E>): ModelEventDrive<E>
 

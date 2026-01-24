@@ -2,7 +2,7 @@ package com.razz.jooq.record
 
 import org.jooq.Record
 
-interface StatefulEntityRecord<ID : Comparable<ID>> : BaseEntityRecord<ID> {
+interface StatefulModelRecord<ID : Comparable<ID>> : BaseModelRecord<ID> {
 
     fun setState(value: String): Record
     val state: String

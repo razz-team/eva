@@ -2,7 +2,7 @@ package com.razz.eva.repository
 
 import com.razz.eva.domain.EggsCount
 import com.razz.eva.domain.EmployeeId
-import com.razz.eva.domain.EntityState.PersistentState
+import com.razz.eva.domain.ModelState.PersistentState
 import com.razz.eva.domain.Shakshouka
 import com.razz.eva.domain.ShakshoukaEvent
 import com.razz.eva.domain.ShakshoukaId
@@ -44,7 +44,7 @@ class ShakshoukaRepository(
 
     override fun fromRecord(
         record: ShakshoukasRecord,
-        entityState: PersistentState<ShakshoukaId, ShakshoukaEvent>
+        modelState: PersistentState<ShakshoukaId, ShakshoukaEvent>
     ): Shakshouka {
         @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
         return when (record.state) {
@@ -54,7 +54,7 @@ class ShakshoukaRepository(
                     EmployeeId(record.employeeId),
                     EggsCount.valueOf(record.eggsCount),
                     record.withPita,
-                    entityState
+                    modelState
                 )
             CONSUMED ->
                 Shakshouka.Consumed(
@@ -62,7 +62,7 @@ class ShakshoukaRepository(
                     EmployeeId(record.employeeId),
                     EggsCount.valueOf(record.eggsCount),
                     record.withPita,
-                    entityState
+                    modelState
                 )
         }
     }

@@ -6,7 +6,7 @@ import com.razz.eva.domain.DepartmentId.Companion.randomDepartmentId
 import com.razz.eva.domain.Employee
 import com.razz.eva.domain.EmployeeEvent.EmployeeCreated
 import com.razz.eva.domain.EmployeeId
-import com.razz.eva.domain.EntityState.NewState.Companion.newState
+import com.razz.eva.domain.ModelState.NewState.Companion.newState
 import com.razz.eva.domain.Name
 import com.razz.eva.domain.Ration.BUBALEH
 import com.razz.eva.domain.Ration.SHAKSHOUKA
@@ -28,7 +28,7 @@ class DepartmentsRepositorySpec : RepositorySpec(TestEvaRepositoryHelper, {
                 headcount = 1,
                 ration = BUBALEH,
                 boss = EmployeeId(),
-                entityState = newState(
+                modelState = newState(
                     OwnedDepartmentCreated(
                         departmentId = randomDepartmentId(),
                         name = "KazahDep",
@@ -66,7 +66,7 @@ class DepartmentsRepositorySpec : RepositorySpec(TestEvaRepositoryHelper, {
                     headcount = 1,
                     ration = if (it % 2 == 0) BUBALEH else SHAKSHOUKA,
                     boss = bossId,
-                    entityState = newState(
+                    modelState = newState(
                         OwnedDepartmentCreated(
                             departmentId = depId,
                             name = "KazahDep $it",
@@ -139,7 +139,7 @@ class DepartmentsRepositorySpec : RepositorySpec(TestEvaRepositoryHelper, {
                                     departmentId = d.id(),
                                     email = "employee$i@${d.name}",
                                     ration = d.ration,
-                                    entityState = newState(
+                                    modelState = newState(
                                         EmployeeCreated(
                                             empId,
                                             Name("Employee", i.toString()),

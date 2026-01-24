@@ -1,7 +1,7 @@
 package com.razz.eva.domain
 
-import com.razz.eva.domain.EntityState.NewState.Companion.newState
-import com.razz.eva.domain.EntityState.PersistentState.Companion.persistentState
+import com.razz.eva.domain.ModelState.NewState.Companion.newState
+import com.razz.eva.domain.ModelState.PersistentState.Companion.persistentState
 import com.razz.eva.domain.TestModelEvent.TestModelCreated
 import com.razz.eva.domain.TestModelEvent.TestModelEvent1
 import com.razz.eva.domain.TestModelEvent.TestModelEvent2
@@ -15,8 +15,8 @@ sealed class TestModel private constructor(
     id: TestModelId,
     param1: String?,
     param2: Long,
-    entityState: EntityState<TestModelId, TestModelEvent>
-) : Model<TestModelId, TestModelEvent>(id, entityState) {
+    modelState: ModelState<TestModelId, TestModelEvent>
+) : Model<TestModelId, TestModelEvent>(id, modelState) {
 
     init {
         checkNotNull(param1)
@@ -32,8 +32,8 @@ sealed class TestModel private constructor(
         id: TestModelId,
         val param1: String?,
         val param2: Long,
-        entityState: EntityState<TestModelId, TestModelEvent>
-    ) : TestModel(id, param1, param2, entityState) {
+        modelState: ModelState<TestModelId, TestModelEvent>
+    ) : TestModel(id, param1, param2, modelState) {
 
         fun activate(): ActiveTestModel {
             checkNotNull(param1)
@@ -41,7 +41,7 @@ sealed class TestModel private constructor(
                 id = id(),
                 param1 = param1,
                 param2 = param2,
-                entityState = raiseEvent(
+                modelState = raiseEvent(
                     TestModelStatusChanged(
                         testModelId = id(),
                         newStatus = ACTIVE,
@@ -83,8 +83,8 @@ sealed class TestModel private constructor(
         id: TestModelId,
         val param1: String,
         val param2: Long,
-        entityState: EntityState<TestModelId, TestModelEvent>
-    ) : TestModel(id, param1, param2, entityState)
+        modelState: ModelState<TestModelId, TestModelEvent>
+    ) : TestModel(id, param1, param2, modelState)
 
     companion object Factory {
         fun createdTestModel(param1: String?, param2: Long): CreatedTestModel {

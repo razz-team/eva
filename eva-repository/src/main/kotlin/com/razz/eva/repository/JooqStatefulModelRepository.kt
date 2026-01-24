@@ -4,7 +4,7 @@ import com.razz.eva.domain.Model
 import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
 import com.razz.eva.persistence.executor.QueryExecutor
-import com.razz.jooq.record.TypedStatefulEntityRecord
+import com.razz.jooq.record.TypedStatefulModelRecord
 import org.jooq.DSLContext
 import org.jooq.Table
 import org.jooq.TableField
@@ -29,7 +29,7 @@ abstract class JooqStatefulModelRepository<ID, MID, M, ME, R, S>(
       MID : ModelId<out Comparable<*>>,
       ME : ModelEvent<MID>,
       M : Model<MID, ME>,
-      R : TypedStatefulEntityRecord<ID, S>,
+      R : TypedStatefulModelRecord<ID, S>,
       S : Enum<S> {
 
     protected abstract fun stateOf(model: M): S

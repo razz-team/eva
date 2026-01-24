@@ -1,6 +1,6 @@
 package com.razz.eva.examples.wallet
 
-import com.razz.eva.domain.EntityState.PersistentState
+import com.razz.eva.domain.ModelState.PersistentState
 import com.razz.eva.examples.schema.db.Tables.WALLET
 import com.razz.eva.examples.schema.db.tables.records.WalletRecord
 import com.razz.eva.paging.Page
@@ -27,13 +27,13 @@ class WalletRepository(
 
     override fun fromRecord(
         record: WalletRecord,
-        entityState: PersistentState<Wallet.Id, WalletEvent>
+        modelState: PersistentState<Wallet.Id, WalletEvent>
     ) = Wallet(
         id = Wallet.Id(record.id),
         currency = Currency.getInstance(record.currency),
         amount = record.amount.toULong(),
         expireAt = record.expireAt,
-        entityState = entityState
+        modelState = modelState
     )
 
     suspend fun wallets(currency: Currency, page: Page<Instant>) = findPage(

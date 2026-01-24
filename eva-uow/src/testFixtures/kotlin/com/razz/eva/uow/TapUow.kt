@@ -8,7 +8,7 @@ import com.razz.eva.domain.BubalehId
 import com.razz.eva.domain.BubalehTaste.SWEEEET
 import com.razz.eva.domain.BubalehTaste.VERY_SWEET
 import com.razz.eva.domain.DepartmentId
-import com.razz.eva.domain.EntityState.NewState.Companion.newState
+import com.razz.eva.domain.ModelState.NewState.Companion.newState
 import com.razz.eva.domain.Ration
 import com.razz.eva.repository.EmployeeRepository
 import kotlinx.serialization.Serializable
