@@ -15,7 +15,7 @@ import com.razz.eva.test.db.DatabaseContainer
 import com.razz.eva.test.db.DatabaseContainerHelper
 
 abstract class PersistenceBaseSpec(
-    body: FunctionalSpec<TestModule>.() -> Unit
+    body: FunctionalSpec<TestModule>.() -> Unit,
 ) : FunctionalSpec<TestModule>({ sharedModule }, body) {
 
     companion object {
@@ -27,12 +27,12 @@ abstract class PersistenceBaseSpec(
             user = DbUser(DB.username()),
             password = DbPassword(DB.password()),
             maxPoolSize = MaxPoolSize(10),
-            executorType = executorType
+            executorType = executorType,
         )
         val migrationConfig = MigrationsDatabaseConfig(
             jdbcURL = JdbcURL(DB.jdbcUrl()),
             ddlUser = DbUser(DB.username()),
-            ddlPassword = DbPassword(DB.password())
+            ddlPassword = DbPassword(DB.password()),
         )
         val migrations = Migrations(migrationConfig, modelsMigration("com/razz/eva/test/db")).apply {
             start()

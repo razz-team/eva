@@ -40,7 +40,7 @@ class Persisting(
         principal: Principal<*>,
         changes: Collection<Change>,
         now: Instant,
-        uowSupportsOutOfOrderPersisting: Boolean
+        uowSupportsOutOfOrderPersisting: Boolean,
     ): Pair<UowEvent.Id, List<Model<*, *>>> {
         val (uowEvent, flushed) = inTransaction(now, uowSupportsOutOfOrderPersisting) { persisting, startedAt ->
             val events = changes.flatMap(Change::modelEvents)
@@ -54,7 +54,7 @@ class Persisting(
                 modelEvents = events.map { ModelEventId.random() to it },
                 idempotencyKey = params.idempotencyKey,
                 params = json.encodeToString(params.serialization(), params),
-                occurredAt = startedAt
+                occurredAt = startedAt,
             )
         }
         eventPublisher.publish(uowEvent)
@@ -64,7 +64,7 @@ class Persisting(
     private suspend fun inTransaction(
         now: Instant,
         uowSupportsOutOfOrderPersisting: Boolean,
-        block: (ModelPersisting, Instant) -> UowEvent
+        block: (ModelPersisting, Instant) -> UowEvent,
     ): Pair<UowEvent, List<Model<*, *>>> {
         val persistingMode = if (transactionManager.supportsPipelining() && uowSupportsOutOfOrderPersisting) {
             PARALLEL_OUT_OF_ORDER
@@ -75,7 +75,7 @@ class Persisting(
         val uowEvent = block(persisting, now)
         val flushed = transactionManager.inTransaction(
             REQUIRE_NEW,
-            suspend { flush(persisting, uowEvent, transactionalContext(now), persistingMode) }
+            suspend { flush(persisting, uowEvent, transactionalContext(now), persistingMode) },
         )
         return uowEvent to flushed
     }
@@ -84,7 +84,7 @@ class Persisting(
         accumulator: PersistingAccumulator,
         uowEvent: UowEvent,
         context: TransactionalContext,
-        mode: PersistingMode
+        mode: PersistingMode,
     ): List<Model<*, *>> = when (mode) {
         PARALLEL_OUT_OF_ORDER -> coroutineScope {
             val flushed = accumulator.accumulated().map { operation ->

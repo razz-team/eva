@@ -16,7 +16,7 @@ class ReduceInventoryUow(
     @Serializable
     data class Params(
         val inventoryId: Inventory.Id,
-        val items: Map<InventoryItem, Long>
+        val items: Map<InventoryItem, Long>,
     ) : UowParams<Params> {
         override fun serialization() = serializer()
     }

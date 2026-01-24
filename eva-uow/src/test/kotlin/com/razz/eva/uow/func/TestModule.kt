@@ -57,13 +57,13 @@ class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
     val repos = ModelRepos(
         Department::class hasRepo departmentRepo,
         Employee::class hasRepo employeeRepo,
-        Bubaleh::class hasRepo bubalehRepo
+        Bubaleh::class hasRepo bubalehRepo,
     )
 
     val writableRepository = WritableModelRepository(
         txnManager = transactionManager,
         clock = clock,
-        modelRepos = repos
+        modelRepos = repos,
     )
 
     val spanExporter = InMemorySpanExporter.create()
@@ -82,7 +82,7 @@ class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
 
     val eventQueries = EventQueries(
         queryExecutor = queryExecutor,
-        dslContext = dslContext
+        dslContext = dslContext,
     )
 
     val persisting = Persisting(
@@ -100,7 +100,7 @@ class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
         },
         HireEmployeesUow::class withFactory {
             HireEmployeesUow(executionContext, departmentRepo, employeeRepo, 0, true)
-        }
+        },
     )
 
     val uowx = UnitOfWorkExecutor(
@@ -133,7 +133,7 @@ class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
                 DSL.using(
                     dslContext.configuration()
                         .derive(connection as java.sql.Connection)
-                        .derive(dslContext.settings())
+                        .derive(dslContext.settings()),
                 ).run {
                     execute(
                         """
@@ -167,7 +167,7 @@ class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
         factories = listOf(
             HireEmployeesUow::class withFactory {
                 HireEmployeesUow(executionContext, departmentRepo, employeeRepo, 1, false)
-            }
+            },
         ),
         persisting = persisting,
         clock = clock,
@@ -178,7 +178,7 @@ class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
         factories = listOf(
             HireEmployeesUow::class withFactory {
                 HireEmployeesUow(executionContext, departmentRepo, employeeRepo, 0, false)
-            }
+            },
         ),
         persisting = Persisting(
             transactionManager = transactionManager,

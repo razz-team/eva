@@ -27,7 +27,7 @@ class JdbcQueryExecutor(
     override suspend fun <R : Record> executeSelect(
         dslContext: DSLContext,
         jooqQuery: Select<R>,
-        table: Table<R>
+        table: Table<R>,
     ): List<R> {
         return transactionManager.withConnection { connection ->
             dslContext.using(connection).preparedQuery(jooqQuery, table)
@@ -56,7 +56,7 @@ class JdbcQueryExecutor(
                     *extractParams(jooqQuery)
                         .values
                         .filterNot(Param<*>::isInline)
-                        .toTypedArray()
+                        .toTypedArray(),
                 )
             }
         }
@@ -70,7 +70,7 @@ class JdbcQueryExecutor(
         *extractParams(jooqQuery)
             .values
             .filterNot(Param<*>::isInline)
-            .toTypedArray()
+            .toTypedArray(),
     ).coerce(table).fetch()
 
     override fun getConstraintName(ex: DataAccessException): String? {

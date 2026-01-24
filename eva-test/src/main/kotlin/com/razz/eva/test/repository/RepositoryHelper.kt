@@ -60,7 +60,7 @@ open class RepositoryHelper(
 
     val dslContext = DSL.using(
         SQLDialect.POSTGRES,
-        Settings().withRenderNamedParamPrefix("$").withParamType(ParamType.NAMED)
+        Settings().withRenderNamedParamPrefix("$").withParamType(ParamType.NAMED),
     )
     val txnManager: TransactionManager<*>
     val queryExecutor: QueryExecutor

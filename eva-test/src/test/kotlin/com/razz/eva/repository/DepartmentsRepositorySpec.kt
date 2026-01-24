@@ -34,9 +34,9 @@ class DepartmentsRepositorySpec : RepositorySpec(TestEvaRepositoryHelper, {
                         name = "KazahDep",
                         headcount = 1,
                         ration = BUBALEH,
-                        boss = EmployeeId()
-                    )
-                )
+                        boss = EmployeeId(),
+                    ),
+                ),
             )
 
             When("Principal adds new department") {
@@ -72,9 +72,9 @@ class DepartmentsRepositorySpec : RepositorySpec(TestEvaRepositoryHelper, {
                             name = "KazahDep $it",
                             headcount = 1,
                             ration = if (it % 2 == 0) BUBALEH else SHAKSHOUKA,
-                            boss = bossId
-                        )
-                    )
+                            boss = bossId,
+                        ),
+                    ),
                 )
             }
 
@@ -145,12 +145,12 @@ class DepartmentsRepositorySpec : RepositorySpec(TestEvaRepositoryHelper, {
                                             Name("Employee", i.toString()),
                                             d.id(),
                                             "employee$i@${d.name}",
-                                            d.ration
-                                        )
-                                    )
-                                )
+                                            d.ration,
+                                        ),
+                                    ),
+                                ),
                             )
-                        }
+                        },
                     )
                 }
 

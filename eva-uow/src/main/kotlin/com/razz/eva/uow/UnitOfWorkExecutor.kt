@@ -89,7 +89,7 @@ class UnitOfWorkExecutor(
                 }
                 uowSpan.setAttribute(
                     MODEL_ID,
-                    changes.toPersist.map { it.id.stringValue() }
+                    changes.toPersist.map { it.id.stringValue() },
                 )
                 uowSpan.setAttribute(
                     PRINCIPAL_ID,
@@ -104,7 +104,7 @@ class UnitOfWorkExecutor(
                                 principal = principal,
                                 changes = changes.toPersist,
                                 now = now,
-                                uowSupportsOutOfOrderPersisting = uow.configuration().supportsOutOfOrderPersisting
+                                uowSupportsOutOfOrderPersisting = uow.configuration().supportsOutOfOrderPersisting,
                             )
                         }
                     }
@@ -187,7 +187,7 @@ class UnitOfWorkExecutor(
     suspend fun <PRINCIPAL, PARAMS, RESULT, UOW> execute(
         target: KClass<UOW>,
         principal: PRINCIPAL,
-        params: InstantiationContext.() -> PARAMS
+        params: InstantiationContext.() -> PARAMS,
     ): RESULT where PRINCIPAL : Principal<*>,
           PARAMS : UowParams<PARAMS>,
           UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *> {

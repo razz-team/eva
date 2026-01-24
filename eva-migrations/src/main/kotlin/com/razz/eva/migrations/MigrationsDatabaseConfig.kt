@@ -7,5 +7,5 @@ import com.razz.eva.persistence.config.JdbcURL
 data class MigrationsDatabaseConfig(
     val jdbcURL: JdbcURL,
     val ddlUser: DbUser,
-    val ddlPassword: DbPassword
+    val ddlPassword: DbPassword,
 )

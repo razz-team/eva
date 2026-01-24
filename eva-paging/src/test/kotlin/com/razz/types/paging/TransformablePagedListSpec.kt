@@ -13,7 +13,7 @@ class TransformablePagedListSpec : BehaviorSpec({
     Given("Paged list") {
         val pagedList = UserPagedList(
             listOf(User("Sergey", now), User("Ilya", now.minusSeconds(10))),
-            Size(2)
+            Size(2),
         )
 
         And("Paged list with transformation") {
@@ -21,7 +21,7 @@ class TransformablePagedListSpec : BehaviorSpec({
                 pagedList,
                 object : Function1<User, String?> {
                     override fun invoke(p1: User) = p1.name
-                }
+                },
             )
 
             When("Principal transforms paged list") {

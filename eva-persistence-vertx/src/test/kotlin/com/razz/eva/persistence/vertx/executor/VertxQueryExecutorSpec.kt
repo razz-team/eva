@@ -45,7 +45,7 @@ class VertxQueryExecutorSpec : BehaviorSpec({
                         }
                     }
                     every { size() } returns 0
-                }
+                },
             )
             every { mapping(any<Function<Row, Any>>()) } answers {
                 mockk {
@@ -57,7 +57,7 @@ class VertxQueryExecutorSpec : BehaviorSpec({
                                 }
                             }
                             every { size() } returns 0
-                        }
+                        },
                     )
                 }
             }

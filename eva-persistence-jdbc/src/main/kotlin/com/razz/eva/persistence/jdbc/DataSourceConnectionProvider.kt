@@ -13,7 +13,7 @@ typealias HikariPoolConnectionProvider = DataSourceConnectionProvider
 
 class DataSourceConnectionProvider(
     private val pool: DataSource,
-    private val blockingJdbcContext: CoroutineDispatcher = Dispatchers.IO
+    private val blockingJdbcContext: CoroutineDispatcher = Dispatchers.IO,
 ) : JdbcConnectionProvider {
 
     override suspend fun acquire(): Connection {

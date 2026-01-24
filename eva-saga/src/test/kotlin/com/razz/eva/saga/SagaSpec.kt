@@ -31,7 +31,7 @@ internal class SagaSpec : ShouldSpec({
     should("return state from onException") {
         val params = TestSaga.Params(
             { throw IllegalArgumentException("can't touch this") },
-            { _, _, _, _ -> Finish1("swallowed") }
+            { _, _, _, _ -> Finish1("swallowed") },
         )
         val state = TestSaga.resume(principal, params)
         state shouldBe Finish1("swallowed")
@@ -51,7 +51,7 @@ internal class SagaSpec : ShouldSpec({
                 observedParams = params
                 observedCurrentStep = currentStep
                 Finish1("swallowed")
-            }
+            },
         )
         val state = TestSaga.resume(principal, params)
         observedE.shouldBeInstanceOf<IllegalArgumentException>()
@@ -81,7 +81,7 @@ internal class SagaSpec : ShouldSpec({
                 observedParams = params
                 observedCurrentStep = currentStep
                 Finish1("swallowed")
-            }
+            },
         )
         val state = TestSaga.resume(principal, params)
         observedE.shouldBeInstanceOf<IllegalArgumentException>()
@@ -107,7 +107,7 @@ internal class SagaSpec : ShouldSpec({
                     }
                 }
             },
-            { _, _, _, _ -> null }
+            { _, _, _, _ -> null },
         )
         val state = TestSaga.resume(principal, params)
         state shouldBe Finish0("it's time to stop")

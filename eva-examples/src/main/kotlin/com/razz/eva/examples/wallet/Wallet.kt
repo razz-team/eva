@@ -18,7 +18,7 @@ sealed class WalletEvent : ModelEvent<Wallet.Id> {
         override val modelId: Wallet.Id,
         val currency: Currency,
         val amount: ULong,
-        val expireAt: Instant
+        val expireAt: Instant,
     ) : WalletEvent(), ModelCreatedEvent<Wallet.Id> {
         override fun integrationEvent() = buildJsonObject {
             put("currency", currency.currencyCode)
@@ -30,7 +30,7 @@ sealed class WalletEvent : ModelEvent<Wallet.Id> {
     data class Deposit(
         override val modelId: Wallet.Id,
         val walletAmount: ULong,
-        val depositAmount: ULong
+        val depositAmount: ULong,
     ) : WalletEvent(), ModelCreatedEvent<Wallet.Id> {
         override fun integrationEvent() = buildJsonObject {
             put("walletAmount", walletAmount.toLong())
@@ -44,7 +44,7 @@ class Wallet(
     val currency: Currency,
     val amount: ULong,
     val expireAt: Instant,
-    entityState: EntityState<Id, WalletEvent>
+    entityState: EntityState<Id, WalletEvent>,
 ) : Model<Wallet.Id, WalletEvent>(id, entityState) {
 
     data class Id(override val id: UUID) : ModelId<UUID>
@@ -54,6 +54,6 @@ class Wallet(
         currency = currency,
         id = id(),
         expireAt = expireAt,
-        entityState = raiseEvent(WalletEvent.Deposit(id(), amount, toDeposit))
+        entityState = raiseEvent(WalletEvent.Deposit(id(), amount, toDeposit)),
     )
 }

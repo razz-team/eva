@@ -30,12 +30,12 @@ class WalletModule(databaseConfig: DatabaseConfig) {
     val transactionManager = JdbcTransactionManager(
         primaryProvider = HikariPoolConnectionProvider(dataSource(databaseConfig, isPrimary = true)),
         replicaProvider = HikariPoolConnectionProvider(dataSource(databaseConfig, isPrimary = false)),
-        blockingJdbcContext = newFixedThreadPool(databaseConfig.maxPoolSize.value()).asCoroutineDispatcher()
+        blockingJdbcContext = newFixedThreadPool(databaseConfig.maxPoolSize.value()).asCoroutineDispatcher(),
     )
     val queryExecutor = JdbcQueryExecutor(transactionManager, noop())
     val dslContext: DSLContext = DSL.using(
         POSTGRES,
-        Settings().withRenderNamedParamPrefix("$").withParamType(ParamType.NAMED)
+        Settings().withRenderNamedParamPrefix("$").withParamType(ParamType.NAMED),
     )
 
     /**
@@ -45,7 +45,7 @@ class WalletModule(databaseConfig: DatabaseConfig) {
     val persisting = Persisting(
         transactionManager = transactionManager,
         modelRepos = ModelRepos(Wallet::class hasRepo walletRepo),
-        eventRepository = JooqEventRepository(queryExecutor, dslContext, noop())
+        eventRepository = JooqEventRepository(queryExecutor, dslContext, noop()),
     )
 
     /**
@@ -58,7 +58,7 @@ class WalletModule(databaseConfig: DatabaseConfig) {
         openTelemetry = noop(),
         clock = clock,
         factories = listOf(
-            CreateWalletUow::class withFactory { executionContext -> CreateWalletUow(walletRepo, executionContext) }
-        )
+            CreateWalletUow::class withFactory { executionContext -> CreateWalletUow(walletRepo, executionContext) },
+        ),
     )
 }

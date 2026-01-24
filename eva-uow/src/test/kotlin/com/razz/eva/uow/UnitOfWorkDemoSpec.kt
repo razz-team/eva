@@ -35,7 +35,7 @@ class UnitOfWorkDemoSpec : UowBehaviorSpec({
         val oldBossId = EmployeeId(randomUUID())
         val oldDep = OwnedDepartment(
             oldDepId, "old and lame", oldBossId, 3, BUBALEH,
-            persistentStateV1()
+            persistentStateV1(),
         )
 
         When("Zoomer and Boomer are doing internal mobility") {
@@ -46,7 +46,7 @@ class UnitOfWorkDemoSpec : UowBehaviorSpec({
                 departmentId = oldDepId,
                 email = "old.zoomer@lame.dep",
                 ration = BUBALEH,
-                entityState = persistentStateV1()
+                entityState = persistentStateV1(),
             )
             val boomerId = EmployeeId(randomUUID())
             val boomer = Employee(
@@ -55,7 +55,7 @@ class UnitOfWorkDemoSpec : UowBehaviorSpec({
                 departmentId = oldDepId,
                 email = "old.boomer@lame.dep",
                 ration = BUBALEH,
-                entityState = persistentStateV1()
+                entityState = persistentStateV1(),
             )
 
             coEvery { departmentRepo.find(newDepId) } coAnswers { newDep }

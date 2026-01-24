@@ -15,7 +15,7 @@ abstract class PersistenceModule : Closeable {
 
     open val dslContext: DSLContext = DSL.using(
         SQLDialect.POSTGRES,
-        Settings().withRenderNamedParamPrefix("$").withParamType(ParamType.NAMED)
+        Settings().withRenderNamedParamPrefix("$").withParamType(ParamType.NAMED),
     )
 
     abstract val transactionManager: TransactionManager<*>

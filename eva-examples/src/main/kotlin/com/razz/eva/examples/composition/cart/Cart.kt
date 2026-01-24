@@ -27,7 +27,7 @@ class Cart(
     val items: List<CartItem>,
     val paidFrom: Account.Id?,
     val state: State,
-    entityState: EntityState<Id, CartEvent>
+    entityState: EntityState<Id, CartEvent>,
 ) : Model<Id, CartEvent>(id, entityState) {
 
     @Serializable
@@ -56,7 +56,7 @@ class Cart(
             items = this.items,
             paidFrom = accountId,
             state = CHECKED_OUT,
-            entityState = raiseEvent(CartCheckedOut(modelId = id()))
+            entityState = raiseEvent(CartCheckedOut(modelId = id())),
         )
     }
 
@@ -67,13 +67,13 @@ class Cart(
             items: List<CartItem>,
             paidFrom: Account.Id?,
             state: State,
-            entityState: EntityState<Id, CartEvent>
+            entityState: EntityState<Id, CartEvent>,
         ) = Cart(
             id = id,
             items = items,
             paidFrom = paidFrom,
             state = state,
-            entityState = entityState
+            entityState = entityState,
         )
     }
 }

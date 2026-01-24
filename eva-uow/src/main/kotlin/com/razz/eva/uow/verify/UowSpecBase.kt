@@ -15,7 +15,7 @@ open class UowSpecBase<R> private constructor(
     private val result: R,
     private val executionHistory: Deque<Change>,
     private val publishedEvents: Deque<ModelEvent<out ModelId<out Comparable<*>>>>,
-    private val peekingPersisting: PeekingPersisting = PeekingPersisting()
+    private val peekingPersisting: PeekingPersisting = PeekingPersisting(),
 ) {
 
     internal constructor(
@@ -23,7 +23,7 @@ open class UowSpecBase<R> private constructor(
     ) : this(
         result = changes.result,
         executionHistory = ArrayDeque(changes.toPersist.filter { it !is Noop }),
-        publishedEvents = ArrayDeque(changes.toPersist.flatMap { it.modelEvents })
+        publishedEvents = ArrayDeque(changes.toPersist.flatMap { it.modelEvents }),
     )
 
     fun verifyEnd() {

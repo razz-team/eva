@@ -13,12 +13,12 @@ import java.time.Instant
 class WritableModelRepository(
     private val txnManager: TransactionManager<*>,
     private val clock: Clock,
-    private val modelRepos: ModelRepos
+    private val modelRepos: ModelRepos,
 ) {
 
     suspend fun <R> inTransaction(
         txStartedAt: Instant,
-        block: suspend (context: TransactionalContext) -> R
+        block: suspend (context: TransactionalContext) -> R,
     ): R {
         val context = TransactionalContext.transactionalContext(txStartedAt)
         val txBlock: suspend () -> R = {
@@ -29,7 +29,7 @@ class WritableModelRepository(
 
     suspend fun <ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>, M : Model<ID, E>> add(
         model: M,
-        txStartedAt: Instant = clock.instant()
+        txStartedAt: Instant = clock.instant(),
     ): M =
         inTransaction(txStartedAt) {
             modelRepos.repoFor(model).add(it, model)
@@ -37,7 +37,7 @@ class WritableModelRepository(
 
     suspend fun <ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>, M : Model<ID, E>> update(
         model: M,
-        txStartedAt: Instant = clock.instant()
+        txStartedAt: Instant = clock.instant(),
     ): M =
         inTransaction(txStartedAt) {
             modelRepos.repoFor(model).update(it, model)

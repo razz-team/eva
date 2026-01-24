@@ -67,7 +67,7 @@ class PersistingSpec : BehaviorSpec({
         name = "KazahDepartment 1",
         headcount = 1,
         ration = BUBALEH,
-        boss = bossId1
+        boss = bossId1,
     )
     val department1 = OwnedDepartment(
         id = departmentId1,
@@ -75,12 +75,12 @@ class PersistingSpec : BehaviorSpec({
         headcount = 1,
         ration = BUBALEH,
         boss = bossId1,
-        entityState = newState(departmentCreatedEvent1)
+        entityState = newState(departmentCreatedEvent1),
     )
     val oldDepId = randomDepartmentId()
     val boss1 = Employee(
         bossId1, Name("Nursultan", "N"), oldDepId, "nursultan@001.kz", BUBALEH,
-        persistentStateV1()
+        persistentStateV1(),
     ).changeDepartment(department1)
 
     val departmentId2 = randomDepartmentId()
@@ -90,7 +90,7 @@ class PersistingSpec : BehaviorSpec({
         name = "KazahDepartment 2",
         headcount = 1,
         ration = BUBALEH,
-        boss = bossId2
+        boss = bossId2,
     )
     val department2 = OwnedDepartment(
         id = departmentId2,
@@ -98,11 +98,11 @@ class PersistingSpec : BehaviorSpec({
         headcount = 1,
         ration = BUBALEH,
         boss = bossId2,
-        entityState = newState(departmentCreatedEvent2)
+        entityState = newState(departmentCreatedEvent2),
     )
     val boss2 = Employee(
         bossId2, Name("Vladimir", "P"), oldDepId, "vladimir@001.ru", BUBALEH,
-        persistentStateV1()
+        persistentStateV1(),
     ).changeDepartment(department2)
 
     val departmentId3 = randomDepartmentId()
@@ -126,14 +126,14 @@ class PersistingSpec : BehaviorSpec({
         @Suppress("UNCHECKED_CAST")
         val repos = ModelRepos(
             Department::class hasRepo topRepo as ModelRepository<*, Department<*>>,
-            Employee::class hasRepo topRepo as ModelRepository<*, Employee>
+            Employee::class hasRepo topRepo as ModelRepository<*, Employee>,
         )
 
         val txnManager = WithCtxConnectionTransactionManager(
             connection = { DummyConnection },
             beforeTxn = { history.add(TransactionStarted(it)) },
             afterTxn = { mode, _ -> history.add(TransactionFinished(mode)) },
-            setPipelining = { supporstPipelining }
+            setPipelining = { supporstPipelining },
         )
 
         val eventsRepo = object : EventRepository {
@@ -152,7 +152,7 @@ class PersistingSpec : BehaviorSpec({
             transactionManager = txnManager,
             modelRepos = repos,
             eventRepository = eventsRepo,
-            eventPublisher = eventPublisher
+            eventPublisher = eventPublisher,
         )
 
         val now = now()
@@ -179,19 +179,19 @@ class PersistingSpec : BehaviorSpec({
                         .withResult(Unit)
                         .toPersist,
                     now = clock.instant(),
-                    uowSupportsOutOfOrderPersisting = outOfOrder
+                    uowSupportsOutOfOrderPersisting = outOfOrder,
                 )
             }
 
             When(
                 "Principal persists changes of same model with${if (supporstPipelining) "" else " no"}" +
-                    " pipelining support and with out of order persisting support"
+                    " pipelining support and with out of order persisting support",
             ) {
                 persister(true)
 
                 And(
                     "Persisting history matching grouped models and events from changes" +
-                        " with context created from configured clock"
+                        " with context created from configured clock",
                 ) {
                     history should {
                         it.size shouldBe 7
@@ -210,7 +210,7 @@ class PersistingSpec : BehaviorSpec({
                                     name = "KazahDepartment 1",
                                     headcount = 1,
                                     ration = BUBALEH,
-                                    boss = bossId1
+                                    boss = bossId1,
                                 )
                                 vals[1] shouldBe DepartmentChanged(bossId1, oldDepId, departmentId1)
                                 vals[2] shouldBe BossChanged(departmentId3, bossId3, bossId2)
@@ -219,7 +219,7 @@ class PersistingSpec : BehaviorSpec({
                                     name = "KazahDepartment 2",
                                     headcount = 1,
                                     ration = BUBALEH,
-                                    boss = bossId2
+                                    boss = bossId2,
                                 )
                                 vals[4] shouldBe DepartmentChanged(bossId2, oldDepId, departmentId2)
                             }
@@ -236,7 +236,7 @@ class PersistingSpec : BehaviorSpec({
                                     name = "KazahDepartment 1",
                                     headcount = 1,
                                     ration = BUBALEH,
-                                    boss = bossId1
+                                    boss = bossId1,
                                 )
                                 vals[1] shouldBe DepartmentChanged(bossId1, oldDepId, departmentId1)
                                 vals[2] shouldBe BossChanged(departmentId3, bossId3, bossId2)
@@ -245,7 +245,7 @@ class PersistingSpec : BehaviorSpec({
                                     name = "KazahDepartment 2",
                                     headcount = 1,
                                     ration = BUBALEH,
-                                    boss = bossId2
+                                    boss = bossId2,
                                 )
                                 vals[4] shouldBe DepartmentChanged(bossId2, oldDepId, departmentId2)
                             }
@@ -257,13 +257,13 @@ class PersistingSpec : BehaviorSpec({
             history.clear()
             When(
                 "Principal persists changes of same model with${if (supporstPipelining) "" else " no"}" +
-                    " pipelining support and with no out of order persisting support"
+                    " pipelining support and with no out of order persisting support",
             ) {
                 persister(false)
 
                 And(
                     "Persisting history matching grouped models and events from changes" +
-                        " with context created from configured clock"
+                        " with context created from configured clock",
                 ) {
                     history should {
                         it.size shouldBe 9
@@ -284,7 +284,7 @@ class PersistingSpec : BehaviorSpec({
                                     name = "KazahDepartment 1",
                                     headcount = 1,
                                     ration = BUBALEH,
-                                    boss = bossId1
+                                    boss = bossId1,
                                 )
                                 vals[1] shouldBe DepartmentChanged(bossId1, oldDepId, departmentId1)
                                 vals[2] shouldBe BossChanged(departmentId3, bossId3, bossId2)
@@ -293,7 +293,7 @@ class PersistingSpec : BehaviorSpec({
                                     name = "KazahDepartment 2",
                                     headcount = 1,
                                     ration = BUBALEH,
-                                    boss = bossId2
+                                    boss = bossId2,
                                 )
                                 vals[4] shouldBe DepartmentChanged(bossId2, oldDepId, departmentId2)
                             }
@@ -310,7 +310,7 @@ class PersistingSpec : BehaviorSpec({
                                     name = "KazahDepartment 1",
                                     headcount = 1,
                                     ration = BUBALEH,
-                                    boss = bossId1
+                                    boss = bossId1,
                                 )
                                 vals[1] shouldBe DepartmentChanged(bossId1, oldDepId, departmentId1)
                                 vals[2] shouldBe BossChanged(departmentId3, bossId3, bossId2)
@@ -319,7 +319,7 @@ class PersistingSpec : BehaviorSpec({
                                     name = "KazahDepartment 2",
                                     headcount = 1,
                                     ration = BUBALEH,
-                                    boss = bossId2
+                                    boss = bossId2,
                                 )
                                 vals[4] shouldBe DepartmentChanged(bossId2, oldDepId, departmentId2)
                             }
@@ -333,7 +333,7 @@ class PersistingSpec : BehaviorSpec({
                 history.clear()
                 When(
                     "Principal persists noop changes with${if (supporstPipelining) "" else " no"} pipelining support" +
-                        " and with${if (outOfOrder) "" else " no"} out of order persisting support"
+                        " and with${if (outOfOrder) "" else " no"} out of order persisting support",
                 ) {
                     persisting.persist(
                         uowName = "Hoba",
@@ -348,7 +348,7 @@ class PersistingSpec : BehaviorSpec({
                                     ration = BUBALEH,
                                     boss = bossId1,
                                     entityState = persistentStateV1(),
-                                )
+                                ),
                             ),
                             Noop(
                                 OwnedDepartment(
@@ -358,16 +358,16 @@ class PersistingSpec : BehaviorSpec({
                                     ration = BUBALEH,
                                     boss = bossId2,
                                     entityState = persistentStateV1(),
-                                )
+                                ),
                             ),
                         ),
                         now = clock.instant(),
-                        uowSupportsOutOfOrderPersisting = outOfOrder
+                        uowSupportsOutOfOrderPersisting = outOfOrder,
                     )
 
                     And(
                         "Persisting history matching models and events from changes" +
-                            " with context created from configured clock"
+                            " with context created from configured clock",
                     ) {
                         history should {
                             it.size shouldBe 4

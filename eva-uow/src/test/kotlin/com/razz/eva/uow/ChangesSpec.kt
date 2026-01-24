@@ -241,14 +241,14 @@ class ChangesSpec : BehaviorSpec({
                         Then("original changes contain only models were added to it directly") {
                             finalChanges0.toPersist shouldBe listOf(
                                 Add(newModel, listOf(newModelEvent)),
-                                Update(model3, listOf(model3Event))
+                                Update(model3, listOf(model3Event)),
                             )
                             finalChanges0.result shouldBe listOf("Gurbanguly", "Berdimuhamedow")
                         }
                         And("derived changes contain only models were added to it directly") {
                             changes1.toPersist shouldBe listOf(
                                 Add(newModel, listOf(newModelEvent)),
-                                Update(model1, listOf(model1Event))
+                                Update(model1, listOf(model1Event)),
                             )
                             changes1.result shouldBe model2
                         }

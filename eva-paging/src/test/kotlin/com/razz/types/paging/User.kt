@@ -4,5 +4,5 @@ import java.time.Instant
 
 data class User(
     val name: String,
-    val registeredAt: Instant
+    val registeredAt: Instant,
 )

@@ -48,9 +48,9 @@ class JooqBaseRepositoryBatchingSpec : BehaviorSpec({
                         name = "store me in the repo",
                         boss = bossId1,
                         headcount = 1,
-                        ration = BUBALEH
-                    )
-                )
+                        ration = BUBALEH,
+                    ),
+                ),
             )
             val depId2 = randomDepartmentId()
             val bossId2 = EmployeeId(randomUUID())
@@ -66,9 +66,9 @@ class JooqBaseRepositoryBatchingSpec : BehaviorSpec({
                         name = "store me in the repo too",
                         boss = bossId1,
                         headcount = 1,
-                        ration = SHAKSHOUKA
-                    )
-                )
+                        ration = SHAKSHOUKA,
+                    ),
+                ),
             )
 
             And("Query executor accepts one model as batch insert") {
@@ -83,7 +83,7 @@ class JooqBaseRepositoryBatchingSpec : BehaviorSpec({
                         setRecordUpdatedAt(addContext.startedAt)
                         setRecordCreatedAt(addContext.startedAt)
                         setVersion(V1.version)
-                    }
+                    },
                 )
 
                 When("Principal saving model") {
@@ -93,7 +93,7 @@ class JooqBaseRepositoryBatchingSpec : BehaviorSpec({
 
                     Then(
                         "Query executor should receive record with RECORD_CREATED_AT and RECORD_UPDATED_AT" +
-                            " matching context.startedAt and V1"
+                            " matching context.startedAt and V1",
                     ) {
                         val insert = queryExecutor.lastExecution.shouldBeTypeOf<StoreExecuted>()
                         insert.jooqQuery.getSQL(INLINED) shouldBe """
@@ -145,7 +145,7 @@ class JooqBaseRepositoryBatchingSpec : BehaviorSpec({
                         setRecordUpdatedAt(addContext.startedAt)
                         setRecordCreatedAt(addContext.startedAt)
                         setVersion(V1.version)
-                    }
+                    },
                 )
 
                 When("Principal saving model") {
@@ -156,7 +156,7 @@ class JooqBaseRepositoryBatchingSpec : BehaviorSpec({
 
                     Then(
                         "Query executor should receive two records with RECORD_CREATED_AT and RECORD_UPDATED_AT" +
-                            " matching context.startedAt and V1"
+                            " matching context.startedAt and V1",
                     ) {
                         val insert = queryExecutor.lastExecution.shouldBeTypeOf<StoreExecuted>()
                         insert.jooqQuery.getSQL(INLINED) shouldBe """
@@ -206,7 +206,7 @@ class JooqBaseRepositoryBatchingSpec : BehaviorSpec({
                         setRecordUpdatedAt(addContext.startedAt)
                         setRecordCreatedAt(addContext.startedAt)
                         setVersion(V1.version)
-                    }
+                    },
                 )
                 val addedDep = repo.find(dep1.id()) as OwnedDepartment
                 queryExecutor.expectQueryFor(
@@ -220,7 +220,7 @@ class JooqBaseRepositoryBatchingSpec : BehaviorSpec({
                         setRecordUpdatedAt(updateContext.startedAt)
                         setRecordCreatedAt(addContext.startedAt)
                         setVersion(2)
-                    }
+                    },
                 )
 
                 When("Principal updating model") {
@@ -229,7 +229,7 @@ class JooqBaseRepositoryBatchingSpec : BehaviorSpec({
 
                     Then(
                         "Query executor should receive record with RECORD_CREATED_AT and RECORD_UPDATED_AT" +
-                            " matching context.startedAt and V2"
+                            " matching context.startedAt and V2",
                     ) {
                         val update = queryExecutor.lastExecution.shouldBeTypeOf<StoreExecuted>()
                         update.jooqQuery.getSQL(INLINED) shouldBe """
@@ -255,7 +255,7 @@ class JooqBaseRepositoryBatchingSpec : BehaviorSpec({
                         setRecordUpdatedAt(addContext.startedAt)
                         setRecordCreatedAt(addContext.startedAt)
                         setVersion(V1.version)
-                    }
+                    },
                 )
                 val addedDep1 = repo.find(dep1.id()) as OwnedDepartment
                 queryExecutor.expectQueryFor(
@@ -269,7 +269,7 @@ class JooqBaseRepositoryBatchingSpec : BehaviorSpec({
                         setRecordUpdatedAt(addContext.startedAt)
                         setRecordCreatedAt(addContext.startedAt)
                         setVersion(V1.version)
-                    }
+                    },
                 )
                 val addedDep2 = repo.find(dep2.id()) as OwnedDepartment
                 queryExecutor.expectQueryFor(
@@ -294,13 +294,13 @@ class JooqBaseRepositoryBatchingSpec : BehaviorSpec({
                         setRecordUpdatedAt(updateContext.startedAt)
                         setRecordCreatedAt(addContext.startedAt)
                         setVersion(2)
-                    }
+                    },
                 )
 
                 When("Principal updating model") {
                     repo.update(
                         updateContext,
-                        listOf(addedDep1.rename("UPDATE TEST"), addedDep2.rename("UPDATE TEST 2"))
+                        listOf(addedDep1.rename("UPDATE TEST"), addedDep2.rename("UPDATE TEST 2")),
                     )
                     val recordUpdatedAt = InstantConverter.instance.to(updateContext.startedAt)
                     val boss1 = requireNotNull(dep1.boss)
@@ -308,7 +308,7 @@ class JooqBaseRepositoryBatchingSpec : BehaviorSpec({
 
                     Then(
                         "Query executor should receive two records with RECORD_CREATED_AT and RECORD_UPDATED_AT" +
-                            " matching context.startedAt and V2"
+                            " matching context.startedAt and V2",
                     ) {
                         val update = queryExecutor.lastExecution.shouldBeTypeOf<StoreExecuted>()
                         update.jooqQuery.getSQL(INLINED) shouldBe """

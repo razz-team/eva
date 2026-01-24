@@ -8,7 +8,7 @@ import kotlin.coroutines.coroutineContext
 
 class VertxTransactionManager(
     primaryProvider: ConnectionProvider<PgConnection>,
-    replicaProvider: ConnectionProvider<PgConnection>
+    replicaProvider: ConnectionProvider<PgConnection>,
 ) : TransactionManager<PgConnection>(primaryProvider, replicaProvider) {
 
     override fun wrapConnection(newConn: PgConnection): ConnectionWrapper<PgConnection> =

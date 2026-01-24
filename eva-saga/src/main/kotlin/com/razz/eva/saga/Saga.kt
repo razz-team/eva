@@ -8,7 +8,7 @@ import com.razz.eva.tracing.use
 import kotlin.reflect.KClass
 
 abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
-    private val sagaExecutionContext: SagaExecutionContext = sagaExecutionContext()
+    private val sagaExecutionContext: SagaExecutionContext = sagaExecutionContext(),
 )
     where PRINCIPAL : Principal<*>,
           IS : Intermediary<SELF>,
@@ -33,7 +33,7 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
         ex: Exception,
         principal: PRINCIPAL,
         params: PARAMS,
-        currentStep: IS?
+        currentStep: IS?,
     ): TS? = throw ex
 
     suspend fun resume(principal: PRINCIPAL, params: PARAMS): TS {
@@ -50,7 +50,7 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
         principal: PRINCIPAL,
         params: PARAMS,
         trail: Set<KClass<out Step<SELF>>>,
-        step: Step<SELF>
+        step: Step<SELF>,
     ): TS = try {
         when (step) {
             is Intermediary<*> -> {

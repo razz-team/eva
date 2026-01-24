@@ -8,7 +8,7 @@ import java.time.InstantSource
 
 abstract class BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, C>(
     executionContext: ExecutionContext,
-    private val configuration: Configuration = default()
+    private val configuration: Configuration = default(),
 ) where PRINCIPAL : Principal<*>, PARAMS : UowParams<PARAMS>, RESULT : Any, C : Any {
 
     protected val clock: InstantSource = executionContext.clock

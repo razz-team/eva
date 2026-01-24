@@ -13,7 +13,7 @@ class NextPageSpec : BehaviorSpec({
     val now = Instant.now()
     data class User(
         val name: String,
-        val timestamp: Instant
+        val timestamp: Instant,
     )
 
     Given("A previous page with some size") {
@@ -41,7 +41,7 @@ class NextPageSpec : BehaviorSpec({
                     nextPage shouldBe Page.Next(
                         maxOrdering = now.minusSeconds(10),
                         offset = "Ilya",
-                        size = prevPage.size
+                        size = prevPage.size,
                     )
                 }
             }

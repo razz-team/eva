@@ -6,7 +6,7 @@ import kotlin.reflect.KClass
 import org.jooq.Record
 
 abstract class ModelPagingStrategy<ID, MID, M, S, P, R>(
-    private val modelClass: KClass<S>
+    private val modelClass: KClass<S>,
 ) : PagingStrategy<ID, M, S, P, R>() where ID : Comparable<ID>,
       MID : ModelId<out Comparable<*>>,
       M : Model<MID, *>,
@@ -25,7 +25,7 @@ abstract class ModelPagingStrategy<ID, MID, M, S, P, R>(
             } else if (failOnWrongModel()) {
                 error(
                     "Model ${mapped.id()} has ${mapped.javaClass.simpleName} type, " +
-                        "while it should have ${modelClass.simpleName} type"
+                        "while it should have ${modelClass.simpleName} type",
                 )
             } else {
                 null

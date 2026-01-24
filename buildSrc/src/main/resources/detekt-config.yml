@@ -68,7 +68,7 @@ complexity:
     threshold: 12
     includeStaticDeclarations: false
     includePrivateDeclarations: false
-    excludes: [ '**BaseEntityRecord**' ]
+    excludes: [ '**BaseModelRecord**' ]
   ComplexMethod:
     active: true
     threshold: 15
@@ -340,6 +340,12 @@ formatting:
     active: false
     autoCorrect: true
   StringTemplate:
+    active: true
+    autoCorrect: true
+  TrailingCommaOnCallSite:
+    active: true
+    autoCorrect: true
+  TrailingCommaOnDeclarationSite:
     active: true
     autoCorrect: true
 

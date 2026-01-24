@@ -13,7 +13,7 @@ abstract class Changes<R> {
 }
 
 class ChangesAccumulator private constructor(
-    private val changes: Map<ModelId<out Comparable<*>>, Change>
+    private val changes: Map<ModelId<out Comparable<*>>, Change>,
 ) {
     constructor() : this(emptyMap())
 
@@ -60,7 +60,7 @@ class ChangesAccumulator private constructor(
             null -> ChangesAccumulator(
                 LinkedHashMap(changes).apply {
                     put(model.id(), changer(model, modelEvents))
-                }
+                },
             )
             else -> throw IllegalStateException(existingChangeExceptionMessage(model.id()))
         }
@@ -69,5 +69,5 @@ class ChangesAccumulator private constructor(
 
 internal class RealisedChanges<R>(
     override val result: R,
-    override val toPersist: List<Change>
+    override val toPersist: List<Change>,
 ) : Changes<R>()

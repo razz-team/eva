@@ -39,7 +39,7 @@ import java.util.UUID.randomUUID
 data class Params(
     val id: Int,
     val name: String,
-    override val idempotencyKey: IdempotencyKey
+    override val idempotencyKey: IdempotencyKey,
 ) : UowParams<Params> {
     override fun serialization() = serializer()
 }
@@ -72,25 +72,25 @@ class JooqEventRepositorySpec : BehaviorSpec({
                         depId,
                         "PoContrE",
                         1_337,
-                        Ration.SHAKSHOUKA
+                        Ration.SHAKSHOUKA,
                     ),
                     ModelEventId.random() to EmployeeCreated(
                         empId,
                         Name("rabotyaga", "#1"),
                         depId,
                         "rabotyaga1@top_pocontre.eu",
-                        Ration.SHAKSHOUKA
+                        Ration.SHAKSHOUKA,
                     ),
                     ModelEventId.random() to EmailChanged(
                         empId,
                         "old@email.com",
                         "new@email.com",
-                        anotherPrincipal
+                        anotherPrincipal,
                     ),
                 ),
                 idempotencyKey = params.idempotencyKey,
                 params = json.encodeToString(params.serialization(), params),
-                occurredAt = now
+                occurredAt = now,
             )
 
             When("Principal saving Unit of Work Event with two model events") {
@@ -127,9 +127,9 @@ class JooqEventRepositorySpec : BehaviorSpec({
                                                     "name":"Nik",
                                                     "idempotencyKey":"${uowEvent.idempotencyKey?.stringValue()}"
                                                 }
-                                                """
+                                                """,
                                             ).toString()
-                                        }
+                                        },
                                     )
                                 },
                         ),
@@ -162,7 +162,7 @@ class JooqEventRepositorySpec : BehaviorSpec({
                                                     {"traceparent":"00-$traceId-$spanId-01"}
                                                 """.trimIndent()
                                             }
-                                        }
+                                        },
                                     )
                                     it.addRecord(
                                         uowEvent.modelEvents[1].let { (key, value) ->
@@ -186,7 +186,7 @@ class JooqEventRepositorySpec : BehaviorSpec({
                                                     {"traceparent":"00-$traceId-$spanId-01"}
                                                 """.trimIndent()
                                             }
-                                        }
+                                        },
                                     )
                                     it.addRecord(
                                         uowEvent.modelEvents[2].let { (key, value) ->
@@ -212,10 +212,10 @@ class JooqEventRepositorySpec : BehaviorSpec({
                                                     {"traceparent":"00-$traceId-$spanId-01"}
                                                 """.trimIndent()
                                             }
-                                        }
+                                        },
                                     )
                                 },
-                        )
+                        ),
                     )
                 }
             }
@@ -237,7 +237,7 @@ class JooqEventRepositorySpec : BehaviorSpec({
                 modelEvents = listOf(),
                 idempotencyKey = params.idempotencyKey,
                 params = json.encodeToString(params.serialization(), params),
-                occurredAt = now
+                occurredAt = now,
             )
 
             When("Principal saving Unit of Work Event") {
@@ -266,12 +266,12 @@ class JooqEventRepositorySpec : BehaviorSpec({
                                                     "name":"Nik",
                                                     "idempotencyKey":"${uowEvent.idempotencyKey?.stringValue()}"
                                                 }
-                                                """
+                                                """,
                                             ).toString()
-                                        }
+                                        },
                                     )
                                 },
-                        )
+                        ),
                     )
                 }
             }
@@ -293,7 +293,7 @@ class JooqEventRepositorySpec : BehaviorSpec({
                 modelEvents = listOf(),
                 idempotencyKey = params.idempotencyKey,
                 params = json.encodeToString(params.serialization(), params),
-                occurredAt = now
+                occurredAt = now,
             )
 
             When("Principal saving Unit of Work Event") {
@@ -322,12 +322,12 @@ class JooqEventRepositorySpec : BehaviorSpec({
                                                     "name":"Nik",
                                                     "idempotencyKey":"${uowEvent.idempotencyKey?.stringValue()}"
                                                 }
-                                                """
+                                                """,
                                             ).toString()
-                                        }
+                                        },
                                     )
                                 },
-                        )
+                        ),
                     )
                 }
             }
@@ -353,12 +353,12 @@ class JooqEventRepositorySpec : BehaviorSpec({
                         departmentId,
                         "Engineering".repeat(100),
                         1_333,
-                        Ration.SHAKSHOUKA
+                        Ration.SHAKSHOUKA,
                     ),
                 ),
                 idempotencyKey = params.idempotencyKey,
                 params = json.encodeToString(params.serialization(), params),
-                occurredAt = now
+                occurredAt = now,
             )
 
             val exception = shouldThrow<PersistenceException.EventPayloadTooLargeException> {
