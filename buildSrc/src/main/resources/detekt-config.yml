@@ -68,7 +68,7 @@ complexity:
     threshold: 12
     includeStaticDeclarations: false
     includePrivateDeclarations: false
-    excludes: [ '**BaseModelRecord**' ]
+    excludes: [ '**BaseEntityRecord**', '**BaseModelRecord**' ]
   ComplexMethod:
     active: true
     threshold: 15
