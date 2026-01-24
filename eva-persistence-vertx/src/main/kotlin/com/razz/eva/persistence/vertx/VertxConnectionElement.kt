@@ -7,7 +7,7 @@ import io.vertx.sqlclient.Transaction
 import kotlin.coroutines.CoroutineContext
 
 internal class VertxConnectionElement(
-    internal val connection: PgConnection
+    internal val connection: PgConnection,
 ) : ConnectionWrapper<PgConnection> {
 
     private var transaction: Transaction? = null

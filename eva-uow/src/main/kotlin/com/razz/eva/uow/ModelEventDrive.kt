@@ -4,10 +4,10 @@ import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelEventDrive
 
 internal class ModelEventDrive<E : ModelEvent<*>> internal constructor(
-    private val events: List<E>
+    private val events: List<E>,
 ) : ModelEventDrive<E> {
 
-    constructor() : this(emptyList())
+    constructor() : this(listOf())
 
     override fun with(events: List<E>): ModelEventDrive<E> {
         return ModelEventDrive(this.events + events)

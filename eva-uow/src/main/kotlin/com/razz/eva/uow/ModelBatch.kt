@@ -5,12 +5,12 @@ import com.razz.eva.domain.ModelId
 import com.razz.eva.repository.ModelRepos
 import com.razz.eva.repository.TransactionalContext
 
-internal sealed interface Batch {
+internal sealed interface ModelBatch {
     suspend fun persist(context: TransactionalContext, repos: ModelRepos): List<Model<*, *>>
 
-    fun with(model: Model<*, *>): Batch
+    fun with(model: Model<*, *>): ModelBatch
 
-    class Add<MID : ModelId<out Comparable<*>>, M : Model<MID, *>>(model: M) : Batch {
+    class Add<MID : ModelId<out Comparable<*>>, M : Model<MID, *>>(model: M) : ModelBatch {
         private val models = mutableListOf(model)
 
         override suspend fun persist(context: TransactionalContext, repos: ModelRepos): List<Model<*, *>> {
@@ -24,7 +24,7 @@ internal sealed interface Batch {
         }
     }
 
-    class Update<MID : ModelId<out Comparable<*>>, M : Model<MID, *>>(model: M) : Batch {
+    class Update<MID : ModelId<out Comparable<*>>, M : Model<MID, *>>(model: M) : ModelBatch {
         private val models = mutableListOf(model)
 
         override suspend fun persist(context: TransactionalContext, repos: ModelRepos): List<Model<*, *>> {

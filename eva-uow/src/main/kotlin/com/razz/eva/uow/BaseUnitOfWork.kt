@@ -8,7 +8,7 @@ import java.time.InstantSource
 
 abstract class BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, C>(
     executionContext: ExecutionContext,
-    private val configuration: Configuration = default()
+    private val configuration: Configuration = default(),
 ) where PRINCIPAL : Principal<*>, PARAMS : UowParams<PARAMS>, RESULT : Any, C : Any {
 
     protected val clock: InstantSource = executionContext.clock
@@ -21,11 +21,11 @@ abstract class BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, C>(
 
     open suspend fun onFailure(params: PARAMS, ex: PersistenceException): RESULT = throw ex
 
-    private val NO_CHANGES: Changes<Unit> = RealisedChanges(Unit, emptyList())
+    private val NO_CHANGES: Changes<Unit> = RealisedChanges(Unit, listOf(), listOf())
 
     protected fun noChanges() = NO_CHANGES
 
-    protected fun <R> noChanges(result: R): Changes<R> = RealisedChanges(result, emptyList())
+    protected fun <R> noChanges(result: R): Changes<R> = RealisedChanges(result, listOf(), listOf())
 
     protected abstract suspend fun changes(init: suspend C.() -> RESULT): Changes<RESULT>
 

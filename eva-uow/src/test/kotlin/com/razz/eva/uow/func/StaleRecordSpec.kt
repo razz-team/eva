@@ -30,7 +30,7 @@ class StaleRecordSpec : PersistenceBaseSpec({
                 boss = EmployeeId(randomUUID()),
                 headcount = 1,
                 ration = SHAKSHOUKA,
-            )
+            ),
         )
 
         And("Model will be updated before uow transaction is completed") {
@@ -38,7 +38,7 @@ class StaleRecordSpec : PersistenceBaseSpec({
                 name = Name("Igor", "Dmitri${nextInt(100)}"),
                 departmentId = department.id(),
                 email = "igor.dmitri${nextInt(100)}@razz.com",
-                ration = SHAKSHOUKA
+                ration = SHAKSHOUKA,
             )
 
             var updatedOutOfUow = false
@@ -49,7 +49,7 @@ class StaleRecordSpec : PersistenceBaseSpec({
                         add(employeeOutOfUow)
                         update(
                             checkNotNull(departmentRepo.find(department.id()))
-                                .addEmployee(employeeOutOfUow)
+                                .addEmployee(employeeOutOfUow),
                         )
                     }
                 }
@@ -60,7 +60,7 @@ class StaleRecordSpec : PersistenceBaseSpec({
                     module.uowx.execute(HireEmployeesUow::class, TestPrincipal) {
                         HireEmployeesUow.Params(
                             department.id(),
-                            listOf(Name("Nik", "Dennis"))
+                            listOf(Name("Nik", "Dennis")),
                         )
                     }
                 }
@@ -80,12 +80,12 @@ class StaleRecordSpec : PersistenceBaseSpec({
                         boss = EmployeeId(randomUUID()),
                         headcount = 1,
                         ration = SHAKSHOUKA,
-                    )
+                    ),
                 )
                 val existingSp = module.uowxRetries.execute(HireEmployeesUow::class, TestPrincipal) {
                     HireEmployeesUow.Params(
                         department.id(),
-                        listOf(Name("Ser", "Pryt"))
+                        listOf(Name("Ser", "Pryt")),
                     )
                 }.single()
                 val updatedSp1times = writableRepository.update(existingSp.changeDepartment(randomDepartment))
@@ -96,7 +96,7 @@ class StaleRecordSpec : PersistenceBaseSpec({
                 val avengers = module.uowxRetries.execute(HireEmployeesUow::class, TestPrincipal) {
                     HireEmployeesUow.Params(
                         department.id(),
-                        listOf(Name("Ser", "Pryt"), Name("Ser", "Posp"), Name("Pryt", "Posp"))
+                        listOf(Name("Ser", "Pryt"), Name("Ser", "Posp"), Name("Pryt", "Posp")),
                     )
                 }
 
@@ -123,7 +123,7 @@ class StaleRecordSpec : PersistenceBaseSpec({
                     rollingBackUowx.execute(HireEmployeesUow::class, TestPrincipal) {
                         HireEmployeesUow.Params(
                             department.id(),
-                            listOf(Name("Nik", "Dennis"))
+                            listOf(Name("Nik", "Dennis")),
                         )
                     }
                 }

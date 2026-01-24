@@ -10,13 +10,13 @@ class CustomChangesDsl internal constructor(private var changes: ChangesAccumula
 
     fun <MID, E, M> add(model: M): M
         where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
-        changes = changes.withAdded(model)
+        changes = changes.withAddedModel(model)
         return model
     }
 
     fun <MID, E, M> update(model: M): M
         where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
-        changes = changes.withUpdated(model)
+        changes = changes.withUpdatedModel(model)
         return model
     }
 
@@ -24,7 +24,7 @@ class CustomChangesDsl internal constructor(private var changes: ChangesAccumula
         internal suspend inline fun <R> changes(
             changes: ChangesAccumulator,
             @Suppress("REDUNDANT_INLINE_SUSPEND_FUNCTION_TYPE")
-            init: suspend CustomChangesDsl.() -> R
+            init: suspend CustomChangesDsl.() -> R,
         ): Changes<R> {
             val dsl = CustomChangesDsl(changes)
             val res = init(dsl)
@@ -33,7 +33,7 @@ class CustomChangesDsl internal constructor(private var changes: ChangesAccumula
 
         internal suspend fun <R> append(
             head: CustomChangesDsl,
-            init: suspend CustomChangesDsl.() -> R
+            init: suspend CustomChangesDsl.() -> R,
         ): Changes<R> {
             val res = init(head)
             return head.changes.withResult(res)

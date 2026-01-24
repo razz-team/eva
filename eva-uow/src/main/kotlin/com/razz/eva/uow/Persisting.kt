@@ -6,6 +6,7 @@ import com.razz.eva.events.EventPublisher
 import com.razz.eva.events.UowEvent
 import com.razz.eva.persistence.ConnectionMode.REQUIRE_NEW
 import com.razz.eva.persistence.TransactionManager
+import com.razz.eva.repository.EntityRepos
 import com.razz.eva.repository.EventRepository
 import com.razz.eva.repository.ModelRepos
 import com.razz.eva.repository.TransactionalContext
@@ -26,6 +27,7 @@ import java.util.UUID.randomUUID
 class Persisting(
     private val transactionManager: TransactionManager<*>,
     private val modelRepos: ModelRepos,
+    private val entityRepos: EntityRepos,
     private val eventRepository: EventRepository,
     private val eventPublisher: EventPublisher = NoopEventPublisher,
     private val json: StringFormat = com.razz.eva.serialization.json.JsonFormat.json,
@@ -38,13 +40,17 @@ class Persisting(
         uowName: String,
         params: PARAMS,
         principal: Principal<*>,
-        changes: Collection<Change>,
+        modelChanges: Collection<ModelChange>,
+        entityChanges: Collection<EntityChange>,
         now: Instant,
-        uowSupportsOutOfOrderPersisting: Boolean
+        uowSupportsOutOfOrderPersisting: Boolean,
     ): Pair<UowEvent.Id, List<Model<*, *>>> {
         val (uowEvent, flushed) = inTransaction(now, uowSupportsOutOfOrderPersisting) { persisting, startedAt ->
-            val events = changes.flatMap(Change::modelEvents)
-            changes.forEach { change ->
+            val events = modelChanges.flatMap(ModelChange::modelEvents)
+            modelChanges.forEach { change ->
+                change.persist(persisting)
+            }
+            entityChanges.forEach { change ->
                 change.persist(persisting)
             }
             UowEvent(
@@ -54,7 +60,7 @@ class Persisting(
                 modelEvents = events.map { ModelEventId.random() to it },
                 idempotencyKey = params.idempotencyKey,
                 params = json.encodeToString(params.serialization(), params),
-                occurredAt = startedAt
+                occurredAt = startedAt,
             )
         }
         eventPublisher.publish(uowEvent)
@@ -64,18 +70,18 @@ class Persisting(
     private suspend fun inTransaction(
         now: Instant,
         uowSupportsOutOfOrderPersisting: Boolean,
-        block: (ModelPersisting, Instant) -> UowEvent
+        block: (PersistingAccumulator, Instant) -> UowEvent,
     ): Pair<UowEvent, List<Model<*, *>>> {
         val persistingMode = if (transactionManager.supportsPipelining() && uowSupportsOutOfOrderPersisting) {
             PARALLEL_OUT_OF_ORDER
         } else {
             SEQUENTIAL_FIFO
         }
-        val persisting = newPersistingAccumulator(uowSupportsOutOfOrderPersisting, modelRepos)
+        val persisting = newPersistingAccumulator(uowSupportsOutOfOrderPersisting, modelRepos, entityRepos)
         val uowEvent = block(persisting, now)
         val flushed = transactionManager.inTransaction(
             REQUIRE_NEW,
-            suspend { flush(persisting, uowEvent, transactionalContext(now), persistingMode) }
+            suspend { flush(persisting, uowEvent, transactionalContext(now), persistingMode) },
         )
         return uowEvent to flushed
     }
@@ -84,7 +90,7 @@ class Persisting(
         accumulator: PersistingAccumulator,
         uowEvent: UowEvent,
         context: TransactionalContext,
-        mode: PersistingMode
+        mode: PersistingMode,
     ): List<Model<*, *>> = when (mode) {
         PARALLEL_OUT_OF_ORDER -> coroutineScope {
             val flushed = accumulator.accumulated().map { operation ->

@@ -47,7 +47,7 @@ class InMemoryEventBusSpec : FunSpec({
         }
         val bus = InMemoryEventBus(
             consumers = listOf(consumer),
-            context = Executor(Runnable::run).asCoroutineDispatcher()
+            context = Executor(Runnable::run).asCoroutineDispatcher(),
         ).apply {
             start()
         }
@@ -66,7 +66,7 @@ class InMemoryEventBusSpec : FunSpec({
         }
         val bus = InMemoryEventBus(
             consumers = listOf(consumer0, consumer1),
-            context = Executor(Runnable::run).asCoroutineDispatcher()
+            context = Executor(Runnable::run).asCoroutineDispatcher(),
         ).apply {
             start()
         }
@@ -96,14 +96,14 @@ class InMemoryEventBusSpec : FunSpec({
                     put("principalId", uowEvent.principal.id.toString())
                     put("principalName", uowEvent.principal.name.toString())
                     put("principalContext",
-                        JsonObject(uowEvent.principal.context().mapValues { JsonPrimitive(it.value) })
+                        JsonObject(uowEvent.principal.context().mapValues { JsonPrimitive(it.value) }),
                     )
-                }
+                },
             )
         }
         val bus = InMemoryEventBus(
             consumers = listOf(consumer0, consumer1, consumer2),
-            context = Executor(Runnable::run).asCoroutineDispatcher()
+            context = Executor(Runnable::run).asCoroutineDispatcher(),
         ).apply {
             start()
         }
@@ -172,7 +172,7 @@ private fun uowEvent(vararg modelEvents: ModelEvent<*> = arrayOf(TestModelEvent0
     params = buildJsonObject {
         put("id", "some-id")
     }.toString(),
-    occurredAt = Instant.now()
+    occurredAt = Instant.now(),
 )
 
 private suspend fun validateResult(chan: Channel<Result>) {
@@ -186,7 +186,7 @@ private suspend fun validateResult(chan: Channel<Result>) {
 
 private fun consumer(
     modelEvent: ModelEvent<*>,
-    matcher: suspend (IntegrationModelEvent) -> Unit
+    matcher: suspend (IntegrationModelEvent) -> Unit,
 ): Pair<Channel<Result>, EventConsumer> {
     val chan = Channel<Result>(capacity = 100) { }
     return chan to object : EventConsumer {

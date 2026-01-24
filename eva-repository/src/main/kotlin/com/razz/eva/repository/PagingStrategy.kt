@@ -31,7 +31,7 @@ abstract class PagingStrategy<ID, M, S, P, R>
 
     internal fun select(
         step: SelectOrderByStep<R>,
-        page: Page<P>
+        page: Page<P>,
     ): Select<R> = step.orderBy(tableOrdering().sort(order()), tableId())
         .apply {
             if (page is Page.Next<P>) {
@@ -57,7 +57,7 @@ abstract class PagingStrategy<ID, M, S, P, R>
         Page.Next(
             maxOrdering = ordering(lastElement),
             offset = offset(lastElement),
-            size = pageSize
+            size = pageSize,
         )
     } else null
 }

@@ -12,7 +12,7 @@ import java.util.concurrent.Executors.newFixedThreadPool
 
 class JdbcPersistenceModule(
     primaryConfig: DatabaseConfig,
-    replicaConfig: DatabaseConfig
+    replicaConfig: DatabaseConfig,
 ) : PersistenceModule() {
 
     private val primaryPool = poolProvider(primaryConfig, true)

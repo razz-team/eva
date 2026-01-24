@@ -91,13 +91,13 @@ class VertxQueryExecutor(
                     converter.to(value)
                 }
             }
-        }
+        },
     )
 
     private fun <R : Record> convertRowToRecord(
         dslContext: DSLContext,
         row: Row,
-        table: Table<R>
+        table: Table<R>,
     ): R {
         val fields = table.fields()
         val values = arrayOfNulls<Any>(fields.size)

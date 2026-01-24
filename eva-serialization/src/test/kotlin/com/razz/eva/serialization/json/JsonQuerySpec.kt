@@ -32,7 +32,7 @@ class JsonQuerySpec : BehaviorSpec({
                 "floatOpt": null,
                 "booleanOpt": null
             }
-        """
+        """,
         )
 
         When("Principal gets object from json") {

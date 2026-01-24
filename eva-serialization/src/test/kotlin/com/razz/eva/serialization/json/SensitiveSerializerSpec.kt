@@ -13,7 +13,7 @@ data class Password(val value: String)
 @Serializable
 data class Params(
     val password: Password,
-    val openText: String
+    val openText: String,
 )
 
 class SensitiveSerializerSpec : BehaviorSpec({
@@ -22,7 +22,7 @@ class SensitiveSerializerSpec : BehaviorSpec({
         URI("whatever"),
         randomUUID(),
         "plain string",
-        listOf(0L, object {})
+        listOf(0L, object {}),
     ).forAll {
         Given("The $it big decimal") {
 

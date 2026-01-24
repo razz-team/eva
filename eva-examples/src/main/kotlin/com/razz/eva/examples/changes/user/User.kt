@@ -80,7 +80,7 @@ class User(
     val firstName: FirstName?,
     val lastName: LastName?,
     val address: Address?,
-    modelState: ModelState<Id, UserEvent>
+    modelState: ModelState<Id, UserEvent>,
 ) : Model<Id, UserEvent>(id, modelState) {
 
     @Serializable
@@ -124,8 +124,8 @@ class User(
                 modelId = id(),
                 oldFirstName = this.firstName,
                 newFirstName = firstName,
-            )
-        )
+            ),
+        ),
     )
 
     fun updateLastName(lastName: LastName?) = if (this.lastName == lastName) null else existingUser(
@@ -138,8 +138,8 @@ class User(
                 modelId = id(),
                 oldLastName = this.lastName,
                 newLastName = lastName,
-            )
-        )
+            ),
+        ),
     )
 
     fun updateAddress(address: Address?) = if (this.address == address) null else existingUser(
@@ -151,9 +151,9 @@ class User(
             UserAddressChanged(
                 modelId = id(),
                 oldAddress = this.address,
-                newAddress = address
-            )
-        )
+                newAddress = address,
+            ),
+        ),
     )
 
     companion object Factory {
@@ -162,7 +162,7 @@ class User(
             id: Id = Id.random(),
             firstName: FirstName? = null,
             lastName: LastName? = null,
-            address: Address? = null
+            address: Address? = null,
         ) = User(
             id = id,
             firstName = firstName,
@@ -174,8 +174,8 @@ class User(
                     firstName = firstName,
                     lastName = lastName,
                     address = address,
-                )
-            )
+                ),
+            ),
         )
 
         fun existingUser(
@@ -183,13 +183,13 @@ class User(
             firstName: FirstName? = null,
             lastName: LastName? = null,
             address: Address? = null,
-            modelState: ModelState<Id, UserEvent>
+            modelState: ModelState<Id, UserEvent>,
         ) = User(
             id = id,
             firstName = firstName,
             lastName = lastName,
             address = address,
-            modelState = modelState
+            modelState = modelState,
         )
     }
 }

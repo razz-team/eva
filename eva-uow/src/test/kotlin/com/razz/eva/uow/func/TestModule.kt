@@ -10,6 +10,7 @@ import com.razz.eva.persistence.executor.QueryExecutor
 import com.razz.eva.repository.BubalehRepository
 import com.razz.eva.repository.DepartmentRepository
 import com.razz.eva.repository.EmployeeRepository
+import com.razz.eva.repository.EntityRepos
 import com.razz.eva.repository.EventQueries
 import com.razz.eva.repository.JooqEventRepository
 import com.razz.eva.repository.ModelRepos
@@ -54,16 +55,17 @@ class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
     val departmentRepo = DepartmentRepository(queryExecutor, dslContext, departmentPreUpdate)
     val bubalehRepo = BubalehRepository(queryExecutor, dslContext)
 
-    val repos = ModelRepos(
+    val modelRepos = ModelRepos(
         Department::class hasRepo departmentRepo,
         Employee::class hasRepo employeeRepo,
-        Bubaleh::class hasRepo bubalehRepo
+        Bubaleh::class hasRepo bubalehRepo,
     )
+    val entityRepos = EntityRepos()
 
     val writableRepository = WritableModelRepository(
         txnManager = transactionManager,
         clock = clock,
-        modelRepos = repos
+        modelRepos = modelRepos,
     )
 
     val spanExporter = InMemorySpanExporter.create()
@@ -82,12 +84,13 @@ class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
 
     val eventQueries = EventQueries(
         queryExecutor = queryExecutor,
-        dslContext = dslContext
+        dslContext = dslContext,
     )
 
     val persisting = Persisting(
         transactionManager = transactionManager,
-        modelRepos = repos,
+        modelRepos = modelRepos,
+        entityRepos = entityRepos,
         eventRepository = eventRepository,
     )
 
@@ -100,7 +103,7 @@ class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
         },
         HireEmployeesUow::class withFactory {
             HireEmployeesUow(executionContext, departmentRepo, employeeRepo, 0, true)
-        }
+        },
     )
 
     val uowx = UnitOfWorkExecutor(
@@ -133,7 +136,7 @@ class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
                 DSL.using(
                     dslContext.configuration()
                         .derive(connection as java.sql.Connection)
-                        .derive(dslContext.settings())
+                        .derive(dslContext.settings()),
                 ).run {
                     execute(
                         """
@@ -153,7 +156,8 @@ class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
         factories = factories,
         persisting = Persisting(
             transactionManager = transactionManager,
-            modelRepos = repos,
+            modelRepos = modelRepos,
+            entityRepos = entityRepos,
             eventRepository = JooqEventRepository(
                 queryExecutor = patchingEventsQueryExecutor,
                 dslContext = dslContext,
@@ -167,7 +171,7 @@ class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
         factories = listOf(
             HireEmployeesUow::class withFactory {
                 HireEmployeesUow(executionContext, departmentRepo, employeeRepo, 1, false)
-            }
+            },
         ),
         persisting = persisting,
         clock = clock,
@@ -178,7 +182,7 @@ class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
         factories = listOf(
             HireEmployeesUow::class withFactory {
                 HireEmployeesUow(executionContext, departmentRepo, employeeRepo, 0, false)
-            }
+            },
         ),
         persisting = Persisting(
             transactionManager = transactionManager,
@@ -190,6 +194,7 @@ class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
                 ),
                 Employee::class hasRepo employeeRepo,
             ),
+            entityRepos = entityRepos,
             eventRepository = eventRepository,
         ),
         clock = clock,

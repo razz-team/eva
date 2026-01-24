@@ -78,7 +78,7 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
             persistentState(
                 version(record.getVersion()!!),
                 original,
-            )
+            ),
         )
     }
 
@@ -119,7 +119,7 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
             queryExecutor.executeStore(
                 dslContext = dslContext,
                 jooqQuery = insertQuery,
-                table = table
+                table = table,
             )
         }.singleOrNull()
         @Suppress("UNCHECKED_CAST")
@@ -149,12 +149,12 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
             queryExecutor.executeStore(
                 dslContext = dslContext,
                 jooqQuery = insertQuery,
-                table = table
+                table = table,
             )
         }
         if (added.size != models.size) {
             throw IllegalStateException(
-                "${models.size} models were queried for insert, while ${added.size} rows were inserted"
+                "${models.size} models were queried for insert, while ${added.size} rows were inserted",
             )
         }
         return added.map {
@@ -179,7 +179,7 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
             queryExecutor.executeStore(
                 dslContext = dslContext,
                 jooqQuery = updateQuery,
-                table = table
+                table = table,
             )
         }.getSingleOrNull(this::fromRecord) {
             val type = model::class
@@ -213,7 +213,7 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
                         .filterIndexed { i, _ -> createdAt != this.field(i) }
                         .map { field -> field.cast(field.dataType) }
                         .toTypedArray()
-                }
+                },
             )
         }.toTypedArray()
         val updateQuery = dslContext.updateQuery(ORIGIN_TABLE).apply {
@@ -224,7 +224,7 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
             queryExecutor.executeStore(
                 dslContext = dslContext,
                 jooqQuery = updateQuery,
-                table = table
+                table = table,
             )
         }
         when {
@@ -234,7 +234,7 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
                 throw StaleRecordException(notUpdated, table.name)
             }
             updated.size > models.size -> throw IllegalStateException(
-                "Only ${models.size} models were queried for update, while ${updated.size} rows were updated"
+                "Only ${models.size} models were queried for update, while ${updated.size} rows were updated",
             )
         }
         return updated.map {
@@ -263,10 +263,10 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
         return updateQuery.apply {
             addConditions(
                 DSL.field(DSL.name(VALUES_ALIAS, tableId.unqualifiedName)).cast(tableId.dataType).eq(
-                    DSL.field(DSL.name(ORIGIN_ALIAS, tableId.unqualifiedName)).cast(tableId.dataType)
+                    DSL.field(DSL.name(ORIGIN_ALIAS, tableId.unqualifiedName)).cast(tableId.dataType),
                 ),
                 DSL.field(DSL.name(VALUES_ALIAS, version.unqualifiedName)).cast(version.dataType).eq(
-                    DSL.field(DSL.name(ORIGIN_ALIAS, version.unqualifiedName)).cast(version.dataType).plus(1)
+                    DSL.field(DSL.name(ORIGIN_ALIAS, version.unqualifiedName)).cast(version.dataType).plus(1),
                 ),
                 // TODO map `partitionCond` to aliased fields
             )
@@ -316,7 +316,7 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
     }
 
     private suspend fun findOne(select: Select<R>): M? {
-        return atMostOneRecord(select)?.let { fromRecord(it) }
+        return atMostOneRecord(select)?.let(::fromRecord)
     }
 
     protected suspend fun findLast(
@@ -355,7 +355,7 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
         val list = allRecords(
             dslContext.selectFrom(table)
                 .where(condition)
-                .page(page, pagingStrategy)
+                .page(page, pagingStrategy),
         )
         return pagingStrategy.pagedList(list, mapper, page.size)
     }
@@ -381,8 +381,7 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
     }
 
     protected suspend fun findAll(select: Select<R>): List<M> {
-        return allRecords(select)
-            .map { fromRecord(it) }
+        return allRecords(select).map(::fromRecord)
     }
 
     protected suspend fun count(condition: Condition): Long {
@@ -410,8 +409,8 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
                     dslContext.select(groupFields)
                         .from(table)
                         .where(condition)
-                        .groupBy(groupFields)
-                )
+                        .groupBy(groupFields),
+                ),
         )?.value1() ?: 0
     }
 
@@ -427,7 +426,7 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
         return queryExecutor.executeSelect(
             dslContext = dslContext,
             jooqQuery = select,
-            table = select.asTable()
+            table = select.asTable(),
         )
     }
 

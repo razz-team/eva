@@ -36,7 +36,7 @@ sealed class InventoryEvent : ModelEvent<Id> {
 class Inventory(
     id: Id,
     val stock: Map<InventoryItem, Long>,
-    modelState: ModelState<Id, InventoryEvent>
+    modelState: ModelState<Id, InventoryEvent>,
 ) : Model<Id, InventoryEvent>(id, modelState) {
 
     @Serializable
@@ -65,7 +65,7 @@ class Inventory(
         return existingInventory(
             id = id(),
             stock = reducedStock,
-            modelState = raiseEvent(StockReduced(id(), items))
+            modelState = raiseEvent(StockReduced(id(), items)),
         )
     }
 
@@ -74,11 +74,11 @@ class Inventory(
         fun existingInventory(
             id: Id = Id.random(),
             stock: Map<InventoryItem, Long>,
-            modelState: ModelState<Id, InventoryEvent>
+            modelState: ModelState<Id, InventoryEvent>,
         ) = Inventory(
             id = id,
             stock = stock,
-            modelState = modelState
+            modelState = modelState,
         )
     }
 }

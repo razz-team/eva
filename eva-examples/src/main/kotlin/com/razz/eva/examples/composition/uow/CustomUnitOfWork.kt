@@ -11,7 +11,7 @@ import com.razz.eva.uow.UowParams
 abstract class CustomUnitOfWork<PRINCIPAL, PARAMS, RESULT>(
     executionContext: ExecutionContext,
     private val head: CustomChangesDsl? = null,
-    configuration: Configuration = default()
+    configuration: Configuration = default(),
 ) : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, CustomChangesDsl>(executionContext, configuration)
     where PRINCIPAL : Principal<*>, PARAMS : UowParams<PARAMS>, RESULT : Any {
 

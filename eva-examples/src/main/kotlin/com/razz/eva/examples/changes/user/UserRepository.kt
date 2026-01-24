@@ -13,7 +13,7 @@ import java.util.*
 
 class UserRepository(
     queryExecutor: QueryExecutor,
-    dslContext: DSLContext
+    dslContext: DSLContext,
 ) : UserQueries, JooqBaseModelRepository<UUID, Id, User, UserEvent, UserRecord>(
     queryExecutor = queryExecutor,
     dslContext = dslContext,
@@ -31,12 +31,12 @@ class UserRepository(
 
     override fun fromRecord(
         record: UserRecord,
-        modelState: PersistentState<Id, UserEvent>
+        modelState: PersistentState<Id, UserEvent>,
     ) = existingUser(
         id = Id(record.id),
         firstName = record.firstName?.let(User::FirstName),
         lastName = record.lastName?.let(User::LastName),
         address = record.address?.let(User::Address),
-        modelState = modelState
+        modelState = modelState,
     )
 }

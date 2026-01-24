@@ -1,4 +1,6 @@
 import org.gradle.api.tasks.testing.logging.TestLogEvent.STANDARD_ERROR
+import org.gradle.internal.impldep.org.apache.http.client.methods.RequestBuilder.options
+import org.gradle.internal.impldep.org.jsoup.nodes.Document
 
 plugins {
     java
@@ -72,6 +74,7 @@ tasks.jar {
 }
 
 detekt {
+    autoCorrect = true
     parallel = true
     config.setFrom(files("$rootDir/buildSrc/src/main/resources/detekt-config.yml"))
 }
@@ -79,8 +82,6 @@ detekt {
 tasks.detekt {
     jvmTarget = "18" // detekt is not ready for 21
     reports {
-        html.required.set(false)
-        xml.required.set(false)
         txt.required.set(false)
         sarif.required.set(false)
     }

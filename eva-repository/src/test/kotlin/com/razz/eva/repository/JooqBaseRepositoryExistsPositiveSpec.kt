@@ -23,7 +23,7 @@ class JooqBaseRepositoryExistsPositiveSpec : BehaviorSpec({
             repo.existsFor(bossId)
 
             Then(
-                "Query executor should receive exists"
+                "Query executor should receive exists",
             ) {
                 val exists = queryExecutor.lastExecution.shouldBeTypeOf<SelectExecuted>()
                 exists.jooqQuery.getSQL(INLINED) shouldBe """

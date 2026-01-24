@@ -33,7 +33,7 @@ class PersistenceSpec : PersistenceBaseSpec({
             bossEmail = "misha@razz.team",
             departmentName = "mobileboys",
             ration = SHAKSHOUKA,
-            idempotencyKey = idempotencyKey
+            idempotencyKey = idempotencyKey,
         )
         lateinit var boss: Employee
 

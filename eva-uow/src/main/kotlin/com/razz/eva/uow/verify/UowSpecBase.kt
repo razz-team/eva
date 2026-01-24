@@ -3,27 +3,27 @@ package com.razz.eva.uow.verify
 import com.razz.eva.domain.Model
 import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
-import com.razz.eva.uow.Add
-import com.razz.eva.uow.Change
+import com.razz.eva.uow.AddModel
+import com.razz.eva.uow.ModelChange
 import com.razz.eva.uow.Changes
-import com.razz.eva.uow.Noop
-import com.razz.eva.uow.Update
+import com.razz.eva.uow.NoopModel
+import com.razz.eva.uow.UpdateModel
 import java.util.ArrayDeque
 import java.util.Deque
 
 open class UowSpecBase<R> private constructor(
     private val result: R,
-    private val executionHistory: Deque<Change>,
+    private val executionHistory: Deque<ModelChange>,
     private val publishedEvents: Deque<ModelEvent<out ModelId<out Comparable<*>>>>,
-    private val peekingPersisting: PeekingPersisting = PeekingPersisting()
+    private val peekingPersisting: PeekingPersisting = PeekingPersisting(),
 ) {
 
     internal constructor(
         changes: Changes<R>,
     ) : this(
         result = changes.result,
-        executionHistory = ArrayDeque(changes.toPersist.filter { it !is Noop }),
-        publishedEvents = ArrayDeque(changes.toPersist.flatMap { it.modelEvents })
+        executionHistory = ArrayDeque(changes.modelChangesToPersist.filter { it !is NoopModel }),
+        publishedEvents = ArrayDeque(changes.modelChangesToPersist.flatMap { it.modelEvents }),
     )
 
     fun verifyEnd() {
@@ -41,12 +41,14 @@ open class UowSpecBase<R> private constructor(
     }
 
     protected fun <M : Model<*, *>> verifyAdded(verify: (M) -> Unit): M {
-        val model = when (val next = checkNotNull(executionHistory.pollFirst()) { "Expecting [Add] got nothing" }) {
-            is Add<*, *, *> -> {
+        val model = when (
+            val next = checkNotNull(executionHistory.pollFirst()) { "Expecting [AddModel] got nothing" }
+        ) {
+            is AddModel<*, *, *> -> {
                 next.persist(peekingPersisting)
                 peekingPersisting.peek()
             }
-            else -> throw IllegalStateException("Expecting [Add] was [$next]")
+            else -> throw IllegalStateException("Expecting [AddModel] was [$next]")
         }
         @Suppress("UNCHECKED_CAST")
         verify(model as M)
@@ -54,12 +56,14 @@ open class UowSpecBase<R> private constructor(
     }
 
     protected fun <M : Model<*, *>> verifyUpdated(verify: (M) -> Unit): M {
-        val model = when (val next = checkNotNull(executionHistory.pollFirst()) { "Expecting [Update] got nothing" }) {
-            is Update<*, *, *> -> {
+        val model = when (
+            val next = checkNotNull(executionHistory.pollFirst()) { "Expecting [UpdateModel] got nothing" }
+        ) {
+            is UpdateModel<*, *, *> -> {
                 next.persist(peekingPersisting)
                 peekingPersisting.peek()
             }
-            else -> throw IllegalStateException("Expecting [Update] was [$next]")
+            else -> throw IllegalStateException("Expecting [UpdateModel] was [$next]")
         }
         @Suppress("UNCHECKED_CAST")
         verify(model as M)

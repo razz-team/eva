@@ -19,12 +19,12 @@ class PageSerializerSpec : BehaviorSpec({
             pureNext = Page.Next(
                 maxOrdering = clock.instant(),
                 offset = clock.instant().plus(10, ChronoUnit.DAYS).toString(),
-                size = Size(2000)
+                size = Size(2000),
             ),
             commonNext = Page.Next(
                 maxOrdering = clock.instant(),
                 offset = clock.instant().plus(11, ChronoUnit.DAYS).toString(),
-                size = Size(2001)
+                size = Size(2001),
             ),
         )
 

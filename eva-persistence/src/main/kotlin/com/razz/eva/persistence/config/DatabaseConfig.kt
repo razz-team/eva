@@ -8,7 +8,7 @@ data class DatabaseConfig(
     val maxPoolSize: MaxPoolSize,
     val executorType: ExecutorType,
     val shouldInstrument: Boolean = true,
-    val additionalProperties: Map<String, String> = emptyMap(),
+    val additionalProperties: Map<String, String> = mapOf(),
 ) {
     val jdbcURL: JdbcURL = JdbcURL("jdbc:postgresql://${nodes.joinToString(",")}/$name")
 }
@@ -51,5 +51,5 @@ value class MaxPoolSize(private val maxPoolSize: Int) {
 
 enum class ExecutorType {
     JDBC,
-    VERTX
+    VERTX,
 }

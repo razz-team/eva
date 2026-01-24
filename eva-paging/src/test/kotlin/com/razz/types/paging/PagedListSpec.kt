@@ -14,7 +14,7 @@ class PagedListSpec : BehaviorSpec({
 
     data class User(
         val name: String,
-        val timestamp: Instant
+        val timestamp: Instant,
     )
 
     class UserPagedList(list: List<User>, pageSize: Size) : AbstractPagedList<User, Instant>(list, pageSize) {
@@ -48,7 +48,7 @@ class PagedListSpec : BehaviorSpec({
                     nextPage shouldBe Page.Next(
                         maxOrdering = now.minusSeconds(10),
                         offset = "Ilya",
-                        size = pageSize
+                        size = pageSize,
                     )
                 }
             }

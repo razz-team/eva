@@ -13,6 +13,7 @@ import com.razz.eva.persistence.PersistenceException.StaleRecordException
 import com.razz.eva.persistence.PersistenceException.UniqueModelRecordViolationException
 import com.razz.eva.persistence.PrimaryConnectionRequiredFlag
 import com.razz.eva.persistence.WithCtxConnectionTransactionManager
+import com.razz.eva.repository.EntityRepos
 import com.razz.eva.repository.ModelRepos
 import com.razz.eva.uow.BaseUnitOfWork.Configuration
 import com.razz.eva.uow.Clocks.fixedUTC
@@ -55,9 +56,9 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                 name = "KazahDepartment",
                 headcount = 1,
                 ration = Ration.BUBALEH,
-                boss = bossId
-            )
-        )
+                boss = bossId,
+            ),
+        ),
     )
 
     Given("Params for UnitOfWork are defined") {
@@ -81,11 +82,11 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                             noChanges("not null")
                         }
                     }
-                }
+                },
             )
             val uowx = UnitOfWorkExecutor(
                 factories,
-                Persisting(WithCtxConnectionTransactionManager(), ModelRepos(), DummyEventRepository()),
+                Persisting(WithCtxConnectionTransactionManager(), ModelRepos(), EntityRepos(), DummyEventRepository()),
                 clock,
                 OpenTelemetry.noop(),
             )
@@ -119,7 +120,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                             return noChanges(i.toEpochMilli().toString())
                         }
                     }
-                }
+                },
             )
 
             When("UnitOfWorkExecutor created and frozen clock passed to persisting") {
@@ -139,7 +140,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                 val txnManager = WithCtxConnectionTransactionManager()
                 val uowx = UnitOfWorkExecutor(
                     factories,
-                    Persisting(txnManager, ModelRepos(), eventRepo),
+                    Persisting(txnManager, ModelRepos(), EntityRepos(), eventRepo),
                     crawlingInstant,
                     OpenTelemetry.noop(),
                 )
@@ -176,7 +177,12 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
             When("UnitOfWorkExecutor created without factories") {
                 val uowx = UnitOfWorkExecutor(
                     listOf(),
-                    Persisting(WithCtxConnectionTransactionManager(), ModelRepos(), DummyEventRepository()),
+                    Persisting(
+                        transactionManager = WithCtxConnectionTransactionManager(),
+                        modelRepos = ModelRepos(),
+                        entityRepos = EntityRepos(),
+                        eventRepository = DummyEventRepository(),
+                    ),
                     clock,
                     OpenTelemetry.noop(),
                 )
@@ -194,7 +200,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
         And("Two ClassToUow with the same key") {
             val factories = listOf(
                 CreateDepartmentUow::class withFactory { mockk() },
-                CreateDepartmentUow::class withFactory { mockk() }
+                CreateDepartmentUow::class withFactory { mockk() },
             )
 
             When("Principal creates UnitOfWorkExecutor") {
@@ -223,9 +229,9 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                         name = "LondonDepartment",
                         headcount = 1,
                         ration = Ration.BUBALEH,
-                        boss = bossId
-                    )
-                )
+                        boss = bossId,
+                    ),
+                ),
             )
             val unitOfWork = mockk<CreateDepartmentUow>()
             val rawUnitOfWork = unitOfWork as UnitOfWork<TestPrincipal, Params, OwnedDepartment>
@@ -237,7 +243,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
             val uowx = UnitOfWorkExecutor(
                 persisting = persisting,
                 factories = listOf(
-                    CreateDepartmentUow::class withFactory { unitOfWork }
+                    CreateDepartmentUow::class withFactory { unitOfWork },
                 ),
                 clock = clock,
                 openTelemetry = OpenTelemetry.noop(),
@@ -249,14 +255,15 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                         uowName = "MockOfCreateDepartmentUow",
                         params = params,
                         principal = TestPrincipal,
-                        changes = listOf(),
+                        modelChanges = listOf(),
+                        entityChanges = listOf(),
                         now = clock.instant(),
-                        uowSupportsOutOfOrderPersisting = true
+                        uowSupportsOutOfOrderPersisting = true,
                     )
                 } returns Pair(UowEvent.Id.random(), listOf(anotherModel, department))
                 every { rawUnitOfWork.configuration() } returns
                     Configuration(StaleRecordFixedRetry(1, ofMillis(100)), true)
-                val changes = RealisedChanges(department, listOf())
+                val changes = RealisedChanges(department, listOf(), listOf())
                 coEvery {
                     rawUnitOfWork.tryPerform(TestPrincipal, eq(params))
                 } returns changes
@@ -274,9 +281,10 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                                 uowName = "MockOfCreateDepartmentUow",
                                 params = params,
                                 principal = TestPrincipal,
-                                changes = changes.toPersist,
+                                modelChanges = changes.modelChangesToPersist,
+                                entityChanges = changes.entityChangesToPersist,
                                 now = clock.instant(),
-                                uowSupportsOutOfOrderPersisting = true
+                                uowSupportsOutOfOrderPersisting = true,
                             )
                         }
                     }
@@ -311,15 +319,16 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                 every { retry.getNextDelay(eq(0), eq(ex)) } returns ofMillis(0)
                 coEvery {
                     rawUnitOfWork.tryPerform(TestPrincipal, eq(params))
-                } returns RealisedChanges(department, listOf())
+                } returns RealisedChanges(department, listOf(), listOf())
                 coEvery {
                     persisting.persist(
                         uowName = "MockOfCreateDepartmentUow",
                         params = params,
                         principal = TestPrincipal,
-                        changes = listOf(),
+                        modelChanges = listOf(),
+                        entityChanges = listOf(),
                         now = clock.instant(),
-                        uowSupportsOutOfOrderPersisting = true
+                        uowSupportsOutOfOrderPersisting = true,
                     )
                 } throws ex andThen Pair(UowEvent.Id.random(), listOf(department))
                 coEvery { rawUnitOfWork.onFailure(eq(params), eq(ex)) } throws ex
@@ -342,15 +351,16 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                 every { retry.getNextDelay(eq(1), eq(ex)) } returns null
                 coEvery {
                     rawUnitOfWork.tryPerform(TestPrincipal, eq(params))
-                } returns RealisedChanges(department, listOf())
+                } returns RealisedChanges(department, listOf(), listOf())
                 coEvery {
                     persisting.persist(
                         "MockOfCreateDepartmentUow",
                         eq(params),
                         TestPrincipal,
                         listOf(),
+                        listOf(),
                         ofEpochMilli(0),
-                        true
+                        true,
                     )
                 } throws ex andThenThrows ex
                 coEvery { rawUnitOfWork.onFailure(eq(params), eq(ex)) } returns department
@@ -371,15 +381,16 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                 every { rawUnitOfWork.configuration() } returns Configuration.default()
                 coEvery {
                     rawUnitOfWork.tryPerform(TestPrincipal, eq(params))
-                } returns RealisedChanges(department, listOf())
+                } returns RealisedChanges(department, listOf(), listOf())
                 coEvery {
                     persisting.persist(
                         "MockOfCreateDepartmentUow",
                         eq(params),
                         TestPrincipal,
                         listOf(),
+                        listOf(),
                         ofEpochMilli(0),
-                        false
+                        false,
                     )
                 } throws ex
                 coEvery { rawUnitOfWork.onFailure(eq(params), eq(ex)) } throws StaleRecordException(depId, "department")
@@ -397,21 +408,22 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
 
             And(
                 "UnitOfWork has one retry, has custom exception mapping " +
-                    "and Persisting throws StaleRecordException constantly"
+                    "and Persisting throws StaleRecordException constantly",
             ) {
                 val ex = StaleRecordException(depId, "department")
                 every { rawUnitOfWork.configuration() } returns Configuration.default()
                 coEvery {
                     rawUnitOfWork.tryPerform(TestPrincipal, eq(params))
-                } returns RealisedChanges(department, listOf())
+                } returns RealisedChanges(department, listOf(), listOf())
                 coEvery {
                     persisting.persist(
                         "MockOfCreateDepartmentUow",
                         eq(params),
                         TestPrincipal,
                         listOf(),
+                        listOf(),
                         ofEpochMilli(0),
-                        false
+                        false,
                     )
                 } throws ex
                 coEvery {
@@ -435,15 +447,16 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                 every { rawUnitOfWork.configuration() } returns Configuration.default()
                 coEvery {
                     rawUnitOfWork.tryPerform(TestPrincipal, eq(params))
-                } returns RealisedChanges(department, listOf())
+                } returns RealisedChanges(department, listOf(), listOf())
                 coEvery {
                     persisting.persist(
                         "MockOfCreateDepartmentUow",
                         eq(params),
                         TestPrincipal,
                         listOf(),
+                        listOf(),
                         ofEpochMilli(0),
-                        false
+                        false,
                     )
                 } throws ex
                 coEvery { rawUnitOfWork.onFailure(eq(params), eq(ex)) } throws ex
@@ -464,15 +477,16 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                 every { rawUnitOfWork.configuration() } returns Configuration.default()
                 coEvery {
                     rawUnitOfWork.tryPerform(TestPrincipal, eq(params))
-                } returns RealisedChanges(department, listOf())
+                } returns RealisedChanges(department, listOf(), listOf())
                 coEvery {
                     persisting.persist(
                         "MockOfCreateDepartmentUow",
                         eq(params),
                         TestPrincipal,
                         listOf(),
+                        listOf(),
                         ofEpochMilli(0),
-                        false
+                        false,
                     )
                 } throws ex
                 coEvery { rawUnitOfWork.onFailure(eq(params), eq(ex)) } throws ex
@@ -494,15 +508,16 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                 every { rawUnitOfWork.configuration() } returns Configuration.default()
                 coEvery {
                     rawUnitOfWork.tryPerform(TestPrincipal, eq(params))
-                } returns RealisedChanges(department, listOf())
+                } returns RealisedChanges(department, listOf(), listOf())
                 coEvery {
                     persisting.persist(
                         "MockOfCreateDepartmentUow",
                         eq(params),
                         TestPrincipal,
                         listOf(),
+                        listOf(),
                         ofEpochMilli(0),
-                        false
+                        false,
                     )
                 } throws ex
                 coEvery { rawUnitOfWork.onFailure(eq(params), eq(ex)) } returns resultModel

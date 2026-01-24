@@ -13,14 +13,14 @@ import com.razz.eva.domain.TestModelId.Companion.randomTestModelId
 import com.razz.eva.domain.TestModelStatus.ACTIVE
 import com.razz.eva.domain.TestModelStatus.CREATED
 import com.razz.eva.domain.Version.Companion.V1
-import com.razz.eva.uow.Add
+import com.razz.eva.uow.AddModel
 import com.razz.eva.uow.Clocks.fixedUTC
 import com.razz.eva.uow.Clocks.millisUTC
 import com.razz.eva.uow.ExecutionContext
-import com.razz.eva.uow.Noop
+import com.razz.eva.uow.NoopModel
 import com.razz.eva.uow.TestExecutionContext.executionContextForSpec
 import com.razz.eva.uow.TestPrincipal
-import com.razz.eva.uow.Update
+import com.razz.eva.uow.UpdateModel
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldHaveSize
@@ -53,21 +53,21 @@ class ChangesDslSpec : FunSpec({
         }
         val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
 
-        changes.toPersist shouldBe listOf(
-            Add(
+        changes.modelChangesToPersist shouldBe listOf(
+            AddModel(
                 model0,
                 listOf(
                     TestModelCreated(model0.id()),
-                    TestModelStatusChanged(model0.id(), CREATED, ACTIVE)
-                )
+                    TestModelStatusChanged(model0.id(), CREATED, ACTIVE),
+                ),
             ),
-            Update(model1, listOf(TestModelStatusChanged(model1.id(), CREATED, ACTIVE))),
-            Noop(model2)
+            UpdateModel(model1, listOf(TestModelStatusChanged(model1.id(), CREATED, ACTIVE))),
+            NoopModel(model2),
         )
         changes.result shouldBe "K P A C U B O"
     }
 
-    test("Should return RealisedChanges with Update change when new model updated") {
+    test("Should return RealisedChanges with UpdateModel change when new model updated") {
         val model = createdTestModel("MLG", 420).activate()
 
         val uow = object : DummyUow<String>(executionContext) {
@@ -78,12 +78,16 @@ class ChangesDslSpec : FunSpec({
         }
         val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
 
-        changes.toPersist shouldBe listOf(
-            Update(model, listOf(TestModelCreated(model.id()), TestModelStatusChanged(model.id(), CREATED, ACTIVE))))
+        changes.modelChangesToPersist shouldBe listOf(
+            UpdateModel(
+                model,
+                listOf(TestModelCreated(model.id()), TestModelStatusChanged(model.id(), CREATED, ACTIVE)),
+            ),
+        )
         changes.result shouldBe "K P A C U B O"
     }
 
-    test("Should return RealisedChanges with Noop change when new model marked as not changed") {
+    test("Should return RealisedChanges with NoopModel change when new model marked as not changed") {
         val model = createdTestModel("MLG", 420).activate()
 
         val uow = object : DummyUow<String>(executionContext) {
@@ -94,7 +98,7 @@ class ChangesDslSpec : FunSpec({
         }
         val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
 
-        changes.toPersist shouldBe listOf(Noop(model))
+        changes.modelChangesToPersist shouldBe listOf(NoopModel(model))
         changes.result shouldBe "K P A C U B O"
     }
 
@@ -195,7 +199,7 @@ class ChangesDslSpec : FunSpec({
         }
         val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
 
-        changes.toPersist shouldBe listOf(Noop(model))
+        changes.modelChangesToPersist shouldBe listOf(NoopModel(model))
         changes.result shouldBe "K P A C U B O"
     }
 
@@ -217,12 +221,13 @@ class ChangesDslSpec : FunSpec({
         }
         val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
 
-        changes.toPersist shouldHaveSize 1
-        val add = changes.toPersist.first().shouldBeTypeOf<Add<TestModelId, ActiveTestModel, TestModelEvent>>()
+        changes.modelChangesToPersist shouldHaveSize 1
+        val add = changes.modelChangesToPersist.first()
+            .shouldBeTypeOf<AddModel<TestModelId, ActiveTestModel, TestModelEvent>>()
         add.id shouldBe model0.id()
         add.modelEvents shouldBe listOf(
             TestModelCreated(model0.id()),
-            TestModelStatusChanged(model0.id(), CREATED, ACTIVE)
+            TestModelStatusChanged(model0.id(), CREATED, ACTIVE),
         )
         changes.result shouldBe "K P A C U B O"
     }
@@ -244,12 +249,13 @@ class ChangesDslSpec : FunSpec({
         }
         val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
 
-        changes.toPersist shouldHaveSize 1
-        val add = changes.toPersist.first().shouldBeTypeOf<Add<TestModelId, ActiveTestModel, TestModelEvent>>()
+        changes.modelChangesToPersist shouldHaveSize 1
+        val add = changes.modelChangesToPersist.first()
+            .shouldBeTypeOf<AddModel<TestModelId, ActiveTestModel, TestModelEvent>>()
         add.id shouldBe model0.id()
         add.modelEvents shouldBe listOf(
             TestModelCreated(model0.id()),
-            TestModelStatusChanged(model0.id(), CREATED, ACTIVE)
+            TestModelStatusChanged(model0.id(), CREATED, ACTIVE),
         )
         changes.result shouldBe "K P A C U B O"
     }
@@ -282,21 +288,21 @@ class ChangesDslSpec : FunSpec({
         }
         val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
 
-        changes.toPersist shouldHaveSize 3
-        val (update, add, noop) = changes.toPersist
-        update.shouldBeTypeOf<Update<TestModelId, ActiveTestModel, TestModelEvent>>()
+        changes.modelChangesToPersist shouldHaveSize 3
+        val (update, add, noop) = changes.modelChangesToPersist
+        update.shouldBeTypeOf<UpdateModel<TestModelId, ActiveTestModel, TestModelEvent>>()
         update.id shouldBe model1.id()
         update.modelEvents shouldBe listOf(
-            TestModelStatusChanged(model1.id(), CREATED, ACTIVE)
+            TestModelStatusChanged(model1.id(), CREATED, ACTIVE),
         )
-        add.shouldBeTypeOf<Add<TestModelId, ActiveTestModel, TestModelEvent>>()
+        add.shouldBeTypeOf<AddModel<TestModelId, ActiveTestModel, TestModelEvent>>()
         add.id shouldBe model0.id()
         add.modelEvents shouldBe listOf(
             TestModelCreated(model0.id()),
             TestModelEvent1(model0.id()),
-            TestModelStatusChanged(model0.id(), CREATED, ACTIVE)
+            TestModelStatusChanged(model0.id(), CREATED, ACTIVE),
         )
-        noop.shouldBeTypeOf<Noop>()
+        noop.shouldBeTypeOf<NoopModel>()
         noop.id shouldBe model2.id()
         changes.result shouldBe "K P A C U B O"
     }

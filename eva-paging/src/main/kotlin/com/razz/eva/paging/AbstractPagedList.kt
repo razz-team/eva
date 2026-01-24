@@ -2,7 +2,7 @@ package com.razz.eva.paging
 
 abstract class AbstractPagedList<ELEMENT, ORDER_BY : Comparable<ORDER_BY>>(
     private val list: List<ELEMENT>,
-    private val pageSize: Size
+    private val pageSize: Size,
 ) : PagedList<ELEMENT, ORDER_BY>, List<ELEMENT> by list {
 
     protected abstract fun maxOrdering(item: ELEMENT): ORDER_BY
@@ -15,7 +15,7 @@ abstract class AbstractPagedList<ELEMENT, ORDER_BY : Comparable<ORDER_BY>>(
             Page.Next(
                 maxOrdering = maxOrdering(lastElement),
                 offset = offset(lastElement),
-                size = pageSize
+                size = pageSize,
             )
         } else null
     }

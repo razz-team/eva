@@ -4,7 +4,7 @@ import com.razz.eva.persistence.config.DatabaseConfig
 import com.razz.eva.persistence.config.ExecutorType
 
 open class TransactionalModule(
-    dbConfig: DatabaseConfig
+    dbConfig: DatabaseConfig,
 ) : PersistenceModule() {
 
     private val persistenceModule: PersistenceModule = when (dbConfig.executorType) {

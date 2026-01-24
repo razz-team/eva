@@ -11,7 +11,7 @@ import java.time.temporal.ChronoUnit.DAYS
 
 class DatabaseContainerHelper private constructor(
     dbPrefix: String,
-    private val db: DatabaseContainer
+    private val db: DatabaseContainer,
 ) : Closeable {
     private val logger = KotlinLogging.logger {}
 
@@ -48,7 +48,7 @@ class DatabaseContainerHelper private constructor(
                 stmt.execute(
                     """
                         CREATE DATABASE $dbName;
-                    """.trimIndent()
+                    """.trimIndent(),
                 )
             }
         }

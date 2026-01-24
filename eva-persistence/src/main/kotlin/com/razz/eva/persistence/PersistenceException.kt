@@ -20,7 +20,7 @@ sealed class PersistenceException(message: String) : RuntimeException(message) {
         override val constraintName: String?,
     ) : ConstraintViolation, ModelAware, PersistenceException(
         "Uniqueness of [$tableName]:[${modelId.stringValue()}]" +
-            " violated ${constraintName?.let { ": [$it]" }}"
+            " violated ${constraintName?.let { ": [$it]" }}",
     ) {
         override val modelIds: Set<ModelId<*>>
             get() = setOf(modelId)
@@ -32,7 +32,7 @@ sealed class PersistenceException(message: String) : RuntimeException(message) {
         override val constraintName: String?,
     ) : ConstraintViolation, ModelAware, PersistenceException(
         "Constraint for [$tableName]:[${modelId.stringValue()}]" +
-            " violated ${constraintName?.let { ": [$it]" }}"
+            " violated ${constraintName?.let { ": [$it]" }}",
     ) {
         override val modelIds: Set<ModelId<*>>
             get() = setOf(modelId)
@@ -42,10 +42,10 @@ sealed class PersistenceException(message: String) : RuntimeException(message) {
         val uowId: UUID,
         val uowName: String,
         val idempotencyKey: IdempotencyKey?,
-        val constraintName: String?
+        val constraintName: String?,
     ) : PersistenceException(
         "Uniqueness of [$uowName] [$uowId] ${idempotencyKey?.let { ": [${it.stringValue()}]" }}" +
-            " violated ${constraintName?.let { ": [$it]" }}"
+            " violated ${constraintName?.let { ": [$it]" }}",
     )
 
     class StaleRecordException(
@@ -55,9 +55,9 @@ sealed class PersistenceException(message: String) : RuntimeException(message) {
         $$"Rows for $${
             modelIds.joinToString(
                 prefix = "[",
-                postfix = "]"
+                postfix = "]",
             ) { modelId -> tableName + ": " + modelId.stringValue() }
-        } were concurrently updated"
+        } were concurrently updated",
     ) {
         constructor(modelId: ModelId<*>, tableName: String) : this(setOf(modelId), tableName)
     }
@@ -83,7 +83,7 @@ sealed class PersistenceException(message: String) : RuntimeException(message) {
     ) : ModelAware, PersistenceException(
         "Event [eventId=$eventId, modelEventId=$modelEventId], modelId=$modelId " +
             "payload size is $payloadSize which exceeds " +
-            "maxEventPayloadSize $maxEventPayloadSize bytes"
+            "maxEventPayloadSize $maxEventPayloadSize bytes",
     ) {
         override val modelIds: Set<ModelId<*>>
             get() = setOf(modelId)

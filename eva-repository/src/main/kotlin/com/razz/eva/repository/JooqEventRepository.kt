@@ -40,7 +40,7 @@ class JooqEventRepository(
         toMERecord(
             uowEvent = Fake.uowEvent,
             eventId = FakeModelEvent.eventId,
-            modelEvent = FakeModelEvent
+            modelEvent = FakeModelEvent,
         )
         val select = dslContext.selectFrom(MODEL_EVENTS)
             .limit(1)

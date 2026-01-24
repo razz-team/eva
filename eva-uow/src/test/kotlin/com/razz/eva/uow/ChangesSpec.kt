@@ -37,11 +37,11 @@ class ChangesSpec : BehaviorSpec({
 
         When("Principal calling withAdded and then withResult") {
             val changes = ChangesAccumulator()
-                .withAdded(newModel)
+                .withAddedModel(newModel)
                 .withResult("patrice lumumba")
 
             Then("Changes matching added and result produced") {
-                changes.toPersist shouldBe listOf(Add(newModel, listOf(newModelEvent)))
+                changes.modelChangesToPersist shouldBe listOf(AddModel(newModel, listOf(newModelEvent)))
                 changes.result shouldBe "patrice lumumba"
             }
         }
@@ -49,8 +49,8 @@ class ChangesSpec : BehaviorSpec({
         When("Principal calling withAdded twice for the same model") {
             val attempt = {
                 ChangesAccumulator()
-                    .withAdded(newModel)
-                    .withAdded(newModel)
+                    .withAddedModel(newModel)
+                    .withAddedModel(newModel)
             }
 
             Then("IllegalStateException thrown") {
@@ -62,12 +62,12 @@ class ChangesSpec : BehaviorSpec({
         When("Principal calling withAdded and then withUpdated for the same model") {
             val attempt = {
                 ChangesAccumulator()
-                    .withAdded(newModel)
+                    .withAddedModel(newModel)
                     // I doubt this could ever happen in regular uow
                     // since model has to be round tripped through db
                     // or hacked in some other way to appear in dirty state
                     // but this container must preserve correct behavior nevertheless
-                    .withUpdated(existingCreatedTestModel(newModel.id(), "noscope", 360, V1).activate())
+                    .withUpdatedModel(existingCreatedTestModel(newModel.id(), "noscope", 360, V1).activate())
             }
 
             Then("IllegalStateException thrown") {
@@ -78,55 +78,55 @@ class ChangesSpec : BehaviorSpec({
 
         When("Principal calling withAdded for not new model") {
             val changes = ChangesAccumulator()
-                .withAdded(unchangedModel)
+                .withAddedModel(unchangedModel)
                 .withResult("george floyd")
 
             Then("Changes matching added and result produced") {
-                changes.toPersist shouldBe listOf(Add(unchangedModel, listOf()))
+                changes.modelChangesToPersist shouldBe listOf(AddModel(unchangedModel, listOf()))
                 changes.result shouldBe "george floyd"
             }
         }
 
         When("Principal calling withAdded for dirty model") {
             val changes = ChangesAccumulator()
-                .withAdded(dirtyModel)
+                .withAddedModel(dirtyModel)
                 .withResult("nahel merzouk")
 
             Then("Changes matching added and result produced") {
-                changes.toPersist shouldBe listOf(Add(dirtyModel, listOf(dirtyModelEvent)))
+                changes.modelChangesToPersist shouldBe listOf(AddModel(dirtyModel, listOf(dirtyModelEvent)))
                 changes.result shouldBe "nahel merzouk"
             }
         }
 
         When("Principal calling withUpdated and then withResult") {
             val changes = ChangesAccumulator()
-                .withUpdated(dirtyModel)
+                .withUpdatedModel(dirtyModel)
                 .withResult("angela davis")
 
             Then("Changes matching updated and result produced") {
-                changes.toPersist shouldBe listOf(Update(dirtyModel, listOf(dirtyModelEvent)))
+                changes.modelChangesToPersist shouldBe listOf(UpdateModel(dirtyModel, listOf(dirtyModelEvent)))
                 changes.result shouldBe "angela davis"
             }
         }
 
         When("Principal calling withUpdated for not updated model") {
             val changes = ChangesAccumulator()
-                .withUpdated(unchangedModel)
+                .withUpdatedModel(unchangedModel)
                 .withResult("george floyd")
 
             Then("Changes matching updated and result produced") {
-                changes.toPersist shouldBe listOf(Update(unchangedModel, listOf()))
+                changes.modelChangesToPersist shouldBe listOf(UpdateModel(unchangedModel, listOf()))
                 changes.result shouldBe "george floyd"
             }
         }
 
         When("Principal calling withUpdated for new model") {
             val changes = ChangesAccumulator()
-                .withUpdated(newModel)
+                .withUpdatedModel(newModel)
                 .withResult("nahel merzouk")
 
             Then("Changes matching updated and result produced") {
-                changes.toPersist shouldBe listOf(Update(newModel, listOf(newModelEvent)))
+                changes.modelChangesToPersist shouldBe listOf(UpdateModel(newModel, listOf(newModelEvent)))
                 changes.result shouldBe "nahel merzouk"
             }
         }
@@ -134,8 +134,8 @@ class ChangesSpec : BehaviorSpec({
         When("Principal calling withUpdated twice for the same model") {
             val attempt = {
                 ChangesAccumulator()
-                    .withUpdated(dirtyModel)
-                    .withUpdated(dirtyModel)
+                    .withUpdatedModel(dirtyModel)
+                    .withUpdatedModel(dirtyModel)
             }
 
             Then("IllegalStateException thrown") {
@@ -146,11 +146,11 @@ class ChangesSpec : BehaviorSpec({
 
         When("Principal calling withUnchanged for the unchanged model and then withResult") {
             val changes = ChangesAccumulator()
-                .withUnchanged(unchangedModel)
+                .withUnchangedModel(unchangedModel)
                 .withResult("robert mugabe")
 
-            Then("Noop and result produced") {
-                changes.toPersist shouldBe listOf(Noop(unchangedModel))
+            Then("NoopModel and result produced") {
+                changes.modelChangesToPersist shouldBe listOf(NoopModel(unchangedModel))
                 changes.result shouldBe "robert mugabe"
             }
         }
@@ -158,8 +158,8 @@ class ChangesSpec : BehaviorSpec({
         When("Principal calling withUnchanged twice for the same model") {
             val attempt = {
                 ChangesAccumulator()
-                    .withUnchanged(unchangedModel)
-                    .withUnchanged(unchangedModel)
+                    .withUnchangedModel(unchangedModel)
+                    .withUnchangedModel(unchangedModel)
             }
 
             Then("IllegalStateException thrown") {
@@ -171,8 +171,8 @@ class ChangesSpec : BehaviorSpec({
         When("Principal calling withUnchanged and then withUpdated for the same model") {
             val attempt = {
                 ChangesAccumulator()
-                    .withUnchanged(unchangedModel)
-                    .withUpdated(unchangedModel.activate())
+                    .withUnchangedModel(unchangedModel)
+                    .withUpdatedModel(unchangedModel.activate())
             }
 
             Then("IllegalStateException thrown") {
@@ -184,8 +184,8 @@ class ChangesSpec : BehaviorSpec({
         When("Principal calling withUnchanged and then withUpdated for not updated model") {
             val attempt = {
                 ChangesAccumulator()
-                    .withUnchanged(unchangedModel)
-                    .withUpdated(unchangedModel)
+                    .withUnchangedModel(unchangedModel)
+                    .withUpdatedModel(unchangedModel)
             }
 
             Then("IllegalStateException thrown") {
@@ -197,28 +197,28 @@ class ChangesSpec : BehaviorSpec({
 
         When("Principal calling withUnchanged for the dirty model") {
             val changes = ChangesAccumulator()
-                .withUnchanged(dirtyModel)
+                .withUnchangedModel(dirtyModel)
                 .withResult("robert mugabe")
 
-            Then("Noop and result produced") {
-                changes.toPersist shouldBe listOf(Noop(dirtyModel))
+            Then("NoopModel and result produced") {
+                changes.modelChangesToPersist shouldBe listOf(NoopModel(dirtyModel))
                 changes.result shouldBe "robert mugabe"
             }
         }
 
         When("Principal calling withUnchanged for the new model") {
             val changes = ChangesAccumulator()
-                .withUnchanged(newModel)
+                .withUnchangedModel(newModel)
                 .withResult("angela davis")
 
-            Then("Noop and result produced") {
-                changes.toPersist shouldBe listOf(Noop(newModel))
+            Then("NoopModel and result produced") {
+                changes.modelChangesToPersist shouldBe listOf(NoopModel(newModel))
                 changes.result shouldBe "angela davis"
             }
         }
 
         And("initial changes with some additional models") {
-            val changes0 = ChangesAccumulator().withAdded(newModel)
+            val changes0 = ChangesAccumulator().withAddedModel(newModel)
             val model1 = existingCreatedTestModel(randomTestModelId(), "name1", 1337, V1)
                 .activate()
             val model1Event = TestModelStatusChanged(model1.id(), CREATED, ACTIVE)
@@ -230,25 +230,25 @@ class ChangesSpec : BehaviorSpec({
             val model3Event = TestModelStatusChanged(model3.id(), CREATED, ACTIVE)
 
             When("derived changes produced by adding models to initial changes") {
-                val changes1 = changes0.withUpdated(model1).withResult(model2)
+                val changes1 = changes0.withUpdatedModel(model1).withResult(model2)
 
                 And("initial changes are modified further") {
-                    val changes2 = changes0.withUpdated(model3)
+                    val changes2 = changes0.withUpdatedModel(model3)
 
                     And("initial changes completed with result") {
                         val finalChanges0 = changes2.withResult(listOf("Gurbanguly", "Berdimuhamedow"))
 
                         Then("original changes contain only models were added to it directly") {
-                            finalChanges0.toPersist shouldBe listOf(
-                                Add(newModel, listOf(newModelEvent)),
-                                Update(model3, listOf(model3Event))
+                            finalChanges0.modelChangesToPersist shouldBe listOf(
+                                AddModel(newModel, listOf(newModelEvent)),
+                                UpdateModel(model3, listOf(model3Event)),
                             )
                             finalChanges0.result shouldBe listOf("Gurbanguly", "Berdimuhamedow")
                         }
                         And("derived changes contain only models were added to it directly") {
-                            changes1.toPersist shouldBe listOf(
-                                Add(newModel, listOf(newModelEvent)),
-                                Update(model1, listOf(model1Event))
+                            changes1.modelChangesToPersist shouldBe listOf(
+                                AddModel(newModel, listOf(newModelEvent)),
+                                UpdateModel(model1, listOf(model1Event)),
                             )
                             changes1.result shouldBe model2
                         }
@@ -261,18 +261,18 @@ class ChangesSpec : BehaviorSpec({
                 val newModelEvent1 = TestModelEvent1(newModel.id())
                 val newModelEvent2 = TestModelEvent2(newModel.id())
                 val changes1 = ChangesAccumulator()
-                    .withUpdated(updatedNewModel)
-                    .withUpdated(model1)
+                    .withUpdatedModel(updatedNewModel)
+                    .withUpdatedModel(model1)
                     .withResult("whatever")
 
                 And("new changes merged into initial changes") {
-                    val changes3 = changes0.merge(changes1).withUpdated(model2).withResult("whatever")
+                    val changes3 = changes0.merge(changes1).withUpdatedModel(model2).withResult("whatever")
 
                     Then("original changes contain only models were added to it directly") {
-                        changes3.toPersist shouldBe listOf(
-                            Add(updatedNewModel, listOf(newModelEvent, newModelEvent1, newModelEvent2)),
-                            Update(model1, listOf(model1Event)),
-                            Update(model2, listOf(model2Event)),
+                        changes3.modelChangesToPersist shouldBe listOf(
+                            AddModel(updatedNewModel, listOf(newModelEvent, newModelEvent1, newModelEvent2)),
+                            UpdateModel(model1, listOf(model1Event)),
+                            UpdateModel(model2, listOf(model2Event)),
                         )
                     }
                 }
@@ -280,7 +280,7 @@ class ChangesSpec : BehaviorSpec({
 
             When("incompatible changes produced") {
                 val changes1 = ChangesAccumulator()
-                    .withAdded(newModel)
+                    .withAddedModel(newModel)
                     .withResult("whatever")
 
                 And("new changes merged into initial changes") {
