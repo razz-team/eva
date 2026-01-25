@@ -3,7 +3,7 @@ package com.razz.jooq.record
 import org.jooq.Record
 import java.time.Instant
 
-interface BaseEntityRecord<ID : Comparable<ID>> : Record {
+interface BaseModelRecord<ID : Comparable<ID>> : Record {
 
     fun setId(value: ID): Record
     val id: ID

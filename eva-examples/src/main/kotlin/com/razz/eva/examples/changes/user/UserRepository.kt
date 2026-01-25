@@ -1,6 +1,6 @@
 package com.razz.eva.examples.changes.user
 
-import com.razz.eva.domain.EntityState.PersistentState
+import com.razz.eva.domain.ModelState.PersistentState
 import com.razz.eva.examples.schema.db.Tables.USER
 import com.razz.eva.examples.schema.db.tables.records.UserRecord
 import com.razz.eva.examples.changes.user.User.Factory.existingUser
@@ -31,12 +31,12 @@ class UserRepository(
 
     override fun fromRecord(
         record: UserRecord,
-        entityState: PersistentState<Id, UserEvent>,
+        modelState: PersistentState<Id, UserEvent>,
     ) = existingUser(
         id = Id(record.id),
         firstName = record.firstName?.let(User::FirstName),
         lastName = record.lastName?.let(User::LastName),
         address = record.address?.let(User::Address),
-        entityState = entityState,
+        modelState = modelState,
     )
 }

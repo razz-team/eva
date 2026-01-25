@@ -4,7 +4,7 @@ import com.razz.eva.domain.Department.OwnedDepartment
 import com.razz.eva.domain.DepartmentEvent.OwnedDepartmentCreated
 import com.razz.eva.domain.DepartmentId
 import com.razz.eva.domain.EmployeeId
-import com.razz.eva.domain.EntityState.NewState.Companion.newState
+import com.razz.eva.domain.ModelState.NewState.Companion.newState
 import com.razz.eva.domain.Ration
 import com.razz.eva.repository.DepartmentRepository
 import com.razz.eva.uow.CreateDepartmentUow.Params

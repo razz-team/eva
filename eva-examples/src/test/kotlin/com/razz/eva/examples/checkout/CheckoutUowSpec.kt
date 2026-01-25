@@ -28,15 +28,15 @@ class CheckoutUowSpec : UowBehaviorSpec({
             items = listOf(CartItem("iphone-silver-256", 999), CartItem("iphone-gold-256", 999)),
             paidFrom = null,
             state = SHOPPING,
-            entityState = persistentStateV1(),
+            modelState = persistentStateV1(),
         )
         val account = existingAccount(
             balance = 2000,
-            entityState = persistentStateV1(),
+            modelState = persistentStateV1(),
         )
         val inventory = existingInventory(
             stock = mapOf(InventoryItem("iphone-silver-256") to 10, InventoryItem("iphone-gold-256") to 20),
-            entityState = persistentStateV1(),
+            modelState = persistentStateV1(),
         )
 
         And("Params to checkout") {

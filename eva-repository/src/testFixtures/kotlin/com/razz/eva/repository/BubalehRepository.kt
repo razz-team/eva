@@ -9,7 +9,7 @@ import com.razz.eva.domain.BubalehId
 import com.razz.eva.domain.BubalehState
 import com.razz.eva.domain.BubalehTaste
 import com.razz.eva.domain.EmployeeId
-import com.razz.eva.domain.EntityState.PersistentState
+import com.razz.eva.domain.ModelState.PersistentState
 import com.razz.eva.persistence.executor.QueryExecutor
 import com.razz.eva.test.schema.Tables.BUBALEHS
 import com.razz.eva.test.schema.enums.BubalehsState
@@ -46,7 +46,7 @@ class BubalehRepository(
 
     override fun fromRecord(
         record: BubalehsRecord,
-        entityState: PersistentState<BubalehId, BubalehEvent>
+        modelState: PersistentState<BubalehId, BubalehEvent>
     ): Bubaleh {
         @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
         return when (record.state) {
@@ -56,7 +56,7 @@ class BubalehRepository(
                 BubalehTaste.valueOf(record.taste),
                 record.producedOn,
                 BubalehBottleVol.valueOf(record.volume),
-                entityState
+                modelState
             )
             BubalehsState.CONSUMED -> Consumed(
                 BubalehId(record.id),
@@ -64,7 +64,7 @@ class BubalehRepository(
                 BubalehTaste.valueOf(record.taste),
                 record.producedOn,
                 BubalehBottleVol.valueOf(record.volume),
-                entityState
+                modelState
             )
         }
     }

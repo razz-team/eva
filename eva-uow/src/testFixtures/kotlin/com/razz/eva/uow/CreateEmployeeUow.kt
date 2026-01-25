@@ -5,7 +5,7 @@ import com.razz.eva.domain.DepartmentId
 import com.razz.eva.domain.Employee
 import com.razz.eva.domain.EmployeeEvent.EmployeeCreated
 import com.razz.eva.domain.EmployeeId
-import com.razz.eva.domain.EntityState.NewState.Companion.newState
+import com.razz.eva.domain.ModelState.NewState.Companion.newState
 import com.razz.eva.domain.Name
 import com.razz.eva.domain.Ration
 import com.razz.eva.repository.DepartmentRepository
@@ -36,7 +36,7 @@ class CreateEmployeeUow(
             departmentId = params.departmentId,
             email = params.email,
             ration = params.ration,
-            entityState = newState(
+            modelState = newState(
                 EmployeeCreated(
                     empId, params.name, params.departmentId, params.email, params.ration
                 )

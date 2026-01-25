@@ -1,6 +1,6 @@
 package com.razz.eva.examples.composition.account
 
-import com.razz.eva.domain.EntityState
+import com.razz.eva.domain.ModelState
 import com.razz.eva.domain.Model
 import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
@@ -32,8 +32,8 @@ sealed class AccountEvent : ModelEvent<Id> {
 class Account(
     id: Id,
     val balance: Long,
-    entityState: EntityState<Id, AccountEvent>,
-) : Model<Id, AccountEvent>(id, entityState) {
+    modelState: ModelState<Id, AccountEvent>,
+) : Model<Id, AccountEvent>(id, modelState) {
 
     @Serializable
     @JvmInline
@@ -48,7 +48,7 @@ class Account(
     fun debit(amount: Long) = existingAccount(
         id = id(),
         balance = this.balance - amount,
-        entityState = raiseEvent(
+        modelState = raiseEvent(
             AccountDebited(
                 modelId = id(),
                 oldBalance = balance,
@@ -62,11 +62,11 @@ class Account(
         fun existingAccount(
             id: Id = Id.random(),
             balance: Long,
-            entityState: EntityState<Id, AccountEvent>,
+            modelState: ModelState<Id, AccountEvent>,
         ) = Account(
             id = id,
             balance = balance,
-            entityState = entityState,
+            modelState = modelState,
         )
     }
 }

@@ -8,8 +8,8 @@ import com.razz.eva.domain.DepartmentEvent.OwnedDepartmentCreated
 import com.razz.eva.domain.DepartmentId
 import com.razz.eva.domain.DepartmentId.Companion.randomDepartmentId
 import com.razz.eva.domain.EmployeeId
-import com.razz.eva.domain.EntityState.NewState.Companion.newState
-import com.razz.eva.domain.EntityState.PersistentState
+import com.razz.eva.domain.ModelState.NewState.Companion.newState
+import com.razz.eva.domain.ModelState.PersistentState
 import com.razz.eva.domain.Ration
 import com.razz.eva.domain.Ration.BUBALEH
 import com.razz.eva.domain.Version.Companion.V1
@@ -54,7 +54,7 @@ class JooqBaseRepositoryNegativeSpec : BehaviorSpec({
                 boss = bossId,
                 headcount = 1,
                 ration = BUBALEH,
-                entityState = newState(
+                modelState = newState(
                     OwnedDepartmentCreated(
                         departmentId = depId,
                         name = "store me in the repo",
@@ -185,7 +185,7 @@ class BadDepartmentRepository(
 
     override fun fromRecord(
         record: DepartmentsRecord,
-        entityState: PersistentState<DepartmentId, DepartmentEvent>,
+        modelState: PersistentState<DepartmentId, DepartmentEvent>,
     ): Department<*> {
         when (record.boss) {
             null -> return OrphanedDepartment(
@@ -193,7 +193,7 @@ class BadDepartmentRepository(
                 record.name,
                 record.headcount,
                 Ration.valueOf(record.ration),
-                entityState,
+                modelState,
             )
             else -> return OwnedDepartment(
                 DepartmentId(record.id),
@@ -201,7 +201,7 @@ class BadDepartmentRepository(
                 EmployeeId(record.boss),
                 record.headcount,
                 Ration.valueOf(record.ration),
-                entityState,
+                modelState,
             )
         }
     }

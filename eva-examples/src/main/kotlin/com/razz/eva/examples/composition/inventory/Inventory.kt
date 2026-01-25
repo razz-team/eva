@@ -1,6 +1,6 @@
 package com.razz.eva.examples.composition.inventory
 
-import com.razz.eva.domain.EntityState
+import com.razz.eva.domain.ModelState
 import com.razz.eva.domain.Model
 import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
@@ -36,8 +36,8 @@ sealed class InventoryEvent : ModelEvent<Id> {
 class Inventory(
     id: Id,
     val stock: Map<InventoryItem, Long>,
-    entityState: EntityState<Id, InventoryEvent>,
-) : Model<Id, InventoryEvent>(id, entityState) {
+    modelState: ModelState<Id, InventoryEvent>,
+) : Model<Id, InventoryEvent>(id, modelState) {
 
     @Serializable
     @JvmInline
@@ -65,7 +65,7 @@ class Inventory(
         return existingInventory(
             id = id(),
             stock = reducedStock,
-            entityState = raiseEvent(StockReduced(id(), items)),
+            modelState = raiseEvent(StockReduced(id(), items)),
         )
     }
 
@@ -74,11 +74,11 @@ class Inventory(
         fun existingInventory(
             id: Id = Id.random(),
             stock: Map<InventoryItem, Long>,
-            entityState: EntityState<Id, InventoryEvent>,
+            modelState: ModelState<Id, InventoryEvent>,
         ) = Inventory(
             id = id,
             stock = stock,
-            entityState = entityState,
+            modelState = modelState,
         )
     }
 }

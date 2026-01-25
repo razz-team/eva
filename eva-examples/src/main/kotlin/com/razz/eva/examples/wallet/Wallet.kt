@@ -1,6 +1,6 @@
 package com.razz.eva.examples.wallet
 
-import com.razz.eva.domain.EntityState
+import com.razz.eva.domain.ModelState
 import com.razz.eva.domain.Model
 import com.razz.eva.domain.ModelCreatedEvent
 import com.razz.eva.domain.ModelEvent
@@ -44,8 +44,8 @@ class Wallet(
     val currency: Currency,
     val amount: ULong,
     val expireAt: Instant,
-    entityState: EntityState<Id, WalletEvent>,
-) : Model<Wallet.Id, WalletEvent>(id, entityState) {
+    modelState: ModelState<Id, WalletEvent>,
+) : Model<Wallet.Id, WalletEvent>(id, modelState) {
 
     data class Id(override val id: UUID) : ModelId<UUID>
 
@@ -54,6 +54,6 @@ class Wallet(
         currency = currency,
         id = id(),
         expireAt = expireAt,
-        entityState = raiseEvent(WalletEvent.Deposit(id(), amount, toDeposit)),
+        modelState = raiseEvent(WalletEvent.Deposit(id(), amount, toDeposit)),
     )
 }

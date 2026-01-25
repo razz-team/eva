@@ -8,7 +8,7 @@ import com.razz.eva.domain.BubalehId
 import com.razz.eva.domain.BubalehState
 import com.razz.eva.domain.BubalehTaste
 import com.razz.eva.domain.EmployeeId
-import com.razz.eva.domain.EntityState.PersistentState.Companion.persistentState
+import com.razz.eva.domain.ModelState.PersistentState.Companion.persistentState
 import com.razz.eva.domain.Version.Companion.V1
 import com.razz.eva.paging.BasicPagedList
 import com.razz.eva.paging.Offset

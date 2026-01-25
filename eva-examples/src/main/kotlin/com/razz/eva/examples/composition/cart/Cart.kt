@@ -1,6 +1,6 @@
 package com.razz.eva.examples.composition.cart
 
-import com.razz.eva.domain.EntityState
+import com.razz.eva.domain.ModelState
 import com.razz.eva.domain.Model
 import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
@@ -27,8 +27,8 @@ class Cart(
     val items: List<CartItem>,
     val paidFrom: Account.Id?,
     val state: State,
-    entityState: EntityState<Id, CartEvent>,
-) : Model<Id, CartEvent>(id, entityState) {
+    modelState: ModelState<Id, CartEvent>,
+) : Model<Id, CartEvent>(id, modelState) {
 
     @Serializable
     @JvmInline
@@ -56,7 +56,7 @@ class Cart(
             items = this.items,
             paidFrom = accountId,
             state = CHECKED_OUT,
-            entityState = raiseEvent(CartCheckedOut(modelId = id())),
+            modelState = raiseEvent(CartCheckedOut(modelId = id())),
         )
     }
 
@@ -67,13 +67,13 @@ class Cart(
             items: List<CartItem>,
             paidFrom: Account.Id?,
             state: State,
-            entityState: EntityState<Id, CartEvent>,
+            modelState: ModelState<Id, CartEvent>,
         ) = Cart(
             id = id,
             items = items,
             paidFrom = paidFrom,
             state = state,
-            entityState = entityState,
+            modelState = modelState,
         )
     }
 }

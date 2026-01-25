@@ -1,6 +1,6 @@
 package com.razz.eva.examples.wallet
 
-import com.razz.eva.domain.EntityState.NewState.Companion.newState
+import com.razz.eva.domain.ModelState.NewState.Companion.newState
 import com.razz.eva.examples.ServicePrincipal
 import com.razz.eva.examples.wallet.CreateWalletUow.Params
 import com.razz.eva.persistence.PersistenceException
@@ -40,7 +40,7 @@ class CreateWalletUow(
                 currency = currency,
                 amount = amount,
                 expireAt = expireAt,
-                entityState = newState(WalletEvent.Created(walletId, currency, amount, expireAt)),
+                modelState = newState(WalletEvent.Created(walletId, currency, amount, expireAt)),
             )
             changes {
                 add(newWallet)

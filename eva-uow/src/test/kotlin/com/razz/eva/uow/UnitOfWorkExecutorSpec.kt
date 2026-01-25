@@ -5,7 +5,7 @@ import com.razz.eva.domain.DepartmentEvent.OwnedDepartmentCreated
 import com.razz.eva.domain.DepartmentId
 import com.razz.eva.domain.DepartmentId.Companion.randomDepartmentId
 import com.razz.eva.domain.EmployeeId
-import com.razz.eva.domain.EntityState.NewState.Companion.newState
+import com.razz.eva.domain.ModelState.NewState.Companion.newState
 import com.razz.eva.domain.Ration
 import com.razz.eva.events.UowEvent
 import com.razz.eva.persistence.PersistenceException.ModelRecordConstraintViolationException
@@ -49,7 +49,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
         headcount = 1,
         ration = Ration.BUBALEH,
         boss = bossId,
-        entityState = newState(
+        modelState = newState(
             OwnedDepartmentCreated(
                 departmentId = departmentId,
                 name = "KazahDepartment",
@@ -217,7 +217,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                 headcount = 1,
                 ration = Ration.BUBALEH,
                 boss = bossId,
-                entityState = newState(
+                modelState = newState(
                     OwnedDepartmentCreated(
                         departmentId = anotherId,
                         name = "LondonDepartment",

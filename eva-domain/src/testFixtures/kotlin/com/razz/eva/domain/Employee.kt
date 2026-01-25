@@ -2,7 +2,7 @@ package com.razz.eva.domain
 
 import com.razz.eva.domain.EmployeeEvent.DepartmentChanged
 import com.razz.eva.domain.EmployeeEvent.EmployeeCreated
-import com.razz.eva.domain.EntityState.NewState.Companion.newState
+import com.razz.eva.domain.ModelState.NewState.Companion.newState
 import kotlinx.serialization.Contextual
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.buildJsonObject
@@ -29,8 +29,8 @@ class Employee(
     val departmentId: DepartmentId,
     val email: String,
     val ration: Ration,
-    entityState: EntityState<EmployeeId, EmployeeEvent>
-) : Model<EmployeeId, EmployeeEvent>(id, entityState) {
+    modelState: ModelState<EmployeeId, EmployeeEvent>
+) : Model<EmployeeId, EmployeeEvent>(id, modelState) {
 
     fun changeDepartment(newDepartment: Department<*>): Employee {
         check(newDepartment.id() != departmentId) { "Same department" }
@@ -87,7 +87,7 @@ class Employee(
                 departmentId = departmentId,
                 email = email,
                 ration = ration,
-                entityState = newState(EmployeeCreated(empId, name, departmentId, email, ration))
+                modelState = newState(EmployeeCreated(empId, name, departmentId, email, ration))
             )
         }
     }

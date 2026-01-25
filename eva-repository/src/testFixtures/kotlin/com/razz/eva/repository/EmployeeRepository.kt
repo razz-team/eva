@@ -4,7 +4,7 @@ import com.razz.eva.domain.DepartmentId
 import com.razz.eva.domain.Employee
 import com.razz.eva.domain.EmployeeEvent
 import com.razz.eva.domain.EmployeeId
-import com.razz.eva.domain.EntityState.PersistentState
+import com.razz.eva.domain.ModelState.PersistentState
 import com.razz.eva.domain.Name
 import com.razz.eva.domain.Ration
 import com.razz.eva.persistence.executor.QueryExecutor
@@ -34,7 +34,7 @@ class EmployeeRepository(
 
     override fun fromRecord(
         record: EmployeesRecord,
-        entityState: PersistentState<EmployeeId, EmployeeEvent>
+        modelState: PersistentState<EmployeeId, EmployeeEvent>
     ): Employee {
         return Employee(
             EmployeeId(record.id),
@@ -42,7 +42,7 @@ class EmployeeRepository(
             DepartmentId(record.departmentId),
             record.email,
             Ration.valueOf(record.ration),
-            entityState
+            modelState
         )
     }
 

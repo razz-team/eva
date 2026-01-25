@@ -46,7 +46,7 @@ class UnitOfWorkDemoSpec : UowBehaviorSpec({
                 departmentId = oldDepId,
                 email = "old.zoomer@lame.dep",
                 ration = BUBALEH,
-                entityState = persistentStateV1(),
+                modelState = persistentStateV1(),
             )
             val boomerId = EmployeeId(randomUUID())
             val boomer = Employee(
@@ -55,7 +55,7 @@ class UnitOfWorkDemoSpec : UowBehaviorSpec({
                 departmentId = oldDepId,
                 email = "old.boomer@lame.dep",
                 ration = BUBALEH,
-                entityState = persistentStateV1(),
+                modelState = persistentStateV1(),
             )
 
             coEvery { departmentRepo.find(newDepId) } coAnswers { newDep }

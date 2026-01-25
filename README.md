@@ -67,8 +67,8 @@ class Wallet(
     val currency: Currency,
     val amount: ULong,
     val expireAt: Instant,
-    entityState: EntityState<Id, WalletEvent>
-) : Model<Wallet.Id, WalletEvent>(id, entityState) {
+    modelState: ModelState<Id, WalletEvent>
+) : Model<Wallet.Id, WalletEvent>(id, modelState) {
 
     data class Id(override val id: UUID) : ModelId<UUID>
 
@@ -77,7 +77,7 @@ class Wallet(
         currency = currency,
         id = id(),
         expireAt = expireAt,
-        entityState = entityState()
+        modelState = modelState()
             .raiseEvent(WalletEvent.Deposit(id(), amount, toDeposit))
     )
 }
@@ -122,7 +122,7 @@ class CreateWalletUow(
                 currency = currency,
                 amount = amount,
                 expireAt = expireAt,
-                entityState = newState(WalletEvent.Created(walletId, currency, amount, expireAt))
+                modelState = newState(WalletEvent.Created(walletId, currency, amount, expireAt))
             )
             changes {
                 add(newWallet)
@@ -158,7 +158,7 @@ We use [jOOQ](https://www.jooq.org/) to have a type-safe DB querying.
 You need to generate jOOQ tables/records based on your DB schema to have a type-safe mapping of your model to DB record.
 You can use different Gradle plugins to generate jOOQ tables, f.e. check this [plugin](https://github.com/etiennestuder/gradle-jooq-plugin).
 
-Your generated records should extend [BaseEntityRecord](eva-jooq/src/main/kotlin/com/razz/jooq/record/BaseEntityRecord.kt).
+Your generated records should extend [BaseModelRecord](eva-jooq/src/main/kotlin/com/razz/jooq/record/BaseModelRecord.kt).
 To achieve it use [jOOQ matcher strategies](https://www.jooq.org/doc/latest/manual/code-generation/codegen-matcherstrategy/).
 
 When you create tables for your models you need to add next fields to your schema, so we can persist your model properly - 
@@ -186,13 +186,13 @@ class WalletRepository(
 
     override fun fromRecord(
         record: WalletRecord,
-        entityState: PersistentState<Wallet.Id, WalletEvent>
+        modelState: PersistentState<Wallet.Id, WalletEvent>
     ) = Wallet(
         id = Wallet.Id(record.id),
         currency = Currency.getInstance(record.currency),
         amount = record.amount.toULong(),
         expireAt = record.expireAt,
-        entityState = entityState
+        modelState = modelState
     )
 }
 ```

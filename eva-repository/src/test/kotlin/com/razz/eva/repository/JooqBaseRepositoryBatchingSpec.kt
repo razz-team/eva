@@ -4,7 +4,7 @@ import com.razz.eva.domain.Department.OwnedDepartment
 import com.razz.eva.domain.DepartmentEvent.OwnedDepartmentCreated
 import com.razz.eva.domain.DepartmentId.Companion.randomDepartmentId
 import com.razz.eva.domain.EmployeeId
-import com.razz.eva.domain.EntityState.NewState.Companion.newState
+import com.razz.eva.domain.ModelState.NewState.Companion.newState
 import com.razz.eva.domain.Ration.BUBALEH
 import com.razz.eva.domain.Ration.SHAKSHOUKA
 import com.razz.eva.domain.Version.Companion.V1
@@ -42,7 +42,7 @@ class JooqBaseRepositoryBatchingSpec : BehaviorSpec({
                 boss = bossId1,
                 headcount = 1,
                 ration = BUBALEH,
-                entityState = newState(
+                modelState = newState(
                     OwnedDepartmentCreated(
                         departmentId = depId1,
                         name = "store me in the repo",
@@ -60,7 +60,7 @@ class JooqBaseRepositoryBatchingSpec : BehaviorSpec({
                 boss = bossId2,
                 headcount = 1,
                 ration = SHAKSHOUKA,
-                entityState = newState(
+                modelState = newState(
                     OwnedDepartmentCreated(
                         departmentId = depId2,
                         name = "store me in the repo too",

@@ -6,7 +6,7 @@ import com.razz.eva.domain.Department.OwnedDepartment
 import com.razz.eva.domain.DepartmentEvent
 import com.razz.eva.domain.DepartmentId
 import com.razz.eva.domain.EmployeeId
-import com.razz.eva.domain.EntityState.PersistentState
+import com.razz.eva.domain.ModelState.PersistentState
 import com.razz.eva.domain.Ration
 import com.razz.eva.persistence.executor.QueryExecutor
 import com.razz.eva.test.schema.Tables.DEPARTMENTS
@@ -52,7 +52,7 @@ class DepartmentRepository(
 
     override fun fromRecord(
         record: DepartmentsRecord,
-        entityState: PersistentState<DepartmentId, DepartmentEvent>
+        modelState: PersistentState<DepartmentId, DepartmentEvent>
     ): Department<*> {
         when (record.boss) {
             null -> return OrphanedDepartment(
@@ -60,7 +60,7 @@ class DepartmentRepository(
                 record.name,
                 record.headcount,
                 Ration.valueOf(record.ration),
-                entityState
+                modelState
             )
             else -> return OwnedDepartment(
                 DepartmentId(record.id),
@@ -68,7 +68,7 @@ class DepartmentRepository(
                 EmployeeId(record.boss),
                 record.headcount,
                 Ration.valueOf(record.ration),
-                entityState
+                modelState
             )
         }
     }

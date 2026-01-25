@@ -8,8 +8,8 @@ import com.razz.eva.domain.DepartmentId.Companion.randomDepartmentId
 import com.razz.eva.domain.Employee
 import com.razz.eva.domain.EmployeeEvent.DepartmentChanged
 import com.razz.eva.domain.EmployeeId
-import com.razz.eva.domain.EntityState.NewState.Companion.newState
-import com.razz.eva.domain.EntityState.PersistentState.Companion.persistentState
+import com.razz.eva.domain.ModelState.NewState.Companion.newState
+import com.razz.eva.domain.ModelState.PersistentState.Companion.persistentState
 import com.razz.eva.domain.Name
 import com.razz.eva.domain.Ration.BUBALEH
 import com.razz.eva.domain.TestModel.Factory.existingCreatedTestModel
@@ -75,7 +75,7 @@ class PersistingSpec : BehaviorSpec({
         headcount = 1,
         ration = BUBALEH,
         boss = bossId1,
-        entityState = newState(departmentCreatedEvent1),
+        modelState = newState(departmentCreatedEvent1),
     )
     val oldDepId = randomDepartmentId()
     val boss1 = Employee(
@@ -98,7 +98,7 @@ class PersistingSpec : BehaviorSpec({
         headcount = 1,
         ration = BUBALEH,
         boss = bossId2,
-        entityState = newState(departmentCreatedEvent2),
+        modelState = newState(departmentCreatedEvent2),
     )
     val boss2 = Employee(
         bossId2, Name("Vladimir", "P"), oldDepId, "vladimir@001.ru", BUBALEH,
@@ -113,7 +113,7 @@ class PersistingSpec : BehaviorSpec({
         headcount = 1,
         ration = BUBALEH,
         boss = bossId3,
-        entityState = persistentState(V1, null),
+        modelState = persistentState(V1, null),
     ).changeBoss(boss2)
 
     val params = Params("Nik")
@@ -347,7 +347,7 @@ class PersistingSpec : BehaviorSpec({
                                     headcount = 1,
                                     ration = BUBALEH,
                                     boss = bossId1,
-                                    entityState = persistentStateV1(),
+                                    modelState = persistentStateV1(),
                                 ),
                             ),
                             Noop(
@@ -357,7 +357,7 @@ class PersistingSpec : BehaviorSpec({
                                     headcount = 1,
                                     ration = BUBALEH,
                                     boss = bossId2,
-                                    entityState = persistentStateV1(),
+                                    modelState = persistentStateV1(),
                                 ),
                             ),
                         ),

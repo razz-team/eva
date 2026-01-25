@@ -4,7 +4,7 @@ import com.razz.eva.domain.Model
 import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
 import com.razz.eva.persistence.executor.QueryExecutor
-import com.razz.jooq.record.TypedStatefulEntityRecord
+import com.razz.jooq.record.TypedStatefulModelRecord
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import org.jooq.DSLContext
@@ -38,7 +38,7 @@ abstract class HackedRepository<ID, MID, M, ME, R, S>(
         MID : ModelId<ID>,
         ME : ModelEvent<MID>,
         M : Model<MID, ME>,
-        R : TypedStatefulEntityRecord<ID, S>,
+        R : TypedStatefulModelRecord<ID, S>,
         S : Enum<S> {
 
     private val detachedScope: CoroutineScope = CoroutineScope(EmptyCoroutineContext)

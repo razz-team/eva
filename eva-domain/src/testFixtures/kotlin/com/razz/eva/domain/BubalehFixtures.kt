@@ -2,7 +2,7 @@ package com.razz.eva.domain
 
 import com.razz.eva.domain.BubalehBottleVol.THIRTY_THREE
 import com.razz.eva.domain.BubalehTaste.SWEET
-import com.razz.eva.domain.EntityState.PersistentState.Companion.persistentState
+import com.razz.eva.domain.ModelState.PersistentState.Companion.persistentState
 import com.razz.eva.domain.Version.Companion.V1
 import java.time.Clock
 import java.time.Instant
