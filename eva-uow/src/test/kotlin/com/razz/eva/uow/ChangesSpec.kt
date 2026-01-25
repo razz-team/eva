@@ -1,5 +1,9 @@
 package com.razz.eva.uow
 
+import com.razz.eva.domain.EmployeeId
+import com.razz.eva.domain.Ration.BUBALEH
+import com.razz.eva.domain.RationAllocation
+import com.razz.eva.domain.Tag
 import com.razz.eva.domain.TestModel.Factory.createdTestModel
 import com.razz.eva.domain.TestModel.Factory.existingCreatedTestModel
 import com.razz.eva.domain.TestModelEvent.TestModelCreated
@@ -13,6 +17,8 @@ import com.razz.eva.domain.Version.Companion.V1
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.matchers.shouldBe
+import java.time.LocalDate
+import java.util.UUID
 
 class ChangesSpec : BehaviorSpec({
 
@@ -290,6 +296,181 @@ class ChangesSpec : BehaviorSpec({
                         val ex = shouldThrow<IllegalStateException>(attempt)
                         ex.message shouldBe "Failed to merge changes for model [${newModel.id()}]"
                     }
+                }
+            }
+        }
+    }
+
+    Given("Entities") {
+        val subjectId = UUID.randomUUID()
+        val tag1 = Tag(subjectId, "key1", "value1")
+        val tag2 = Tag(subjectId, "key2", "value2")
+        val employeeId = EmployeeId(UUID.randomUUID())
+        val allocation = RationAllocation(employeeId, BUBALEH, LocalDate.now(), 5)
+
+        When("Principal calling withResult on empty changes") {
+            val attempt = {
+                ChangesAccumulator().withResult("empty")
+            }
+
+            Then("IllegalArgumentException thrown") {
+                val exception = shouldThrow<IllegalArgumentException>(attempt)
+                exception.message shouldBe "No changes to persist"
+            }
+        }
+
+        When("Principal calling withAddedEntity and then withResult") {
+            val changes = ChangesAccumulator()
+                .withAddedEntity(tag1)
+                .withResult("tag added")
+
+            Then("Changes matching added entity and result produced") {
+                changes.entityChangesToPersist shouldBe listOf(AddEntity(tag1))
+                changes.modelChangesToPersist shouldBe emptyList()
+                changes.result shouldBe "tag added"
+            }
+        }
+
+        When("Principal calling withAddedEntity twice for different entities") {
+            val changes = ChangesAccumulator()
+                .withAddedEntity(tag1)
+                .withAddedEntity(tag2)
+                .withResult("tags added")
+
+            Then("Changes contain both entities") {
+                changes.entityChangesToPersist shouldBe listOf(AddEntity(tag1), AddEntity(tag2))
+                changes.result shouldBe "tags added"
+            }
+        }
+
+        When("Principal calling withAddedEntity twice for the same entity") {
+            val changes = ChangesAccumulator()
+                .withAddedEntity(tag1)
+                .withAddedEntity(tag1)
+                .withResult("duplicate tag")
+
+            Then("Changes contain duplicate entities (no deduplication)") {
+                changes.entityChangesToPersist shouldBe listOf(AddEntity(tag1), AddEntity(tag1))
+                changes.result shouldBe "duplicate tag"
+            }
+        }
+
+        When("Principal calling withDeletedEntity and then withResult") {
+            val changes = ChangesAccumulator()
+                .withDeletedEntity(tag1)
+                .withResult("tag deleted")
+
+            Then("Changes matching deleted entity and result produced") {
+                changes.entityChangesToPersist shouldBe listOf(DeleteEntity(tag1))
+                changes.result shouldBe "tag deleted"
+            }
+        }
+
+        When("Principal calling withAddedEntity and withDeletedEntity") {
+            val changes = ChangesAccumulator()
+                .withAddedEntity(tag1)
+                .withDeletedEntity(tag2)
+                .withResult("mixed entity ops")
+
+            Then("Changes contain both add and delete") {
+                changes.entityChangesToPersist shouldBe listOf(AddEntity(tag1), DeleteEntity(tag2))
+                changes.result shouldBe "mixed entity ops"
+            }
+        }
+
+        When("Principal calling withAddedEntity for CreatableEntity (not DeletableEntity)") {
+            val changes = ChangesAccumulator()
+                .withAddedEntity(allocation)
+                .withResult("allocation added")
+
+            Then("Changes matching added allocation and result produced") {
+                changes.entityChangesToPersist shouldBe listOf(AddEntity(allocation))
+                changes.result shouldBe "allocation added"
+            }
+        }
+
+        And("A model") {
+            val model = createdTestModel("test", 100)
+            val modelEvent = TestModelCreated(model.id())
+
+            When("Principal adds both model and entity") {
+                val changes = ChangesAccumulator()
+                    .withAddedModel(model)
+                    .withAddedEntity(tag1)
+                    .withResult("mixed changes")
+
+                Then("Changes contain both model and entity changes") {
+                    changes.modelChangesToPersist shouldBe listOf(AddModel(model, listOf(modelEvent)))
+                    changes.entityChangesToPersist shouldBe listOf(AddEntity(tag1))
+                    changes.result shouldBe "mixed changes"
+                }
+            }
+        }
+
+        And("Initial changes with entities") {
+            val changes0 = ChangesAccumulator().withAddedEntity(tag1)
+
+            When("New changes with entities merged into initial changes") {
+                val changes1 = ChangesAccumulator()
+                    .withAddedEntity(tag2)
+                    .withDeletedEntity(tag1)
+                    .withResult("merged")
+
+                val merged = changes0.merge(changes1).withResult("final")
+
+                Then("Entity changes are concatenated") {
+                    merged.entityChangesToPersist shouldBe listOf(
+                        AddEntity(tag1),
+                        AddEntity(tag2),
+                        DeleteEntity(tag1),
+                    )
+                    merged.result shouldBe "final"
+                }
+            }
+
+            When("Same entity added in both changes and merged") {
+                val changes1 = ChangesAccumulator()
+                    .withAddedEntity(tag1)
+                    .withResult("duplicate")
+
+                val merged = changes0.merge(changes1).withResult("final")
+
+                Then("Duplicate entities are preserved (no deduplication)") {
+                    merged.entityChangesToPersist shouldBe listOf(
+                        AddEntity(tag1),
+                        AddEntity(tag1),
+                    )
+                    merged.result shouldBe "final"
+                }
+            }
+        }
+
+        And("Initial changes with models and entities") {
+            val model = createdTestModel("test", 100)
+            val modelEvent = TestModelCreated(model.id())
+            val changes0 = ChangesAccumulator()
+                .withAddedModel(model)
+                .withAddedEntity(tag1)
+
+            When("New changes with models and entities merged") {
+                val updatedModel = model.changeParam1("updated")
+                val updateEvent = TestModelEvent1(model.id())
+                val changes1 = ChangesAccumulator()
+                    .withUpdatedModel(updatedModel)
+                    .withAddedEntity(tag2)
+                    .withResult("merged")
+
+                val merged = changes0.merge(changes1).withResult("final")
+
+                Then("Model changes are merged and entity changes are concatenated") {
+                    merged.modelChangesToPersist shouldBe listOf(
+                        AddModel(updatedModel, listOf(modelEvent, updateEvent)),
+                    )
+                    merged.entityChangesToPersist shouldBe listOf(
+                        AddEntity(tag1),
+                        AddEntity(tag2),
+                    )
+                    merged.result shouldBe "final"
                 }
             }
         }

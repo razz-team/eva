@@ -13,14 +13,8 @@ import com.razz.eva.domain.DeletableEntity
  */
 interface EntityRepository<E : CreatableEntity> {
 
-    /**
-     * Insert a new entity.
-     */
     suspend fun add(context: TransactionalContext, entity: E): E
 
-    /**
-     * Batch insert entities.
-     */
     suspend fun add(context: TransactionalContext, entities: List<E>): List<E>
 }
 
@@ -29,13 +23,7 @@ interface EntityRepository<E : CreatableEntity> {
  */
 interface DeletableEntityRepository<E : DeletableEntity> : EntityRepository<E> {
 
-    /**
-     * Delete an entity. Returns true if entity was found and deleted.
-     */
     suspend fun delete(context: TransactionalContext, entity: E): Boolean
 
-    /**
-     * Batch delete entities. Returns count of deleted entities.
-     */
     suspend fun delete(context: TransactionalContext, entities: List<E>): Int
 }
