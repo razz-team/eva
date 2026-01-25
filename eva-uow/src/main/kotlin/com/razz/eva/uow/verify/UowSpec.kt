@@ -1,9 +1,12 @@
 package com.razz.eva.uow.verify
 
+import com.razz.eva.domain.CreatableEntity
+import com.razz.eva.domain.DeletableEntity
 import com.razz.eva.domain.Model
 import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
 import com.razz.eva.uow.Changes
+import kotlin.jvm.java
 
 interface EqualityVerifierAware {
     val equalityVerifier: EqualityVerifier
@@ -23,86 +26,123 @@ class UowSpec<R> internal constructor(
     changes: Changes<R>,
 ) : UowSpecBase<R>(changes) {
 
-    fun <RR : R> returnsEq(expected: RR) = returnsAs<RR> {
+    inline fun <reified RR : R> returnsEq(expected: RR) = returnsAs<RR> {
         check(expected == this) { "Result doesn't match got $this instead of $expected" }
     }
 
     fun returns(verifyResult: R.() -> Unit) {
-        verifyResult(verifyResult)
+        verifyResultInternal(verifyResult)
     }
 
-    fun <RR : R> returnsAs(verifyResult: RR.() -> Unit) {
-        verifyResultAs(verifyResult)
+    inline fun <reified RR : R> returnsAs(noinline verifyResult: RR.() -> Unit) {
+        verifyResultAsInternal(verifyResult)
     }
 
-    fun <M : Model<*, *>> addsEq(expected: M) {
-        verifyAdded<M> { actual ->
-            check(actual == expected) { "Got unexpected add of [$actual]" }
+    inline fun <reified T> addsEq(expected: T) {
+        adds<T> {
+            check(expected == this) {
+                if (this is Model<*, *>) "Got unexpected add of [$this]"
+                else "Got unexpected entity add of [$this]"
+            }
         }
     }
 
-    fun <M : Model<*, *>> adds(verify: M.() -> Unit): M {
-        return verifyAdded(verify)
-    }
-
-    fun <M : Model<*, *>> EqualityVerifierAware.adds(id: ModelId<*>, verify: M.() -> Unit): M {
-        val verified = verifyAdded(verify)
-        equalityVerifier.verify(verified.id(), id)
-        return verified
-    }
-
-    fun <M : Model<*, *>> addsAndReturns(verify: M.() -> Unit): M {
-        verifyResultAs(verify)
-        return verifyAdded(verify)
-    }
-
-    fun <M : Model<*, *>> EqualityVerifierAware.addsAndReturns(id: ModelId<*>, verify: M.() -> Unit): M {
-        verifyResultAs(verify)
-        val verified = verifyAdded(verify)
-        equalityVerifier.verify(verified.id(), id)
-        return verified
-    }
-
-    fun <M : Model<*, *>> updatesEq(expected: M) {
-        verifyUpdated<M> { actual ->
-            check(actual == expected) { "Got unexpected update of [$actual]" }
+    @Suppress("UNCHECKED_CAST")
+    inline fun <reified T> adds(noinline verify: T.() -> Unit): T {
+        return when {
+            Model::class.java.isAssignableFrom(T::class.java) ->
+                verifyAddedModel(verify as (Model<*, *>) -> Unit) as T
+            CreatableEntity::class.java.isAssignableFrom(T::class.java) ->
+                verifyAddedEntity(verify as (CreatableEntity) -> Unit) as T
+            else -> throw IllegalArgumentException(
+                "Type parameter must be either Model or CreatableEntity, was ${T::class}",
+            )
         }
     }
 
-    fun <M : Model<*, *>> updates(verify: M.() -> Unit): M {
-        return verifyUpdated(verify)
-    }
-
-    fun <M : Model<*, *>> EqualityVerifierAware.updates(id: ModelId<*>, verify: M.() -> Unit): M {
-        val verified = verifyUpdated(verify)
+    inline fun <reified M : Model<*, *>> EqualityVerifierAware.adds(
+        id: ModelId<*>,
+        noinline verify: M.() -> Unit,
+    ): M {
+        val verified = verifyAddedModel(verify)
         equalityVerifier.verify(verified.id(), id)
         return verified
     }
 
-    fun <M : Model<*, *>> updatesAndReturns(verify: M.() -> Unit): M {
-        verifyResultAs(verify)
-        return verifyUpdated(verify)
+    inline fun <reified M : Model<*, *>> addsAndReturns(noinline verify: M.() -> Unit): M {
+        verifyResultAsInternal(verify)
+        return verifyAddedModel(verify)
     }
 
-    fun <M : Model<*, *>> EqualityVerifierAware.updatesAndReturns(id: ModelId<*>, verify: M.() -> Unit): M {
-        verifyResultAs(verify)
-        val verified = verifyUpdated(verify)
+    inline fun <reified M : Model<*, *>> EqualityVerifierAware.addsAndReturns(
+        id: ModelId<*>,
+        noinline verify: M.() -> Unit,
+    ): M {
+        verifyResultAsInternal(verify)
+        val verified = verifyAddedModel(verify)
         equalityVerifier.verify(verified.id(), id)
         return verified
     }
 
-    fun <E : ModelEvent<*>> emitsEq(expected: E) {
-        verifyEmitted<E> { actual ->
-            check(actual == expected) { "Got unexpected emit of [$actual]" }
+    inline fun <reified M : Model<*, *>> updatesEq(expected: M) {
+        updates<M> {
+            check(expected == this) { "Got unexpected update of [$this]" }
         }
     }
 
-    fun <E : ModelEvent<*>> emits(verify: E.() -> Unit) {
-        verifyEmitted(verify)
+    inline fun <reified M : Model<*, *>> updates(noinline verify: M.() -> Unit): M {
+        return verifyUpdatedModel(verify)
     }
 
-    fun <E : ModelEvent<*>> EqualityVerifierAware.emits(id: ModelId<*>, verify: E.() -> Unit) {
-        val verified = verifyEmitted(verify)
+    inline fun <reified M : Model<*, *>> EqualityVerifierAware.updates(
+        id: ModelId<*>,
+        noinline verify: M.() -> Unit,
+    ): M {
+        val verified = verifyUpdatedModel(verify)
+        equalityVerifier.verify(verified.id(), id)
+        return verified
+    }
+
+    inline fun <reified M : Model<*, *>> updatesAndReturns(noinline verify: M.() -> Unit): M {
+        verifyResultAsInternal(verify)
+        return verifyUpdatedModel(verify)
+    }
+
+    inline fun <reified M : Model<*, *>> EqualityVerifierAware.updatesAndReturns(
+        id: ModelId<*>,
+        noinline verify: M.() -> Unit,
+    ): M {
+        verifyResultAsInternal(verify)
+        val verified = verifyUpdatedModel(verify)
+        equalityVerifier.verify(verified.id(), id)
+        return verified
+    }
+
+    inline fun <reified E : ModelEvent<*>> emitsEq(expected: E) {
+        emits<E> {
+            check(expected == this) { "Got unexpected emit of [$this]" }
+        }
+    }
+
+    inline fun <reified E : ModelEvent<*>> emits(noinline verify: E.() -> Unit) {
+        verifyEmittedEvent(verify)
+    }
+
+    inline fun <reified E : ModelEvent<*>> EqualityVerifierAware.emits(
+        id: ModelId<*>,
+        noinline verify: E.() -> Unit,
+    ) {
+        val verified = verifyEmittedEvent(verify)
         equalityVerifier.verify(verified.modelId, id)
+    }
+
+    inline fun <reified E : DeletableEntity> deletesEq(expected: E) {
+        deletes<E> {
+            check(expected == this) { "Got unexpected entity delete of [$this]" }
+        }
+    }
+
+    inline fun <reified E : DeletableEntity> deletes(noinline verify: E.() -> Unit): E {
+        return verifyDeletedEntity(verify)
     }
 }

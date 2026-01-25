@@ -94,12 +94,12 @@ class ChangesDsl internal constructor(initial: ChangesAccumulator, private val o
         return model
     }
 
-    fun <E : CreatableEntity> addEntity(entity: E): E {
+    fun <E : CreatableEntity> add(entity: E): E {
         head = head.withAddedEntity(entity)
         return entity
     }
 
-    fun <E : DeletableEntity> deleteEntity(entity: E): E {
+    fun <E : DeletableEntity> delete(entity: E): E {
         head = head.withDeletedEntity(entity)
         return entity
     }

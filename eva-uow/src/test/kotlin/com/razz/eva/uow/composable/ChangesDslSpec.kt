@@ -1,5 +1,10 @@
 package com.razz.eva.uow.composable
 
+import com.razz.eva.domain.DepartmentId.Companion.randomDepartmentId
+import com.razz.eva.domain.EmployeeId.Companion.randomEmployeeId
+import com.razz.eva.domain.Tag
+import com.razz.eva.domain.Ration
+import com.razz.eva.domain.RationAllocation
 import com.razz.eva.domain.TestModel.ActiveTestModel
 import com.razz.eva.domain.TestModel.CreatedTestModel
 import com.razz.eva.domain.TestModel.Factory.createdTestModel
@@ -13,9 +18,11 @@ import com.razz.eva.domain.TestModelId.Companion.randomTestModelId
 import com.razz.eva.domain.TestModelStatus.ACTIVE
 import com.razz.eva.domain.TestModelStatus.CREATED
 import com.razz.eva.domain.Version.Companion.V1
+import com.razz.eva.uow.AddEntity
 import com.razz.eva.uow.AddModel
 import com.razz.eva.uow.Clocks.fixedUTC
 import com.razz.eva.uow.Clocks.millisUTC
+import com.razz.eva.uow.DeleteEntity
 import com.razz.eva.uow.ExecutionContext
 import com.razz.eva.uow.NoopModel
 import com.razz.eva.uow.TestExecutionContext.executionContextForSpec
@@ -27,6 +34,7 @@ import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeTypeOf
 import io.opentelemetry.api.OpenTelemetry
+import java.time.LocalDate
 
 class ChangesDslSpec : FunSpec({
 
@@ -383,5 +391,120 @@ class ChangesDslSpec : FunSpec({
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
         exception.message shouldBe "Failed to merge changes for model [${model.id()}]"
+    }
+
+    test("Should return properly built RealisedChanges when entity is added") {
+        val departmentId = randomDepartmentId()
+        val tag = Tag.environmentTag(departmentId.id, "production")
+
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                add(tag)
+                "ENTITY ADDED"
+            }
+        }
+        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
+
+        changes.modelChangesToPersist shouldBe listOf()
+        changes.entityChangesToPersist shouldBe listOf(AddEntity(tag))
+        changes.result shouldBe "ENTITY ADDED"
+    }
+
+    test("Should return properly built RealisedChanges when entity is deleted") {
+        val departmentId = randomDepartmentId()
+        val tag = Tag.priorityTag(departmentId.id, 1)
+
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                delete(tag)
+                "ENTITY DELETED"
+            }
+        }
+        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
+
+        changes.modelChangesToPersist shouldBe listOf()
+        changes.entityChangesToPersist shouldBe listOf(DeleteEntity(tag))
+        changes.result shouldBe "ENTITY DELETED"
+    }
+
+    test("Should return properly built RealisedChanges when model added and entity added") {
+        val model = createdTestModel("MLG", 420).activate()
+        val departmentId = randomDepartmentId()
+        val tag = Tag.environmentTag(departmentId.id, "staging")
+
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                add(model)
+                add(tag)
+                "MIXED CHANGES"
+            }
+        }
+        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
+
+        changes.modelChangesToPersist shouldBe listOf(
+            AddModel(
+                model,
+                listOf(
+                    TestModelCreated(model.id()),
+                    TestModelStatusChanged(model.id(), CREATED, ACTIVE),
+                ),
+            ),
+        )
+        changes.entityChangesToPersist shouldBe listOf(AddEntity(tag))
+        changes.result shouldBe "MIXED CHANGES"
+    }
+
+    test("Should return properly built RealisedChanges when multiple entities added and deleted") {
+        val departmentId = randomDepartmentId()
+        val employeeId = randomEmployeeId()
+        val tag1 = Tag.environmentTag(departmentId.id, "production")
+        val tag2 = Tag.priorityTag(departmentId.id, 1)
+        val oldTag = Tag.tag(departmentId.id, "deprecated", "true")
+        val allocation = RationAllocation.allocation(employeeId, Ration.BUBALEH, LocalDate.of(2026, 1, 1), 10)
+
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                add(tag1)
+                add(tag2)
+                add(allocation)
+                delete(oldTag)
+                "MULTIPLE ENTITIES"
+            }
+        }
+        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
+
+        changes.modelChangesToPersist shouldBe listOf()
+        changes.entityChangesToPersist shouldBe listOf(
+            AddEntity(tag1),
+            AddEntity(tag2),
+            AddEntity(allocation),
+            DeleteEntity(oldTag),
+        )
+        changes.result shouldBe "MULTIPLE ENTITIES"
+    }
+
+    test("Should merge entity changes from sub-uow") {
+        val departmentId = randomDepartmentId()
+        val tag1 = Tag.environmentTag(departmentId.id, "production")
+        val tag2 = Tag.priorityTag(departmentId.id, 1)
+
+        val innerUow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                add(tag2)
+                "inner result"
+            }
+        }
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                add(tag1)
+                execute(innerUow, TestPrincipal) { Params }
+                "MERGED ENTITIES"
+            }
+        }
+        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
+
+        changes.modelChangesToPersist shouldBe listOf()
+        changes.entityChangesToPersist shouldBe listOf(AddEntity(tag1), AddEntity(tag2))
+        changes.result shouldBe "MERGED ENTITIES"
     }
 })

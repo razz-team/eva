@@ -9,9 +9,10 @@ import com.razz.eva.domain.EmployeeEvent.DepartmentChanged
 import com.razz.eva.domain.EmployeeId
 import com.razz.eva.domain.Name
 import com.razz.eva.domain.Ration.BUBALEH
-import com.razz.eva.test.domain.persistentStateV1
+import com.razz.eva.domain.Tag
 import com.razz.eva.repository.DepartmentRepository
 import com.razz.eva.repository.EmployeeRepository
+import com.razz.eva.test.domain.persistentStateV1
 import com.razz.eva.test.uow.UowBehaviorSpec
 import com.razz.eva.uow.verify.verifyInOrder
 import io.kotest.matchers.shouldBe
@@ -66,12 +67,15 @@ class UnitOfWorkDemoSpec : UowBehaviorSpec({
             val changes = InternalMobilityUow(executionContext, employeeRepo, departmentRepo)
                 .tryPerform(TestPrincipal, InternalMobilityUow.Params(listOf(zoomerId, boomerId), newDepId))
 
-            Then("First zoomer moved then boomer moved then new dep got two emps then old dep lost two emps") {
+            Then("Zoomer and boomer moved, new dep got two emps, old dep lost two with transfer tags") {
                 changes verifyInOrder {
                     updatesEq(zoomer.changeDepartment(newDep))
+                    addsEq(Tag.tag(newDepId.id, "transfer-${zoomerId.id}", "from-${oldDepId.id}"))
                     updatesEq(boomer.changeDepartment(newDep))
+                    addsEq(Tag.tag(newDepId.id, "transfer-${boomerId.id}", "from-${oldDepId.id}"))
                     updatesEq(newDep.addEmployee(zoomer).addEmployee(boomer))
                     updatesEq(oldDep.removeEmployee(boomer).removeEmployee(zoomer))
+                    deletesEq(Tag.tag(oldDepId.id, "full-staff", "true"))
 
                     emitsEq(DepartmentChanged(zoomerId, oldDepId, newDepId))
                     emitsEq(DepartmentChanged(boomerId, oldDepId, newDepId))
@@ -84,19 +88,34 @@ class UnitOfWorkDemoSpec : UowBehaviorSpec({
                 }
             }
 
-            And("Models should be updated and Unit should be returned") {
+            And("Models and entities should be updated with custom verification") {
                 changes verifyInOrder {
                     updates<Employee> {
                         departmentId shouldBe newDepId
                     }
+                    adds<Tag> {
+                        subjectId shouldBe newDepId.id
+                        name shouldBe "transfer-${zoomerId.id}"
+                        value shouldBe "from-${oldDepId.id}"
+                    }
                     updates<Employee> {
                         departmentId shouldBe newDepId
+                    }
+                    adds<Tag> {
+                        subjectId shouldBe newDepId.id
+                        name shouldBe "transfer-${boomerId.id}"
+                        value shouldBe "from-${oldDepId.id}"
                     }
                     updates<OwnedDepartment> {
                         headcount shouldBe 3
                     }
                     updates<OwnedDepartment> {
                         headcount shouldBe 1
+                    }
+                    deletes<Tag> {
+                        subjectId shouldBe oldDepId.id
+                        name shouldBe "full-staff"
+                        value shouldBe "true"
                     }
 
                     emits<DepartmentChanged> {

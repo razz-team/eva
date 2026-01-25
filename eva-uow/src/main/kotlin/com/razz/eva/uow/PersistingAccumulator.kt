@@ -31,14 +31,14 @@ internal sealed interface PersistingAccumulator : ModelPersisting, EntityPersist
             changes.add { context -> modelRepos.repoFor(model).update(context, model).let(::listOf) }
         }
 
-        override fun <E : CreatableEntity> addEntity(entity: E) {
+        override fun <E : CreatableEntity> add(entity: E) {
             changes.add { context ->
                 entityRepos.repoFor(entity).add(context, entity)
                 listOf()
             }
         }
 
-        override fun <E : DeletableEntity> deleteEntity(entity: E) {
+        override fun <E : DeletableEntity> delete(entity: E) {
             changes.add { context ->
                 entityRepos.deletableRepoFor(entity).delete(context, entity)
                 listOf()
@@ -69,13 +69,13 @@ internal sealed interface PersistingAccumulator : ModelPersisting, EntityPersist
             }
         }
 
-        override fun <E : CreatableEntity> addEntity(entity: E) {
+        override fun <E : CreatableEntity> add(entity: E) {
             entityInserts.compute(entity::class) { _, v ->
                 v?.with(entity) ?: EntityBatch.Add(entity)
             }
         }
 
-        override fun <E : DeletableEntity> deleteEntity(entity: E) {
+        override fun <E : DeletableEntity> delete(entity: E) {
             entityDeletes.compute(entity::class) { _, v ->
                 v?.with(entity) ?: EntityBatch.Delete(entity)
             }

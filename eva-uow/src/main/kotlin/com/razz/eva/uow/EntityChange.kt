@@ -14,7 +14,7 @@ internal data class AddEntity<E : CreatableEntity>(
 ) : EntityChange {
 
     override fun persist(persisting: EntityPersisting) {
-        persisting.addEntity(entity)
+        persisting.add(entity)
     }
 }
 
@@ -23,6 +23,6 @@ internal data class DeleteEntity<E : DeletableEntity>(
 ) : EntityChange {
 
     override fun persist(persisting: EntityPersisting) {
-        persisting.deleteEntity(entity)
+        persisting.delete(entity)
     }
 }

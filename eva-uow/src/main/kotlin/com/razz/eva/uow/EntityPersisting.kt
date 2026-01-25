@@ -5,7 +5,7 @@ import com.razz.eva.domain.DeletableEntity
 
 internal interface EntityPersisting {
 
-    fun <E : CreatableEntity> addEntity(entity: E)
+    fun <E : CreatableEntity> add(entity: E)
 
-    fun <E : DeletableEntity> deleteEntity(entity: E)
+    fun <E : DeletableEntity> delete(entity: E)
 }

@@ -4,7 +4,7 @@ import com.razz.eva.domain.Model
 import com.razz.eva.domain.ModelId
 import com.razz.eva.uow.ModelPersisting
 
-internal class PeekingPersisting : ModelPersisting {
+internal class PeekingModelPersisting : ModelPersisting {
 
     private var currentModel: Model<*, *>? = null
 

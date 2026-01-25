@@ -7,14 +7,21 @@ import com.razz.eva.domain.DepartmentId.Companion.randomDepartmentId
 import com.razz.eva.domain.EmployeeId
 import com.razz.eva.domain.ModelState.NewState.Companion.newState
 import com.razz.eva.domain.Ration
+import com.razz.eva.domain.RationAllocation
+import com.razz.eva.domain.Tag
 import com.razz.eva.events.UowEvent
 import com.razz.eva.persistence.PersistenceException.ModelRecordConstraintViolationException
 import com.razz.eva.persistence.PersistenceException.StaleRecordException
 import com.razz.eva.persistence.PersistenceException.UniqueModelRecordViolationException
 import com.razz.eva.persistence.PrimaryConnectionRequiredFlag
 import com.razz.eva.persistence.WithCtxConnectionTransactionManager
+import com.razz.eva.repository.DeletableEntityRepository
 import com.razz.eva.repository.EntityRepos
+import com.razz.eva.repository.EntityRepository
 import com.razz.eva.repository.ModelRepos
+import com.razz.eva.repository.ModelRepository
+import com.razz.eva.repository.hasEntityRepo
+import com.razz.eva.repository.hasRepo
 import com.razz.eva.uow.BaseUnitOfWork.Configuration
 import com.razz.eva.uow.Clocks.fixedUTC
 import com.razz.eva.uow.CreateDepartmentUow.Params
@@ -34,6 +41,7 @@ import java.time.Duration.ofMillis
 import java.time.Instant.ofEpochMilli
 import java.util.*
 import com.razz.eva.uow.composable.DummyUow
+import com.razz.eva.uow.composable.UnitOfWork as ComposableUnitOfWork
 import kotlin.reflect.KClass
 import java.time.InstantSource
 
@@ -192,6 +200,121 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
 
                     Then("Result should be Success") {
                         result shouldBe "Success"
+                    }
+                }
+            }
+        }
+
+        And("Ad hoc factory with entity changes") {
+            val tag = Tag.environmentTag(departmentId.id, "production")
+            val allocation = RationAllocation.todayAllocation(bossId, Ration.BUBALEH, 3)
+
+            val factory = { exCtx: ExecutionContext ->
+                object : ComposableUnitOfWork<TestPrincipal, DummyUow.Params, String>(exCtx) {
+                    override suspend fun tryPerform(
+                        principal: TestPrincipal,
+                        params: DummyUow.Params,
+                    ) = changes {
+                        add(tag)
+                        add(allocation)
+                        "Success with entities"
+                    }
+                }
+            }
+
+            When("UnitOfWorkExecutor created with entity repos") {
+                @Suppress("UNCHECKED_CAST")
+                val tagRepo = mockk<DeletableEntityRepository<Tag>>(relaxed = true)
+                @Suppress("UNCHECKED_CAST")
+                val allocationRepo = mockk<EntityRepository<RationAllocation>>(relaxed = true)
+
+                coEvery { tagRepo.add(any(), tag) } returns tag
+                coEvery { allocationRepo.add(any(), allocation) } returns allocation
+
+                val uowx = UnitOfWorkExecutor(
+                    listOf(),
+                    Persisting(
+                        transactionManager = WithCtxConnectionTransactionManager(),
+                        modelRepos = ModelRepos(),
+                        entityRepos = EntityRepos(
+                            Tag::class hasEntityRepo tagRepo,
+                            RationAllocation::class hasEntityRepo allocationRepo,
+                        ),
+                        eventRepository = DummyEventRepository(),
+                    ),
+                    clock,
+                    OpenTelemetry.noop(),
+                )
+
+                And("UnitOfWorkExecutor executes Uow with entity changes") {
+                    val result = uowx.execute(TestPrincipal, factory) { DummyUow.Params }
+
+                    Then("Result should contain entity changes confirmation") {
+                        result shouldBe "Success with entities"
+                    }
+                }
+            }
+        }
+
+        And("Ad hoc factory with mixed model and entity changes") {
+            val tag = Tag.environmentTag(departmentId.id, "production")
+            val tagToDelete = Tag.tag(departmentId.id, "deprecated", "true")
+
+            val factory = { exCtx: ExecutionContext ->
+                object : ComposableUnitOfWork<TestPrincipal, DummyUow.Params, OwnedDepartment>(exCtx) {
+                    override suspend fun tryPerform(
+                        principal: TestPrincipal,
+                        params: DummyUow.Params,
+                    ) = changes {
+                        val addedDepartment = add(department)
+                        add(tag)
+                        delete(tagToDelete)
+                        addedDepartment
+                    }
+                }
+            }
+
+            When("UnitOfWorkExecutor created with model and entity repos") {
+                val departmentRepo = mockk<ModelRepository<DepartmentId, OwnedDepartment>>(relaxed = true)
+                val tagRepo = mockk<DeletableEntityRepository<Tag>>(relaxed = true)
+
+                coEvery { departmentRepo.add(any(), department) } returns department
+                coEvery { tagRepo.add(any(), tag) } returns tag
+                coEvery { tagRepo.delete(any(), tagToDelete) } returns true
+
+                val uowx = UnitOfWorkExecutor(
+                    listOf(),
+                    Persisting(
+                        transactionManager = WithCtxConnectionTransactionManager(),
+                        modelRepos = ModelRepos(
+                            OwnedDepartment::class hasRepo departmentRepo,
+                        ),
+                        entityRepos = EntityRepos(
+                            Tag::class hasEntityRepo tagRepo,
+                        ),
+                        eventRepository = DummyEventRepository(),
+                    ),
+                    clock,
+                    OpenTelemetry.noop(),
+                )
+
+                And("UnitOfWorkExecutor executes Uow with mixed changes") {
+                    val result = uowx.execute(TestPrincipal, factory) { DummyUow.Params }
+
+                    Then("Result should be the added department") {
+                        result shouldBe department
+                    }
+
+                    And("Model repository was called") {
+                        coVerify { departmentRepo.add(any(), department) }
+                    }
+
+                    And("Entity repository add was called") {
+                        coVerify { tagRepo.add(any(), tag) }
+                    }
+
+                    And("Entity repository delete was called") {
+                        coVerify { tagRepo.delete(any(), tagToDelete) }
                     }
                 }
             }
