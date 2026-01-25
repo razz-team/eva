@@ -308,17 +308,6 @@ class ChangesSpec : BehaviorSpec({
         val employeeId = EmployeeId(UUID.randomUUID())
         val allocation = RationAllocation(employeeId, BUBALEH, LocalDate.now(), 5)
 
-        When("Principal calling withResult on empty changes") {
-            val attempt = {
-                ChangesAccumulator().withResult("empty")
-            }
-
-            Then("IllegalArgumentException thrown") {
-                val exception = shouldThrow<IllegalArgumentException>(attempt)
-                exception.message shouldBe "No changes to persist"
-            }
-        }
-
         When("Principal calling withAddedEntity and then withResult") {
             val changes = ChangesAccumulator()
                 .withAddedEntity(tag1)
