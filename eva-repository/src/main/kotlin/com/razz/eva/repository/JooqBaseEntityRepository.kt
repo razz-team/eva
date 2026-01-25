@@ -26,10 +26,7 @@ abstract class JooqBaseEntityRepository<E : CreatableEntity, R : BaseEntityRecor
     protected abstract fun entityCondition(entity: E): Condition
 
     override suspend fun add(context: TransactionalContext, entity: E): E {
-        val record = toRecord(entity).apply {
-            setRecordCreatedAt(context.startedAt)
-            setRecordUpdatedAt(context.startedAt)
-        }
+        val record = toRecord(entity)
         val insertQuery = dslContext.insertQuery(table).apply {
             setRecord(record)
         }
@@ -49,10 +46,7 @@ abstract class JooqBaseEntityRepository<E : CreatableEntity, R : BaseEntityRecor
         if (entities.isEmpty()) throw IllegalArgumentException("No entities provided for insert")
         if (entities.size == 1) return listOf(add(context, entities.first()))
         val insertQuery = entities.fold(dslContext.insertQuery(table)) { query, entity ->
-            val record = toRecord(entity).apply {
-                setRecordCreatedAt(context.startedAt)
-                setRecordUpdatedAt(context.startedAt)
-            }
+            val record = toRecord(entity)
             query.newRecord()
             query.setRecord(record)
             query
