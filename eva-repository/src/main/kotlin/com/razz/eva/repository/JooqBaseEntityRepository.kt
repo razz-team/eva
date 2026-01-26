@@ -84,7 +84,11 @@ abstract class JooqBaseEntityRepository<E : CreatableEntity, R : BaseEntityRecor
         return when (records.size) {
             0 -> null
             1 -> records.first()
-            else -> throw JooqQueryException(select, records, "Found more than one record. Type: ${select.recordType}")
+            else -> throw JooqQueryException(
+                query = select,
+                records = records,
+                message = "Found more than one record: ${records.size}. Type: ${select.recordType}",
+            )
         }
     }
 

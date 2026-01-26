@@ -32,6 +32,20 @@ class Persisting(
     private val eventPublisher: EventPublisher = NoopEventPublisher,
     private val json: StringFormat = com.razz.eva.serialization.json.JsonFormat.json,
 ) {
+
+    constructor(
+        transactionManager: TransactionManager<*>,
+        modelRepos: ModelRepos,
+        eventRepository: EventRepository,
+    ) : this(
+        transactionManager = transactionManager,
+        modelRepos = modelRepos,
+        entityRepos = EntityRepos(),
+        eventRepository = eventRepository,
+        eventPublisher = NoopEventPublisher,
+        json = com.razz.eva.serialization.json.JsonFormat.json,
+    )
+
     private object NoopEventPublisher : EventPublisher {
         override suspend fun publish(uowEvent: UowEvent) = Unit
     }
