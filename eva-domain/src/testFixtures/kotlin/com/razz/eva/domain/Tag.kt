@@ -6,7 +6,7 @@ data class Tag(
     val subjectId: UUID,
     val name: String,
     val value: String,
-) : DeletableEntity {
+) : DeletableEntity() {
 
     init {
         require(name.isNotBlank()) { "Tag name cannot be blank" }

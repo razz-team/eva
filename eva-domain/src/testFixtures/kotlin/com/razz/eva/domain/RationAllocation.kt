@@ -7,7 +7,7 @@ data class RationAllocation(
     val ration: Ration,
     val effectiveDate: LocalDate,
     val quantity: Int,
-) : CreatableEntity {
+) : CreatableEntity() {
 
     init {
         require(quantity > 0) { "Quantity must be positive" }

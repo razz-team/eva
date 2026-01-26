@@ -91,7 +91,7 @@ data class Tag(
     val subjectId: UUID,
     val name: String,
     val value: String,
-) : DeletableEntity
+) : DeletableEntity()
 ```
 
 Entities can be added and deleted within the same Unit of Work as Models:
@@ -369,7 +369,7 @@ data class Tag(
     val subjectId: UUID,
     val name: String,
     val value: String,
-) : DeletableEntity
+) : DeletableEntity()
 ```
 
 The `Department` is a Model because it's an aggregate root with identity, state transitions, and meaningful events. The `Tag` is an Entity because it's supplementary data whose identity is fully determined by its attributes.
@@ -377,19 +377,19 @@ The `Department` is a Model because it's an aggregate root with identity, state 
 ### Implementation Details
 
 #### Type Hierarchy
-Models and Entities have **independent type hierarchies**. This is intentional - they serve different purposes and mixing them would compromise type safety:
+Models and Entities have **independent type hierarchies**. Both `Model` and `Entity` are abstract classes, which prevents a class from extending both:
 
 ```
 Model<ID, E> (abstract class)
   └── Your domain models
 
-Entity (marker interface)
-  └── CreatableEntity (marker interface)
-        └── DeletableEntity (marker interface)
+Entity (abstract class)
+  └── CreatableEntity (abstract class)
+        └── DeletableEntity (abstract class)
               └── Your deletable entities
 ```
 
-#### Entity Markers
+#### Entity Classes
 - `CreatableEntity`: Can be added via `add()` in ChangesDsl
 - `DeletableEntity`: Extends `CreatableEntity`, can also be deleted via `delete()` in ChangesDsl
 
