@@ -35,12 +35,7 @@ class RationAllocationRepository(
             record.effectiveDate.toLocalDate(),
             record.quantity,
         )
-
-    override fun entityCondition(entity: RationAllocation): Condition =
-        RATION_ALLOCATION.EMPLOYEE_ID.eq(entity.employeeId.id)
-            .and(RATION_ALLOCATION.RATION.eq(entity.ration.name))
-            .and(RATION_ALLOCATION.EFFECTIVE_DATE.eq(Date.valueOf(entity.effectiveDate)))
-
+    
     suspend fun listByEmployee(employeeId: EmployeeId): List<RationAllocation> =
         listAllWhere(RATION_ALLOCATION.EMPLOYEE_ID.eq(employeeId.id))
 

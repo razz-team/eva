@@ -3,6 +3,7 @@ package com.razz.eva.repository
 import com.razz.eva.domain.DeletableEntity
 import com.razz.eva.persistence.executor.QueryExecutor
 import com.razz.jooq.record.BaseEntityRecord
+import org.jooq.Condition
 import org.jooq.DSLContext
 import org.jooq.Table
 
@@ -12,6 +13,12 @@ abstract class JooqDeletableEntityRepository<E : DeletableEntity, R : BaseEntity
     private val table: Table<R>,
 ) : JooqBaseEntityRepository<E, R>(queryExecutor, dslContext, table),
     DeletableEntityRepository<E> {
+
+    /**
+     * Derive the unique condition to identify this entity in the database.
+     * Typically based on composite primary key or unique constraint columns.
+     */
+    protected abstract fun entityCondition(entity: E): Condition
 
     override suspend fun delete(context: TransactionalContext, entity: E): Boolean {
         val deleteQuery = dslContext.deleteFrom(table)

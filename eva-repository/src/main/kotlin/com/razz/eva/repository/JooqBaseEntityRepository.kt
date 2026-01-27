@@ -19,12 +19,6 @@ abstract class JooqBaseEntityRepository<E : CreatableEntity, R : BaseEntityRecor
 
     protected abstract fun fromRecord(record: R): E
 
-    /**
-     * Derive the unique condition to identify this entity in the database.
-     * Typically based on composite primary key or unique constraint columns.
-     */
-    protected abstract fun entityCondition(entity: E): Condition
-
     override suspend fun add(context: TransactionalContext, entity: E): E {
         val record = toRecord(entity)
         val insertQuery = dslContext.insertQuery(table).apply {
