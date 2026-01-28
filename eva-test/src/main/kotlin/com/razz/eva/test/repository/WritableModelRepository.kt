@@ -30,16 +30,28 @@ class WritableModelRepository(
     suspend fun <ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>, M : Model<ID, E>> add(
         model: M,
         txStartedAt: Instant = clock.instant(),
-    ): M =
-        inTransaction(txStartedAt) {
-            modelRepos.repoFor(model).add(it, model)
-        }
+    ): M = inTransaction(txStartedAt) {
+        modelRepos.repoFor(model).add(it, model)
+    }
+
+    suspend fun <ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>, M : Model<ID, E>> add(
+        models: List<M>,
+        txStartedAt: Instant = clock.instant(),
+    ): List<M> = inTransaction(txStartedAt) {
+        modelRepos.repoFor(models.first()).add(it, models)
+    }
 
     suspend fun <ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>, M : Model<ID, E>> update(
         model: M,
         txStartedAt: Instant = clock.instant(),
-    ): M =
-        inTransaction(txStartedAt) {
-            modelRepos.repoFor(model).update(it, model)
-        }
+    ): M = inTransaction(txStartedAt) {
+        modelRepos.repoFor(model).update(it, model)
+    }
+
+    suspend fun <ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>, M : Model<ID, E>> update(
+        models: List<M>,
+        txStartedAt: Instant = clock.instant(),
+    ): List<M> = inTransaction(txStartedAt) {
+        modelRepos.repoFor(models.first()).update(it, models)
+    }
 }

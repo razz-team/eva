@@ -29,32 +29,28 @@ class WritableEntityRepository(
     suspend fun <E : CreatableEntity> add(
         entity: E,
         txStartedAt: Instant = clock.instant(),
-    ): E =
-        inTransaction(txStartedAt) {
-            entityRepos.repoFor(entity).add(it, entity)
-        }
+    ): E = inTransaction(txStartedAt) {
+        entityRepos.repoFor(entity).add(it, entity)
+    }
 
     suspend fun <E : CreatableEntity> add(
         entities: List<E>,
         txStartedAt: Instant = clock.instant(),
-    ): List<E> =
-        inTransaction(txStartedAt) { context ->
-            entities.map { entityRepos.repoFor(it).add(context, it) }
-        }
+    ): List<E> = inTransaction(txStartedAt) { context ->
+        entityRepos.repoFor(entities.first()).add(context, entities)
+    }
 
     suspend fun <E : DeletableEntity> delete(
         entity: E,
         txStartedAt: Instant = clock.instant(),
-    ): Boolean =
-        inTransaction(txStartedAt) {
-            entityRepos.deletableRepoFor(entity).delete(it, entity)
-        }
+    ): Boolean = inTransaction(txStartedAt) {
+        entityRepos.deletableRepoFor(entity).delete(it, entity)
+    }
 
     suspend fun <E : DeletableEntity> delete(
         entities: List<E>,
         txStartedAt: Instant = clock.instant(),
-    ): Int =
-        inTransaction(txStartedAt) { context ->
-            entities.count { entityRepos.deletableRepoFor(it).delete(context, it) }
-        }
+    ): Int = inTransaction(txStartedAt) { context ->
+        entityRepos.deletableRepoFor(entities.first()).delete(context, entities)
+    }
 }
