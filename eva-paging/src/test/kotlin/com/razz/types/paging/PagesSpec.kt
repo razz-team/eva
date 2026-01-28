@@ -41,7 +41,7 @@ class PagesSpec : BehaviorSpec({
     Given("Pages returns nothing") {
         val pages = object : Pages<Int, Int>(2) {
             override suspend fun batch(page: Page<Int>): PagedList<Int, Int> =
-                BasicPagedList(emptyList(), null)
+                BasicPagedList(listOf(), null)
         }
 
         When("Principal requests flow by element") {

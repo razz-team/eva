@@ -4,14 +4,8 @@
 package com.razz.eva.test.schema;
 
 
-import com.razz.eva.test.schema.tables.Bubalehs;
-import com.razz.eva.test.schema.tables.Departments;
-import com.razz.eva.test.schema.tables.Employees;
-import com.razz.eva.test.schema.tables.Shakshoukas;
-import com.razz.eva.test.schema.tables.records.BubalehsRecord;
-import com.razz.eva.test.schema.tables.records.DepartmentsRecord;
-import com.razz.eva.test.schema.tables.records.EmployeesRecord;
-import com.razz.eva.test.schema.tables.records.ShakshoukasRecord;
+import com.razz.eva.test.schema.tables.*;
+import com.razz.eva.test.schema.tables.records.*;
 import org.jooq.ForeignKey;
 import org.jooq.TableField;
 import org.jooq.UniqueKey;
@@ -46,6 +40,8 @@ public class Keys {
     public static final UniqueKey<DepartmentsRecord> DEPARTMENTS_PKEY = Internal.createUniqueKey(Departments.DEPARTMENTS, DSL.name("departments_pkey"), new TableField[] { Departments.DEPARTMENTS.ID }, true);
     public static final UniqueKey<EmployeesRecord> EMPLOYEES_PKEY = Internal.createUniqueKey(Employees.EMPLOYEES, DSL.name("employees_pkey"), new TableField[] { Employees.EMPLOYEES.ID }, true);
     public static final UniqueKey<ShakshoukasRecord> SHAKSHOUKAS_PKEY = Internal.createUniqueKey(Shakshoukas.SHAKSHOUKAS, DSL.name("shakshoukas_pkey"), new TableField[] { Shakshoukas.SHAKSHOUKAS.ID }, true);
+    public static final UniqueKey<RationAllocationRecord> RATION_ALLOCATION_PKEY = Internal.createUniqueKey(RationAllocation.RATION_ALLOCATION, DSL.name("ration_allocation_pkey"), new TableField[] { RationAllocation.RATION_ALLOCATION.EMPLOYEE_ID, RationAllocation.RATION_ALLOCATION.RATION, RationAllocation.RATION_ALLOCATION.EFFECTIVE_DATE }, true);
+    public static final UniqueKey<TagRecord> TAG_PKEY = Internal.createUniqueKey(Tag.TAG, DSL.name("tag_pkey"), new TableField[] { Tag.TAG.SUBJECT_ID, Tag.TAG.NAME }, true);
 
     // -------------------------------------------------------------------------
     // FOREIGN KEY definitions

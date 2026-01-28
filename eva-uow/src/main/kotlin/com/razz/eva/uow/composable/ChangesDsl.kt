@@ -1,5 +1,7 @@
 package com.razz.eva.uow.composable
 
+import com.razz.eva.domain.CreatableEntity
+import com.razz.eva.domain.DeletableEntity
 import com.razz.eva.domain.Model
 import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
@@ -30,7 +32,7 @@ class ChangesDsl internal constructor(initial: ChangesAccumulator, private val o
             "Attempted to register ${if (model.isDirty()) "changed" else "unchanged"} " +
                 "model [${model.id().stringValue()}] as new"
         }
-        head = head.withAdded(model)
+        head = head.withAddedModel(model)
         return model
     }
 
@@ -59,7 +61,7 @@ class ChangesDsl internal constructor(initial: ChangesAccumulator, private val o
         require(model.isDirty() || model.isNew()) {
             "Attempted to register unchanged model [${model.id().stringValue()}] as changed"
         }
-        head = head.withUpdated(model)
+        head = head.withUpdatedModel(model)
         return model
     }
 
@@ -88,8 +90,18 @@ class ChangesDsl internal constructor(initial: ChangesAccumulator, private val o
         require(model.isPersisted() || model.isNew()) {
             "Attempted to register changed model [${model.id().stringValue()}] as unchanged"
         }
-        head = head.withUnchanged(model)
+        head = head.withUnchangedModel(model)
         return model
+    }
+
+    fun <E : CreatableEntity> add(entity: E): E {
+        head = head.withAddedEntity(entity)
+        return entity
+    }
+
+    fun <E : DeletableEntity> delete(entity: E): E {
+        head = head.withDeletedEntity(entity)
+        return entity
     }
 
     suspend fun <PRINCIPAL, PARAMS, RESULT, UOW> execute(
@@ -108,7 +120,7 @@ class ChangesDsl internal constructor(initial: ChangesAccumulator, private val o
             }
             span.setAttribute(
                 MODEL_ID,
-                subChanges.toPersist.map { it.id.stringValue() },
+                subChanges.modelChangesToPersist.map { it.id.stringValue() },
             )
             mergingSpan(uow.name()).use {
                 tail = tail?.merge(head.merge(subChanges)) ?: head.merge(subChanges)

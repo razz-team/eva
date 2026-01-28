@@ -9,7 +9,7 @@ import com.razz.eva.uow.ExecutionStep.ModelUpdated
 import com.razz.eva.uow.ExecutionStep.ModelsAdded
 import com.razz.eva.uow.ExecutionStep.ModelsUpdated
 
-class SpyRepo(
+class SpyModelRepo(
     private val history: MutableList<ExecutionStep>
 ) : ModelRepository<ModelId<Comparable<Any>>, Model<ModelId<Comparable<Any>>, *>> {
 

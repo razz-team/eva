@@ -83,6 +83,62 @@ class Wallet(
 }
 ```
 
+### Entity
+While Models are the primary building blocks for your domain, sometimes you need simpler data structures that don't require full lifecycle management. Entities serve this purpose.
+
+```kotlin
+data class Tag(
+    val subjectId: UUID,
+    val name: String,
+    val value: String,
+) : DeletableEntity()
+```
+
+Entities can be added and deleted within the same Unit of Work as Models:
+```kotlin
+override suspend fun tryPerform(principal: ServicePrincipal, params: Params): Changes<Unit> {
+    return changes {
+        update(department.addEmployee(employee))
+        add(Tag(department.id().id, "employee-added", employee.id().toString()))
+    }
+}
+```
+
+Entity repositories extend `JooqBaseEntityRepository` or `JooqDeletableEntityRepository`:
+```kotlin
+class TagRepository(
+    queryExecutor: QueryExecutor,
+    dslContext: DSLContext,
+) : JooqDeletableEntityRepository<Tag, TagRecord>(queryExecutor, dslContext, TAG) {
+    
+    override fun toRecord(entity: Tag): TagRecord = TagRecord().apply {
+        subjectId = entity.subjectId
+        name = entity.name
+        value = entity.value
+    }
+
+    override fun fromRecord(record: TagRecord): Tag = Tag(
+        subjectId = record.subjectId,
+        name = record.name,
+        value = record.value,
+    )
+
+    override fun entityCondition(entity: Tag): Condition =
+        TAG.SUBJECT_ID.eq(entity.subjectId)
+            .and(TAG.NAME.eq(entity.name))
+}
+```
+
+Configure entity repositories alongside model repositories:
+```kotlin
+val persisting = Persisting(
+    transactionManager = transactionManager,
+    modelRepos = ModelRepos(Wallet::class hasRepo walletRepo),
+    entityRepos = EntityRepos(Tag::class hasEntityRepo tagRepo),
+    eventRepository = eventRepository,
+)
+```
+
 ### Unit of work
 We need *queries* interface, so we can query our existing models
 ```kotlin
@@ -259,6 +315,128 @@ You can find script to create event's table [here](eva-events-db-schema/src/main
     }
 ```
 
+## Design Philosophy
+
+### Model vs Entity: When to Use Which
+
+Eva provides two fundamental building blocks for your domain: **Models** and **Entities**. Understanding when to use each is crucial for clean domain design.
+
+#### Use Model when:
+- The object has a **distinct identity** that persists over time (e.g., User, Order, Wallet)
+- You need to track **state changes** and emit **domain events**
+- The object has a **lifecycle** with meaningful state transitions
+- The object is an **aggregate root** in DDD terms
+
+#### Use Entity when:
+- The object's identity is defined by its **content/attributes** rather than a separate Id
+- You need simple **add/delete** operations without lifecycle management
+- The object represents **supplementary data** like tags, labels, allocations, or mappings
+- No domain events need to be emitted for changes
+- The object is essentially a **value object that needs persistence**
+
+#### Key Differences
+
+| Aspect | Model | Entity |
+|--------|-------|--------|
+| Identity | Explicit ID field (`ModelId`) | Implicit, defined by content |
+| Versioning | Yes (`version` field for optimistic locking) | No |
+| Events | Emits `ModelEvent` on state changes | No events |
+| Lifecycle | Full lifecycle with state management | No lifecycle |
+| Operations | `add`, `update`, `notChanged` | `add`, `delete` |
+| Typical use | Aggregate roots, core domain objects | Tags, labels, mappings, allocations |
+
+#### Example Decision
+
+Consider a `Department` with employees and tags:
+
+```kotlin
+// Model: Has identity, lifecycle, emits events
+class Department(
+    id: Id,
+    val name: String,
+    val headcount: Int,
+    modelState: ModelState<Id, DepartmentEvent>,
+) : Model<Department.Id, DepartmentEvent>(id, modelState) {
+    
+    fun addEmployee(employee: Employee) = copy(
+        headcount = headcount + 1,
+        modelState = modelState().raiseEvent(EmployeeAdded(id(), employee.id(), headcount + 1)),
+    )
+}
+
+// Entity: Identity is (subjectId + name), no lifecycle, no events
+data class Tag(
+    val subjectId: UUID,
+    val name: String,
+    val value: String,
+) : DeletableEntity()
+```
+
+The `Department` is a Model because it's an aggregate root with identity, state transitions, and meaningful events. The `Tag` is an Entity because it's supplementary data whose identity is fully determined by its attributes.
+
+### Implementation Details
+
+#### Type Hierarchy
+Models and Entities have **independent type hierarchies**. Both `Model` and `Entity` are abstract classes, which prevents a class from extending both:
+
+```
+Model<ID, E> (abstract class)
+  └── Your domain models
+
+Entity (abstract class)
+  └── CreatableEntity (abstract class)
+        └── DeletableEntity (abstract class)
+              └── Your deletable entities
+```
+
+#### Entity Classes
+- `CreatableEntity`: Can be added via `add()` in ChangesDsl
+- `DeletableEntity`: Extends `CreatableEntity`, can also be deleted via `delete()` in ChangesDsl
+
+Use `CreatableEntity` for append-only data (audit logs, historical records). Use `DeletableEntity` when entities can be removed.
+
+#### Repository Pattern
+Entity repositories follow the same pattern as Model repositories but without versioning:
+
+```kotlin
+// For entities that can only be added
+interface EntityRepository<E : CreatableEntity> {
+    suspend fun add(context: TransactionalContext, entity: E): E
+    suspend fun add(context: TransactionalContext, entities: List<E>): List<E>
+}
+
+// For entities that can be added and deleted
+interface DeletableEntityRepository<E : DeletableEntity> : EntityRepository<E> {
+    suspend fun delete(context: TransactionalContext, entity: E): Boolean
+    suspend fun delete(context: TransactionalContext, entities: List<E>): Int
+}
+```
+
+#### Database Schema
+Entity tables don't require `version` column but still need timestamp tracking:
+```sql
+CREATE TABLE tag (
+    subject_id      UUID        NOT NULL,
+    name            VARCHAR     NOT NULL,
+    value           VARCHAR     NOT NULL,
+    record_created_at TIMESTAMP NOT NULL,
+    record_updated_at TIMESTAMP NOT NULL,
+    PRIMARY KEY (subject_id, name)
+);
+```
+
+#### Transactional Consistency
+Models and Entities are persisted in the **same transaction**, ensuring consistency:
+
+```kotlin
+changes {
+    update(department.addEmployee(employee))      // Model update
+    add(Tag.tag(department.id().id, "new-hire", employee.name))  // Entity add
+    delete(oldTag)                                 // Entity delete
+}
+// All changes committed atomically
+```
+
 ## Features
 
 ### Event sourcing
@@ -285,18 +463,29 @@ We provide verification DSL, so you can write unit tests and verify results of y
 Use `verifyInOrder` function to start verification process.
 ```kotlin
     CreateWalletUow(queries, clock).tryPerform(principal, params) verifyInOrder {
+        // Model verification
         adds<Wallet> { model -> ... }
         addsEq(expectedModel)
         
         updates<Wallet> { model -> ... }
         updatesEq(expectedModel)
 
+        // Entity verification (same methods, distinguished by type parameter)
+        adds<Tag> { entity -> ... }
+        addsEq(expectedTag)
+        
+        deletes<Tag> { entity -> ... }
+        deletesEq(expectedTag)
+
+        // Event verification
         emits<WalletEvent> { event -> ... }
         emitsEq(expectedEvent)
     
         returns { result -> ... }
     }
 ```
+The `adds` and `addsEq` methods work for both Models and Entities - the correct verification is chosen based on the type parameter. Entity-specific methods `deletes` and `deletesEq` are available for `DeletableEntity` types.
+
 You can check some examples [here](eva-uow/src/test/kotlin/com/razz/eva/uow/UnitOfWorkDemoSpec.kt)
 
 ### Idempotency

@@ -12,7 +12,7 @@ class ChangesDsl internal constructor(private var changes: ChangesAccumulator) {
             "Attempted to register ${if (model.isDirty()) "changed" else "unchanged"} " +
                 "model [${model.id().stringValue()}] as new"
         }
-        changes = changes.withAdded(model)
+        changes = changes.withAddedModel(model)
         return model
     }
 
@@ -24,16 +24,16 @@ class ChangesDsl internal constructor(private var changes: ChangesAccumulator) {
                     "Attempted to register ${if (model.isNew()) "new" else "unchanged"} " +
                         "model [${model.id().stringValue()}] as changed"
                 }
-                changes.withUpdated(model)
+                changes.withUpdatedModel(model)
             }
             false -> {
                 require(!model.isNew()) {
                     "Attempted to register new model [${model.id().stringValue()}] as changed"
                 }
                 if (model.isDirty()) {
-                    changes.withUpdated(model)
+                    changes.withUpdatedModel(model)
                 } else {
-                    changes.withUnchanged(model)
+                    changes.withUnchangedModel(model)
                 }
             }
         }
@@ -46,7 +46,7 @@ class ChangesDsl internal constructor(private var changes: ChangesAccumulator) {
             "Attempted to register ${if (model.isNew()) "new" else "changed"} " +
                 "model [${model.id().stringValue()}] as unchanged"
         }
-        changes = changes.withUnchanged(model)
+        changes = changes.withUnchangedModel(model)
         return model
     }
 

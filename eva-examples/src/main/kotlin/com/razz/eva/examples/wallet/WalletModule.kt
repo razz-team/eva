@@ -5,6 +5,7 @@ import com.razz.eva.persistence.jdbc.HikariPoolConnectionProvider
 import com.razz.eva.persistence.jdbc.JdbcTransactionManager
 import com.razz.eva.persistence.jdbc.dataSource
 import com.razz.eva.persistence.jdbc.executor.JdbcQueryExecutor
+import com.razz.eva.repository.EntityRepos
 import com.razz.eva.repository.JooqEventRepository
 import com.razz.eva.repository.ModelRepos
 import com.razz.eva.repository.hasRepo
@@ -45,6 +46,7 @@ class WalletModule(databaseConfig: DatabaseConfig) {
     val persisting = Persisting(
         transactionManager = transactionManager,
         modelRepos = ModelRepos(Wallet::class hasRepo walletRepo),
+        entityRepos = EntityRepos(),
         eventRepository = JooqEventRepository(queryExecutor, dslContext, noop()),
     )
 

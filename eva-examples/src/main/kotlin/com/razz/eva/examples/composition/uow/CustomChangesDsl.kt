@@ -10,13 +10,13 @@ class CustomChangesDsl internal constructor(private var changes: ChangesAccumula
 
     fun <MID, E, M> add(model: M): M
         where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
-        changes = changes.withAdded(model)
+        changes = changes.withAddedModel(model)
         return model
     }
 
     fun <MID, E, M> update(model: M): M
         where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
-        changes = changes.withUpdated(model)
+        changes = changes.withUpdatedModel(model)
         return model
     }
 

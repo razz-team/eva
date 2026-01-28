@@ -3,21 +3,22 @@ package com.razz.eva.uow
 import com.razz.eva.domain.Department
 import com.razz.eva.domain.DepartmentId
 import com.razz.eva.domain.EmployeeId
+import com.razz.eva.domain.Tag
 import com.razz.eva.repository.DepartmentRepository
 import com.razz.eva.repository.EmployeeRepository
-import com.razz.eva.uow.InternalMobilityUow.Params
+import com.razz.eva.uow.composable.UnitOfWork as ComposableUnitOfWork
 import kotlinx.serialization.Serializable
 
 class InternalMobilityUow(
     executionContext: ExecutionContext,
     private val employeeRepo: EmployeeRepository,
-    private val departmentRepo: DepartmentRepository
-) : UnitOfWork<TestPrincipal, Params, Unit>(executionContext) {
+    private val departmentRepo: DepartmentRepository,
+) : ComposableUnitOfWork<TestPrincipal, InternalMobilityUow.Params, Unit>(executionContext) {
 
     @Serializable
     data class Params(
         val employees: List<EmployeeId>,
-        val departmentId: DepartmentId
+        val departmentId: DepartmentId,
     ) : UowParams<Params> {
         override fun serialization() = serializer()
     }
@@ -35,10 +36,24 @@ class InternalMobilityUow(
             update(existingEmp.changeDepartment(newDep))
             oldDeps[existingEmp.departmentId] = oldDep.removeEmployee(existingEmp)
             newDep = newDep.addEmployee(existingEmp)
+            add(
+                Tag.tag(
+                    newDep.id().id,
+                    "transfer-${empId.id}",
+                    "from-${oldDep.id().id}",
+                ),
+            )
         }
         update(newDep)
         for (oldDep in oldDeps.values) {
             update(oldDep)
+            delete(
+                Tag.tag(
+                    oldDep.id().id,
+                    "full-staff",
+                    "true",
+                ),
+            )
         }
     }
 }

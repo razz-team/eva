@@ -2,6 +2,7 @@ package com.razz.eva.uow
 
 import com.razz.eva.domain.Model
 import com.razz.eva.persistence.WithCtxConnectionTransactionManager
+import com.razz.eva.repository.EntityRepos
 import com.razz.eva.repository.ModelRepos
 import com.razz.eva.repository.ModelRepository
 import com.razz.eva.repository.hasRepo
@@ -18,7 +19,7 @@ object FakeMemorizingPersisting {
             afterTxn = { mode, _ -> history.add(TransactionFinished(mode)) }
         )
         val repos = uows.map { it hasRepo anyRepo(history) }.toTypedArray()
-        val persisting = Persisting(txnManager, ModelRepos(*repos), DummyEventRepository())
+        val persisting = Persisting(txnManager, ModelRepos(*repos), EntityRepos(), DummyEventRepository())
         executions[persisting] = history
         return persisting
     }
@@ -31,5 +32,5 @@ object FakeMemorizingPersisting {
 
     @Suppress("UNCHECKED_CAST")
     private fun <M : Model<*, *>> anyRepo(history: MutableList<ExecutionStep>) =
-        SpyRepo(history) as ModelRepository<*, M>
+        SpyModelRepo(history) as ModelRepository<*, M>
 }

@@ -73,10 +73,13 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
 
     private fun fromRecord(record: R): M {
         val original = record.original().apply { detach() }
+        val recordVersion = requireNotNull(record.getVersion()) {
+            "Record version must not be null for persisted model"
+        }
         return fromRecord(
             record,
             persistentState(
-                version(record.getVersion()!!),
+                version(recordVersion),
                 original,
             ),
         )
@@ -316,7 +319,7 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
     }
 
     private suspend fun findOne(select: Select<R>): M? {
-        return atMostOneRecord(select)?.let { fromRecord(it) }
+        return atMostOneRecord(select)?.let(::fromRecord)
     }
 
     protected suspend fun findLast(
@@ -381,8 +384,7 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
     }
 
     protected suspend fun findAll(select: Select<R>): List<M> {
-        return allRecords(select)
-            .map { fromRecord(it) }
+        return allRecords(select).map(::fromRecord)
     }
 
     protected suspend fun count(condition: Condition): Long {

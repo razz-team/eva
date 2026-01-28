@@ -40,16 +40,16 @@ class ChangesDslSpec : FunSpec({
         }
         val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
 
-        changes.toPersist shouldBe listOf(
-            Add(
+        changes.modelChangesToPersist shouldBe listOf(
+            AddModel(
                 model0,
                 listOf(
                     TestModelCreated(model0.id()),
                     TestModelStatusChanged(model0.id(), CREATED, ACTIVE),
                 ),
             ),
-            Update(model1, listOf(TestModelStatusChanged(model1.id(), CREATED, ACTIVE))),
-            Noop(model2),
+            UpdateModel(model1, listOf(TestModelStatusChanged(model1.id(), CREATED, ACTIVE))),
+            NoopModel(model2),
         )
         changes.result shouldBe "K P A C U B O"
     }
@@ -65,7 +65,7 @@ class ChangesDslSpec : FunSpec({
         }
         val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
 
-        changes.toPersist shouldBe listOf(Noop(model))
+        changes.modelChangesToPersist shouldBe listOf(NoopModel(model))
         changes.result shouldBe "K P A C U B O"
     }
 
@@ -196,7 +196,7 @@ class ChangesDslSpec : FunSpec({
         }
         val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
 
-        changes.toPersist shouldBe listOf(Noop(model))
+        changes.modelChangesToPersist shouldBe listOf(NoopModel(model))
         changes.result shouldBe "K P A C U B O"
     }
 })

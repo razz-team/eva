@@ -10,6 +10,7 @@ import com.razz.eva.persistence.executor.QueryExecutor
 import com.razz.eva.repository.BubalehRepository
 import com.razz.eva.repository.DepartmentRepository
 import com.razz.eva.repository.EmployeeRepository
+import com.razz.eva.repository.EntityRepos
 import com.razz.eva.repository.EventQueries
 import com.razz.eva.repository.JooqEventRepository
 import com.razz.eva.repository.ModelRepos
@@ -54,16 +55,17 @@ class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
     val departmentRepo = DepartmentRepository(queryExecutor, dslContext, departmentPreUpdate)
     val bubalehRepo = BubalehRepository(queryExecutor, dslContext)
 
-    val repos = ModelRepos(
+    val modelRepos = ModelRepos(
         Department::class hasRepo departmentRepo,
         Employee::class hasRepo employeeRepo,
         Bubaleh::class hasRepo bubalehRepo,
     )
+    val entityRepos = EntityRepos()
 
     val writableRepository = WritableModelRepository(
         txnManager = transactionManager,
         clock = clock,
-        modelRepos = repos,
+        modelRepos = modelRepos,
     )
 
     val spanExporter = InMemorySpanExporter.create()
@@ -87,7 +89,8 @@ class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
 
     val persisting = Persisting(
         transactionManager = transactionManager,
-        modelRepos = repos,
+        modelRepos = modelRepos,
+        entityRepos = entityRepos,
         eventRepository = eventRepository,
     )
 
@@ -153,7 +156,8 @@ class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
         factories = factories,
         persisting = Persisting(
             transactionManager = transactionManager,
-            modelRepos = repos,
+            modelRepos = modelRepos,
+            entityRepos = entityRepos,
             eventRepository = JooqEventRepository(
                 queryExecutor = patchingEventsQueryExecutor,
                 dslContext = dslContext,
@@ -190,6 +194,7 @@ class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
                 ),
                 Employee::class hasRepo employeeRepo,
             ),
+            entityRepos = entityRepos,
             eventRepository = eventRepository,
         ),
         clock = clock,

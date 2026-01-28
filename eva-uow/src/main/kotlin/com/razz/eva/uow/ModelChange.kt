@@ -4,18 +4,18 @@ import com.razz.eva.domain.Model
 import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
 
-internal sealed interface Change {
+internal sealed interface ModelChange {
     fun persist(persisting: ModelPersisting)
-    fun merge(succ: Change): Change?
+    fun merge(succ: ModelChange): ModelChange?
 
     val modelEvents: List<ModelEvent<out ModelId<out Comparable<*>>>>
     val id: ModelId<out Comparable<*>>
 }
 
-internal data class Add<MID : ModelId<out Comparable<*>>, M : Model<MID, *>, E : ModelEvent<MID>>(
+internal data class AddModel<MID : ModelId<out Comparable<*>>, M : Model<MID, *>, E : ModelEvent<MID>>(
     private val model: M,
     override val modelEvents: List<E>,
-) : Change {
+) : ModelChange {
 
     override val id: ModelId<out Comparable<*>> = model.id()
 
@@ -26,23 +26,23 @@ internal data class Add<MID : ModelId<out Comparable<*>>, M : Model<MID, *>, E :
         persisting.add(model)
     }
 
-    override fun merge(succ: Change): Change? = when (succ) {
-        is Add<*, *, *> -> null
-        is Update<*, *, *> -> if (!succ.sameVersion(model)) {
+    override fun merge(succ: ModelChange): ModelChange? = when (succ) {
+        is AddModel<*, *, *> -> null
+        is UpdateModel<*, *, *> -> if (!succ.sameVersion(model)) {
             null
         } else if (succ.modelEvents isSuccessorOf modelEvents) {
             succ.unwrap()
         } else {
             null
         }
-        is Noop -> this
+        is NoopModel -> this
     }
 }
 
-internal data class Update<MID : ModelId<out Comparable<*>>, M : Model<MID, *>, E : ModelEvent<MID>>(
+internal data class UpdateModel<MID : ModelId<out Comparable<*>>, M : Model<MID, *>, E : ModelEvent<MID>>(
     private val model: M,
     override val modelEvents: List<E>,
-) : Change {
+) : ModelChange {
 
     override val id: ModelId<out Comparable<*>> = model.id()
 
@@ -53,26 +53,26 @@ internal data class Update<MID : ModelId<out Comparable<*>>, M : Model<MID, *>, 
         persisting.update(model)
     }
 
-    fun unwrap() = if (model.isNew()) Add(model, modelEvents) else Update(model, modelEvents)
+    fun unwrap() = if (model.isNew()) AddModel(model, modelEvents) else UpdateModel(model, modelEvents)
 
     fun sameVersion(other: Model<*, *>) = model.id() == other.id() && model.version() == other.version()
 
-    override fun merge(succ: Change): Change? = when (succ) {
-        is Add<*, *, *> -> null
-        is Update<*, *, *> -> if (!succ.sameVersion(model)) {
+    override fun merge(succ: ModelChange): ModelChange? = when (succ) {
+        is AddModel<*, *, *> -> null
+        is UpdateModel<*, *, *> -> if (!succ.sameVersion(model)) {
             null
         } else if (succ.modelEvents isSuccessorOf modelEvents) {
             succ
         } else {
             null
         }
-        is Noop -> this
+        is NoopModel -> this
     }
 }
 
-internal data class Noop(
+internal data class NoopModel(
     private val model: Model<*, *>,
-) : Change {
+) : ModelChange {
 
     override val id: ModelId<out Comparable<*>> = model.id()
     override fun persist(persisting: ModelPersisting) {
@@ -80,8 +80,8 @@ internal data class Noop(
             "Attempted to register ${if (model.isNew()) "new" else "changed"} model [${model.id()}] as unchanged"
         }
     }
-    override val modelEvents: List<ModelEvent<out ModelId<out Comparable<*>>>> = emptyList()
-    override fun merge(succ: Change): Change = succ
+    override val modelEvents: List<ModelEvent<out ModelId<out Comparable<*>>>> = listOf()
+    override fun merge(succ: ModelChange): ModelChange = succ
 }
 
 private infix fun <E : ModelEvent<out ModelId<out Comparable<*>>>> List<E>

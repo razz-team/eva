@@ -1,5 +1,10 @@
 package com.razz.eva.uow.composable
 
+import com.razz.eva.domain.DepartmentId.Companion.randomDepartmentId
+import com.razz.eva.domain.EmployeeId.Companion.randomEmployeeId
+import com.razz.eva.domain.Tag
+import com.razz.eva.domain.Ration
+import com.razz.eva.domain.RationAllocation
 import com.razz.eva.domain.TestModel.ActiveTestModel
 import com.razz.eva.domain.TestModel.CreatedTestModel
 import com.razz.eva.domain.TestModel.Factory.createdTestModel
@@ -13,20 +18,23 @@ import com.razz.eva.domain.TestModelId.Companion.randomTestModelId
 import com.razz.eva.domain.TestModelStatus.ACTIVE
 import com.razz.eva.domain.TestModelStatus.CREATED
 import com.razz.eva.domain.Version.Companion.V1
-import com.razz.eva.uow.Add
+import com.razz.eva.uow.AddEntity
+import com.razz.eva.uow.AddModel
 import com.razz.eva.uow.Clocks.fixedUTC
 import com.razz.eva.uow.Clocks.millisUTC
+import com.razz.eva.uow.DeleteEntity
 import com.razz.eva.uow.ExecutionContext
-import com.razz.eva.uow.Noop
+import com.razz.eva.uow.NoopModel
 import com.razz.eva.uow.TestExecutionContext.executionContextForSpec
 import com.razz.eva.uow.TestPrincipal
-import com.razz.eva.uow.Update
+import com.razz.eva.uow.UpdateModel
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeTypeOf
 import io.opentelemetry.api.OpenTelemetry
+import java.time.LocalDate
 
 class ChangesDslSpec : FunSpec({
 
@@ -53,21 +61,21 @@ class ChangesDslSpec : FunSpec({
         }
         val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
 
-        changes.toPersist shouldBe listOf(
-            Add(
+        changes.modelChangesToPersist shouldBe listOf(
+            AddModel(
                 model0,
                 listOf(
                     TestModelCreated(model0.id()),
                     TestModelStatusChanged(model0.id(), CREATED, ACTIVE),
                 ),
             ),
-            Update(model1, listOf(TestModelStatusChanged(model1.id(), CREATED, ACTIVE))),
-            Noop(model2),
+            UpdateModel(model1, listOf(TestModelStatusChanged(model1.id(), CREATED, ACTIVE))),
+            NoopModel(model2),
         )
         changes.result shouldBe "K P A C U B O"
     }
 
-    test("Should return RealisedChanges with Update change when new model updated") {
+    test("Should return RealisedChanges with UpdateModel change when new model updated") {
         val model = createdTestModel("MLG", 420).activate()
 
         val uow = object : DummyUow<String>(executionContext) {
@@ -78,12 +86,16 @@ class ChangesDslSpec : FunSpec({
         }
         val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
 
-        changes.toPersist shouldBe listOf(
-            Update(model, listOf(TestModelCreated(model.id()), TestModelStatusChanged(model.id(), CREATED, ACTIVE))))
+        changes.modelChangesToPersist shouldBe listOf(
+            UpdateModel(
+                model,
+                listOf(TestModelCreated(model.id()), TestModelStatusChanged(model.id(), CREATED, ACTIVE)),
+            ),
+        )
         changes.result shouldBe "K P A C U B O"
     }
 
-    test("Should return RealisedChanges with Noop change when new model marked as not changed") {
+    test("Should return RealisedChanges with NoopModel change when new model marked as not changed") {
         val model = createdTestModel("MLG", 420).activate()
 
         val uow = object : DummyUow<String>(executionContext) {
@@ -94,7 +106,7 @@ class ChangesDslSpec : FunSpec({
         }
         val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
 
-        changes.toPersist shouldBe listOf(Noop(model))
+        changes.modelChangesToPersist shouldBe listOf(NoopModel(model))
         changes.result shouldBe "K P A C U B O"
     }
 
@@ -195,7 +207,7 @@ class ChangesDslSpec : FunSpec({
         }
         val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
 
-        changes.toPersist shouldBe listOf(Noop(model))
+        changes.modelChangesToPersist shouldBe listOf(NoopModel(model))
         changes.result shouldBe "K P A C U B O"
     }
 
@@ -217,8 +229,9 @@ class ChangesDslSpec : FunSpec({
         }
         val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
 
-        changes.toPersist shouldHaveSize 1
-        val add = changes.toPersist.first().shouldBeTypeOf<Add<TestModelId, ActiveTestModel, TestModelEvent>>()
+        changes.modelChangesToPersist shouldHaveSize 1
+        val add = changes.modelChangesToPersist.first()
+            .shouldBeTypeOf<AddModel<TestModelId, ActiveTestModel, TestModelEvent>>()
         add.id shouldBe model0.id()
         add.modelEvents shouldBe listOf(
             TestModelCreated(model0.id()),
@@ -244,8 +257,9 @@ class ChangesDslSpec : FunSpec({
         }
         val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
 
-        changes.toPersist shouldHaveSize 1
-        val add = changes.toPersist.first().shouldBeTypeOf<Add<TestModelId, ActiveTestModel, TestModelEvent>>()
+        changes.modelChangesToPersist shouldHaveSize 1
+        val add = changes.modelChangesToPersist.first()
+            .shouldBeTypeOf<AddModel<TestModelId, ActiveTestModel, TestModelEvent>>()
         add.id shouldBe model0.id()
         add.modelEvents shouldBe listOf(
             TestModelCreated(model0.id()),
@@ -282,21 +296,21 @@ class ChangesDslSpec : FunSpec({
         }
         val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
 
-        changes.toPersist shouldHaveSize 3
-        val (update, add, noop) = changes.toPersist
-        update.shouldBeTypeOf<Update<TestModelId, ActiveTestModel, TestModelEvent>>()
+        changes.modelChangesToPersist shouldHaveSize 3
+        val (update, add, noop) = changes.modelChangesToPersist
+        update.shouldBeTypeOf<UpdateModel<TestModelId, ActiveTestModel, TestModelEvent>>()
         update.id shouldBe model1.id()
         update.modelEvents shouldBe listOf(
             TestModelStatusChanged(model1.id(), CREATED, ACTIVE),
         )
-        add.shouldBeTypeOf<Add<TestModelId, ActiveTestModel, TestModelEvent>>()
+        add.shouldBeTypeOf<AddModel<TestModelId, ActiveTestModel, TestModelEvent>>()
         add.id shouldBe model0.id()
         add.modelEvents shouldBe listOf(
             TestModelCreated(model0.id()),
             TestModelEvent1(model0.id()),
             TestModelStatusChanged(model0.id(), CREATED, ACTIVE),
         )
-        noop.shouldBeTypeOf<Noop>()
+        noop.shouldBeTypeOf<NoopModel>()
         noop.id shouldBe model2.id()
         changes.result shouldBe "K P A C U B O"
     }
@@ -377,5 +391,120 @@ class ChangesDslSpec : FunSpec({
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
         exception.message shouldBe "Failed to merge changes for model [${model.id()}]"
+    }
+
+    test("Should return properly built RealisedChanges when entity is added") {
+        val departmentId = randomDepartmentId()
+        val tag = Tag.environmentTag(departmentId.id, "production")
+
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                add(tag)
+                "ENTITY ADDED"
+            }
+        }
+        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
+
+        changes.modelChangesToPersist shouldBe listOf()
+        changes.entityChangesToPersist shouldBe listOf(AddEntity(tag))
+        changes.result shouldBe "ENTITY ADDED"
+    }
+
+    test("Should return properly built RealisedChanges when entity is deleted") {
+        val departmentId = randomDepartmentId()
+        val tag = Tag.priorityTag(departmentId.id, 1)
+
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                delete(tag)
+                "ENTITY DELETED"
+            }
+        }
+        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
+
+        changes.modelChangesToPersist shouldBe listOf()
+        changes.entityChangesToPersist shouldBe listOf(DeleteEntity(tag))
+        changes.result shouldBe "ENTITY DELETED"
+    }
+
+    test("Should return properly built RealisedChanges when model added and entity added") {
+        val model = createdTestModel("MLG", 420).activate()
+        val departmentId = randomDepartmentId()
+        val tag = Tag.environmentTag(departmentId.id, "staging")
+
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                add(model)
+                add(tag)
+                "MIXED CHANGES"
+            }
+        }
+        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
+
+        changes.modelChangesToPersist shouldBe listOf(
+            AddModel(
+                model,
+                listOf(
+                    TestModelCreated(model.id()),
+                    TestModelStatusChanged(model.id(), CREATED, ACTIVE),
+                ),
+            ),
+        )
+        changes.entityChangesToPersist shouldBe listOf(AddEntity(tag))
+        changes.result shouldBe "MIXED CHANGES"
+    }
+
+    test("Should return properly built RealisedChanges when multiple entities added and deleted") {
+        val departmentId = randomDepartmentId()
+        val employeeId = randomEmployeeId()
+        val tag1 = Tag.environmentTag(departmentId.id, "production")
+        val tag2 = Tag.priorityTag(departmentId.id, 1)
+        val oldTag = Tag.tag(departmentId.id, "deprecated", "true")
+        val allocation = RationAllocation.allocation(employeeId, Ration.BUBALEH, LocalDate.of(2026, 1, 1), 10)
+
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                add(tag1)
+                add(tag2)
+                add(allocation)
+                delete(oldTag)
+                "MULTIPLE ENTITIES"
+            }
+        }
+        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
+
+        changes.modelChangesToPersist shouldBe listOf()
+        changes.entityChangesToPersist shouldBe listOf(
+            AddEntity(tag1),
+            AddEntity(tag2),
+            AddEntity(allocation),
+            DeleteEntity(oldTag),
+        )
+        changes.result shouldBe "MULTIPLE ENTITIES"
+    }
+
+    test("Should merge entity changes from sub-uow") {
+        val departmentId = randomDepartmentId()
+        val tag1 = Tag.environmentTag(departmentId.id, "production")
+        val tag2 = Tag.priorityTag(departmentId.id, 1)
+
+        val innerUow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                add(tag2)
+                "inner result"
+            }
+        }
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                add(tag1)
+                execute(innerUow, TestPrincipal) { Params }
+                "MERGED ENTITIES"
+            }
+        }
+        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
+
+        changes.modelChangesToPersist shouldBe listOf()
+        changes.entityChangesToPersist shouldBe listOf(AddEntity(tag1), AddEntity(tag2))
+        changes.result shouldBe "MERGED ENTITIES"
     }
 })

@@ -1,12 +1,15 @@
 package com.razz.eva.uow
 
+import com.razz.eva.domain.CreatableEntity
+import com.razz.eva.domain.DeletableEntity
 import com.razz.eva.domain.Model
 import com.razz.eva.domain.ModelId
+import com.razz.eva.repository.EntityRepos
 import com.razz.eva.repository.ModelRepos
 import com.razz.eva.repository.TransactionalContext
 import kotlin.reflect.KClass
 
-internal sealed interface PersistingAccumulator : ModelPersisting {
+internal sealed interface PersistingAccumulator : ModelPersisting, EntityPersisting {
 
     fun interface FlushOperation {
         suspend operator fun invoke(context: TransactionalContext): List<Model<*, *>>
@@ -14,49 +17,95 @@ internal sealed interface PersistingAccumulator : ModelPersisting {
 
     fun accumulated(): List<FlushOperation>
 
-    class ChangesAccumulator(private val repos: ModelRepos) : PersistingAccumulator {
+    class ChangesAccumulator(
+        private val modelRepos: ModelRepos,
+        private val entityRepos: EntityRepos,
+    ) : PersistingAccumulator {
         private val changes: MutableList<FlushOperation> = mutableListOf()
 
         override fun <ID : ModelId<out Comparable<*>>, M : Model<ID, *>> add(model: M) {
-            changes.add { context -> repos.repoFor(model).add(context, model).let(::listOf) }
+            changes.add { context -> modelRepos.repoFor(model).add(context, model).let(::listOf) }
         }
 
         override fun <ID : ModelId<out Comparable<*>>, M : Model<ID, *>> update(model: M) {
-            changes.add { context -> repos.repoFor(model).update(context, model).let(::listOf) }
+            changes.add { context -> modelRepos.repoFor(model).update(context, model).let(::listOf) }
+        }
+
+        override fun <E : CreatableEntity> add(entity: E) {
+            changes.add { context ->
+                entityRepos.repoFor(entity).add(context, entity)
+                listOf()
+            }
+        }
+
+        override fun <E : DeletableEntity> delete(entity: E) {
+            changes.add { context ->
+                entityRepos.deletableRepoFor(entity).delete(context, entity)
+                listOf()
+            }
         }
 
         override fun accumulated() = changes
     }
 
-    class BatchesAccumulator(private val repos: ModelRepos) : PersistingAccumulator {
-        private val updates: MutableMap<KClass<out Model<*, *>>, Batch.Update<*, *>> = mutableMapOf()
-        private val inserts: MutableMap<KClass<out Model<*, *>>, Batch.Add<*, *>> = mutableMapOf()
+    class BatchesAccumulator(
+        private val modelRepos: ModelRepos,
+        private val entityRepos: EntityRepos,
+    ) : PersistingAccumulator {
+        private val updates: MutableMap<KClass<out Model<*, *>>, ModelBatch.Update<*, *>> = mutableMapOf()
+        private val inserts: MutableMap<KClass<out Model<*, *>>, ModelBatch.Add<*, *>> = mutableMapOf()
+        private val entityInserts: MutableMap<KClass<out CreatableEntity>, EntityBatch.Add<*>> = mutableMapOf()
+        private val entityDeletes: MutableMap<KClass<out DeletableEntity>, EntityBatch.Delete<*>> = mutableMapOf()
 
         override fun <ID : ModelId<out Comparable<*>>, M : Model<ID, *>> add(model: M) {
             inserts.compute(model::class) { _, v ->
-                v?.with(model) ?: Batch.Add(model)
+                v?.with(model) ?: ModelBatch.Add(model)
             }
         }
 
         override fun <ID : ModelId<out Comparable<*>>, M : Model<ID, *>> update(model: M) {
             updates.compute(model::class) { _, v ->
-                v?.with(model) ?: Batch.Update(model)
+                v?.with(model) ?: ModelBatch.Update(model)
             }
         }
 
-        override fun accumulated() = listOf(updates.values, inserts.values).flatMap {
-            it.map { b -> FlushOperation { context -> b.persist(context, repos) } }
+        override fun <E : CreatableEntity> add(entity: E) {
+            entityInserts.compute(entity::class) { _, v ->
+                v?.with(entity) ?: EntityBatch.Add(entity)
+            }
+        }
+
+        override fun <E : DeletableEntity> delete(entity: E) {
+            entityDeletes.compute(entity::class) { _, v ->
+                v?.with(entity) ?: EntityBatch.Delete(entity)
+            }
+        }
+
+        override fun accumulated(): List<FlushOperation> {
+            val modelOps = listOf(updates.values, inserts.values).flatMap {
+                it.map { b -> FlushOperation { context -> b.persist(context, modelRepos) } }
+            }
+            val entityOps = listOf(entityInserts.values, entityDeletes.values).flatMap {
+                it.map { b ->
+                    FlushOperation { context ->
+                        b.persist(context, entityRepos)
+                        listOf()
+                    }
+                }
+            }
+            return modelOps + entityOps
         }
     }
 
     companion object Factory {
         fun newPersistingAccumulator(
             doBatching: Boolean,
-            repos: ModelRepos,
+            modelRepos: ModelRepos,
+            entityRepos: EntityRepos,
         ): PersistingAccumulator = if (doBatching) {
-            BatchesAccumulator(repos)
+            BatchesAccumulator(modelRepos, entityRepos)
         } else {
-            ChangesAccumulator(repos)
+            ChangesAccumulator(modelRepos, entityRepos)
         }
     }
 }

@@ -89,7 +89,7 @@ class UnitOfWorkExecutor(
                 }
                 uowSpan.setAttribute(
                     MODEL_ID,
-                    changes.toPersist.map { it.id.stringValue() },
+                    changes.modelChangesToPersist.map { it.id.stringValue() },
                 )
                 uowSpan.setAttribute(
                     PRINCIPAL_ID,
@@ -102,7 +102,8 @@ class UnitOfWorkExecutor(
                                 uowName = uow.name(),
                                 params = constructedParams,
                                 principal = principal,
-                                changes = changes.toPersist,
+                                modelChanges = changes.modelChangesToPersist,
+                                entityChanges = changes.entityChangesToPersist,
                                 now = now,
                                 uowSupportsOutOfOrderPersisting = uow.configuration().supportsOutOfOrderPersisting,
                             )
@@ -151,7 +152,7 @@ class UnitOfWorkExecutor(
     ) = when (val result = changes.result) {
         is Model<*, *> -> {
             // don't try to find persisted data for returned values such as `notChanged(model)`
-            if (changes.toPersist.any { it !is Noop && it.id == result.id() }) {
+            if (changes.modelChangesToPersist.any { it !is NoopModel && it.id == result.id() }) {
                 @Suppress("UNCHECKED_CAST")
                 val roundtripped = persisted.singleOrNull { it.id() == result.id() } as? RESULT
                 if (roundtripped == null) logger.warn {
@@ -164,7 +165,8 @@ class UnitOfWorkExecutor(
             val models = result.filterIsInstance<Model<*, *>>()
             if (models.isEmpty()) result
             else {
-                val toPersist = changes.toPersist.mapNotNull { if (it is Noop) null else it.id }.toSet()
+                val toPersist = changes.modelChangesToPersist
+                    .mapNotNull { if (it is NoopModel) null else it.id }.toSet()
                 // don't try to find persisted data for returned values such as `notChanged(model)`
                 val persistedById = persisted.associateBy { it.id() }
                 val matched = models.mapNotNull { model ->

@@ -40,8 +40,8 @@ class UnitOfWorkSpec : UowBehaviorSpec({
                     dep.ration shouldBe SHAKSHOUKA
                 }
 
-                And("Changes contain Change.Add<Departent>") {
-                    changes.toPersist should {
+                And("Changes contain ModelChange.AddModel<Departent>") {
+                    changes.modelChangesToPersist should {
                         it.size shouldBe 1
                         it.single().persist(object : ModelPersisting {
                             override fun <ID : ModelId<out Comparable<*>>, M : Model<ID, *>> add(model: M) {

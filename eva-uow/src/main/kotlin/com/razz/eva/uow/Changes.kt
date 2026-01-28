@@ -1,5 +1,7 @@
 package com.razz.eva.uow
 
+import com.razz.eva.domain.CreatableEntity
+import com.razz.eva.domain.DeletableEntity
 import com.razz.eva.domain.Model
 import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
@@ -9,58 +11,81 @@ private fun existingChangeExceptionMessage(modelId: ModelId<*>) =
 
 abstract class Changes<R> {
     internal abstract val result: R
-    internal abstract val toPersist: List<Change>
+    internal abstract val modelChangesToPersist: List<ModelChange>
+    internal abstract val entityChangesToPersist: List<EntityChange>
 }
 
 class ChangesAccumulator private constructor(
-    private val changes: Map<ModelId<out Comparable<*>>, Change>,
+    private val modelChanges: Map<ModelId<out Comparable<*>>, ModelChange>,
+    private val entityChanges: List<EntityChange>,
 ) {
-    constructor() : this(emptyMap())
+    constructor() : this(mapOf(), listOf())
 
     fun <MID : ModelId<out Comparable<*>>, E : ModelEvent<MID>, M : Model<MID, E>>
-    withAdded(model: M): ChangesAccumulator {
+    withAddedModel(model: M): ChangesAccumulator {
         val eventDrive = model.writeEvents(ModelEventDrive())
-        return changes(model, eventDrive.events(), ::Add)
+        return modelChanges(model, eventDrive.events(), ::AddModel)
     }
 
     fun <MID : ModelId<out Comparable<*>>, E : ModelEvent<MID>, M : Model<MID, E>>
-    withUpdated(model: M): ChangesAccumulator {
+    withUpdatedModel(model: M): ChangesAccumulator {
         val eventDrive = model.writeEvents(ModelEventDrive())
-        return changes(model, eventDrive.events(), ::Update)
+        return modelChanges(model, eventDrive.events(), ::UpdateModel)
     }
 
     fun <MID : ModelId<out Comparable<*>>, E : ModelEvent<MID>, M : Model<MID, E>>
-    withUnchanged(model: M): ChangesAccumulator {
-        return changes(model, emptyList()) { m, _ -> Noop(m) }
+    withUnchangedModel(model: M): ChangesAccumulator {
+        return modelChanges(model, listOf()) { m, _ -> NoopModel(m) }
     }
 
-    private fun merge(from: Collection<Change>): ChangesAccumulator {
-        val into = LinkedHashMap(changes)
+    fun <E : CreatableEntity>
+    withAddedEntity(entity: E): ChangesAccumulator {
+        return ChangesAccumulator(modelChanges, entityChanges + AddEntity(entity))
+    }
+
+    fun <E : DeletableEntity>
+    withDeletedEntity(entity: E): ChangesAccumulator {
+        return ChangesAccumulator(modelChanges, entityChanges + DeleteEntity(entity))
+    }
+
+    private fun mergeModelChanges(from: Collection<ModelChange>): Map<ModelId<out Comparable<*>>, ModelChange> {
+        val into = LinkedHashMap(modelChanges)
         from.forEach { new ->
             into.merge(new.id, new) { change, succ ->
                 val merged = change.merge(succ)
                 checkNotNull(merged) { "Failed to merge changes for model [${change.id}]" }
             }
         }
-        return ChangesAccumulator(into)
+        return into
     }
 
-    fun merge(after: ChangesAccumulator): ChangesAccumulator = merge(after.changes.values)
+    fun merge(after: ChangesAccumulator): ChangesAccumulator {
+        return ChangesAccumulator(
+            mergeModelChanges(after.modelChanges.values),
+            entityChanges + after.entityChanges,
+        )
+    }
 
-    fun merge(after: Changes<*>): ChangesAccumulator = merge(after.toPersist)
+    fun merge(after: Changes<*>): ChangesAccumulator {
+        return ChangesAccumulator(
+            mergeModelChanges(after.modelChangesToPersist),
+            entityChanges + after.entityChangesToPersist,
+        )
+    }
 
     fun <R> withResult(result: R): Changes<R> {
-        require(changes.isNotEmpty()) { "No changes to persist" }
-        return RealisedChanges(result, changes.values.toList())
+        require(modelChanges.isNotEmpty() || entityChanges.isNotEmpty()) { "No changes to persist" }
+        return RealisedChanges(result, modelChanges.values.toList(), entityChanges)
     }
 
     private fun <E : ModelEvent<MID>, M : Model<MID, E>, MID : ModelId<out Comparable<*>>>
-    changes(model: M, modelEvents: List<E>, changer: (M, List<E>) -> Change): ChangesAccumulator {
-        return when (changes[model.id()]) {
+    modelChanges(model: M, modelEvents: List<E>, changer: (M, List<E>) -> ModelChange): ChangesAccumulator {
+        return when (modelChanges[model.id()]) {
             null -> ChangesAccumulator(
-                LinkedHashMap(changes).apply {
+                LinkedHashMap(modelChanges).apply {
                     put(model.id(), changer(model, modelEvents))
                 },
+                entityChanges,
             )
             else -> throw IllegalStateException(existingChangeExceptionMessage(model.id()))
         }
@@ -69,5 +94,6 @@ class ChangesAccumulator private constructor(
 
 internal class RealisedChanges<R>(
     override val result: R,
-    override val toPersist: List<Change>,
+    override val modelChangesToPersist: List<ModelChange>,
+    override val entityChangesToPersist: List<EntityChange>,
 ) : Changes<R>()

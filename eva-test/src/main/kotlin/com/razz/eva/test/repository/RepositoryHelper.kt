@@ -34,7 +34,7 @@ open class RepositoryHelper(
 
     constructor(
         migrationPath: String,
-        additionalMigrationPaths: List<String> = emptyList(),
+        additionalMigrationPaths: List<String> = listOf(),
         createPartman: Boolean = false,
         trimmedPackagePrefix: String = "com/razz/",
         schema: DbSchema = DbSchema.ModelsSchema,

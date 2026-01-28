@@ -7,7 +7,9 @@ package com.razz.eva.test.schema;
 import com.razz.eva.test.schema.tables.Bubalehs;
 import com.razz.eva.test.schema.tables.Departments;
 import com.razz.eva.test.schema.tables.Employees;
+import com.razz.eva.test.schema.tables.RationAllocation;
 import com.razz.eva.test.schema.tables.Shakshoukas;
+import com.razz.eva.test.schema.tables.Tag;
 
 import javax.annotation.processing.Generated;
 
@@ -45,4 +47,14 @@ public class Tables {
      * The table <code>shakshoukas</code>.
      */
     public static final Shakshoukas SHAKSHOUKAS = Shakshoukas.SHAKSHOUKAS;
+
+    /**
+     * The table <code>ration_allocation</code>.
+     */
+    public static final RationAllocation RATION_ALLOCATION = RationAllocation.RATION_ALLOCATION;
+
+    /**
+     * The table <code>tag</code>.
+     */
+    public static final Tag TAG = Tag.TAG;
 }

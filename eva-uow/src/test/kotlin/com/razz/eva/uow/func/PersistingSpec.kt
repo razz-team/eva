@@ -12,19 +12,34 @@ import com.razz.eva.domain.ModelState.NewState.Companion.newState
 import com.razz.eva.domain.ModelState.PersistentState.Companion.persistentState
 import com.razz.eva.domain.Name
 import com.razz.eva.domain.Ration.BUBALEH
+import com.razz.eva.domain.RationAllocation
+import com.razz.eva.domain.Tag
 import com.razz.eva.domain.TestModel.Factory.existingCreatedTestModel
 import com.razz.eva.domain.Version.Companion.V1
 import com.razz.eva.events.EventPublisher
+import com.razz.eva.events.UowEvent
+import com.razz.eva.events.UowEvent.UowName
 import com.razz.eva.persistence.ConnectionMode.REQUIRE_NEW
 import com.razz.eva.persistence.DummyConnection
 import com.razz.eva.persistence.WithCtxConnectionTransactionManager
+import com.razz.eva.repository.DeletableEntityRepository
+import com.razz.eva.repository.EntityRepos
+import com.razz.eva.repository.EntityRepository
 import com.razz.eva.repository.EventRepository
 import com.razz.eva.repository.ModelRepos
 import com.razz.eva.repository.ModelRepository
 import com.razz.eva.repository.TransactionalContext.Companion.transactionalContext
+import com.razz.eva.repository.hasEntityRepo
 import com.razz.eva.repository.hasRepo
+import com.razz.eva.test.domain.persistentStateV1
+import com.razz.eva.uow.AddEntity
 import com.razz.eva.uow.ChangesAccumulator
+import com.razz.eva.uow.DeleteEntity
 import com.razz.eva.uow.ExecutionStep
+import com.razz.eva.uow.ExecutionStep.EntitiesAdded
+import com.razz.eva.uow.ExecutionStep.EntitiesDeleted
+import com.razz.eva.uow.ExecutionStep.EntityAdded
+import com.razz.eva.uow.ExecutionStep.EntityDeleted
 import com.razz.eva.uow.ExecutionStep.ModelAdded
 import com.razz.eva.uow.ExecutionStep.ModelUpdated
 import com.razz.eva.uow.ExecutionStep.ModelsAdded
@@ -32,14 +47,13 @@ import com.razz.eva.uow.ExecutionStep.ModelsUpdated
 import com.razz.eva.uow.ExecutionStep.TransactionFinished
 import com.razz.eva.uow.ExecutionStep.TransactionStarted
 import com.razz.eva.uow.ExecutionStep.UowEventAdded
-import com.razz.eva.uow.Noop
-import com.razz.eva.uow.Persisting
-import com.razz.eva.uow.SpyRepo
-import com.razz.eva.uow.TestPrincipal
-import com.razz.eva.events.UowEvent
-import com.razz.eva.events.UowEvent.UowName
-import com.razz.eva.test.domain.persistentStateV1
 import com.razz.eva.uow.ExecutionStep.UowEventPublished
+import com.razz.eva.uow.NoopModel
+import com.razz.eva.uow.Persisting
+import com.razz.eva.uow.SpyCreatableEntityRepo
+import com.razz.eva.uow.SpyDeletableEntityRepo
+import com.razz.eva.uow.SpyModelRepo
+import com.razz.eva.uow.TestPrincipal
 import com.razz.eva.uow.UowParams
 import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.matchers.collections.shouldHaveSize
@@ -53,12 +67,12 @@ import java.time.Clock
 import java.time.Instant.now
 import java.util.UUID.randomUUID
 
-@Serializable
-data class Params(val name: String) : UowParams<Params> {
-    override fun serialization() = serializer()
-}
-
 class PersistingSpec : BehaviorSpec({
+
+    @Serializable
+    data class Params(val name: String) : UowParams<Params> {
+        override fun serialization() = serializer()
+    }
 
     val departmentId1 = randomDepartmentId()
     val bossId1 = EmployeeId(randomUUID())
@@ -116,17 +130,31 @@ class PersistingSpec : BehaviorSpec({
         modelState = persistentState(V1, null),
     ).changeBoss(boss2)
 
+    val tag1 = Tag.environmentTag(departmentId1.id, "production")
+    val tag2 = Tag.priorityTag(departmentId2.id, 1)
+    val tagToDelete = Tag.tag(departmentId3.id, "deprecated", "true")
+
+    val rationAllocation1 = RationAllocation.allocation(bossId1, BUBALEH, java.time.LocalDate.now(), 3)
+    val rationAllocation2 = RationAllocation.allocation(bossId2, BUBALEH, java.time.LocalDate.now(), 5)
+
     val params = Params("Nik")
     var supporstPipelining = false
 
     Given("Persisting lock'n'loaded") {
         val history = mutableListOf<ExecutionStep>()
-        val topRepo = SpyRepo(history)
+        val topRepo = SpyModelRepo(history)
+        val deletableEntityRepo = SpyDeletableEntityRepo(history)
+        val creatableEntityRepo = SpyCreatableEntityRepo(history)
 
         @Suppress("UNCHECKED_CAST")
-        val repos = ModelRepos(
+        val modelRepos = ModelRepos(
             Department::class hasRepo topRepo as ModelRepository<*, Department<*>>,
             Employee::class hasRepo topRepo as ModelRepository<*, Employee>,
+        )
+        @Suppress("UNCHECKED_CAST")
+        val entityRepos = EntityRepos(
+            Tag::class hasEntityRepo deletableEntityRepo as DeletableEntityRepository<Tag>,
+            RationAllocation::class hasEntityRepo creatableEntityRepo as EntityRepository<RationAllocation>,
         )
 
         val txnManager = WithCtxConnectionTransactionManager(
@@ -150,7 +178,8 @@ class PersistingSpec : BehaviorSpec({
 
         val persisting = Persisting(
             transactionManager = txnManager,
-            modelRepos = repos,
+            modelRepos = modelRepos,
+            entityRepos = entityRepos,
             eventRepository = eventsRepo,
             eventPublisher = eventPublisher,
         )
@@ -168,16 +197,23 @@ class PersistingSpec : BehaviorSpec({
                     uowName = "Hoba",
                     params = params,
                     principal = TestPrincipal,
-                    changes = ChangesAccumulator()
-                        .withAdded(department1)
-                        .withUpdated(boss1)
-                        .withUnchanged(existingCreatedTestModel(param1 = "a", param2 = 1L))
-                        .withUpdated(department3)
-                        .withUnchanged(existingCreatedTestModel(param1 = "b", param2 = 2L))
-                        .withAdded(department2)
-                        .withUpdated(boss2)
+                    modelChanges = ChangesAccumulator()
+                        .withAddedModel(department1)
+                        .withUpdatedModel(boss1)
+                        .withUnchangedModel(existingCreatedTestModel(param1 = "a", param2 = 1L))
+                        .withUpdatedModel(department3)
+                        .withUnchangedModel(existingCreatedTestModel(param1 = "b", param2 = 2L))
+                        .withAddedModel(department2)
+                        .withUpdatedModel(boss2)
                         .withResult(Unit)
-                        .toPersist,
+                        .modelChangesToPersist,
+                    entityChanges = listOf(
+                        AddEntity(tag1),
+                        AddEntity(tag2),
+                        AddEntity(rationAllocation1),
+                        AddEntity(rationAllocation2),
+                        DeleteEntity(tagToDelete),
+                    ),
                     now = clock.instant(),
                     uowSupportsOutOfOrderPersisting = outOfOrder,
                 )
@@ -194,12 +230,18 @@ class PersistingSpec : BehaviorSpec({
                         " with context created from configured clock",
                 ) {
                     history should {
-                        it.size shouldBe 7
+                        it.size shouldBe 10
                         it[0] shouldBe TransactionStarted(REQUIRE_NEW)
                         it[1] shouldBe ModelsUpdated(transactionalContext(now), listOf(boss1, boss2))
                         it[2] shouldBe ModelsUpdated(transactionalContext(now), listOf(department3))
                         it[3] shouldBe ModelsAdded(transactionalContext(now), listOf(department1, department2))
-                        it[4] should { eh ->
+                        it[4] shouldBe EntitiesAdded(transactionalContext(now), listOf(tag1, tag2))
+                        it[5] shouldBe EntitiesAdded(
+                            transactionalContext(now),
+                            listOf(rationAllocation1, rationAllocation2),
+                        )
+                        it[6] shouldBe EntitiesDeleted(transactionalContext(now), listOf(tagToDelete))
+                        it[7] should { eh ->
                             eh.shouldBeTypeOf<UowEventAdded>()
                             eh.uowEvent.occurredAt shouldBe now
                             eh.uowEvent.uowName shouldBe UowName("Hoba")
@@ -224,8 +266,8 @@ class PersistingSpec : BehaviorSpec({
                                 vals[4] shouldBe DepartmentChanged(bossId2, oldDepId, departmentId2)
                             }
                         }
-                        it[5] shouldBe TransactionFinished(REQUIRE_NEW)
-                        it[6] should { eh ->
+                        it[8] shouldBe TransactionFinished(REQUIRE_NEW)
+                        it[9] should { eh ->
                             eh.shouldBeTypeOf<UowEventPublished>()
                             eh.uowEvent.occurredAt shouldBe now
                             eh.uowEvent.uowName shouldBe UowName("Hoba")
@@ -266,14 +308,19 @@ class PersistingSpec : BehaviorSpec({
                         " with context created from configured clock",
                 ) {
                     history should {
-                        it.size shouldBe 9
+                        it.size shouldBe 14
                         it[0] shouldBe TransactionStarted(REQUIRE_NEW)
                         it[1] shouldBe ModelAdded(transactionalContext(now), department1)
                         it[2] shouldBe ModelUpdated(transactionalContext(now), boss1)
                         it[3] shouldBe ModelUpdated(transactionalContext(now), department3)
                         it[4] shouldBe ModelAdded(transactionalContext(now), department2)
                         it[5] shouldBe ModelUpdated(transactionalContext(now), boss2)
-                        it[6] should { eh ->
+                        it[6] shouldBe EntityAdded(transactionalContext(now), tag1)
+                        it[7] shouldBe EntityAdded(transactionalContext(now), tag2)
+                        it[8] shouldBe EntityAdded(transactionalContext(now), rationAllocation1)
+                        it[9] shouldBe EntityAdded(transactionalContext(now), rationAllocation2)
+                        it[10] shouldBe EntityDeleted(transactionalContext(now), tagToDelete)
+                        it[11] should { eh ->
                             eh.shouldBeTypeOf<UowEventAdded>()
                             eh.uowEvent.occurredAt shouldBe now
                             eh.uowEvent.uowName shouldBe UowName("Hoba")
@@ -298,8 +345,8 @@ class PersistingSpec : BehaviorSpec({
                                 vals[4] shouldBe DepartmentChanged(bossId2, oldDepId, departmentId2)
                             }
                         }
-                        it[7] shouldBe TransactionFinished(REQUIRE_NEW)
-                        it[8] should { eh ->
+                        it[12] shouldBe TransactionFinished(REQUIRE_NEW)
+                        it[13] should { eh ->
                             eh.shouldBeTypeOf<UowEventPublished>()
                             eh.uowEvent.occurredAt shouldBe now
                             eh.uowEvent.uowName shouldBe UowName("Hoba")
@@ -339,8 +386,8 @@ class PersistingSpec : BehaviorSpec({
                         uowName = "Hoba",
                         params = params,
                         principal = TestPrincipal,
-                        changes = listOf(
-                            Noop(
+                        modelChanges = listOf(
+                            NoopModel(
                                 OwnedDepartment(
                                     id = departmentId1,
                                     name = "KazahDepartment 1",
@@ -350,7 +397,7 @@ class PersistingSpec : BehaviorSpec({
                                     modelState = persistentStateV1(),
                                 ),
                             ),
-                            Noop(
+                            NoopModel(
                                 OwnedDepartment(
                                     id = departmentId2,
                                     name = "KazahDepartment 2",
@@ -361,6 +408,7 @@ class PersistingSpec : BehaviorSpec({
                                 ),
                             ),
                         ),
+                        entityChanges = listOf(),
                         now = clock.instant(),
                         uowSupportsOutOfOrderPersisting = outOfOrder,
                     )
