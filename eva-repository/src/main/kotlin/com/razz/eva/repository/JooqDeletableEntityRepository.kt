@@ -33,8 +33,7 @@ abstract class JooqDeletableEntityRepository<E : DeletableEntity, R : BaseEntity
     override suspend fun delete(context: TransactionalContext, entities: List<E>): Int {
         if (entities.isEmpty()) return 0
         if (entities.size == 1) return if (delete(context, entities.first())) 1 else 0
-        val conditions = entities.map { entityCondition(it) }
-            .reduce { acc, cond -> acc.or(cond) }
+        val conditions = entities.map(::entityCondition).reduce(Condition::or)
         val deleteQuery = dslContext.deleteFrom(table).where(conditions)
         val deleted = queryExecutor.executeQuery(
             dslContext = dslContext,

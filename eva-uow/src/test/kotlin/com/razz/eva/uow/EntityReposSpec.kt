@@ -6,12 +6,14 @@ import com.razz.eva.domain.RationAllocation
 import com.razz.eva.domain.Tag
 import com.razz.eva.repository.EntityRepos
 import com.razz.eva.repository.EntityRepositoryNotFoundException
+import com.razz.eva.repository.KeyDeletable
 import com.razz.eva.repository.RationAllocationRepository
 import com.razz.eva.repository.TagRepository
 import com.razz.eva.repository.hasEntityRepo
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import io.mockk.mockk
 import java.time.LocalDate
 import java.util.UUID.randomUUID
@@ -123,6 +125,46 @@ class EntityReposSpec : BehaviorSpec({
                     shouldThrow<EntityRepositoryNotFoundException> {
                         getRepo()
                     }
+                }
+            }
+        }
+    }
+
+    Given("EntityRepos is configured with KeyDeletable Tag repository") {
+        val tagRepo = TagRepository(mockk(), mockk())
+
+        val entityRepos = EntityRepos(
+            Tag::class hasEntityRepo tagRepo,
+        )
+
+        When("Principal gets key deletable repository for Tag class") {
+            val repo = entityRepos.keyDeletableRepoFor(Tag::class)
+
+            Then("Principal should get a KeyDeletable repository") {
+                repo.shouldBeInstanceOf<KeyDeletable<Tag, Tag.Key>>()
+                repo shouldBe tagRepo
+            }
+        }
+    }
+
+    Given("EntityRepos without configured repository for entity class") {
+        val tagRepo = TagRepository(mockk(), mockk())
+
+        val entityRepos = EntityRepos(
+            Tag::class hasEntityRepo tagRepo,
+        )
+
+        // Define a DeletableEntity that's not registered in the repos
+        data class UnregisteredTag(val id: String) : com.razz.eva.domain.DeletableEntity()
+
+        When("Principal tries to get key deletable repository for unconfigured class") {
+            val getRepo = {
+                entityRepos.keyDeletableRepoFor(UnregisteredTag::class)
+            }
+
+            Then("Principal should get EntityRepositoryNotFoundException") {
+                shouldThrow<EntityRepositoryNotFoundException> {
+                    getRepo()
                 }
             }
         }

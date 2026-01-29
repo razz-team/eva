@@ -2,6 +2,7 @@ package com.razz.eva.uow.composable
 
 import com.razz.eva.domain.CreatableEntity
 import com.razz.eva.domain.DeletableEntity
+import com.razz.eva.domain.EntityKey
 import com.razz.eva.domain.Model
 import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
@@ -16,6 +17,7 @@ import com.razz.eva.uow.InstantiationContext
 import com.razz.eva.uow.UowParams
 import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.api.trace.Span
+import kotlin.reflect.KClass
 
 class ChangesDsl internal constructor(initial: ChangesAccumulator, private val otel: OpenTelemetry) {
     private var tail: ChangesAccumulator? = null
@@ -102,6 +104,23 @@ class ChangesDsl internal constructor(initial: ChangesAccumulator, private val o
     fun <E : DeletableEntity> delete(entity: E): E {
         head = head.withDeletedEntity(entity)
         return entity
+    }
+
+    /**
+     * Mark an entity for deletion by its key.
+     * The entity will be deleted when the UoW is persisted.
+     *
+     * @param key the key identifying the entity to delete
+     * @return the key (for chaining)
+     */
+    inline fun <reified E : DeletableEntity, K : EntityKey<E>> delete(key: K): K {
+        deleteByKeyInternal(key, E::class)
+        return key
+    }
+
+    @PublishedApi
+    internal fun <E : DeletableEntity, K : EntityKey<E>> deleteByKeyInternal(key: K, entityClass: KClass<E>) {
+        head = head.withDeletedEntityByKey(key, entityClass)
     }
 
     suspend fun <PRINCIPAL, PARAMS, RESULT, UOW> execute(

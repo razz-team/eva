@@ -117,7 +117,6 @@ class UnitOfWorkDemoSpec : UowBehaviorSpec({
                         name shouldBe "full-staff"
                         value shouldBe "true"
                     }
-
                     emits<DepartmentChanged> {
                         employeeId shouldBe zoomerId
                         oldDepartmentId shouldBe oldDepId

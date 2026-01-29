@@ -2,6 +2,7 @@ package com.razz.eva.uow.verify
 
 import com.razz.eva.domain.CreatableEntity
 import com.razz.eva.domain.DeletableEntity
+import com.razz.eva.domain.EntityKey
 import com.razz.eva.domain.Model
 import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
@@ -9,6 +10,7 @@ import com.razz.eva.uow.AddEntity
 import com.razz.eva.uow.AddModel
 import com.razz.eva.uow.Changes
 import com.razz.eva.uow.DeleteEntity
+import com.razz.eva.uow.DeleteEntityByKey
 import com.razz.eva.uow.EntityChange
 import com.razz.eva.uow.ModelChange
 import com.razz.eva.uow.NoopModel
@@ -127,5 +129,21 @@ open class UowSpecBase<R> private constructor(
         @Suppress("UNCHECKED_CAST")
         verify(entity as E)
         return entity
+    }
+
+    @PublishedApi
+    internal fun <E : DeletableEntity, K : EntityKey<E>> verifyDeletedEntityByKey(verify: (K) -> Unit): K {
+        val key = when (
+            val next = checkNotNull(entityChangeHistory.pollFirst()) { "Expecting [EntityKey] got nothing" }
+        ) {
+            is DeleteEntityByKey<*, *> -> {
+                next.persist(peekingEntityPersisting)
+                peekingEntityPersisting.peekKey()
+            }
+            else -> throw IllegalStateException("Expecting [EntityKey] was [$next]")
+        }
+        @Suppress("UNCHECKED_CAST")
+        verify(key as K)
+        return key
     }
 }

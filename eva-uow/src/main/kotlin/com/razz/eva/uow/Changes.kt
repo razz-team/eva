@@ -2,9 +2,11 @@ package com.razz.eva.uow
 
 import com.razz.eva.domain.CreatableEntity
 import com.razz.eva.domain.DeletableEntity
+import com.razz.eva.domain.EntityKey
 import com.razz.eva.domain.Model
 import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
+import kotlin.reflect.KClass
 
 private fun existingChangeExceptionMessage(modelId: ModelId<*>) =
     "Change for a given model [$modelId] was already registered"
@@ -46,6 +48,11 @@ class ChangesAccumulator private constructor(
     fun <E : DeletableEntity>
     withDeletedEntity(entity: E): ChangesAccumulator {
         return ChangesAccumulator(modelChanges, entityChanges + DeleteEntity(entity))
+    }
+
+    fun <E : DeletableEntity, K : EntityKey<E>>
+    withDeletedEntityByKey(key: K, entityClass: KClass<E>): ChangesAccumulator {
+        return ChangesAccumulator(modelChanges, entityChanges + DeleteEntityByKey(key, entityClass))
     }
 
     private fun mergeModelChanges(from: Collection<ModelChange>): Map<ModelId<out Comparable<*>>, ModelChange> {

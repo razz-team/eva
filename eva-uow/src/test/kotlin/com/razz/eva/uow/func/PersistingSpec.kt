@@ -1,6 +1,8 @@
 package com.razz.eva.uow.func
 
+import com.razz.eva.domain.DeletableEntity
 import com.razz.eva.domain.Department
+import com.razz.eva.domain.EntityKey
 import com.razz.eva.domain.Department.OwnedDepartment
 import com.razz.eva.domain.DepartmentEvent.BossChanged
 import com.razz.eva.domain.DepartmentEvent.OwnedDepartmentCreated
@@ -35,11 +37,14 @@ import com.razz.eva.test.domain.persistentStateV1
 import com.razz.eva.uow.AddEntity
 import com.razz.eva.uow.ChangesAccumulator
 import com.razz.eva.uow.DeleteEntity
+import com.razz.eva.uow.DeleteEntityByKey
 import com.razz.eva.uow.ExecutionStep
 import com.razz.eva.uow.ExecutionStep.EntitiesAdded
 import com.razz.eva.uow.ExecutionStep.EntitiesDeleted
+import com.razz.eva.uow.ExecutionStep.EntitiesDeletedByKey
 import com.razz.eva.uow.ExecutionStep.EntityAdded
 import com.razz.eva.uow.ExecutionStep.EntityDeleted
+import com.razz.eva.uow.ExecutionStep.EntityDeletedByKey
 import com.razz.eva.uow.ExecutionStep.ModelAdded
 import com.razz.eva.uow.ExecutionStep.ModelUpdated
 import com.razz.eva.uow.ExecutionStep.ModelsAdded
@@ -51,7 +56,7 @@ import com.razz.eva.uow.ExecutionStep.UowEventPublished
 import com.razz.eva.uow.NoopModel
 import com.razz.eva.uow.Persisting
 import com.razz.eva.uow.SpyCreatableEntityRepo
-import com.razz.eva.uow.SpyDeletableEntityRepo
+import com.razz.eva.uow.SpyKeyDeletableEntityRepo
 import com.razz.eva.uow.SpyModelRepo
 import com.razz.eva.uow.TestPrincipal
 import com.razz.eva.uow.UowParams
@@ -143,7 +148,7 @@ class PersistingSpec : BehaviorSpec({
     Given("Persisting lock'n'loaded") {
         val history = mutableListOf<ExecutionStep>()
         val topRepo = SpyModelRepo(history)
-        val deletableEntityRepo = SpyDeletableEntityRepo(history)
+        val deletableEntityRepo = SpyKeyDeletableEntityRepo<DeletableEntity, EntityKey<DeletableEntity>>(history)
         val creatableEntityRepo = SpyCreatableEntityRepo(history)
 
         @Suppress("UNCHECKED_CAST")
@@ -434,6 +439,147 @@ class PersistingSpec : BehaviorSpec({
                                 eh.uowEvent.modelEvents shouldHaveSize 0
                             }
                         }
+                    }
+                }
+            }
+        }
+
+        val keySubjectId = randomUUID()
+        val key1 = Tag.Key(keySubjectId, "env")
+        val key2 = Tag.Key(keySubjectId, "priority")
+        val key3 = Tag.Key(keySubjectId, "deprecated")
+
+        history.clear()
+        When("Principal persists single key deletion with out of order support") {
+            persisting.persist(
+                uowName = "DeleteByKey",
+                params = params,
+                principal = TestPrincipal,
+                modelChanges = listOf(),
+                entityChanges = listOf(
+                    DeleteEntityByKey(key1, Tag::class),
+                ),
+                now = clock.instant(),
+                uowSupportsOutOfOrderPersisting = true,
+            )
+
+            Then("Persisting history contains key deletion step") {
+                history should {
+                    it.size shouldBe 5
+                    it[0] shouldBe TransactionStarted(REQUIRE_NEW)
+                    it[1] shouldBe EntitiesDeletedByKey(transactionalContext(now), listOf(key1))
+                    it[2] should { eh ->
+                        eh.shouldBeTypeOf<UowEventAdded>()
+                        eh.uowEvent.uowName shouldBe UowName("DeleteByKey")
+                    }
+                    it[3] shouldBe TransactionFinished(REQUIRE_NEW)
+                    it[4] should { eh ->
+                        eh.shouldBeTypeOf<UowEventPublished>()
+                        eh.uowEvent.uowName shouldBe UowName("DeleteByKey")
+                    }
+                }
+            }
+        }
+
+        history.clear()
+        When("Principal persists multiple key deletions with out of order support") {
+            persisting.persist(
+                uowName = "BatchDeleteByKey",
+                params = params,
+                principal = TestPrincipal,
+                modelChanges = listOf(),
+                entityChanges = listOf(
+                    DeleteEntityByKey(key1, Tag::class),
+                    DeleteEntityByKey(key2, Tag::class),
+                    DeleteEntityByKey(key3, Tag::class),
+                ),
+                now = clock.instant(),
+                uowSupportsOutOfOrderPersisting = true,
+            )
+
+            Then("Persisting history contains batched key deletion step") {
+                history should {
+                    it.size shouldBe 5
+                    it[0] shouldBe TransactionStarted(REQUIRE_NEW)
+                    it[1] shouldBe EntitiesDeletedByKey(transactionalContext(now), listOf(key1, key2, key3))
+                    it[2] should { eh ->
+                        eh.shouldBeTypeOf<UowEventAdded>()
+                        eh.uowEvent.uowName shouldBe UowName("BatchDeleteByKey")
+                    }
+                    it[3] shouldBe TransactionFinished(REQUIRE_NEW)
+                    it[4] should { eh ->
+                        eh.shouldBeTypeOf<UowEventPublished>()
+                        eh.uowEvent.uowName shouldBe UowName("BatchDeleteByKey")
+                    }
+                }
+            }
+        }
+
+        history.clear()
+        When("Principal persists mixed entity add and key deletion") {
+            val newTag = Tag.tag(keySubjectId, "new-tag", "value")
+            persisting.persist(
+                uowName = "MixedOperations",
+                params = params,
+                principal = TestPrincipal,
+                modelChanges = listOf(),
+                entityChanges = listOf(
+                    AddEntity(newTag),
+                    DeleteEntityByKey(key1, Tag::class),
+                    DeleteEntityByKey(key2, Tag::class),
+                ),
+                now = clock.instant(),
+                uowSupportsOutOfOrderPersisting = true,
+            )
+
+            Then("Persisting history contains both add and key deletion steps") {
+                history should {
+                    it.size shouldBe 6
+                    it[0] shouldBe TransactionStarted(REQUIRE_NEW)
+                    it[1] shouldBe EntitiesAdded(transactionalContext(now), listOf(newTag))
+                    it[2] shouldBe EntitiesDeletedByKey(transactionalContext(now), listOf(key1, key2))
+                    it[3] should { eh ->
+                        eh.shouldBeTypeOf<UowEventAdded>()
+                        eh.uowEvent.uowName shouldBe UowName("MixedOperations")
+                    }
+                    it[4] shouldBe TransactionFinished(REQUIRE_NEW)
+                    it[5] should { eh ->
+                        eh.shouldBeTypeOf<UowEventPublished>()
+                        eh.uowEvent.uowName shouldBe UowName("MixedOperations")
+                    }
+                }
+            }
+        }
+
+        history.clear()
+        When("Principal persists key deletion without out of order support") {
+            persisting.persist(
+                uowName = "SequentialDeleteByKey",
+                params = params,
+                principal = TestPrincipal,
+                modelChanges = listOf(),
+                entityChanges = listOf(
+                    DeleteEntityByKey(key1, Tag::class),
+                    DeleteEntityByKey(key2, Tag::class),
+                ),
+                now = clock.instant(),
+                uowSupportsOutOfOrderPersisting = false,
+            )
+
+            Then("Persisting history contains individual key deletion steps") {
+                history should {
+                    it.size shouldBe 6
+                    it[0] shouldBe TransactionStarted(REQUIRE_NEW)
+                    it[1] shouldBe EntityDeletedByKey(transactionalContext(now), key1)
+                    it[2] shouldBe EntityDeletedByKey(transactionalContext(now), key2)
+                    it[3] should { eh ->
+                        eh.shouldBeTypeOf<UowEventAdded>()
+                        eh.uowEvent.uowName shouldBe UowName("SequentialDeleteByKey")
+                    }
+                    it[4] shouldBe TransactionFinished(REQUIRE_NEW)
+                    it[5] should { eh ->
+                        eh.shouldBeTypeOf<UowEventPublished>()
+                        eh.uowEvent.uowName shouldBe UowName("SequentialDeleteByKey")
                     }
                 }
             }

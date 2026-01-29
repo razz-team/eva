@@ -2,6 +2,7 @@ package com.razz.eva.repository
 
 import com.razz.eva.domain.CreatableEntity
 import com.razz.eva.domain.DeletableEntity
+import com.razz.eva.domain.EntityKey
 import kotlin.reflect.KClass
 
 class EntityRepos(
@@ -35,10 +36,24 @@ class EntityRepos(
         @Suppress("UNCHECKED_CAST")
         return repo as DeletableEntityRepository<E>
     }
+
+    fun <E : DeletableEntity, K : EntityKey<E>> keyDeletableRepoFor(entityClass: KClass<E>): KeyDeletable<E, K> {
+        val repo = classToRepo[entityClass] ?: throw EntityRepositoryNotFoundException(entityClass)
+        if (repo !is KeyDeletable<*, *>) {
+            throw IllegalStateException(
+                "Repository for $entityClass does not support key-based deletion. " +
+                    "Implement KeyDeletable interface to enable this feature.",
+            )
+        }
+        @Suppress("UNCHECKED_CAST")
+        return repo as KeyDeletable<E, K>
+    }
 }
 
-class EntityRepositoryNotFoundException(entity: CreatableEntity) :
-    IllegalStateException("Repository is not found for entity: $entity")
+class EntityRepositoryNotFoundException : IllegalStateException {
+    constructor(entity: CreatableEntity) : super("Repository is not found for entity: $entity")
+    constructor(entityClass: KClass<*>) : super("Repository is not found for entity class: $entityClass")
+}
 
 infix fun <E : CreatableEntity, S : E> KClass<S>.hasEntityRepo(repository: EntityRepository<E>) =
     EntityRepos.ClassToRepo(this, repository)
