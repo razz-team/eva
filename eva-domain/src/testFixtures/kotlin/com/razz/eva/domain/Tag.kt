@@ -12,9 +12,6 @@ data class Tag(
         require(name.isNotBlank()) { "Tag name cannot be blank" }
     }
 
-    /**
-     * Key for identifying a Tag by its subject and name.
-     */
     data class Key(
         val subjectId: UUID,
         val name: String,

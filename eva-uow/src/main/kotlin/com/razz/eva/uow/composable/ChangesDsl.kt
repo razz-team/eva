@@ -106,13 +106,6 @@ class ChangesDsl internal constructor(initial: ChangesAccumulator, private val o
         return entity
     }
 
-    /**
-     * Mark an entity for deletion by its key.
-     * The entity will be deleted when the UoW is persisted.
-     *
-     * @param key the key identifying the entity to delete
-     * @return the key (for chaining)
-     */
     inline fun <reified E : DeletableEntity, K : EntityKey<E>> delete(key: K): K {
         deleteByKeyInternal(key, E::class)
         return key

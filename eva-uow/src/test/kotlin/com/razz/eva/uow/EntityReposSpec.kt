@@ -154,7 +154,6 @@ class EntityReposSpec : BehaviorSpec({
             Tag::class hasEntityRepo tagRepo,
         )
 
-        // Define a DeletableEntity that's not registered in the repos
         data class UnregisteredTag(val id: String) : com.razz.eva.domain.DeletableEntity()
 
         When("Principal tries to get key deletable repository for unconfigured class") {

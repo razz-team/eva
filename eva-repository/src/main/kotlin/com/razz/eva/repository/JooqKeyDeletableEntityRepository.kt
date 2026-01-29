@@ -18,10 +18,7 @@ abstract class JooqKeyDeletableEntityRepository<E : DeletableEntity, K : EntityK
 
     abstract fun keyCondition(key: K): Condition
 
-    override suspend fun delete(
-        context: TransactionalContext,
-        key: K,
-    ): Boolean {
+    override suspend fun delete(context: TransactionalContext, key: K): Boolean {
         val deleteQuery = dslContext.deleteFrom(table)
             .where(keyCondition(key))
         val deleted = queryExecutor.executeQuery(
@@ -32,10 +29,7 @@ abstract class JooqKeyDeletableEntityRepository<E : DeletableEntity, K : EntityK
     }
 
     @JvmName("deleteByKeys")
-    override suspend fun delete(
-        context: TransactionalContext,
-        keys: List<K>,
-    ): Int {
+    override suspend fun delete(context: TransactionalContext, keys: List<K>): Int {
         if (keys.isEmpty()) return 0
         if (keys.size == 1) return if (delete(context, keys.first())) 1 else 0
         val conditions = keys.map(::keyCondition).reduce(Condition::or)
