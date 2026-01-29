@@ -1,3 +1,6 @@
+import org.gradle.kotlin.dsl.withType
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+
 plugins {
     id("eva-kotlin")
     id("eva-publish")
@@ -5,6 +8,12 @@ plugins {
 
 kotlin.target.compilations.getByName("testFixtures") {
     associateWith(kotlin.target.compilations.getByName("main"))
+}
+
+tasks.withType<KotlinCompile>().configureEach {
+    friendPaths.from(
+        rootProject.project("eva-repository").layout.buildDirectory.dir("classes/kotlin/main"),
+    )
 }
 
 dependencies {

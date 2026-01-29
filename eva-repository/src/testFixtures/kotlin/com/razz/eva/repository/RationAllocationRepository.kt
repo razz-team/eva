@@ -35,7 +35,7 @@ class RationAllocationRepository(
             record.effectiveDate.toLocalDate(),
             record.quantity,
         )
-    
+
     suspend fun listByEmployee(employeeId: EmployeeId): List<RationAllocation> =
         listAllWhere(RATION_ALLOCATION.EMPLOYEE_ID.eq(employeeId.id))
 
