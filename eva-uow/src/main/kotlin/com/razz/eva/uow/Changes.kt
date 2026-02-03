@@ -6,6 +6,7 @@ import com.razz.eva.domain.EntityKey
 import com.razz.eva.domain.Model
 import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
+import com.razz.eva.domain.ModelState.SnapshotState
 import kotlin.reflect.KClass
 
 private fun existingChangeExceptionMessage(modelId: ModelId<*>) =
@@ -32,7 +33,18 @@ class ChangesAccumulator private constructor(
     fun <MID : ModelId<out Comparable<*>>, E : ModelEvent<MID>, M : Model<MID, E>>
     withUpdatedModel(model: M): ChangesAccumulator {
         val eventDrive = model.writeEvents(ModelEventDrive())
-        return modelChanges(model, eventDrive.events(), ::UpdateModel)
+        val state = model.modelState()
+        // Framework perspective: if SnapshotState wraps NewState, use AddModel for INSERT
+        val isNewForPersistence = (state as? SnapshotState)?.unwrap()?.isNew() == true
+
+        // Unwrap SnapshotState so ModelChange sees the real state
+        model.unwrapModelState()
+
+        return if (isNewForPersistence) {
+            modelChanges(model, eventDrive.events(), ::AddModel)
+        } else {
+            modelChanges(model, eventDrive.events(), ::UpdateModel)
+        }
     }
 
     fun <MID : ModelId<out Comparable<*>>, E : ModelEvent<MID>, M : Model<MID, E>>

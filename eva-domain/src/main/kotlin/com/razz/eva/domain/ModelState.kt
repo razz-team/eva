@@ -28,7 +28,7 @@ sealed class ModelState<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>>(
     internal fun raiseEvent(newEvent: E): ModelState<ID, E> =
         raiseEvents(listOf(newEvent))
 
-    protected abstract fun raiseEvents(newEvents: List<E>): ModelState<ID, E>
+    internal abstract fun raiseEvents(newEvents: List<E>): ModelState<ID, E>
 
     class PersistentState<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>> private constructor(
         version: Version,
@@ -55,7 +55,7 @@ sealed class ModelState<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>>(
         }
     }
 
-    class DirtyState<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>> private constructor(
+    internal class DirtyState<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>> private constructor(
         version: Version,
         events: Collection<E>,
         internal val proto: Any?,
@@ -109,6 +109,48 @@ sealed class ModelState<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>>(
             ): NewState<ID, E> {
                 @Suppress("UNCHECKED_CAST")
                 return NewState(listOf(createdEvent as E, *newEvents))
+            }
+        }
+    }
+
+    /**
+     * A wrapper state that tracks two perspectives:
+     * 1. User perspective (for ChangesDsl checks): isPersisted initially, isDirty after modification
+     * 2. Framework perspective (for persistence): wrapped state determines actual ModelChange subclass
+     *
+     * Used by ModelParam to ensure models passed between UoWs behave as expected.
+     */
+    internal class SnapshotState<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>> internal constructor(
+        internal val wrapped: ModelState<ID, E>,
+        private val modified: Boolean = false,
+    ) : ModelState<ID, E>(wrapped.version, wrapped.occurredEvents) {
+
+        // User perspective: never new
+        override fun isNew(): Boolean = false
+
+        // User perspective: dirty after raiseEvents
+        override fun isDirty(): Boolean = modified
+
+        // User perspective: persisted initially, not persisted after modification
+        override fun isPersisted(): Boolean = !modified
+
+        override fun raiseEvents(newEvents: List<E>): SnapshotState<ID, E> {
+            return SnapshotState(
+                wrapped = wrapped.raiseEvents(newEvents),
+                modified = true,
+            )
+        }
+
+        /**
+         * Unwraps to get the underlying state for framework-level persistence decisions.
+         */
+        internal fun unwrap(): ModelState<ID, E> = wrapped
+
+        internal companion object {
+            internal fun <ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>> snapshotState(
+                wrapped: ModelState<ID, E>,
+            ): SnapshotState<ID, E> {
+                return SnapshotState(wrapped)
             }
         }
     }

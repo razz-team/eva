@@ -31,7 +31,7 @@ internal data class AddModel<MID : ModelId<out Comparable<*>>, M : Model<MID, *>
         is UpdateModel<*, *, *> -> if (!succ.sameVersion(model)) {
             null
         } else if (succ.modelEvents isSuccessorOf modelEvents) {
-            succ.unwrap()
+            succ.toAddModel()
         } else {
             null
         }
@@ -53,9 +53,9 @@ internal data class UpdateModel<MID : ModelId<out Comparable<*>>, M : Model<MID,
         persisting.update(model)
     }
 
-    fun unwrap() = if (model.isNew()) AddModel(model, modelEvents) else UpdateModel(model, modelEvents)
-
     fun sameVersion(other: Model<*, *>) = model.id() == other.id() && model.version() == other.version()
+
+    fun toAddModel(): AddModel<MID, M, E> = AddModel(model, modelEvents)
 
     override fun merge(succ: ModelChange): ModelChange? = when (succ) {
         is AddModel<*, *, *> -> null

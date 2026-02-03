@@ -14,6 +14,7 @@ import com.razz.eva.domain.TestModelId.Companion.randomTestModelId
 import com.razz.eva.domain.TestModelStatus.ACTIVE
 import com.razz.eva.domain.TestModelStatus.CREATED
 import com.razz.eva.domain.Version.Companion.V1
+import com.razz.eva.uow.ModelParam.Factory.modelParam
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.matchers.shouldBe
@@ -134,6 +135,32 @@ class ChangesSpec : BehaviorSpec({
             Then("Changes matching updated and result produced") {
                 changes.modelChangesToPersist shouldBe listOf(UpdateModel(newModel, listOf(newModelEvent)))
                 changes.result shouldBe "nahel merzouk"
+            }
+        }
+
+        When("Principal calling withUpdated for new model wrapped via ModelParam") {
+            // Use a separate model to avoid mutating newModel which is shared across tests
+            val separateNewModel = createdTestModel("separate", 999)
+            val separateNewModelEvent = TestModelCreated(separateNewModel.id())
+
+            // Simulate ModelParam wrapping: model is wrapped in SnapshotState
+            val modelParam = InstantiationContext(0).modelParam(separateNewModel) { error("not used") }
+            val wrappedModel = modelParam.model()
+            // Modify the wrapped model to make it dirty from user perspective
+            val modifiedModel = wrappedModel.changeParam1("modified")
+
+            val changes = ChangesAccumulator()
+                .withUpdatedModel(modifiedModel)
+                .withResult("snapshot wrapped")
+
+            Then("Changes should be AddModel because underlying state is New") {
+                val modelChange = changes.modelChangesToPersist.single()
+                // Should be AddModel, not UpdateModel, because framework perspective sees NewState
+                modelChange shouldBe AddModel(
+                    modifiedModel,
+                    listOf(separateNewModelEvent, TestModelEvent1(separateNewModel.id())),
+                )
+                changes.result shouldBe "snapshot wrapped"
             }
         }
 

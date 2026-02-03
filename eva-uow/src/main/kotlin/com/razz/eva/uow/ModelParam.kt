@@ -28,6 +28,7 @@ class ModelParam<MID : ModelId<out Comparable<*>>, M : Model<MID, *>> private co
             model = newModel
             newModel
         } else {
+            currentModel.wrapInSnapshotState()
             currentModel
         }
     }

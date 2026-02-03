@@ -27,7 +27,6 @@ class ChangesDsl internal constructor(initial: ChangesAccumulator, private val o
         return tail?.merge(head)?.withResult(result) ?: head.withResult(result)
     }
 
-    // Under no circumstances should this method accept a model that is not new
     fun <MID, E, M> add(model: M): M
         where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
         require(model.isNew()) {
@@ -38,58 +37,18 @@ class ChangesDsl internal constructor(initial: ChangesAccumulator, private val o
         return model
     }
 
-    // It is possible in a sound program to register a model as changed
-    // that was created in different sub-uow and passed as a parameter, ie:
-    // val uow0 = UnitOfWork0<..., Model>(...) {
-    //     override fun tryPerform(...): Changes<Model> = changes { add(newModel()) }
-    // }
-    // val uow1 = UnitOfWork1(...) {
-    //     data classParams(val model: Model)
-    //     override fun tryPerform(... params: Params) = changes { ... update(params.model.modify()) }
-    //     ^ there is no control whether `model` was queried from db and somehow modified prior to being passed to uow
-    //       or it was created out of scope of uow and never persisted hence `::isNew` is true
-    // }
-    // val bigUow = UnitOfWorkBig(...) {
-    //     override fun tryPerform(...) = changes {
-    //         ...
-    //         val model = uow0.execute(...)
-    //         ...
-    //         val ... = uow1.execute(...) { UnitOfWork1.Params(model) }
-    //         ...
-    //     }
-    //
     fun <MID, E, M> update(model: M): M
         where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
-        require(model.isDirty() || model.isNew()) {
+        require(model.isDirty()) {
             "Attempted to register unchanged model [${model.id().stringValue()}] as changed"
         }
         head = head.withUpdatedModel(model)
         return model
     }
 
-    // It is possible in a sound program to register a model as unchanged
-    // that was created in different sub-uow and passed as a parameter, ie:
-    // val uow0 = UnitOfWork0<..., Model>(...) {
-    //     override fun tryPerform(...): Changes<Model> = changes { add(newModel()) }
-    // }
-    // val uow1 = UnitOfWork1(...) {
-    //     data classParams(val model: Model)
-    //     override fun tryPerform(... params: Params) = changes { ... if (dontChange) { notChanged(params.model) } }
-    //     ^ there is no control whether `model` was queried from db and prior to being passed to uow
-    //       or it was created out of scope of uow and never persisted hence `::isNew` is true
-    // }
-    // val bigUow = UnitOfWorkBig(...) {
-    //     override fun tryPerform(...) = changes {
-    //         ...
-    //         val model = uow0.execute(...)
-    //         ...
-    //         val ... = uow1.execute(...) { UnitOfWork1.Params(model) }
-    //         ...
-    //     }
-    //
     fun <MID, E, M> notChanged(model: M): M
         where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
-        require(model.isPersisted() || model.isNew()) {
+        require(model.isPersisted()) {
             "Attempted to register changed model [${model.id().stringValue()}] as unchanged"
         }
         head = head.withUnchangedModel(model)
