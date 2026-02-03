@@ -602,4 +602,71 @@ class ChangesDslSpec : FunSpec({
         changes.entityChangesToPersist[1].shouldBeTypeOf<DeleteEntityByKey<Tag, Tag.Key>>()
         changes.result shouldBe "MERGED KEY DELETES"
     }
+
+    test("Should throw exception when notChanged called twice for the same model") {
+        val model = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
+
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                notChanged(model)
+                notChanged(model)
+                "unreachable"
+            }
+        }
+        val exception = shouldThrow<IllegalStateException> {
+            uow.tryPerform(TestPrincipal, DummyUow.Params)
+        }
+        exception.message shouldBe "Change for a given model [${model.id()}] was already registered"
+    }
+
+    test("Should throw exception when notChanged called for model updated in another UoW via closure capture") {
+        // Model updated in inner UoW becomes Dirty, and outer UoW tries to mark it as notChanged
+        // This should fail because model.isDirty() = true, model.isPersisted() = false, model.isNew() = false
+        val model = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
+
+        val innerUow = object : DummyUow<CreatedTestModel>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                update(model.changeParam1("modified"))
+            }
+        }
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                val updatedModel = execute(innerUow, TestPrincipal) { Params }
+                notChanged(updatedModel) // Should throw because model is dirty
+                "unreachable"
+            }
+        }
+        val exception = shouldThrow<IllegalArgumentException> {
+            uow.tryPerform(TestPrincipal, DummyUow.Params)
+        }
+        exception.message shouldBe "Attempted to register changed model [${model.id().stringValue()}] as unchanged"
+    }
+
+    test("Should succeed when notChanged called for model created in another UoW via closure capture") {
+        // Model created in inner UoW is New, and outer UoW marks it as notChanged
+        // This should succeed because model.isNew() = true
+        val model = createdTestModel("MLG", 420)
+
+        val innerUow = object : DummyUow<CreatedTestModel>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                add(model)
+            }
+        }
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                val createdModel = execute(innerUow, TestPrincipal) { Params }
+                notChanged(createdModel) // Should succeed because model.isNew() = true
+                "success"
+            }
+        }
+        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
+
+        // Model should be added (from inner UoW) and then marked as notChanged
+        // The merge should combine Add with Noop → remains Add
+        changes.modelChangesToPersist shouldHaveSize 1
+        val modelChange = changes.modelChangesToPersist.first()
+        modelChange.shouldBeTypeOf<AddModel<TestModelId, CreatedTestModel, TestModelEvent>>()
+        modelChange.id shouldBe model.id()
+        changes.result shouldBe "success"
+    }
 })

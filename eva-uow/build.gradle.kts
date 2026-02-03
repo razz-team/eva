@@ -12,6 +12,7 @@ kotlin.target.compilations.getByName("testFixtures") {
 
 tasks.withType<KotlinCompile>().configureEach {
     friendPaths.from(
+        rootProject.project("eva-domain").layout.buildDirectory.dir("classes/kotlin/main"),
         rootProject.project("eva-repository").layout.buildDirectory.dir("classes/kotlin/main"),
     )
 }

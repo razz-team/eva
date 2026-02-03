@@ -5,6 +5,8 @@ import com.razz.eva.domain.ModelState.DirtyState.Companion.dirtyState
 import com.razz.eva.domain.ModelState.NewState
 import com.razz.eva.domain.ModelState.NewState.Companion.newState
 import com.razz.eva.domain.ModelState.PersistentState.Companion.persistentState
+import com.razz.eva.domain.ModelState.SnapshotState
+import com.razz.eva.domain.ModelState.SnapshotState.Companion.snapshotState
 import com.razz.eva.domain.TestModelEvent.TestModelCreated
 import com.razz.eva.domain.TestModelEvent.TestModelEvent1
 import com.razz.eva.domain.TestModelEvent.TestModelEvent2
@@ -139,6 +141,106 @@ class ModelStateSpec : BehaviorSpec({
             Then("Exception is thrown") {
                 val e = shouldThrow<IllegalStateException>(action)
                 e.message shouldBeEqualIgnoringCase "version should be greater then 0, and events should not occurred"
+            }
+        }
+    }
+
+    Given("SnapshotState wrapping NewState") {
+        val createdEvent = TestModelCreated(randomTestModelId())
+        val newState = newState<TestModelId, TestModelEvent, TestModelCreated>(createdEvent)
+        val snapshotState = snapshotState(newState)
+
+        When("Check user perspective") {
+            Then("isNew returns false") {
+                snapshotState.isNew() shouldBe false
+            }
+            Then("isDirty returns false initially") {
+                snapshotState.isDirty() shouldBe false
+            }
+            Then("isPersisted returns true initially") {
+                snapshotState.isPersisted() shouldBe true
+            }
+        }
+
+        When("Check framework perspective via unwrap") {
+            val unwrapped = snapshotState.unwrap()
+
+            Then("unwrapped state is NewState") {
+                unwrapped shouldBe beInstanceOf<NewState<TestModelId, TestModelEvent>>()
+            }
+            Then("unwrapped isNew returns true") {
+                unwrapped.isNew() shouldBe true
+            }
+        }
+
+        When("Raise events on SnapshotState") {
+            val event = TestModelEvent1(randomTestModelId())
+            val modifiedState = snapshotState.raiseEvents(listOf(event))
+
+            Then("Returns SnapshotState") {
+                modifiedState shouldBe beInstanceOf<SnapshotState<TestModelId, TestModelEvent>>()
+            }
+            Then("isDirty returns true after modification") {
+                modifiedState.isDirty() shouldBe true
+            }
+            Then("isPersisted returns false after modification") {
+                modifiedState.isPersisted() shouldBe false
+            }
+            Then("isNew still returns false") {
+                modifiedState.isNew() shouldBe false
+            }
+            Then("unwrapped state is still NewState") {
+                modifiedState.unwrap() shouldBe beInstanceOf<NewState<TestModelId, TestModelEvent>>()
+            }
+        }
+    }
+
+    Given("SnapshotState wrapping DirtyState") {
+        val modelId = randomTestModelId()
+        val event = TestModelEvent1(modelId)
+        val dirtyState = dirtyState<TestModelId, TestModelEvent>(V1, listOf(event), null)
+        val snapshotState = snapshotState(dirtyState)
+
+        When("Check user perspective") {
+            Then("isNew returns false") {
+                snapshotState.isNew() shouldBe false
+            }
+            Then("isDirty returns false initially") {
+                snapshotState.isDirty() shouldBe false
+            }
+            Then("isPersisted returns true initially") {
+                snapshotState.isPersisted() shouldBe true
+            }
+        }
+
+        When("Check framework perspective via unwrap") {
+            val unwrapped = snapshotState.unwrap()
+
+            Then("unwrapped state is DirtyState") {
+                unwrapped shouldBe beInstanceOf<DirtyState<TestModelId, TestModelEvent>>()
+            }
+            Then("unwrapped isDirty returns true") {
+                unwrapped.isDirty() shouldBe true
+            }
+        }
+    }
+
+    Given("SnapshotState wrapping PersistentState") {
+        val persistentState = persistentState<TestModelId, TestModelEvent>(V1, null)
+        val snapshotState = snapshotState(persistentState)
+
+        When("Check user and framework perspective alignment") {
+            Then("Both isNew return false") {
+                snapshotState.isNew() shouldBe false
+                snapshotState.unwrap().isNew() shouldBe false
+            }
+            Then("Both isDirty return false initially") {
+                snapshotState.isDirty() shouldBe false
+                snapshotState.unwrap().isDirty() shouldBe false
+            }
+            Then("Both isPersisted return true initially") {
+                snapshotState.isPersisted() shouldBe true
+                snapshotState.unwrap().isPersisted() shouldBe true
             }
         }
     }

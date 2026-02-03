@@ -38,26 +38,9 @@ class ChangesDsl internal constructor(initial: ChangesAccumulator, private val o
         return model
     }
 
-    // It is possible in a sound program to register a model as changed
-    // that was created in different sub-uow and passed as a parameter, ie:
-    // val uow0 = UnitOfWork0<..., Model>(...) {
-    //     override fun tryPerform(...): Changes<Model> = changes { add(newModel()) }
-    // }
-    // val uow1 = UnitOfWork1(...) {
-    //     data classParams(val model: Model)
-    //     override fun tryPerform(... params: Params) = changes { ... update(params.model.modify()) }
-    //     ^ there is no control whether `model` was queried from db and somehow modified prior to being passed to uow
-    //       or it was created out of scope of uow and never persisted hence `::isNew` is true
-    // }
-    // val bigUow = UnitOfWorkBig(...) {
-    //     override fun tryPerform(...) = changes {
-    //         ...
-    //         val model = uow0.execute(...)
-    //         ...
-    //         val ... = uow1.execute(...) { UnitOfWork1.Params(model) }
-    //         ...
-    //     }
-    //
+    // Models can come from two sources in composable UoWs:
+    // 1. Via ModelParam - wrapped in SnapshotState, isDirty() returns true after modification
+    // 2. Via closure capture from outer scope - still in NewState, need isNew() check for backward compatibility
     fun <MID, E, M> update(model: M): M
         where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
         require(model.isDirty() || model.isNew()) {
@@ -67,26 +50,9 @@ class ChangesDsl internal constructor(initial: ChangesAccumulator, private val o
         return model
     }
 
-    // It is possible in a sound program to register a model as unchanged
-    // that was created in different sub-uow and passed as a parameter, ie:
-    // val uow0 = UnitOfWork0<..., Model>(...) {
-    //     override fun tryPerform(...): Changes<Model> = changes { add(newModel()) }
-    // }
-    // val uow1 = UnitOfWork1(...) {
-    //     data classParams(val model: Model)
-    //     override fun tryPerform(... params: Params) = changes { ... if (dontChange) { notChanged(params.model) } }
-    //     ^ there is no control whether `model` was queried from db and prior to being passed to uow
-    //       or it was created out of scope of uow and never persisted hence `::isNew` is true
-    // }
-    // val bigUow = UnitOfWorkBig(...) {
-    //     override fun tryPerform(...) = changes {
-    //         ...
-    //         val model = uow0.execute(...)
-    //         ...
-    //         val ... = uow1.execute(...) { UnitOfWork1.Params(model) }
-    //         ...
-    //     }
-    //
+    // Models can come from two sources in composable UoWs:
+    // 1. Via ModelParam - wrapped in SnapshotState, isPersisted() returns true initially
+    // 2. Via closure capture from outer scope - still in NewState, need isNew() check for backward compatibility
     fun <MID, E, M> notChanged(model: M): M
         where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
         require(model.isPersisted() || model.isNew()) {
