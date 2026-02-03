@@ -2,6 +2,7 @@ package com.razz.eva.uow
 
 import com.razz.eva.domain.CreatableEntity
 import com.razz.eva.domain.DeletableEntity
+import com.razz.eva.domain.EntityKey
 import com.razz.eva.domain.Model
 import com.razz.eva.domain.ModelId
 import com.razz.eva.events.UowEvent
@@ -31,7 +32,7 @@ sealed class ExecutionStep {
 
     data class ModelsUpdated<ID : ModelId<out Comparable<*>>, M : Model<ID, *>>(
         val context: TransactionalContext,
-        val model: List<M>,
+        val models: List<M>,
     ) : ExecutionStep()
 
     data class EntityAdded<E : CreatableEntity>(
@@ -52,6 +53,16 @@ sealed class ExecutionStep {
     data class EntitiesDeleted<E : DeletableEntity>(
         val context: TransactionalContext,
         val entities: List<E>,
+    ) : ExecutionStep()
+
+    data class EntityDeletedByKey<E : DeletableEntity, K : EntityKey<E>>(
+        val context: TransactionalContext,
+        val key: K,
+    ) : ExecutionStep()
+
+    data class EntitiesDeletedByKey<E : DeletableEntity, K : EntityKey<E>>(
+        val context: TransactionalContext,
+        val keys: List<K>,
     ) : ExecutionStep()
 
     data class UowEventAdded(val uowEvent: UowEvent) : ExecutionStep()

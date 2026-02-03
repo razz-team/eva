@@ -11,7 +11,7 @@ import java.util.UUID
 class TagRepository(
     queryExecutor: QueryExecutor,
     dslContext: DSLContext,
-) : JooqDeletableEntityRepository<Tag, TagRecord>(queryExecutor, dslContext, TagTable.TAG) {
+) : JooqKeyDeletableEntityRepository<Tag, Tag.Key, TagRecord>(queryExecutor, dslContext, TagTable.TAG) {
 
     override fun toRecord(entity: Tag): TagRecord =
         TagRecord(entity.subjectId, entity.name, entity.value)
@@ -22,6 +22,10 @@ class TagRepository(
     override fun entityCondition(entity: Tag): Condition =
         TagTable.TAG.SUBJECT_ID.eq(entity.subjectId)
             .and(TagTable.TAG.NAME.eq(entity.name))
+
+    override fun keyCondition(key: Tag.Key): Condition =
+        TagTable.TAG.SUBJECT_ID.eq(key.subjectId)
+            .and(TagTable.TAG.NAME.eq(key.name))
 
     suspend fun listBySubject(subjectId: UUID): List<Tag> =
         listAllWhere(TagTable.TAG.SUBJECT_ID.eq(subjectId))

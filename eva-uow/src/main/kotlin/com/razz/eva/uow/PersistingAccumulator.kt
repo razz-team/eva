@@ -2,6 +2,7 @@ package com.razz.eva.uow
 
 import com.razz.eva.domain.CreatableEntity
 import com.razz.eva.domain.DeletableEntity
+import com.razz.eva.domain.EntityKey
 import com.razz.eva.domain.Model
 import com.razz.eva.domain.ModelId
 import com.razz.eva.repository.EntityRepos
@@ -45,6 +46,13 @@ internal sealed interface PersistingAccumulator : ModelPersisting, EntityPersist
             }
         }
 
+        override fun <E : DeletableEntity, K : EntityKey<E>> delete(key: K, entityClass: KClass<E>) {
+            changes.add { context ->
+                entityRepos.keyDeletableRepoFor(entityClass).delete(context, key)
+                listOf()
+            }
+        }
+
         override fun accumulated() = changes
     }
 
@@ -56,6 +64,8 @@ internal sealed interface PersistingAccumulator : ModelPersisting, EntityPersist
         private val inserts: MutableMap<KClass<out Model<*, *>>, ModelBatch.Add<*, *>> = mutableMapOf()
         private val entityInserts: MutableMap<KClass<out CreatableEntity>, EntityBatch.Add<*>> = mutableMapOf()
         private val entityDeletes: MutableMap<KClass<out DeletableEntity>, EntityBatch.Delete<*>> = mutableMapOf()
+        private val entityKeyDeletes: MutableMap<KClass<out DeletableEntity>, EntityBatch.DeleteByKey<*, *>> =
+            mutableMapOf()
 
         override fun <ID : ModelId<out Comparable<*>>, M : Model<ID, *>> add(model: M) {
             inserts.compute(model::class) { _, v ->
@@ -81,11 +91,17 @@ internal sealed interface PersistingAccumulator : ModelPersisting, EntityPersist
             }
         }
 
+        override fun <E : DeletableEntity, K : EntityKey<E>> delete(key: K, entityClass: KClass<E>) {
+            entityKeyDeletes.compute(entityClass) { _, v ->
+                v?.withKey(key) ?: EntityBatch.DeleteByKey(key, entityClass)
+            }
+        }
+
         override fun accumulated(): List<FlushOperation> {
             val modelOps = listOf(updates.values, inserts.values).flatMap {
                 it.map { b -> FlushOperation { context -> b.persist(context, modelRepos) } }
             }
-            val entityOps = listOf(entityInserts.values, entityDeletes.values).flatMap {
+            val entityOps = listOf(entityInserts.values, entityDeletes.values, entityKeyDeletes.values).flatMap {
                 it.map { b ->
                     FlushOperation { context ->
                         b.persist(context, entityRepos)

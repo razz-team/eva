@@ -23,6 +23,7 @@ import com.razz.eva.uow.AddModel
 import com.razz.eva.uow.Clocks.fixedUTC
 import com.razz.eva.uow.Clocks.millisUTC
 import com.razz.eva.uow.DeleteEntity
+import com.razz.eva.uow.DeleteEntityByKey
 import com.razz.eva.uow.ExecutionContext
 import com.razz.eva.uow.NoopModel
 import com.razz.eva.uow.TestExecutionContext.executionContextForSpec
@@ -506,5 +507,99 @@ class ChangesDslSpec : FunSpec({
         changes.modelChangesToPersist shouldBe listOf()
         changes.entityChangesToPersist shouldBe listOf(AddEntity(tag1), AddEntity(tag2))
         changes.result shouldBe "MERGED ENTITIES"
+    }
+
+    test("Should return properly built RealisedChanges when entity is deleted by key") {
+        val departmentId = randomDepartmentId()
+        val tagKey = Tag.Key(departmentId.id, "deprecated")
+
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                delete(tagKey)
+                "ENTITY DELETED BY KEY"
+            }
+        }
+        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
+
+        changes.modelChangesToPersist shouldBe listOf()
+        changes.entityChangesToPersist shouldHaveSize 1
+        changes.entityChangesToPersist.first().shouldBeTypeOf<DeleteEntityByKey<Tag, Tag.Key>>()
+        changes.result shouldBe "ENTITY DELETED BY KEY"
+    }
+
+    test("Should return properly built RealisedChanges when model added and entity deleted by key") {
+        val model = createdTestModel("MLG", 420).activate()
+        val departmentId = randomDepartmentId()
+        val tagKey = Tag.Key(departmentId.id, "old-tag")
+
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                add(model)
+                delete(tagKey)
+                "MIXED CHANGES WITH KEY DELETE"
+            }
+        }
+        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
+
+        changes.modelChangesToPersist shouldBe listOf(
+            AddModel(
+                model,
+                listOf(
+                    TestModelCreated(model.id()),
+                    TestModelStatusChanged(model.id(), CREATED, ACTIVE),
+                ),
+            ),
+        )
+        changes.entityChangesToPersist shouldHaveSize 1
+        changes.entityChangesToPersist.first().shouldBeTypeOf<DeleteEntityByKey<Tag, Tag.Key>>()
+        changes.result shouldBe "MIXED CHANGES WITH KEY DELETE"
+    }
+
+    test("Should return properly built RealisedChanges with both entity delete and key delete") {
+        val departmentId = randomDepartmentId()
+        val tag = Tag.environmentTag(departmentId.id, "production")
+        val tagKey = Tag.Key(departmentId.id, "deprecated")
+
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                delete(tag)
+                delete(tagKey)
+                "BOTH DELETES"
+            }
+        }
+        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
+
+        changes.modelChangesToPersist shouldBe listOf()
+        changes.entityChangesToPersist shouldHaveSize 2
+        changes.entityChangesToPersist[0] shouldBe DeleteEntity(tag)
+        changes.entityChangesToPersist[1].shouldBeTypeOf<DeleteEntityByKey<Tag, Tag.Key>>()
+        changes.result shouldBe "BOTH DELETES"
+    }
+
+    test("Should merge key delete changes from sub-uow") {
+        val departmentId = randomDepartmentId()
+        val tagKey1 = Tag.Key(departmentId.id, "tag1")
+        val tagKey2 = Tag.Key(departmentId.id, "tag2")
+
+        val innerUow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                delete(tagKey2)
+                "inner result"
+            }
+        }
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                delete(tagKey1)
+                execute(innerUow, TestPrincipal) { Params }
+                "MERGED KEY DELETES"
+            }
+        }
+        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
+
+        changes.modelChangesToPersist shouldBe listOf()
+        changes.entityChangesToPersist shouldHaveSize 2
+        changes.entityChangesToPersist[0].shouldBeTypeOf<DeleteEntityByKey<Tag, Tag.Key>>()
+        changes.entityChangesToPersist[1].shouldBeTypeOf<DeleteEntityByKey<Tag, Tag.Key>>()
+        changes.result shouldBe "MERGED KEY DELETES"
     }
 })

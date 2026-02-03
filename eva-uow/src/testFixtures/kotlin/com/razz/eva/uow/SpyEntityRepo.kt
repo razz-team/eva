@@ -2,36 +2,52 @@ package com.razz.eva.uow
 
 import com.razz.eva.domain.CreatableEntity
 import com.razz.eva.domain.DeletableEntity
+import com.razz.eva.domain.EntityKey
 import com.razz.eva.repository.DeletableEntityRepository
 import com.razz.eva.repository.EntityRepository
+import com.razz.eva.repository.KeyDeletable
 import com.razz.eva.repository.TransactionalContext
 import com.razz.eva.uow.ExecutionStep.EntitiesAdded
 import com.razz.eva.uow.ExecutionStep.EntitiesDeleted
+import com.razz.eva.uow.ExecutionStep.EntitiesDeletedByKey
 import com.razz.eva.uow.ExecutionStep.EntityAdded
 import com.razz.eva.uow.ExecutionStep.EntityDeleted
+import com.razz.eva.uow.ExecutionStep.EntityDeletedByKey
 
-class SpyDeletableEntityRepo(
+@Suppress("INAPPLICABLE_JVM_NAME")
+class SpyKeyDeletableEntityRepo<E : DeletableEntity, K : EntityKey<E>>(
     private val history: MutableList<ExecutionStep>,
-) : DeletableEntityRepository<DeletableEntity> {
+) : DeletableEntityRepository<E>, KeyDeletable<E, K> {
 
-    override suspend fun add(context: TransactionalContext, entity: DeletableEntity): DeletableEntity {
+    override suspend fun add(context: TransactionalContext, entity: E): E {
         history.add(EntityAdded(context, entity))
         return entity
     }
 
-    override suspend fun add(context: TransactionalContext, entities: List<DeletableEntity>): List<DeletableEntity> {
+    override suspend fun add(context: TransactionalContext, entities: List<E>): List<E> {
         history.add(EntitiesAdded(context, entities))
         return entities
     }
 
-    override suspend fun delete(context: TransactionalContext, entity: DeletableEntity): Boolean {
+    override suspend fun delete(context: TransactionalContext, entity: E): Boolean {
         history.add(EntityDeleted(context, entity))
         return true
     }
 
-    override suspend fun delete(context: TransactionalContext, entities: List<DeletableEntity>): Int {
+    override suspend fun delete(context: TransactionalContext, entities: List<E>): Int {
         history.add(EntitiesDeleted(context, entities))
         return entities.size
+    }
+
+    override suspend fun delete(context: TransactionalContext, key: K): Boolean {
+        history.add(EntityDeletedByKey(context, key))
+        return true
+    }
+
+    @JvmName("deleteByKeys")
+    override suspend fun delete(context: TransactionalContext, keys: List<K>): Int {
+        history.add(EntitiesDeletedByKey(context, keys))
+        return keys.size
     }
 }
 

@@ -2,6 +2,7 @@ package com.razz.eva.uow.verify
 
 import com.razz.eva.domain.CreatableEntity
 import com.razz.eva.domain.DeletableEntity
+import com.razz.eva.domain.EntityKey
 import com.razz.eva.domain.Model
 import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
@@ -144,5 +145,9 @@ class UowSpec<R> internal constructor(
 
     inline fun <reified E : DeletableEntity> deletes(noinline verify: E.() -> Unit): E {
         return verifyDeletedEntity(verify)
+    }
+
+    inline fun <reified E : DeletableEntity, K : EntityKey<E>> deletes(noinline verify: K.() -> Unit): K {
+        return verifyDeletedEntityByKey(verify)
     }
 }
