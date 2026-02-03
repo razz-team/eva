@@ -26,6 +26,7 @@ import com.razz.eva.uow.DeleteEntity
 import com.razz.eva.uow.DeleteEntityByKey
 import com.razz.eva.uow.ExecutionContext
 import com.razz.eva.uow.NoopModel
+import com.razz.eva.uow.TestConstantModelParam.constantModelParamForSpec
 import com.razz.eva.uow.TestExecutionContext.executionContextForSpec
 import com.razz.eva.uow.TestPrincipal
 import com.razz.eva.uow.UpdateModel
@@ -73,41 +74,6 @@ class ChangesDslSpec : FunSpec({
             UpdateModel(model1, listOf(TestModelStatusChanged(model1.id(), CREATED, ACTIVE))),
             NoopModel(model2),
         )
-        changes.result shouldBe "K P A C U B O"
-    }
-
-    test("Should return RealisedChanges with UpdateModel change when new model updated") {
-        val model = createdTestModel("MLG", 420).activate()
-
-        val uow = object : DummyUow<String>(executionContext) {
-            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
-                update(model)
-                "K P A C U B O"
-            }
-        }
-        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
-
-        changes.modelChangesToPersist shouldBe listOf(
-            UpdateModel(
-                model,
-                listOf(TestModelCreated(model.id()), TestModelStatusChanged(model.id(), CREATED, ACTIVE)),
-            ),
-        )
-        changes.result shouldBe "K P A C U B O"
-    }
-
-    test("Should return RealisedChanges with NoopModel change when new model marked as not changed") {
-        val model = createdTestModel("MLG", 420).activate()
-
-        val uow = object : DummyUow<String>(executionContext) {
-            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
-                notChanged(model)
-                "K P A C U B O"
-            }
-        }
-        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
-
-        changes.modelChangesToPersist shouldBe listOf(NoopModel(model))
         changes.result shouldBe "K P A C U B O"
     }
 
@@ -209,110 +175,6 @@ class ChangesDslSpec : FunSpec({
         val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
 
         changes.modelChangesToPersist shouldBe listOf(NoopModel(model))
-        changes.result shouldBe "K P A C U B O"
-    }
-
-    test("Should return properly built RealisedChanges when new model merged with updated model") {
-        val model0 = createdTestModel("MLG", 420)
-
-        val innerUow = object : DummyUow<String>(executionContext) {
-            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
-                update(model0.activate())
-                "K P A C U B O  B H Y T P U"
-            }
-        }
-        val uow = object : DummyUow<String>(executionContext) {
-            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
-                add(model0)
-                execute(innerUow, TestPrincipal) { Params }
-                "K P A C U B O"
-            }
-        }
-        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
-
-        changes.modelChangesToPersist shouldHaveSize 1
-        val add = changes.modelChangesToPersist.first()
-            .shouldBeTypeOf<AddModel<TestModelId, ActiveTestModel, TestModelEvent>>()
-        add.id shouldBe model0.id()
-        add.modelEvents shouldBe listOf(
-            TestModelCreated(model0.id()),
-            TestModelStatusChanged(model0.id(), CREATED, ACTIVE),
-        )
-        changes.result shouldBe "K P A C U B O"
-    }
-
-    test("Should return properly built RealisedChanges when returned new model updated after") {
-        val model0 = createdTestModel("MLG", 420)
-
-        val innerUow = object : DummyUow<CreatedTestModel>(executionContext) {
-            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
-                add(model0)
-            }
-        }
-        val uow = object : DummyUow<String>(executionContext) {
-            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
-                val added = execute(innerUow, TestPrincipal) { Params }
-                update(added.activate())
-                "K P A C U B O"
-            }
-        }
-        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
-
-        changes.modelChangesToPersist shouldHaveSize 1
-        val add = changes.modelChangesToPersist.first()
-            .shouldBeTypeOf<AddModel<TestModelId, ActiveTestModel, TestModelEvent>>()
-        add.id shouldBe model0.id()
-        add.modelEvents shouldBe listOf(
-            TestModelCreated(model0.id()),
-            TestModelStatusChanged(model0.id(), CREATED, ACTIVE),
-        )
-        changes.result shouldBe "K P A C U B O"
-    }
-
-    test("Should return properly built RealisedChanges when bunch of changes registered") {
-        val model0 = createdTestModel("MLG", 420)
-        val model1 = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
-            .activate()
-        val model2 = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
-
-        val innerUow0 = object : DummyUow<CreatedTestModel>(executionContext) {
-            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
-                update(model1)
-                add(model0)
-            }
-        }
-        val innerUow1 = object : DummyUow<CreatedTestModel>(executionContext) {
-            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
-                notChanged(model2)
-                update(model0.changeParam1("LEET"))
-            }
-        }
-        val uow = object : DummyUow<String>(executionContext) {
-            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
-                val added = execute(innerUow0, TestPrincipal) { Params }
-                val updated = execute(innerUow1, TestPrincipal) { Params }
-                update(updated.activate())
-                "K P A C U B O"
-            }
-        }
-        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
-
-        changes.modelChangesToPersist shouldHaveSize 3
-        val (update, add, noop) = changes.modelChangesToPersist
-        update.shouldBeTypeOf<UpdateModel<TestModelId, ActiveTestModel, TestModelEvent>>()
-        update.id shouldBe model1.id()
-        update.modelEvents shouldBe listOf(
-            TestModelStatusChanged(model1.id(), CREATED, ACTIVE),
-        )
-        add.shouldBeTypeOf<AddModel<TestModelId, ActiveTestModel, TestModelEvent>>()
-        add.id shouldBe model0.id()
-        add.modelEvents shouldBe listOf(
-            TestModelCreated(model0.id()),
-            TestModelEvent1(model0.id()),
-            TestModelStatusChanged(model0.id(), CREATED, ACTIVE),
-        )
-        noop.shouldBeTypeOf<NoopModel>()
-        noop.id shouldBe model2.id()
         changes.result shouldBe "K P A C U B O"
     }
 
@@ -619,8 +481,8 @@ class ChangesDslSpec : FunSpec({
         exception.message shouldBe "Change for a given model [${model.id()}] was already registered"
     }
 
-    test("Should throw exception when notChanged called for model updated in another UoW via closure capture") {
-        // Model updated in inner UoW becomes Dirty, and outer UoW tries to mark it as notChanged
+    test("Should throw exception when notChanged called for model updated in inner UoW") {
+        // Model updated in inner UoW becomes Dirty, outer UoW tries to mark it as notChanged
         // This should fail because model.isDirty() = true, model.isPersisted() = false, model.isNew() = false
         val model = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
 
@@ -642,31 +504,114 @@ class ChangesDslSpec : FunSpec({
         exception.message shouldBe "Attempted to register changed model [${model.id().stringValue()}] as unchanged"
     }
 
-    test("Should succeed when notChanged called for model created in another UoW via closure capture") {
-        // Model created in inner UoW is New, and outer UoW marks it as notChanged
-        // This should succeed because model.isNew() = true
-        val model = createdTestModel("MLG", 420)
+    // Tests for ModelParam - model passed via ModelParam appears persisted and produces correct ModelChange
 
-        val innerUow = object : DummyUow<CreatedTestModel>(executionContext) {
-            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
-                add(model)
-            }
-        }
+    test("Should return AddModel when new model passed via ModelParam is updated") {
+        // New model wrapped via ModelParam appears persisted, but framework knows it's new
+        val newModel = createdTestModel("MLG", 420)
+        val modelParam = constantModelParamForSpec(newModel)
+
         val uow = object : DummyUow<String>(executionContext) {
             override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
-                val createdModel = execute(innerUow, TestPrincipal) { Params }
-                notChanged(createdModel) // Should succeed because model.isNew() = true
-                "success"
+                val model = modelParam.model()
+                // Model appears persisted due to SnapshotState
+                model.isPersisted() shouldBe true
+                model.isNew() shouldBe false
+
+                // Modify and update
+                val modified = model.activate()
+                modified.isDirty() shouldBe true
+                update(modified)
+                "UPDATED VIA MODEL PARAM"
             }
         }
         val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
 
-        // Model should be added (from inner UoW) and then marked as notChanged
-        // The merge should combine Add with Noop → remains Add
+        // Should be AddModel (INSERT) because framework sees underlying NewState
         changes.modelChangesToPersist shouldHaveSize 1
         val modelChange = changes.modelChangesToPersist.first()
-        modelChange.shouldBeTypeOf<AddModel<TestModelId, CreatedTestModel, TestModelEvent>>()
-        modelChange.id shouldBe model.id()
-        changes.result shouldBe "success"
+        modelChange.shouldBeTypeOf<AddModel<TestModelId, ActiveTestModel, TestModelEvent>>()
+        modelChange.id shouldBe newModel.id()
+        changes.result shouldBe "UPDATED VIA MODEL PARAM"
+    }
+
+    test("Should return UpdateModel when existing model passed via ModelParam is updated") {
+        // Existing model wrapped via ModelParam appears persisted
+        val existingModel = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
+        val modelParam = constantModelParamForSpec(existingModel)
+
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                val model = modelParam.model()
+                // Model appears persisted due to SnapshotState
+                model.isPersisted() shouldBe true
+
+                // Modify and update
+                val modified = model.activate()
+                modified.isDirty() shouldBe true
+                update(modified)
+                "UPDATED EXISTING VIA MODEL PARAM"
+            }
+        }
+        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
+
+        // Should be UpdateModel (UPDATE) because framework sees underlying PersistedState
+        changes.modelChangesToPersist shouldHaveSize 1
+        val modelChange = changes.modelChangesToPersist.first()
+        modelChange.shouldBeTypeOf<UpdateModel<TestModelId, ActiveTestModel, TestModelEvent>>()
+        modelChange.id shouldBe existingModel.id()
+        changes.result shouldBe "UPDATED EXISTING VIA MODEL PARAM"
+    }
+
+    test("Should return NoopModel when model passed via ModelParam is not changed") {
+        val existingModel = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
+        val modelParam = constantModelParamForSpec(existingModel)
+
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                val model = modelParam.model()
+                // Model appears persisted
+                model.isPersisted() shouldBe true
+                notChanged(model)
+                "NOT CHANGED VIA MODEL PARAM"
+            }
+        }
+        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
+
+        changes.modelChangesToPersist shouldHaveSize 1
+        changes.modelChangesToPersist.first().shouldBeTypeOf<NoopModel>()
+        changes.result shouldBe "NOT CHANGED VIA MODEL PARAM"
+    }
+
+    test("Should return AddModel with merged events when new model via ModelParam is updated in inner UoW") {
+        val newModel = createdTestModel("MLG", 420)
+        val modelParam = constantModelParamForSpec(newModel)
+
+        val innerUow = object : DummyUow<ActiveTestModel>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                val model = modelParam.model()
+                val modified = model.changeParam1("inner").activate()
+                update(modified)
+            }
+        }
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                execute(innerUow, TestPrincipal) { Params }
+                "INNER UOW WITH MODEL PARAM"
+            }
+        }
+        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
+
+        // Should be AddModel because underlying state is New
+        changes.modelChangesToPersist shouldHaveSize 1
+        val modelChange = changes.modelChangesToPersist.first()
+        modelChange.shouldBeTypeOf<AddModel<TestModelId, ActiveTestModel, TestModelEvent>>()
+        modelChange.id shouldBe newModel.id()
+        modelChange.modelEvents shouldBe listOf(
+            TestModelCreated(newModel.id()),
+            TestModelEvent1(newModel.id()),
+            TestModelStatusChanged(newModel.id(), CREATED, ACTIVE),
+        )
+        changes.result shouldBe "INNER UOW WITH MODEL PARAM"
     }
 })

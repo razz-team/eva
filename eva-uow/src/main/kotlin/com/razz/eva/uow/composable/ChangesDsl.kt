@@ -27,7 +27,6 @@ class ChangesDsl internal constructor(initial: ChangesAccumulator, private val o
         return tail?.merge(head)?.withResult(result) ?: head.withResult(result)
     }
 
-    // Under no circumstances should this method accept a model that is not new
     fun <MID, E, M> add(model: M): M
         where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
         require(model.isNew()) {
@@ -38,24 +37,18 @@ class ChangesDsl internal constructor(initial: ChangesAccumulator, private val o
         return model
     }
 
-    // Models can come from two sources in composable UoWs:
-    // 1. Via ModelParam - wrapped in SnapshotState, isDirty() returns true after modification
-    // 2. Via closure capture from outer scope - still in NewState, need isNew() check for backward compatibility
     fun <MID, E, M> update(model: M): M
         where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
-        require(model.isDirty() || model.isNew()) {
+        require(model.isDirty()) {
             "Attempted to register unchanged model [${model.id().stringValue()}] as changed"
         }
         head = head.withUpdatedModel(model)
         return model
     }
 
-    // Models can come from two sources in composable UoWs:
-    // 1. Via ModelParam - wrapped in SnapshotState, isPersisted() returns true initially
-    // 2. Via closure capture from outer scope - still in NewState, need isNew() check for backward compatibility
     fun <MID, E, M> notChanged(model: M): M
         where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
-        require(model.isPersisted() || model.isNew()) {
+        require(model.isPersisted()) {
             "Attempted to register changed model [${model.id().stringValue()}] as unchanged"
         }
         head = head.withUnchangedModel(model)
