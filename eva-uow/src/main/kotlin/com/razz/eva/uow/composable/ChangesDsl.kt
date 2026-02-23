@@ -115,8 +115,10 @@ class ChangesDsl internal constructor(
                 MODEL_ID,
                 subChanges.modelChangesToPersist.map { it.id.stringValue() },
             )
-            changes = ChangesAccumulator.from(subChanges)
-            inheritedModelIds.addAll(changes.modelIds())
+            if (subChanges.modelChangesToPersist.isNotEmpty() || subChanges.entityChangesToPersist.isNotEmpty()) {
+                changes = ChangesAccumulator.from(subChanges)
+                inheritedModelIds.addAll(changes.modelIds())
+            }
             subChanges.result
         }
     }

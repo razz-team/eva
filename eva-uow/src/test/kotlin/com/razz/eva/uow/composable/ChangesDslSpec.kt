@@ -796,6 +796,31 @@ class ChangesDslSpec : FunSpec({
         changes.result shouldBe "outer"
     }
 
+    test("Should preserve outer changes when inner UoW returns noChanges") {
+        val model = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
+
+        val innerUow = { ctx: ExecutionContext ->
+            object : DummyUow<Unit>(ctx) {
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params) = noChanges()
+            }
+        }
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                update(model.activate())
+                execute(innerUow, TestPrincipal) { Params }
+                "outer"
+            }
+        }
+        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
+
+        changes.modelChangesToPersist shouldHaveSize 1
+        val update = changes.modelChangesToPersist.first()
+            .shouldBeTypeOf<UpdateModel<TestModelId, ActiveTestModel, TestModelEvent>>()
+        update.id shouldBe model.id()
+        update.modelEvents shouldBe listOf(TestModelStatusChanged(model.id(), CREATED, ACTIVE))
+        changes.result shouldBe "outer"
+    }
+
     test("Should throw exception when inner UoW tries to add model already in inherited changes") {
         val model = createdTestModel("MLG", 420)
 
