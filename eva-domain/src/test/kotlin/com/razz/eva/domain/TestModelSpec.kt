@@ -9,8 +9,6 @@ import com.razz.eva.domain.TestModelId.Companion.randomTestModelId
 import com.razz.eva.domain.Version.Companion.V1
 import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.matchers.shouldBe
-import io.mockk.coEvery
-import io.mockk.mockk
 
 class TestModelSpec : BehaviorSpec({
 
@@ -33,17 +31,11 @@ class TestModelSpec : BehaviorSpec({
             }
         }
 
-        And("Event drive") {
-            val eventDrive = mockk<ModelEventDrive<TestModelEvent>>()
-            val eventDriveWithCreatedEvent = mockk<ModelEventDrive<TestModelEvent>>()
-            coEvery { eventDrive.with(listOf(TestModelCreated(model.id()))) } returns eventDriveWithCreatedEvent
+        When("Get model events for new model") {
+            val events = model.modelEvents()
 
-            When("Write state events on drive") {
-                val updatedDrive = model.writeEvents(eventDrive)
-
-                Then("Only created event should be written") {
-                    updatedDrive shouldBe eventDriveWithCreatedEvent
-                }
+            Then("Only created event should be present") {
+                events shouldBe listOf(TestModelCreated(model.id()))
             }
         }
     }
@@ -73,27 +65,17 @@ class TestModelSpec : BehaviorSpec({
             }
         }
 
-        And("Event drive for sequential invocation") {
-            val eventDrive = mockk<ModelEventDrive<TestModelEvent>>()
-            val eventDriveWithTwoSequentialEvents = mockk<ModelEventDrive<TestModelEvent>>()
-            coEvery {
-                eventDrive.with(
-                    listOf(
-                        TestModelEvent1(model.id()),
-                        TestModelEvent2(model.id()),
-                    ),
+        When("Get model events for sequential invocation") {
+            val events = model
+                .changeParam1("test")
+                .changeParam2(999_00L)
+                .modelEvents()
+
+            Then("Two events should be present in invocation order") {
+                events shouldBe listOf(
+                    TestModelEvent1(model.id()),
+                    TestModelEvent2(model.id()),
                 )
-            } returns eventDriveWithTwoSequentialEvents
-
-            When("Principal invokes change different param methods sequentially and write events on drive") {
-                val updatedDrive = model
-                    .changeParam1("test")
-                    .changeParam2(999_00L)
-                    .writeEvents(eventDrive)
-
-                Then("Two events should be written in invocation order") {
-                    updatedDrive shouldBe eventDriveWithTwoSequentialEvents
-                }
             }
         }
 
@@ -116,31 +98,21 @@ class TestModelSpec : BehaviorSpec({
             }
         }
 
-        And("Event drive for random invocation") {
-            val eventDrive = mockk<ModelEventDrive<TestModelEvent>>()
-            val eventDriveWithFourSequentialEvents = mockk<ModelEventDrive<TestModelEvent>>()
-            coEvery {
-                eventDrive.with(
-                    listOf(
-                        TestModelEvent1(model.id()),
-                        TestModelEvent2(model.id()),
-                        TestModelEvent1(model.id()),
-                        TestModelEvent2(model.id()),
-                    ),
+        When("Get model events for random invocation") {
+            val events = model
+                .changeParam1("test1")
+                .changeParam2(6666_00L)
+                .changeParam1("test2")
+                .changeParam2(9999_00L)
+                .modelEvents()
+
+            Then("Four events should be present in invocation order") {
+                events shouldBe listOf(
+                    TestModelEvent1(model.id()),
+                    TestModelEvent2(model.id()),
+                    TestModelEvent1(model.id()),
+                    TestModelEvent2(model.id()),
                 )
-            } returns eventDriveWithFourSequentialEvents
-
-            When("Principal invokes change same params method randomly and write events on drive") {
-                val updatedDrive = model
-                    .changeParam1("test1")
-                    .changeParam2(6666_00L)
-                    .changeParam1("test2")
-                    .changeParam2(9999_00L)
-                    .writeEvents(eventDrive)
-
-                Then("Two events should be written in invocation order") {
-                    updatedDrive shouldBe eventDriveWithFourSequentialEvents
-                }
             }
         }
     }

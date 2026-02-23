@@ -7,8 +7,6 @@ import com.razz.eva.domain.Tag
 import com.razz.eva.domain.TestModel.Factory.createdTestModel
 import com.razz.eva.domain.TestModel.Factory.existingCreatedTestModel
 import com.razz.eva.domain.TestModelEvent.TestModelCreated
-import com.razz.eva.domain.TestModelEvent.TestModelEvent1
-import com.razz.eva.domain.TestModelEvent.TestModelEvent2
 import com.razz.eva.domain.TestModelEvent.TestModelStatusChanged
 import com.razz.eva.domain.TestModelId.Companion.randomTestModelId
 import com.razz.eva.domain.TestModelStatus.ACTIVE
@@ -61,7 +59,8 @@ class ChangesSpec : BehaviorSpec({
 
             Then("IllegalStateException thrown") {
                 val exception = shouldThrow<IllegalStateException>(attempt)
-                exception.message shouldBe "Change for a given model [${newModel.id()}] was already registered"
+                exception.message shouldBe "Change for a given " +
+                    "model [${newModel.id().stringValue()}] was already registered"
             }
         }
 
@@ -78,7 +77,8 @@ class ChangesSpec : BehaviorSpec({
 
             Then("IllegalStateException thrown") {
                 val exception = shouldThrow<IllegalStateException>(attempt)
-                exception.message shouldBe "Change for a given model [${newModel.id()}] was already registered"
+                exception.message shouldBe "Change for a given " +
+                    "model [${newModel.id().stringValue()}] was already registered"
             }
         }
 
@@ -146,7 +146,8 @@ class ChangesSpec : BehaviorSpec({
 
             Then("IllegalStateException thrown") {
                 val exception = shouldThrow<IllegalStateException>(attempt)
-                exception.message shouldBe "Change for a given model [${dirtyModel.id()}] was already registered"
+                exception.message shouldBe "Change for a given " +
+                    "model [${dirtyModel.id().stringValue()}] was already registered"
             }
         }
 
@@ -170,7 +171,8 @@ class ChangesSpec : BehaviorSpec({
 
             Then("IllegalStateException thrown") {
                 val exception = shouldThrow<IllegalStateException>(attempt)
-                exception.message shouldBe "Change for a given model [${unchangedModel.id()}] was already registered"
+                exception.message shouldBe "Change for a given " +
+                    "model [${unchangedModel.id().stringValue()}] was already registered"
             }
         }
 
@@ -183,7 +185,8 @@ class ChangesSpec : BehaviorSpec({
 
             Then("IllegalStateException thrown") {
                 val exception = shouldThrow<IllegalStateException>(attempt)
-                exception.message shouldBe "Change for a given model [${unchangedModel.id()}] was already registered"
+                exception.message shouldBe "Change for a given " +
+                    "model [${unchangedModel.id().stringValue()}] was already registered"
             }
         }
 
@@ -197,7 +200,7 @@ class ChangesSpec : BehaviorSpec({
             Then("IllegalStateException thrown") {
                 val exception = shouldThrow<IllegalStateException>(attempt)
                 exception.message shouldBe
-                    "Change for a given model [${unchangedModel.id()}] was already registered"
+                    "Change for a given model [${unchangedModel.id().stringValue()}] was already registered"
             }
         }
 
@@ -261,42 +264,103 @@ class ChangesSpec : BehaviorSpec({
                     }
                 }
             }
+        }
+    }
+    Given("ChangesAccumulator query and replace methods") {
+        val model1 = createdTestModel("model1", 100)
+        val model1Event = TestModelCreated(model1.id())
+        val model2 = existingCreatedTestModel(randomTestModelId(), "model2", 200, V1).activate()
+        val model2Event = TestModelStatusChanged(model2.id(), CREATED, ACTIVE)
 
-            When("another changes produced") {
-                val updatedNewModel = newModel.changeParam1("new name").changeParam2(0xBABE)
-                val newModelEvent1 = TestModelEvent1(newModel.id())
-                val newModelEvent2 = TestModelEvent2(newModel.id())
-                val changes1 = ChangesAccumulator()
-                    .withUpdatedModel(updatedNewModel)
-                    .withUpdatedModel(model1)
-                    .withResult("whatever")
+        When("changeFor is called on empty accumulator") {
+            val result = ChangesAccumulator().changeFor(model1.id())
 
-                And("new changes merged into initial changes") {
-                    val changes3 = changes0.merge(changes1).withUpdatedModel(model2).withResult("whatever")
-
-                    Then("original changes contain only models were added to it directly") {
-                        changes3.modelChangesToPersist shouldBe listOf(
-                            AddModel(updatedNewModel, listOf(newModelEvent, newModelEvent1, newModelEvent2)),
-                            UpdateModel(model1, listOf(model1Event)),
-                            UpdateModel(model2, listOf(model2Event)),
-                        )
-                    }
-                }
+            Then("null is returned") {
+                result shouldBe null
             }
+        }
 
-            When("incompatible changes produced") {
-                val changes1 = ChangesAccumulator()
-                    .withAddedModel(newModel)
-                    .withResult("whatever")
+        When("changeFor is called for existing model") {
+            val acc = ChangesAccumulator().withAddedModel(model1)
+            val result = acc.changeFor(model1.id())
 
-                And("new changes merged into initial changes") {
-                    val attempt = { changes0.merge(changes1).withResult("whatever") }
+            Then("the change is returned") {
+                result shouldBe AddModel(model1, listOf(model1Event))
+            }
+        }
 
-                    Then("original changes contain only models were added to it directly") {
-                        val ex = shouldThrow<IllegalStateException>(attempt)
-                        ex.message shouldBe "Failed to merge changes for model [${newModel.id()}]"
-                    }
-                }
+        When("changeFor is called for non-existing model") {
+            val acc = ChangesAccumulator().withAddedModel(model1)
+            val result = acc.changeFor(model2.id())
+
+            Then("null is returned") {
+                result shouldBe null
+            }
+        }
+
+        When("modelIds is called on empty accumulator") {
+            val result = ChangesAccumulator().modelIds()
+
+            Then("empty set is returned") {
+                result shouldBe emptySet()
+            }
+        }
+
+        When("modelIds is called on accumulator with models") {
+            val acc = ChangesAccumulator().withAddedModel(model1).withUpdatedModel(model2)
+            val result = acc.modelIds()
+
+            Then("set of model ids is returned") {
+                result shouldBe setOf(model1.id(), model2.id())
+            }
+        }
+
+        When("withReplacedModelChange is called for existing model") {
+            val acc = ChangesAccumulator().withAddedModel(model1)
+            val updatedModel1 = model1.activate()
+            val statusChanged = TestModelStatusChanged(model1.id(), CREATED, ACTIVE)
+            val replacement = AddModel(updatedModel1, listOf(model1Event, statusChanged))
+            val result = acc.withReplacedModelChange(model1.id(), replacement).withResult("replaced")
+
+            Then("the change is replaced") {
+                result.modelChangesToPersist shouldBe listOf(replacement)
+                result.result shouldBe "replaced"
+            }
+        }
+
+        When("from is called with Changes") {
+            val changes = ChangesAccumulator()
+                .withAddedModel(model1)
+                .withUpdatedModel(model2)
+                .withResult("original")
+
+            val restored = ChangesAccumulator.from(changes).withResult("restored")
+
+            Then("accumulator contains same model changes") {
+                restored.modelChangesToPersist shouldBe listOf(
+                    AddModel(model1, listOf(model1Event)),
+                    UpdateModel(model2, listOf(model2Event)),
+                )
+                restored.result shouldBe "restored"
+            }
+        }
+
+        When("from is called with Changes that include entities") {
+            val subjectId = UUID.randomUUID()
+            val tag = Tag(subjectId, "key", "value")
+            val changes = ChangesAccumulator()
+                .withAddedModel(model1)
+                .withAddedEntity(tag)
+                .withResult("with-entities")
+
+            val restored = ChangesAccumulator.from(changes).withResult("restored")
+
+            Then("accumulator contains both model and entity changes") {
+                restored.modelChangesToPersist shouldBe listOf(
+                    AddModel(model1, listOf(model1Event)),
+                )
+                restored.entityChangesToPersist shouldBe listOf(AddEntity(tag))
+                restored.result shouldBe "restored"
             }
         }
     }
@@ -392,74 +456,6 @@ class ChangesSpec : BehaviorSpec({
                     changes.modelChangesToPersist shouldBe listOf(AddModel(model, listOf(modelEvent)))
                     changes.entityChangesToPersist shouldBe listOf(AddEntity(tag1))
                     changes.result shouldBe "mixed changes"
-                }
-            }
-        }
-
-        And("Initial changes with entities") {
-            val changes0 = ChangesAccumulator().withAddedEntity(tag1)
-
-            When("New changes with entities merged into initial changes") {
-                val changes1 = ChangesAccumulator()
-                    .withAddedEntity(tag2)
-                    .withDeletedEntity(tag1)
-                    .withResult("merged")
-
-                val merged = changes0.merge(changes1).withResult("final")
-
-                Then("Entity changes are concatenated") {
-                    merged.entityChangesToPersist shouldBe listOf(
-                        AddEntity(tag1),
-                        AddEntity(tag2),
-                        DeleteEntity(tag1),
-                    )
-                    merged.result shouldBe "final"
-                }
-            }
-
-            When("Same entity added in both changes and merged") {
-                val changes1 = ChangesAccumulator()
-                    .withAddedEntity(tag1)
-                    .withResult("duplicate")
-
-                val merged = changes0.merge(changes1).withResult("final")
-
-                Then("Duplicate entities are preserved (no deduplication)") {
-                    merged.entityChangesToPersist shouldBe listOf(
-                        AddEntity(tag1),
-                        AddEntity(tag1),
-                    )
-                    merged.result shouldBe "final"
-                }
-            }
-        }
-
-        And("Initial changes with models and entities") {
-            val model = createdTestModel("test", 100)
-            val modelEvent = TestModelCreated(model.id())
-            val changes0 = ChangesAccumulator()
-                .withAddedModel(model)
-                .withAddedEntity(tag1)
-
-            When("New changes with models and entities merged") {
-                val updatedModel = model.changeParam1("updated")
-                val updateEvent = TestModelEvent1(model.id())
-                val changes1 = ChangesAccumulator()
-                    .withUpdatedModel(updatedModel)
-                    .withAddedEntity(tag2)
-                    .withResult("merged")
-
-                val merged = changes0.merge(changes1).withResult("final")
-
-                Then("Model changes are merged and entity changes are concatenated") {
-                    merged.modelChangesToPersist shouldBe listOf(
-                        AddModel(updatedModel, listOf(modelEvent, updateEvent)),
-                    )
-                    merged.entityChangesToPersist shouldBe listOf(
-                        AddEntity(tag1),
-                        AddEntity(tag2),
-                    )
-                    merged.result shouldBe "final"
                 }
             }
         }

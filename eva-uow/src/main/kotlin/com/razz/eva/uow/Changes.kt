@@ -9,7 +9,7 @@ import com.razz.eva.domain.ModelId
 import kotlin.reflect.KClass
 
 private fun existingChangeExceptionMessage(modelId: ModelId<*>) =
-    "Change for a given model [$modelId] was already registered"
+    "Change for a given model [${modelId.stringValue()}] was already registered"
 
 abstract class Changes<R> {
     internal abstract val result: R
@@ -25,19 +25,17 @@ class ChangesAccumulator private constructor(
 
     fun <MID : ModelId<out Comparable<*>>, E : ModelEvent<MID>, M : Model<MID, E>>
     withAddedModel(model: M): ChangesAccumulator {
-        val eventDrive = model.writeEvents(ModelEventDrive())
-        return modelChanges(model, eventDrive.events(), ::AddModel)
+        return modelChanges(model, ::AddModel)
     }
 
     fun <MID : ModelId<out Comparable<*>>, E : ModelEvent<MID>, M : Model<MID, E>>
     withUpdatedModel(model: M): ChangesAccumulator {
-        val eventDrive = model.writeEvents(ModelEventDrive())
-        return modelChanges(model, eventDrive.events(), ::UpdateModel)
+        return modelChanges(model, ::UpdateModel)
     }
 
     fun <MID : ModelId<out Comparable<*>>, E : ModelEvent<MID>, M : Model<MID, E>>
     withUnchangedModel(model: M): ChangesAccumulator {
-        return modelChanges(model, listOf()) { m, _ -> NoopModel(m) }
+        return modelChanges(model) { m, _ -> NoopModel(m) }
     }
 
     fun <E : CreatableEntity>
@@ -55,30 +53,19 @@ class ChangesAccumulator private constructor(
         return ChangesAccumulator(modelChanges, entityChanges + DeleteEntityByKey(key, entityClass))
     }
 
-    private fun mergeModelChanges(from: Collection<ModelChange>): Map<ModelId<out Comparable<*>>, ModelChange> {
-        val into = LinkedHashMap(modelChanges)
-        from.forEach { new ->
-            into.merge(new.id, new) { change, succ ->
-                val merged = change.merge(succ)
-                checkNotNull(merged) { "Failed to merge changes for model [${change.id}]" }
-            }
-        }
-        return into
-    }
+    internal fun changeFor(modelId: ModelId<out Comparable<*>>): ModelChange? = modelChanges[modelId]
 
-    fun merge(after: ChangesAccumulator): ChangesAccumulator {
+    internal fun withReplacedModelChange(
+        modelId: ModelId<out Comparable<*>>,
+        change: ModelChange,
+    ): ChangesAccumulator {
         return ChangesAccumulator(
-            mergeModelChanges(after.modelChanges.values),
-            entityChanges + after.entityChanges,
+            LinkedHashMap(modelChanges).apply { put(modelId, change) },
+            entityChanges,
         )
     }
 
-    fun merge(after: Changes<*>): ChangesAccumulator {
-        return ChangesAccumulator(
-            mergeModelChanges(after.modelChangesToPersist),
-            entityChanges + after.entityChangesToPersist,
-        )
-    }
+    internal fun modelIds(): Set<ModelId<out Comparable<*>>> = modelChanges.keys
 
     fun <R> withResult(result: R): Changes<R> {
         require(modelChanges.isNotEmpty() || entityChanges.isNotEmpty()) { "No changes to persist" }
@@ -86,15 +73,24 @@ class ChangesAccumulator private constructor(
     }
 
     private fun <E : ModelEvent<MID>, M : Model<MID, E>, MID : ModelId<out Comparable<*>>>
-    modelChanges(model: M, modelEvents: List<E>, changer: (M, List<E>) -> ModelChange): ChangesAccumulator {
+    modelChanges(model: M, changer: (M, List<E>) -> ModelChange): ChangesAccumulator {
         return when (modelChanges[model.id()]) {
             null -> ChangesAccumulator(
                 LinkedHashMap(modelChanges).apply {
-                    put(model.id(), changer(model, modelEvents))
+                    put(model.id(), changer(model, model.modelEvents()))
                 },
                 entityChanges,
             )
             else -> throw IllegalStateException(existingChangeExceptionMessage(model.id()))
+        }
+    }
+
+    companion object {
+        internal fun from(changes: Changes<*>): ChangesAccumulator {
+            return ChangesAccumulator(
+                changes.modelChangesToPersist.associateByTo(LinkedHashMap()) { it.id },
+                changes.entityChangesToPersist,
+            )
         }
     }
 }

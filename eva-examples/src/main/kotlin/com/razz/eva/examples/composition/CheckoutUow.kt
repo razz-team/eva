@@ -17,7 +17,7 @@ class CheckoutUow(
     private val cartQueries: (Cart.Id) -> Cart,
     private val accountQueries: (Account.Id) -> Account,
     private val inventoryQueries: (Inventory.Id) -> Inventory,
-    private val executionContext: ExecutionContext,
+    executionContext: ExecutionContext,
 ) : UnitOfWork<ServicePrincipal, Params, Cart.Id>(executionContext) {
 
     @Serializable
@@ -40,10 +40,10 @@ class CheckoutUow(
                 else v + 1
             }
         }
-        val accountId = execute(DebitAccountUow(accountQueries, executionContext), principal) {
+        val accountId = execute({ DebitAccountUow(accountQueries, it) }, principal) {
             DebitAccountUow.Params(params.accountId, totalAmount)
         }
-        execute(ReduceInventoryUow(inventoryQueries, executionContext), principal) {
+        execute({ ReduceInventoryUow(inventoryQueries, it) }, principal) {
             ReduceInventoryUow.Params(params.inventoryId, items)
         }
         update(cart.checkout(accountId)).id()

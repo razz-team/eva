@@ -6,7 +6,6 @@ import com.razz.eva.domain.ModelId
 
 internal sealed interface ModelChange {
     fun persist(persisting: ModelPersisting)
-    fun merge(succ: ModelChange): ModelChange?
 
     val modelEvents: List<ModelEvent<out ModelId<out Comparable<*>>>>
     val id: ModelId<out Comparable<*>>
@@ -21,21 +20,10 @@ internal data class AddModel<MID : ModelId<out Comparable<*>>, M : Model<MID, *>
 
     override fun persist(persisting: ModelPersisting) {
         require(model.isNew()) {
-            "Attempted to register ${if (model.isDirty()) "changed" else "unchanged"} model [${model.id()}] as new"
+            "Attempted to register ${if (model.isDirty()) "changed" else "unchanged"} " +
+                "model [${model.id().stringValue()}] as new"
         }
         persisting.add(model)
-    }
-
-    override fun merge(succ: ModelChange): ModelChange? = when (succ) {
-        is AddModel<*, *, *> -> null
-        is UpdateModel<*, *, *> -> if (!succ.sameVersion(model)) {
-            null
-        } else if (succ.modelEvents isSuccessorOf modelEvents) {
-            succ.unwrap()
-        } else {
-            null
-        }
-        is NoopModel -> this
     }
 }
 
@@ -48,25 +36,10 @@ internal data class UpdateModel<MID : ModelId<out Comparable<*>>, M : Model<MID,
 
     override fun persist(persisting: ModelPersisting) {
         require(model.isDirty()) {
-            "Attempted to register ${if (model.isNew()) "new" else "unchanged"} model [${model.id()}] as changed"
+            "Attempted to register ${if (model.isNew()) "new" else "unchanged"} " +
+                "model [${model.id().stringValue()}] as changed"
         }
         persisting.update(model)
-    }
-
-    fun unwrap() = if (model.isNew()) AddModel(model, modelEvents) else UpdateModel(model, modelEvents)
-
-    fun sameVersion(other: Model<*, *>) = model.id() == other.id() && model.version() == other.version()
-
-    override fun merge(succ: ModelChange): ModelChange? = when (succ) {
-        is AddModel<*, *, *> -> null
-        is UpdateModel<*, *, *> -> if (!succ.sameVersion(model)) {
-            null
-        } else if (succ.modelEvents isSuccessorOf modelEvents) {
-            succ
-        } else {
-            null
-        }
-        is NoopModel -> this
     }
 }
 
@@ -77,23 +50,9 @@ internal data class NoopModel(
     override val id: ModelId<out Comparable<*>> = model.id()
     override fun persist(persisting: ModelPersisting) {
         require(model.isPersisted()) {
-            "Attempted to register ${if (model.isNew()) "new" else "changed"} model [${model.id()}] as unchanged"
+            "Attempted to register ${if (model.isNew()) "new" else "changed"} " +
+                "model [${model.id().stringValue()}] as unchanged"
         }
     }
     override val modelEvents: List<ModelEvent<out ModelId<out Comparable<*>>>> = listOf()
-    override fun merge(succ: ModelChange): ModelChange = succ
-}
-
-private infix fun <E : ModelEvent<out ModelId<out Comparable<*>>>> List<E>
-    .isSuccessorOf(modelEvents: List<E>): Boolean {
-    if (this.size <= modelEvents.size) {
-        return false
-    }
-    modelEvents.forEachIndexed { i, e ->
-        val succ = this[i]
-        if (succ !== e) {
-            return false
-        }
-    }
-    return true
 }

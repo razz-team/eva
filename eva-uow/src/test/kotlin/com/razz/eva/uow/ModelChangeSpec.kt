@@ -6,7 +6,6 @@ import com.razz.eva.domain.TestModel.Factory.createdTestModel
 import com.razz.eva.domain.TestModel.Factory.existingCreatedTestModel
 import com.razz.eva.domain.TestModelId.Companion.randomTestModelId
 import com.razz.eva.domain.Version.Companion.V1
-import com.razz.eva.domain.Version.Companion.version
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.matchers.shouldBe
@@ -27,7 +26,8 @@ class ModelChangeSpec : BehaviorSpec({
 
             Then("IllegalArgumentException thrown") {
                 val ex = shouldThrow<IllegalArgumentException>(attempt)
-                ex.message shouldBe "Attempted to register unchanged model [${persistedModel.id()}] as changed"
+                ex.message shouldBe "Attempted to register unchanged " +
+                    "model [${persistedModel.id().stringValue()}] as changed"
             }
         }
 
@@ -37,41 +37,8 @@ class ModelChangeSpec : BehaviorSpec({
 
             Then("IllegalArgumentException thrown") {
                 val ex = shouldThrow<IllegalArgumentException>(attempt)
-                ex.message shouldBe "Attempted to register unchanged model [${persistedModel.id()}] as new"
-            }
-        }
-
-        When("Principal tries to merge NoopModel change with AddModel change") {
-            val noop = NoopModel(persistedModel)
-            val newModel = createdTestModel("noscope", 360).activate()
-            val events = newModel.writeEvents(ModelEventDrive()).events()
-            val add = AddModel(newModel, events)
-            val merged = noop.merge(add)
-
-            Then("Merged change is AddModel") {
-                merged shouldBe add
-            }
-        }
-
-        When("Principal tries to merge NoopModel change with UpdateModel change") {
-            val noop = NoopModel(persistedModel)
-            val dirtyModel = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1).activate()
-            val events = dirtyModel.writeEvents(ModelEventDrive()).events()
-            val update = UpdateModel(dirtyModel, events)
-            val merged = noop.merge(update)
-
-            Then("Merged change is UpdateModel") {
-                merged shouldBe update
-            }
-        }
-
-        When("Principal tries to merge NoopModel change with NoopModel change") {
-            val noop = NoopModel(persistedModel)
-            val anotherNoop = NoopModel(persistedModel)
-            val merged = noop.merge(anotherNoop)
-
-            Then("Merged change is another NoopModel") {
-                merged shouldBe anotherNoop
+                ex.message shouldBe "Attempted to register unchanged " +
+                    "model [${persistedModel.id().stringValue()}] as new"
             }
         }
     }
@@ -86,7 +53,8 @@ class ModelChangeSpec : BehaviorSpec({
 
             Then("IllegalArgumentException thrown") {
                 val ex = shouldThrow<IllegalArgumentException>(attempt)
-                ex.message shouldBe "Attempted to register changed model [${dirtyModel.id()}] as new"
+                ex.message shouldBe "Attempted to register changed " +
+                    "model [${dirtyModel.id().stringValue()}] as new"
             }
         }
 
@@ -96,90 +64,8 @@ class ModelChangeSpec : BehaviorSpec({
 
             Then("IllegalArgumentException thrown") {
                 val ex = shouldThrow<IllegalArgumentException>(attempt)
-                ex.message shouldBe "Attempted to register changed model [${dirtyModel.id()}] as unchanged"
-            }
-        }
-
-        When("Principal tries to merge UpdateModel change with AddModel change") {
-            val update = UpdateModel(dirtyModel, dirtyModel.writeEvents(ModelEventDrive()).events())
-            val newModel = createdTestModel("noscope", 360).activate()
-            val add = AddModel(newModel, newModel.writeEvents(ModelEventDrive()).events())
-            val merged = update.merge(add)
-
-            Then("Merged change is null") {
-                merged shouldBe null
-            }
-        }
-
-        When("Principal tries to merge UpdateModel change with NoopModel change") {
-            val update = UpdateModel(dirtyModel, dirtyModel.writeEvents(ModelEventDrive()).events())
-            val persistedModel = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
-            val noop = NoopModel(persistedModel)
-            val merged = update.merge(noop)
-
-            Then("Merged change is null") {
-                merged shouldBe update
-            }
-        }
-
-        When("Principal tries to merge UpdateModel change with UpdateModel change") {
-            val update = UpdateModel(dirtyModel, dirtyModel.writeEvents(ModelEventDrive()).events())
-            val updatedModel = dirtyModel.activate()
-            val anotherUpdate = UpdateModel(updatedModel, updatedModel.writeEvents(ModelEventDrive()).events())
-            val merged = update.merge(anotherUpdate)
-
-            Then("Merged change is UpdateModel") {
-                merged shouldBe anotherUpdate
-            }
-        }
-
-        When("Principal tries to merge UpdateModel change with UpdateModel change for different event") {
-            val firstAcivate = dirtyModel.activate()
-            val update = UpdateModel(firstAcivate, firstAcivate.writeEvents(ModelEventDrive()).events())
-            val updatedModel = dirtyModel.activate()
-            val anotherUpdate = UpdateModel(updatedModel, updatedModel.writeEvents(ModelEventDrive()).events())
-            val merged = update.merge(anotherUpdate)
-
-            Then("Merged change is null") {
-                merged shouldBe null
-            }
-        }
-
-        When("Principal tries to merge UpdateModel change with UpdateModel change for different model") {
-            val update = UpdateModel(dirtyModel, dirtyModel.writeEvents(ModelEventDrive()).events())
-            val incompatibleModel = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
-                .changeParam1("mlg")
-            val incompatibleUpdate =
-                UpdateModel(incompatibleModel, incompatibleModel.writeEvents(ModelEventDrive()).events())
-            val merged = update.merge(incompatibleUpdate)
-
-            Then("Merged change is null") {
-                merged shouldBe null
-            }
-        }
-
-        When("Principal tries to merge UpdateModel change with UpdateModel change model of different version") {
-            val update = UpdateModel(dirtyModel, dirtyModel.writeEvents(ModelEventDrive()).events())
-            val incompatibleModel = existingCreatedTestModel(dirtyModel.id(), "noscope", 360, version(2))
-                .changeParam1("mlg")
-            val incompatibleUpdate =
-                UpdateModel(incompatibleModel, incompatibleModel.writeEvents(ModelEventDrive()).events())
-            val merged = update.merge(incompatibleUpdate)
-
-            Then("Merged change is null") {
-                merged shouldBe null
-            }
-        }
-
-        When("Principal tries to merge UpdateModel change with UpdateModel change model with non successive events") {
-            val update = UpdateModel(dirtyModel, dirtyModel.writeEvents(ModelEventDrive()).events())
-            val incompatibleModel = existingCreatedTestModel(dirtyModel.id(), "noscope", 360, V1).activate()
-            val incompatibleUpdate =
-                UpdateModel(incompatibleModel, incompatibleModel.writeEvents(ModelEventDrive()).events())
-            val merged = update.merge(incompatibleUpdate)
-
-            Then("Merged change is null") {
-                merged shouldBe null
+                ex.message shouldBe "Attempted to register changed " +
+                    "model [${dirtyModel.id().stringValue()}] as unchanged"
             }
         }
     }
@@ -193,7 +79,8 @@ class ModelChangeSpec : BehaviorSpec({
 
             Then("IllegalArgumentException thrown") {
                 val ex = shouldThrow<IllegalArgumentException>(attempt)
-                ex.message shouldBe "Attempted to register new model [${newModel.id()}] as changed"
+                ex.message shouldBe "Attempted to register new " +
+                    "model [${newModel.id().stringValue()}] as changed"
             }
         }
 
@@ -203,78 +90,8 @@ class ModelChangeSpec : BehaviorSpec({
 
             Then("IllegalArgumentException thrown") {
                 val ex = shouldThrow<IllegalArgumentException>(attempt)
-                ex.message shouldBe "Attempted to register new model [${newModel.id()}] as unchanged"
-            }
-        }
-
-        When("Principal tries to merge AddModel change with AddModel change") {
-            val add = AddModel(newModel, newModel.writeEvents(ModelEventDrive()).events())
-            val anotherNewModel = createdTestModel("noscope", 360).activate()
-            val anotherAdd = AddModel(anotherNewModel, anotherNewModel.writeEvents(ModelEventDrive()).events())
-            val merged = add.merge(anotherAdd)
-
-            Then("Merged change is null") {
-                merged shouldBe null
-            }
-        }
-
-        When("Principal tries to merge AddModel change with NoopModel change") {
-            val add = AddModel(newModel, newModel.writeEvents(ModelEventDrive()).events())
-            val persistedModel = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
-            val noop = NoopModel(persistedModel)
-            val merged = add.merge(noop)
-
-            Then("Merged change is AddModel") {
-                merged shouldBe add
-            }
-        }
-
-        When("Principal tries to merge AddModel change with new model wrapped in UpdateModel change") {
-            val add = AddModel(newModel, newModel.writeEvents(ModelEventDrive()).events())
-            val dirtyModel = newModel.changeParam1("mlg").activate()
-            val update = UpdateModel(dirtyModel, dirtyModel.writeEvents(ModelEventDrive()).events())
-            val merged = add.merge(update)
-
-            Then("Merged change is UpdateModel") {
-                merged shouldBe AddModel(dirtyModel, dirtyModel.writeEvents(ModelEventDrive()).events())
-            }
-        }
-
-        When("Principal tries to merge AddModel change with UpdateModel change for different model") {
-            val add = AddModel(newModel, newModel.writeEvents(ModelEventDrive()).events())
-            val incompatibleModel = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
-                .changeParam1("mlg")
-            val incompatibleUpdate =
-                UpdateModel(incompatibleModel, incompatibleModel.writeEvents(ModelEventDrive()).events())
-            val merged = add.merge(incompatibleUpdate)
-
-            Then("Merged change is null") {
-                merged shouldBe null
-            }
-        }
-
-        When("Principal tries to merge AddModel change with UpdateModel change model of different version") {
-            val add = AddModel(newModel, newModel.writeEvents(ModelEventDrive()).events())
-            val incompatibleModel = existingCreatedTestModel(newModel.id(), "noscope", 360, version(2))
-                .changeParam1("mlg")
-            val incompatibleUpdate =
-                UpdateModel(incompatibleModel, incompatibleModel.writeEvents(ModelEventDrive()).events())
-            val merged = add.merge(incompatibleUpdate)
-
-            Then("Merged change is null") {
-                merged shouldBe null
-            }
-        }
-
-        When("Principal tries to merge AddModel change with UpdateModel change model with non successive events") {
-            val add = AddModel(newModel, newModel.writeEvents(ModelEventDrive()).events())
-            val incompatibleModel = existingCreatedTestModel(newModel.id(), "noscope", 360, V1).activate()
-            val incompatibleUpdate =
-                UpdateModel(incompatibleModel, incompatibleModel.writeEvents(ModelEventDrive()).events())
-            val merged = add.merge(incompatibleUpdate)
-
-            Then("Merged change is null") {
-                merged shouldBe null
+                ex.message shouldBe "Attempted to register new " +
+                    "model [${newModel.id().stringValue()}] as unchanged"
             }
         }
     }
