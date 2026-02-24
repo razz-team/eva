@@ -53,7 +53,7 @@ class UowParamsFirGenerationExtension(session: FirSession) : FirDeclarationGener
         classSymbol: FirClassSymbol<*>,
         context: MemberGenerationContext,
     ): Set<Name> {
-        // Called during SUPERTYPES phase — neither resolvedSuperTypes nor
+        // Called during SUPERTYPES phase - neither resolvedSuperTypes nor
         // resolvedAnnotationClassIds are safe. Check raw FIR only.
         if (!maybeQualifying(classSymbol)) return setOf()
         return setOf(SERIALIZATION_NAME)
@@ -66,7 +66,7 @@ class UowParamsFirGenerationExtension(session: FirSession) : FirDeclarationGener
         if (callableId.callableName != SERIALIZATION_NAME) return listOf()
         if (context == null) return listOf()
         val owner = context.owner
-        // UowParams<PARAMS : UowParams<PARAMS>> — the type argument is always the implementing
+        // UowParams<PARAMS : UowParams<PARAMS>> - the type argument is always the implementing
         // class itself due to the recursive generic bound. Derive it from the owner's ClassId
         // instead of resolving supertypes (which is not safe during the SUPERTYPES phase).
         val ownerType = owner.classId.constructClassLikeType(
