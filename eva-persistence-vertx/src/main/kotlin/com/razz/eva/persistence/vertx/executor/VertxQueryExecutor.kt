@@ -3,12 +3,13 @@ package com.razz.eva.persistence.vertx.executor
 import com.razz.eva.persistence.ConnectionMode.REQUIRE_EXISTING
 import com.razz.eva.persistence.TransactionManager
 import com.razz.eva.persistence.executor.QueryExecutor
-import io.vertx.core.buffer.Buffer
+import io.vertx.core.json.Json
 import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.pgclient.PgConnection
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
 import io.vertx.sqlclient.SqlResult
+import io.vertx.sqlclient.Tuple
 import io.vertx.sqlclient.impl.ListTuple
 import java.time.Instant
 import java.time.LocalDate
@@ -22,7 +23,6 @@ import org.jooq.JSONB
 import org.jooq.Query
 import org.jooq.Record
 import org.jooq.Select
-import org.jooq.SelectFieldOrAsterisk
 import org.jooq.StoreQuery
 import org.jooq.Table
 import org.jooq.exception.DataAccessException
@@ -39,8 +39,7 @@ class VertxQueryExecutor(
         table: Table<R>,
     ): List<R> {
         return transactionManager.withConnection { connection ->
-            val effectiveQuery = castJsonFieldsToText(jooqQuery, table)
-            val rows = executeQuery(connection, dslContext, effectiveQuery, table)
+            val rows = executeQuery(connection, dslContext, jooqQuery, table)
             rows.toList()
         }
     }
@@ -51,7 +50,7 @@ class VertxQueryExecutor(
         table: Table<ROUT>,
     ): List<ROUT> {
         return transactionManager.inTransaction(REQUIRE_EXISTING) { connection ->
-            setReturningWithJsonAsText(jooqQuery, table)
+            jooqQuery.setReturning()
             val rows = executeQuery(connection, dslContext, jooqQuery, table)
             rows.toList()
         }
@@ -82,8 +81,8 @@ class VertxQueryExecutor(
     ): ListTuple = ListTuple(
         dslContext.extractParams(jooqQuery).values.filterNot { it.isInline }.map { bound ->
             when (val value = bound.value) {
-                is JSON -> Buffer.buffer(value.data())
-                is JSONB -> Buffer.buffer(value.data())
+                is JSON -> Json.decodeValue(value.data()) ?: Tuple.JSON_NULL
+                is JSONB -> Json.decodeValue(value.data()) ?: Tuple.JSON_NULL
                 is Instant -> LocalDateTime.ofInstant(value, UTC)
                 is LocalDate -> value
                 is Inet -> io.vertx.pgclient.data.Inet().setAddress(value.address()).setNetmask(value.prefix())
@@ -106,8 +105,12 @@ class VertxQueryExecutor(
         for (i in fields.indices) {
             val field = fields[i]
             values[i] = when {
-                field.dataType.sqlDataType == SQLDataType.JSON -> row.getString(i)?.let { JSON.json(it) }
-                field.dataType.sqlDataType == SQLDataType.JSONB -> row.getString(i)?.let { JSONB.jsonb(it) }
+                field.dataType.sqlDataType == SQLDataType.JSON -> row.getJson(i)?.let {
+                    if (it == Tuple.JSON_NULL) JSON.json("null") else JSON.json(Json.encode(it))
+                }
+                field.dataType.sqlDataType == SQLDataType.JSONB -> row.getJson(i)?.let {
+                    if (it == Tuple.JSON_NULL) JSONB.jsonb("null") else JSONB.jsonb(Json.encode(it))
+                }
                 field.dataType.sqlDataType == SQLDataType.TIMESTAMP -> row.getLocalDateTime(i)?.toInstant(UTC)
                 field.dataType.sqlDataType == SQLDataType.DATE -> row.getLocalDate(i)
                 field.dataType.sqlDataType == SQLDataType.NUMERIC -> row.getBigDecimal(i)
@@ -126,43 +129,6 @@ class VertxQueryExecutor(
         record.fromArray(*values)
         record.touched(false)
         return record.into(table)
-    }
-
-    @Suppress("UnstableApiUsage")
-    private fun <R : Record> castJsonFieldsToText(
-        jooqQuery: Select<R>,
-        table: Table<R>,
-    ): Select<*> {
-        val fields = castJsonToVarchar(table) ?: return jooqQuery
-        return jooqQuery.`$select`(fields)
-    }
-
-    private fun setReturningWithJsonAsText(
-        jooqQuery: StoreQuery<*>,
-        table: Table<*>,
-    ) {
-        val fields = castJsonToVarchar(table)
-        if (fields == null) {
-            jooqQuery.setReturning()
-        } else {
-            jooqQuery.setReturning(*fields.toTypedArray())
-        }
-    }
-
-    private fun castJsonToVarchar(table: Table<*>): List<SelectFieldOrAsterisk>? {
-        val fields = table.fields()
-        val jsonFields = BooleanArray(fields.size) { i ->
-            val sqlType = fields[i].dataType.sqlDataType
-            sqlType == SQLDataType.JSON || sqlType == SQLDataType.JSONB
-        }
-        if (jsonFields.none { it }) return null
-        return fields.mapIndexed { i, field ->
-            if (jsonFields[i]) {
-                field.cast(SQLDataType.VARCHAR).`as`(field.unqualifiedName)
-            } else {
-                field
-            }
-        }
     }
 
     override fun getConstraintName(ex: DataAccessException): String? = null
