@@ -16,7 +16,6 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import kotlinx.serialization.Contextual
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
 
 class KotlinxParamsSerializerSpec : ShouldSpec({
 
@@ -58,19 +57,14 @@ class KotlinxParamsSerializerSpec : ShouldSpec({
     should("serialize simple params to valid JSON") {
         val params = SimpleParams(42, "test")
         val json = serializer.serialize(params)
-
-        Json.parseToJsonElement(json)
-        json shouldContain "\"id\":42"
-        json shouldContain "\"name\":\"test\""
+        json shouldBe """{"id":42,"name":"test"}"""
     }
 
     should("serialize params with idempotency key") {
         val key = IdempotencyKey.random()
         val params = ParamsWithIdempotencyKey(100L, key)
         val json = serializer.serialize(params)
-
-        json shouldContain "\"amount\":100"
-        json shouldContain key.stringValue()
+        json shouldBe """{"amount":100,"idempotencyKey":"${key.stringValue()}"}"""
     }
 
     should("serialize params with model IDs, lists, and enums") {
@@ -84,15 +78,7 @@ class KotlinxParamsSerializerSpec : ShouldSpec({
             ration = Ration.BUBALEH,
         )
         val json = serializer.serialize(params)
-
-        json shouldContain depId.id.toString()
-        json shouldContain emp1.id.toString()
-        json shouldContain emp2.id.toString()
-        json shouldContain "\"first\":\"John\""
-        json shouldContain "\"last\":\"Doe\""
-        json shouldContain "\"first\":\"Jane\""
-        json shouldContain "\"last\":\"Smith\""
-        json shouldContain "\"ration\":\"BUBALEH\""
+        json shouldBe """{"departmentId":{"id":"${depId.id}"},"employees":[{"id":"${emp1.id}"},{"id":"${emp2.id}"}],"names":[{"first":"John","last":"Doe"},{"first":"Jane","last":"Smith"}],"ration":"BUBALEH"}"""
     }
 
     should("serialize params with model param") {
