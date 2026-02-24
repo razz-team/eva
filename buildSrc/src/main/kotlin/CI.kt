@@ -2,7 +2,7 @@ import java.lang.Boolean.parseBoolean
 
 object Ci {
 
-    private const val SNAPSHOT_BASE = "0.20.0"
+    private const val SNAPSHOT_BASE = "0.20.1"
     private const val RELEASE_VERSION = "0.19.0"
     private val githubSha = System.getenv("GITHUB_SHA") ?: "latest"
 

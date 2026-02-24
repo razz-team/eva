@@ -329,16 +329,16 @@ class JooqBaseRepositoryBatchingSpec : BehaviorSpec({
                                 cast('${boss1.id}' as uuid),
                                 cast(1 as int),
                                 cast('BUBALEH' as text),
-                                cast(cast('OWNED' as "departments_state") as "departments_state"),
+                                cast('OWNED' as "departments_state"),
                                 cast(timestamp '$recordUpdatedAt' as timestamp(6)),
                                 cast(2 as bigint)),
-                                    
+
                                 (cast('${dep2.id().id}' as uuid),
                                 cast('UPDATE TEST 2' as text),
                                 cast('${boss2.id}' as uuid),
                                 cast(1 as int),
                                 cast('SHAKSHOUKA' as text),
-                                cast(cast('OWNED' as "departments_state") as "departments_state"),
+                                cast('OWNED' as "departments_state"),
                                 cast(timestamp '$recordUpdatedAt' as timestamp(6)),
                                 cast(2 as bigint)))
                                 
@@ -352,8 +352,8 @@ class JooqBaseRepositoryBatchingSpec : BehaviorSpec({
                             "record_updated_at",
                             "version")
                             
-                            where (cast("U"."id" as uuid) = cast("T"."id" as uuid)
-                                and cast("U"."version" as bigint) = (cast("T"."version" as bigint) + 1))
+                            where ("U"."id" = "T"."id"
+                                and "U"."version" = ("T"."version" + 1))
                         """.trim().replace(Regex("\\s+"), " ")
                     }
                 }
