@@ -3,9 +3,8 @@ package com.razz.eva.persistence.vertx.executor
 import com.razz.eva.persistence.vertx.PgPoolConnectionProvider
 import com.razz.eva.persistence.vertx.VertxConnectionElement
 import com.razz.eva.persistence.vertx.VertxTransactionManager
-import io.kotest.core.spec.style.BehaviorSpec
+import io.kotest.core.spec.style.ShouldSpec
 import io.kotest.matchers.shouldBe
-import io.kotest.matchers.types.shouldBeInstanceOf
 import io.mockk.clearMocks
 import io.mockk.coEvery
 import io.mockk.every
@@ -41,120 +40,96 @@ private val plainTable = object : TableImpl<Record>(DSL.name("plain_test")) {
     val NAME = createField(DSL.name("name"), SQLDataType.VARCHAR)!!
 }
 
-class VertxQueryExecutorJsonSpec : BehaviorSpec({
+class VertxQueryExecutorJsonSpec : ShouldSpec({
 
     val dslContext = DSL.using(POSTGRES)
+    val connectionProvider = mockk<PgPoolConnectionProvider>(relaxed = true)
+    val transactionManager = spyk(VertxTransactionManager(connectionProvider, connectionProvider))
+    val executor = VertxQueryExecutor(transactionManager)
 
-    Given("Vertx query executor") {
-        val connectionProvider = mockk<PgPoolConnectionProvider>(relaxed = true)
-        val transactionManager = spyk(VertxTransactionManager(connectionProvider, connectionProvider))
-        val executor = VertxQueryExecutor(transactionManager)
+    val sqlSlot = slot<String>()
+    val paramsSlot = slot<ListTuple>()
 
-        val sqlSlot = slot<String>()
-        val paramsSlot = slot<ListTuple>()
-
-        val preparedQueryMock = mockk<PreparedQuery<RowSet<Row>>> {
-            every { mapping(any<Function<Row, Any>>()) } answers {
-                mockk {
-                    every { execute(capture(paramsSlot)) } returns succeededFuture(
-                        mockk {
-                            every { iterator() } answers {
-                                mockk { every { hasNext() } returns false }
-                            }
-                            every { size() } returns 0
-                        },
-                    )
-                }
+    val preparedQueryMock = mockk<PreparedQuery<RowSet<Row>>> {
+        every { mapping(any<Function<Row, Any>>()) } answers {
+            mockk {
+                every { execute(capture(paramsSlot)) } returns succeededFuture(
+                    mockk {
+                        every { iterator() } answers {
+                            mockk { every { hasNext() } returns false }
+                        }
+                        every { size() } returns 0
+                    },
+                )
             }
         }
+    }
 
-        val connection = mockk<PgConnection>(relaxed = true) {
-            every { preparedQuery(capture(sqlSlot)) } answers { preparedQueryMock }
-        }
-        coEvery { connectionProvider.acquire() } coAnswers { connection }
+    val connection = mockk<PgConnection>(relaxed = true) {
+        every { preparedQuery(capture(sqlSlot)) } answers { preparedQueryMock }
+    }
+    coEvery { connectionProvider.acquire() } coAnswers { connection }
 
-        And("Table with JSONB field") {
+    fun resetMocks() {
+        clearMocks(connection, answers = false)
+        every { connection.preparedQuery(capture(sqlSlot)) } answers { preparedQueryMock }
+    }
 
-            When("Selecting") {
-                executor.executeSelect(dslContext, dslContext.selectFrom(jsonTable), jsonTable)
+    should("cast JSONB field to varchar in SELECT") {
+        executor.executeSelect(dslContext, dslContext.selectFrom(jsonTable), jsonTable)
 
-                Then("Query wraps JSONB field as varchar") {
-                    sqlSlot.captured shouldBe """
-                        select "json_test"."id", "json_test"."name", cast("json_test"."data" as varchar) as "data"
-                        from "json_test"
-                    """.trim().replace(Regex("\\s+"), " ")
-                }
-            }
-        }
+        sqlSlot.captured shouldBe """
+            select "json_test"."id", "json_test"."name", cast("json_test"."data" as varchar) as "data"
+            from "json_test"
+        """.trim().replace(Regex("\\s+"), " ")
+    }
 
-        And("Table without JSON fields") {
-            clearMocks(connection, answers = false)
-            every { connection.preparedQuery(capture(sqlSlot)) } answers { preparedQueryMock }
+    should("not modify SELECT for table without JSON fields") {
+        resetMocks()
+        executor.executeSelect(dslContext, dslContext.selectFrom(plainTable), plainTable)
 
-            When("Selecting") {
-                executor.executeSelect(dslContext, dslContext.selectFrom(plainTable), plainTable)
+        sqlSlot.captured shouldBe
+            """select "plain_test"."id", "plain_test"."name" from "plain_test""""
+    }
 
-                Then("Query is not wrapped") {
-                    sqlSlot.captured shouldBe
-                        """select "plain_test"."id", "plain_test"."name" from "plain_test""""
-                }
-            }
-        }
-
-        And("Inserting into table with JSONB field") {
-            clearMocks(connection, answers = false)
-            every { connection.preparedQuery(capture(sqlSlot)) } answers { preparedQueryMock }
-
-            When("Storing") {
-                val insert = dslContext.insertQuery(jsonTable).apply {
-                    addValue(jsonTable.ID, UUID.randomUUID())
-                    addValue(jsonTable.NAME, "test")
-                    addValue(jsonTable.DATA, JSONB.jsonb("""{"key":"value"}"""))
-                }
-
-                withContext(Dispatchers.IO + VertxConnectionElement(connection)) {
-                    executor.executeStore(dslContext, insert, jsonTable)
-                }
-
-                Then("RETURNING casts JSONB to varchar") {
-                    sqlSlot.captured shouldBe """
-                        insert into "json_test" ("id", "name", "data")
-                        values (cast(:1 as uuid), :2, cast(:3 as jsonb))
-                        returning "json_test"."id", "json_test"."name", cast("json_test"."data" as varchar) as "data"
-                    """.trim().replace(Regex("\\s+"), " ")
-                }
-
-                Then("JSONB param is bound as Buffer") {
-                    val values = (0 until paramsSlot.captured.size()).map { paramsSlot.captured.getValue(it) }
-                    val buffer = values.filterIsInstance<Buffer>().single()
-                    buffer.shouldBeInstanceOf<Buffer>()
-                    buffer.toString() shouldBe """{"key":"value"}"""
-                }
-            }
+    should("cast JSONB to varchar in RETURNING and bind JSONB param as Buffer") {
+        resetMocks()
+        val insert = dslContext.insertQuery(jsonTable).apply {
+            addValue(jsonTable.ID, UUID.randomUUID())
+            addValue(jsonTable.NAME, "test")
+            addValue(jsonTable.DATA, JSONB.jsonb("""{"key":"value"}"""))
         }
 
-        And("Inserting into table without JSON fields") {
-            clearMocks(connection, answers = false)
-            every { connection.preparedQuery(capture(sqlSlot)) } answers { preparedQueryMock }
-
-            When("Storing") {
-                val insert = dslContext.insertQuery(plainTable).apply {
-                    addValue(plainTable.ID, UUID.randomUUID())
-                    addValue(plainTable.NAME, "test")
-                }
-
-                withContext(Dispatchers.IO + VertxConnectionElement(connection)) {
-                    executor.executeStore(dslContext, insert, plainTable)
-                }
-
-                Then("RETURNING is not modified") {
-                    sqlSlot.captured shouldBe """
-                        insert into "plain_test" ("id", "name")
-                        values (cast(:1 as uuid), :2)
-                        returning "plain_test"."id", "plain_test"."name"
-                    """.trim().replace(Regex("\\s+"), " ")
-                }
-            }
+        withContext(Dispatchers.IO + VertxConnectionElement(connection)) {
+            executor.executeStore(dslContext, insert, jsonTable)
         }
+
+        sqlSlot.captured shouldBe """
+            insert into "json_test" ("id", "name", "data")
+            values (cast(:1 as uuid), :2, cast(:3 as jsonb))
+            returning "json_test"."id", "json_test"."name", cast("json_test"."data" as varchar) as "data"
+        """.trim().replace(Regex("\\s+"), " ")
+
+        val values = (0 until paramsSlot.captured.size()).map { paramsSlot.captured.getValue(it) }
+        val buffer = values.filterIsInstance<Buffer>().single()
+        buffer.toString() shouldBe """{"key":"value"}"""
+    }
+
+    should("not modify RETURNING for table without JSON fields") {
+        resetMocks()
+        val insert = dslContext.insertQuery(plainTable).apply {
+            addValue(plainTable.ID, UUID.randomUUID())
+            addValue(plainTable.NAME, "test")
+        }
+
+        withContext(Dispatchers.IO + VertxConnectionElement(connection)) {
+            executor.executeStore(dslContext, insert, plainTable)
+        }
+
+        sqlSlot.captured shouldBe """
+            insert into "plain_test" ("id", "name")
+            values (cast(:1 as uuid), :2)
+            returning "plain_test"."id", "plain_test"."name"
+        """.trim().replace(Regex("\\s+"), " ")
     }
 })
