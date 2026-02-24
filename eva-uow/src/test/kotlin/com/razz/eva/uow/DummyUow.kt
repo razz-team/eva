@@ -1,5 +1,6 @@
 package com.razz.eva.uow
 
+import com.razz.eva.uow.params.kotlinx.UowParams
 import kotlinx.serialization.Serializable
 
 internal abstract class DummyUow(

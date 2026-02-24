@@ -9,7 +9,7 @@ import com.razz.eva.persistence.PersistenceException.UniqueModelRecordViolationE
 import com.razz.eva.uow.Changes
 import com.razz.eva.uow.ExecutionContext
 import com.razz.eva.uow.UnitOfWork
-import com.razz.eva.uow.UowParams
+import com.razz.eva.uow.params.kotlinx.UowParams
 import kotlinx.serialization.Serializable
 import java.time.Duration
 import java.util.Currency
@@ -21,9 +21,7 @@ class CreateWalletUow(
 ) : UnitOfWork<ServicePrincipal, Params, Wallet>(executionContext) {
 
     @Serializable
-    data class Params(val id: String, val currency: String) : UowParams<Params> {
-        override fun serialization() = serializer()
-    }
+    data class Params(val id: String, val currency: String) : UowParams<Params>
 
     override suspend fun tryPerform(principal: ServicePrincipal, params: Params): Changes<Wallet> {
         val walletId = Wallet.Id(UUID.fromString(params.id))

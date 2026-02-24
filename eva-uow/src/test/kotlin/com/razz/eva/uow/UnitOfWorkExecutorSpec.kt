@@ -24,6 +24,7 @@ import com.razz.eva.repository.hasEntityRepo
 import com.razz.eva.repository.hasRepo
 import com.razz.eva.uow.BaseUnitOfWork.Configuration
 import com.razz.eva.uow.Clocks.fixedUTC
+import com.razz.eva.uow.params.kotlinx.KotlinxParamsSerializer
 import com.razz.eva.uow.CreateDepartmentUow.Params
 import com.razz.eva.uow.Retry.StaleRecordFixedRetry
 import io.kotest.assertions.throwables.shouldThrow
@@ -94,7 +95,13 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
             )
             val uowx = UnitOfWorkExecutor(
                 factories,
-                Persisting(WithCtxConnectionTransactionManager(), ModelRepos(), EntityRepos(), DummyEventRepository()),
+                Persisting(
+                    transactionManager = WithCtxConnectionTransactionManager(),
+                    modelRepos = ModelRepos(),
+                    entityRepos = EntityRepos(),
+                    eventRepository = DummyEventRepository(),
+                    paramsSerializer = KotlinxParamsSerializer(),
+                ),
                 clock,
                 OpenTelemetry.noop(),
             )
@@ -148,7 +155,13 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                 val txnManager = WithCtxConnectionTransactionManager()
                 val uowx = UnitOfWorkExecutor(
                     factories,
-                    Persisting(txnManager, ModelRepos(), EntityRepos(), eventRepo),
+                    Persisting(
+                        transactionManager = txnManager,
+                        modelRepos = ModelRepos(),
+                        entityRepos = EntityRepos(),
+                        eventRepository = eventRepo,
+                        paramsSerializer = KotlinxParamsSerializer(),
+                    ),
                     crawlingInstant,
                     OpenTelemetry.noop(),
                 )
@@ -190,6 +203,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                         modelRepos = ModelRepos(),
                         entityRepos = EntityRepos(),
                         eventRepository = DummyEventRepository(),
+                        paramsSerializer = KotlinxParamsSerializer(),
                     ),
                     clock,
                     OpenTelemetry.noop(),
@@ -241,6 +255,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                             RationAllocation::class hasEntityRepo allocationRepo,
                         ),
                         eventRepository = DummyEventRepository(),
+                        paramsSerializer = KotlinxParamsSerializer(),
                     ),
                     clock,
                     OpenTelemetry.noop(),
@@ -293,6 +308,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                             Tag::class hasEntityRepo tagRepo,
                         ),
                         eventRepository = DummyEventRepository(),
+                        paramsSerializer = KotlinxParamsSerializer(),
                     ),
                     clock,
                     OpenTelemetry.noop(),

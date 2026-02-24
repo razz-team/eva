@@ -4,7 +4,7 @@ import com.razz.eva.examples.ServicePrincipal
 import com.razz.eva.examples.composition.account.DebitAccountUow.Params
 import com.razz.eva.uow.ExecutionContext
 import com.razz.eva.uow.composable.UnitOfWork
-import com.razz.eva.uow.UowParams
+import com.razz.eva.uow.params.kotlinx.UowParams
 import kotlinx.serialization.Serializable
 
 class DebitAccountUow(
@@ -16,9 +16,7 @@ class DebitAccountUow(
     data class Params(
         val accountId: Account.Id,
         val amount: Long,
-    ) : UowParams<Params> {
-        override fun serialization() = serializer()
-    }
+    ) : UowParams<Params>
 
     override suspend fun tryPerform(principal: ServicePrincipal, params: Params) = changes {
         val account = accountQueries(params.accountId)

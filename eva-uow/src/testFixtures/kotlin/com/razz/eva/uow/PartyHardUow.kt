@@ -6,6 +6,7 @@ import com.razz.eva.domain.Ration
 import com.razz.eva.repository.BubalehRepository
 import com.razz.eva.repository.DepartmentRepository
 import com.razz.eva.repository.ShakshoukaRepository
+import com.razz.eva.uow.params.kotlinx.UowParams
 import kotlinx.serialization.Serializable
 
 class PartyHardUow(

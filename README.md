@@ -3,7 +3,7 @@
 [![Build Status](https://github.com/razz-team/eva/actions/workflows/main_build.yml/badge.svg)](https://github.com/razz-team/eva/actions)
 [<img src="https://img.shields.io/maven-central/v/team.razz.eva/eva-domain.svg?label=latest%20release"/>](https://search.maven.org/search?q=g:team.razz.eva%20OR%20g:team.razz.eva)
 
-Welcome to Eva! It is a Kotlin open-source framework, which helps you to write your code in DDD style and using CQRS approach.
+Welcome to Eva! It is a Kotlin open-source framework that helps you write your code in DDD style using the CQRS approach.
 
 
 ## Getting started
@@ -15,10 +15,14 @@ dependencies {
     implementation("team.razz.eva:eva-uow:$eva_version")
     implementation("team.razz.eva:eva-repository:$eva_version")
     implementation("team.razz.eva:eva-persistence-jdbc:$eva_version")
+
+    // params serialization — pick one:
+    implementation("team.razz.eva:eva-uow-params-kotlinx:$eva_version") // kotlinx.serialization
+    // implementation("team.razz.eva:eva-uow-params-jackson:$eva_version") // jackson
 }
 ```
 
-For snapshot version you also need to add the sonatype snapshots repository:
+For snapshot versions you also need to add the Sonatype snapshots repository:
 ```kotlin
 repositories {
     maven { url = URI.create("https://central.sonatype.com/repository/maven-snapshots/") }
@@ -37,7 +41,7 @@ sealed class WalletEvent : ModelEvent<Wallet.Id> {
         override val modelId: Wallet.Id,
         val currency: Currency,
         val amount: ULong,
-        val expireAt: Instant
+        val expireAt: Instant,
     ) : WalletEvent(), ModelCreatedEvent<Wallet.Id> {
         override fun integrationEvent() = buildJsonObject {
             put("currency", currency.currencyCode)
@@ -49,7 +53,7 @@ sealed class WalletEvent : ModelEvent<Wallet.Id> {
     data class Deposit(
         override val modelId: Wallet.Id,
         val walletAmount: ULong,
-        val depositAmount: ULong
+        val depositAmount: ULong,
     ) : WalletEvent(), ModelCreatedEvent<Wallet.Id> {
         override fun integrationEvent() = buildJsonObject {
             put("walletAmount", walletAmount.toLong())
@@ -59,15 +63,15 @@ sealed class WalletEvent : ModelEvent<Wallet.Id> {
 }
 ```
 
-Define a model and methods that change model's state.
-On any model's modification we should raise an event about it.
+Define a model and methods that change its state.
+On any modification we should raise a corresponding event.
 ```kotlin
 class Wallet(
     id: Id,
     val currency: Currency,
     val amount: ULong,
     val expireAt: Instant,
-    modelState: ModelState<Id, WalletEvent>
+    modelState: ModelState<Id, WalletEvent>,
 ) : Model<Wallet.Id, WalletEvent>(id, modelState) {
 
     data class Id(override val id: UUID) : ModelId<UUID>
@@ -136,32 +140,31 @@ val persisting = Persisting(
     modelRepos = ModelRepos(Wallet::class hasRepo walletRepo),
     entityRepos = EntityRepos(Tag::class hasEntityRepo tagRepo),
     eventRepository = eventRepository,
+    paramsSerializer = KotlinxParamsSerializer(),
 )
 ```
 
 ### Unit of work
-We need *queries* interface, so we can query our existing models
+We need a *queries* interface so we can query our existing models
 ```kotlin
 interface WalletQueries {
     suspend fun find(id: Wallet.Id): Wallet?
 }
 ```
 Now we can write our first unit of work.
-In our framework unit of work stands for Command in CQRS pattern.
+In our framework, a unit of work stands for a command in the CQRS pattern.
 You can read more about CQRS [here](https://docs.microsoft.com/en-us/azure/architecture/patterns/cqrs) and [here](https://martinfowler.com/bliki/CQRS.html).
-Unit of work is a transactional operation.
-Here the unit of work either returns an existing wallet by ID or creates a new one and returns it.
+A unit of work is a transactional operation.
+Here the unit of work either returns an existing wallet by id or creates a new one and returns it.
 
 ```kotlin
 class CreateWalletUow(
     private val queries: WalletQueries,
-    clock: Clock
-) : UnitOfWork<ServicePrincipal, Params, Wallet>(clock) {
+    executionContext: ExecutionContext,
+) : UnitOfWork<ServicePrincipal, Params, Wallet>(executionContext) {
 
     @Serializable
-    data class Params(val id: String, val currency: String) : UowParams<Params> {
-        override fun serialization() = serializer()
-    }
+    data class Params(val id: String, val currency: String) : UowParams<Params>
 
     override suspend fun tryPerform(principal: ServicePrincipal, params: Params): Changes<Wallet> {
         val walletId = Wallet.Id(UUID.fromString(params.id))
@@ -178,30 +181,33 @@ class CreateWalletUow(
                 currency = currency,
                 amount = amount,
                 expireAt = expireAt,
-                modelState = newState(WalletEvent.Created(walletId, currency, amount, expireAt))
+                modelState = newState(WalletEvent.Created(walletId, currency, amount, expireAt)),
             )
             changes {
                 add(newWallet)
             }
         }
     }
+
     companion object {
         private val timeToExpire = Duration.ofDays(600)
     }
 }
 ```
-In this example we return noChanges in case model with such id already exists, otherwise we create new model and using ChangesDsl we **add** new model.
+Here `UowParams` is `com.razz.eva.uow.params.kotlinx.UowParams` — see [Params Serialization](#params-serialization) for details on wiring up serialization.
+
+In this example we return `noChanges` in case a model with this id already exists, otherwise we create a new model and using `ChangesDsl` we **add** it.
 
 
-You can also update your models in scope of unit of work - 
+You can also update your models within a unit of work:
 ```kotlin
     changes {
         update(wallet.deposit(amount))    
     }
 ```
-By default, **update** allows passing model with no changes (model was not updated after calling *deposit()* method).
-Sometimes it can lead to some inconsistency in your domain logic - you expected model to be changed, but it wasn't.
-You can force verification for your model, that it was changed in scope of your unit of work:
+By default, **update** allows passing a model with no changes (the model was not updated after calling *deposit()*).
+Sometimes this can lead to inconsistency in your domain logic — you expected the model to be changed, but it wasn't.
+You can verify that the model was actually changed within the unit of work:
 ```kotlin
     changes {
         update(wallet.deposit(amount), required = true)    
@@ -209,30 +215,30 @@ You can force verification for your model, that it was changed in scope of your 
 ```
 
 ### Repository
-To persist our model we need to add repository for it.
+To persist our model we need to add a repository for it.
 We use [jOOQ](https://www.jooq.org/) to have a type-safe DB querying.
 You need to generate jOOQ tables/records based on your DB schema to have a type-safe mapping of your model to DB record.
-You can use different Gradle plugins to generate jOOQ tables, f.e. check this [plugin](https://github.com/etiennestuder/gradle-jooq-plugin).
+You can use different Gradle plugins to generate jOOQ tables, e.g. check this [plugin](https://github.com/etiennestuder/gradle-jooq-plugin).
 
 Your generated records should extend [BaseModelRecord](eva-jooq/src/main/kotlin/com/razz/jooq/record/BaseModelRecord.kt).
 To achieve it use [jOOQ matcher strategies](https://www.jooq.org/doc/latest/manual/code-generation/codegen-matcherstrategy/).
 
-When you create tables for your models you need to add next fields to your schema, so we can persist your model properly - 
+When you create tables for your models you need to add the following fields to your schema, so we can persist your model properly:
 ```sql
   record_updated_at         TIMESTAMP      NOT NULL            ,
   record_created_at         TIMESTAMP      NOT NULL            ,
   version                   BIGINT         NOT NULL
 ```
 
-After you created DB schema for you data, we can implement Repository for your model.
+After you have created the DB schema for your data, we can implement a repository for your model.
 ```kotlin
 class WalletRepository(
     queryExecutor: QueryExecutor,
-    dslContext: DSLContext
+    dslContext: DSLContext,
 ) : WalletQueries, JooqBaseModelRepository<UUID, Wallet.Id, Wallet, WalletEvent, WalletRecord>(
     queryExecutor = queryExecutor,
     dslContext = dslContext,
-    table = WALLET
+    table = WALLET,
 ) {
     override fun toRecord(model: Wallet) = WalletRecord().apply {
         currency = model.currency.currencyCode
@@ -242,13 +248,13 @@ class WalletRepository(
 
     override fun fromRecord(
         record: WalletRecord,
-        modelState: PersistentState<Wallet.Id, WalletEvent>
+        modelState: PersistentState<Wallet.Id, WalletEvent>,
     ) = Wallet(
         id = Wallet.Id(record.id),
         currency = Currency.getInstance(record.currency),
         amount = record.amount.toULong(),
         expireAt = record.expireAt,
-        modelState = modelState
+        modelState = modelState,
     )
 }
 ```
@@ -265,23 +271,24 @@ class WalletModule(databaseConfig: DatabaseConfig) {
     val transactionManager = JdbcTransactionManager(
         primaryProvider = HikariPoolConnectionProvider(dataSource(databaseConfig, isPrimary = true)),
         replicaProvider = HikariPoolConnectionProvider(dataSource(databaseConfig, isPrimary = false)),
-        blockingJdbcContext = newFixedThreadPool(databaseConfig.maxPoolSize.value()).asCoroutineDispatcher()
+        blockingJdbcContext = newFixedThreadPool(databaseConfig.maxPoolSize.value()).asCoroutineDispatcher(),
     )
     val queryExecutor = JdbcQueryExecutor(transactionManager)
     val dslContext: DSLContext = DSL.using(
         POSTGRES,
-        Settings().withRenderNamedParamPrefix("$").withParamType(ParamType.NAMED)
+        Settings().withRenderNamedParamPrefix("$").withParamType(ParamType.NAMED),
     )
 
     /**
      * Persisting definition
      */
-    val tracer = NoopTracerFactory.create()
     val walletRepo = WalletRepository(queryExecutor, dslContext)
     val persisting = Persisting(
         transactionManager = transactionManager,
         modelRepos = ModelRepos(Wallet::class hasRepo walletRepo),
-        eventRepository = JooqEventRepository(queryExecutor, dslContext, tracer)
+        entityRepos = EntityRepos(),
+        eventRepository = JooqEventRepository(queryExecutor, dslContext, noop()),
+        paramsSerializer = KotlinxParamsSerializer(),
     )
 
     /**
@@ -290,18 +297,18 @@ class WalletModule(databaseConfig: DatabaseConfig) {
     val clock = Clock.tickMillis(UTC)
     val uowx: UnitOfWorkExecutor = UnitOfWorkExecutor(
         persisting = persisting,
-        tracer = tracer,
-        meterRegistry = SimpleMeterRegistry(),
+        openTelemetry = noop(),
+        clock = clock,
         factories = listOf(
-            CreateWalletUow::class withFactory { CreateWalletUow(walletRepo, clock) }
-        )
+            CreateWalletUow::class withFactory { executionContext -> CreateWalletUow(walletRepo, executionContext) },
+        ),
     )
 }
 ```
 
 ### Run it!
 > Please don't forget to create tables for your models and table for storing events.
-You can find script to create event's table [here](eva-events-db-schema/src/main/resources/com/razz/eva/events/db)
+You can find the script to create the events table [here](eva-events-db-schema/src/main/resources/com/razz/eva/events/db)
 
 ```kotlin
     val module = WalletModule(config)
@@ -310,7 +317,7 @@ You can find script to create event's table [here](eva-events-db-schema/src/main
     val createdWallet = module.uowx.execute(CreateWalletUow::class, principal) {
         CreateWalletUow.Params(
             id = "45dfd599-4d62-47f1-8e47-a779df4f6bbc",
-            currency = "USD"
+            currency = "USD",
         )
     }
 ```
@@ -439,28 +446,164 @@ changes {
 
 ## Features
 
+### Params Serialization
+
+Every unit of work declares a `Params` class that gets serialized and stored alongside the event. Eva supports pluggable serialization via the `ParamsSerializer` interface. Two implementations are provided out of the box.
+
+#### Kotlinx Serialization (recommended)
+
+```kotlin
+dependencies {
+    implementation("team.razz.eva:eva-uow-params-kotlinx:$eva_version")
+}
+```
+
+Params classes extend `com.razz.eva.uow.params.kotlinx.UowParams` and are annotated with `@Serializable`:
+```kotlin
+@Serializable
+data class Params(val id: String, val currency: String) : UowParams<Params> {
+    override fun serialization() = serializer()
+}
+```
+
+The `serialization()` override is required by the `UowParams` interface — it bridges your params class with the kotlinx serialization `serializer()` generated by the `@Serializable` annotation.
+
+Optionally, you can apply the `eva-uow-params-kotlinx-compiler` K2 compiler plugin to auto-generate this override, so you can omit it:
+```kotlin
+// build.gradle.kts
+apply<EvaUowParamsKotlinxCompilerPlugin>()
+```
+```kotlin
+// now the override is generated automatically
+@Serializable
+data class Params(val id: String, val currency: String) : UowParams<Params>
+```
+
+Wire the serializer when constructing `Persisting`:
+```kotlin
+val persisting = Persisting(
+    // ...
+    paramsSerializer = KotlinxParamsSerializer(),
+)
+```
+
+> **IntelliJ IDEA note:** IDEA K2 mode only loads bundled compiler plugins by default, so it may show
+> "does not implement abstract member `serialization()`" errors even though the build succeeds.
+> To fix this, open **Help -> Find Action -> Registry** and set
+> `kotlin.k2.only.bundled.compiler.plugins.enabled` to `false`, then re-sync the Gradle project.
+
+#### Jackson
+
+```kotlin
+dependencies {
+    implementation("team.razz.eva:eva-uow-params-jackson:$eva_version")
+}
+```
+
+Params classes extend the base `com.razz.eva.uow.UowParams` directly — no annotations or compiler plugins needed:
+```kotlin
+data class Params(val walletId: String, val amount: Long) : UowParams<Params>
+```
+
+Wire the serializer:
+```kotlin
+val persisting = Persisting(
+    // ...
+    paramsSerializer = JacksonParamsSerializer(), // uses jacksonObjectMapper() by default
+)
+```
+
+You can pass a custom `ObjectMapper` if needed:
+```kotlin
+val persisting = Persisting(
+    // ...
+    paramsSerializer = JacksonParamsSerializer(myObjectMapper),
+)
+```
+
+### Composable Unit of Work
+
+When a business operation spans multiple bounded contexts, you can compose units of work together. A parent UoW orchestrates child UoWs, and all changes are collected into a single transaction.
+
+Extend `com.razz.eva.uow.composable.UnitOfWork` instead of the regular `UnitOfWork` and use the `execute` function to invoke child UoWs:
+
+```kotlin
+class CheckoutUow(
+    private val cartQueries: (Cart.Id) -> Cart,
+    private val accountQueries: (Account.Id) -> Account,
+    private val inventoryQueries: (Inventory.Id) -> Inventory,
+    executionContext: ExecutionContext,
+) : UnitOfWork<ServicePrincipal, Params, Cart.Id>(executionContext) {
+
+    @Serializable
+    data class Params(
+        val cartId: Cart.Id,
+        val accountId: Account.Id,
+        val inventoryId: Inventory.Id,
+    ) : UowParams<Params>
+
+    override suspend fun tryPerform(principal: ServicePrincipal, params: Params) = changes {
+        val cart = cartQueries(params.cartId)
+        var totalAmount = 0L
+        cart.items.forEach { item -> totalAmount += item.price }
+
+        val accountId = execute({ DebitAccountUow(accountQueries, it) }, principal) {
+            DebitAccountUow.Params(params.accountId, totalAmount)
+        }
+        execute({ ReduceInventoryUow(inventoryQueries, it) }, principal) {
+            ReduceInventoryUow.Params(params.inventoryId, items)
+        }
+        update(cart.checkout(accountId)).id()
+    }
+}
+```
+
+The `execute` function takes a UoW factory, a principal, and params. Child UoWs inherit accumulated changes from the parent, and their changes are merged back. All changes from parent and child UoWs are persisted in a single transaction.
+
+Child UoWs must also extend `com.razz.eva.uow.composable.UnitOfWork`:
+
+```kotlin
+class DebitAccountUow(
+    private val accountQueries: (Account.Id) -> Account,
+    executionContext: ExecutionContext,
+) : UnitOfWork<ServicePrincipal, Params, Account.Id>(executionContext) {
+
+    @Serializable
+    data class Params(
+        val accountId: Account.Id,
+        val amount: Long,
+    ) : UowParams<Params>
+
+    override suspend fun tryPerform(principal: ServicePrincipal, params: Params) = changes {
+        val account = accountQueries(params.accountId)
+        update(account.debit(params.amount)).id()
+    }
+}
+```
+
 ### Event sourcing
 
 #### Transactional outbox 
-Eva employs [outbox pattern](https://microservices.io/patterns/data/transactional-outbox.html) for event distribution. In short: events are written to the same database and in the same transaction with models. Same transactional guarantees applied to both models and events. Events schema and migrations are provided by eva, you can find sql sources [here](/eva-events-db-schema/src/main/resources/com/razz/eva/events/db/V001__create_events.sql) and persistence logic [here](eva-repository/src/main/kotlin/com/razz/eva/repository/JooqEventRepository.kt). Eva is not in charge of further distribution of such events, however there are several opensource frameworks available, for instance [Kafka Connect](https://docs.confluent.io/platform/current/connect/index.html) and [Debezium](https://debezium.io/documentation/reference/2.0/tutorial.html).
+Eva employs the [outbox pattern](https://microservices.io/patterns/data/transactional-outbox.html) for event distribution. In short: events are written to the same database and in the same transaction as models. The same transactional guarantees apply to both models and events. The events schema and migrations are provided by Eva — you can find SQL sources [here](/eva-events-db-schema/src/main/resources/com/razz/eva/events/db/V001__create_events.sql) and persistence logic [here](eva-repository/src/main/kotlin/com/razz/eva/repository/JooqEventRepository.kt). Eva is not in charge of further distribution of such events; however, there are several open-source frameworks available, for instance [Kafka Connect](https://docs.confluent.io/platform/current/connect/index.html) and [Debezium](https://debezium.io/documentation/reference/2.0/tutorial.html).
 
 #### Custom event publisher
-When desired, events can be published through custom implementation of [EventPublisher](eva-events/src/main/kotlin/com/razz/eva/events/EventPublisher.kt). This publisher has to be passed to `Persisting` as optional parameter like demonstrated below:
+When desired, events can be published through a custom implementation of [EventPublisher](eva-events/src/main/kotlin/com/razz/eva/events/EventPublisher.kt). This publisher has to be passed to `Persisting` as an optional parameter as demonstrated below:
 ```kotlin
 val persisting: Persisting = Persisting(
     transactionManager = persistenceModule.transactionManager,
     modelRepos = repositoryModule.modelRepos,
     eventRepository = eventRepository,
-    eventPublisher = eventPublisher
+    eventPublisher = eventPublisher,
+    paramsSerializer = KotlinxParamsSerializer(),
 )
 ```
-Events are passed to the publisher out of the scope of transaction once models are persisted. If persisting of models fails, no events are passed to the publisher. Publisher failure does not affect models persisting. Eva provides simple in-memory [eventbus](eva-eventbus/src/main/kotlin/com/razz/eva/eventbus/InMemoryEventBus.kt) implementation for your convenience. This eventbus implements `Publisher` interface and accepts multiple `EventConsumer`s to which it distributes published events. This implementation provides fifo guarantees for published events and does not provide any guarantees regarding distribution resilience. We strongly suggest to follow `transactional outbox` approach if at-least-once event delivery is a requirement. 
+Events are passed to the publisher outside the scope of the transaction once models are persisted. If persisting of models fails, no events are passed to the publisher. Publisher failure does not affect model persisting. Eva provides a simple in-memory [eventbus](eva-eventbus/src/main/kotlin/com/razz/eva/eventbus/InMemoryEventBus.kt) implementation for your convenience. This eventbus implements the `Publisher` interface and accepts multiple `EventConsumer`s to which it distributes published events. This implementation provides FIFO guarantees for published events and does not provide any guarantees regarding distribution resilience. We strongly suggest following the `transactional outbox` approach if at-least-once event delivery is a requirement.
 
 ### Unit of work validation
-After you wrote your first unit of work, you probably want to ask - how I can test it?
+After writing your first unit of work, you probably want to know — how do I test it?
 
-We provide verification DSL, so you can write unit tests and verify results of your unit of work.
-Use `verifyInOrder` function to start verification process.
+We provide a verification DSL, so you can write unit tests and verify results of your unit of work.
+Use the `verifyInOrder` function to start the verification process.
 ```kotlin
     CreateWalletUow(queries, clock).tryPerform(principal, params) verifyInOrder {
         // Model verification
@@ -489,32 +632,30 @@ The `adds` and `addsEq` methods work for both Models and Entities - the correct 
 You can check some examples [here](eva-uow/src/test/kotlin/com/razz/eva/uow/UnitOfWorkDemoSpec.kt)
 
 ### Idempotency
-Sometimes something goes wrong, your service doesn't respond within deadline. You want to make a retry, but you are afraid of creating duplicates or new unnecessary models, so your DB becomes inconsistent.
+Sometimes something goes wrong and your service doesn't respond within the deadline. You want to retry, but you are afraid of creating duplicates or unnecessary models, so your DB becomes inconsistent.
 
-To prevent it people use [idempotency key](https://stripe.com/docs/api/idempotent_requests) pattern.
-Unit of work allows you to define idempotency key in params, so you can safely make retries.
+To prevent this, people use the [idempotency key](https://stripe.com/docs/api/idempotent_requests) pattern.
+A unit of work allows you to define an idempotency key in params, so you can safely retry.
 ```kotlin
     @Serializable
     data class Params(
         val id: String,
         val currency: String,
-        override val idempotencyKey: IdempotencyKey
-    ) : UowParams<Params> {
-        override fun serialization() = serializer()
-    }
+        override val idempotencyKey: IdempotencyKey,
+    ) : UowParams<Params>
 ```
-Idempotency key can be shipped as a standalone artifact outside your service, if you f.e. want to pass it via http request.
+The idempotency key can be shipped as a standalone artifact outside your service, e.g. if you want to pass it via an HTTP request.
 ```kotlin
     implementation("team.razz.eva:eva-idempotency-key:$eva_version")
 ```
 
 ### Paging
-Out of the box Eva supports paging for your data, when it is not possible to return all results in one request.
-First, you need to add paging module to your dependencies:
+Out of the box Eva supports paging for your data when it is not possible to return all results in one request.
+First, you need to add the paging module to your dependencies:
 ```kotlin
     implementation("team.razz.eva:eva-paging:$eva_version")
 ```
-Second, you need to define your [PagingStrategy](eva-repository/src/main/kotlin/com/razz/eva/repository/PagingStrategy.kt). For now, we support paging by some timestamp only.
+Second, you need to define your [PagingStrategy](eva-repository/src/main/kotlin/com/razz/eva/repository/PagingStrategy.kt). For now, we support paging by timestamp only.
 ```kotlin
     object WalletPaging : PagingStrategy<UUID, Wallet.Id, Wallet, Wallet, WalletRecord>(Wallet::class) {
 
@@ -529,24 +670,24 @@ Second, you need to define your [PagingStrategy](eva-repository/src/main/kotlin/
         override fun modelOffset(model: Wallet) = model.id().stringValue()
     }
 ```
-Now we can implement method in our repository to get pages.
+Now we can implement a method in our repository to get pages.
 ```kotlin
     suspend fun wallets(currency: Currency, page: TimestampPage) = findPage(
         condition = WALLET.CURRENCY.eq(currency.currencyCode),
         page = page,
-        pagingStrategy = WalletPaging
+        pagingStrategy = WalletPaging,
     )
 ```
-That's all! This method returns object of [PagedList](eva-paging/src/main/kotlin/com/razz/eva/paging/PagedList.kt). It provides a part of your requested results and the next page to query the next part of results.
+That's all! This method returns an object of [PagedList](eva-paging/src/main/kotlin/com/razz/eva/paging/PagedList.kt). It provides a part of your requested results and the next page to query the next part.
 
 ### Error handling
-One day you are going face a lot of concurrent unit of works.
-It leads to concurrent modification of same models. But our units of work are transactional, so we guarantee consistency of your models.
-In case of concurrent modification unit of work throws [StaleRecordException](eva-persistence/src/main/kotlin/com/razz/eva/persistence/PersistenceException.kt).
-By default, we will do a one retry for such kind of exception, but you can change this strategy
+One day you are going to face a lot of concurrent units of work.
+This leads to concurrent modification of the same models. But our units of work are transactional, so we guarantee consistency of your models.
+In case of concurrent modification, the unit of work throws [StaleRecordException](eva-persistence/src/main/kotlin/com/razz/eva/persistence/PersistenceException.kt).
+By default, we do one retry for this kind of exception, but you can change this strategy
 ```kotlin
 val configuration = UnitOfWork.Configuration(
-    retry = StaleRecordFixedRetry(attempts = 3, staleRecordDelay = Duration.ofMillis(100))
+    retry = StaleRecordFixedRetry(attempts = 3, staleRecordDelay = Duration.ofMillis(100)),
 )
 
 class CreateWalletUow(
@@ -555,12 +696,12 @@ class CreateWalletUow(
 ) : UnitOfWork<ServicePrincipal, Params, Wallet>(clock, configuration = configuration) {
 ```
 
-Your database schema can also have some constraints, f.e. unique index. We don't want you to deal with such kind of exception out of your unit of work.
+Your database schema can also have some constraints, e.g. a unique index. We don't want you to deal with this kind of exception outside of your unit of work.
 You can intercept these exceptions and throw your business exception or return some fallback result.
 
-In our `CreateWalletUow` we check if wallet with same id already exists.
-But we can face situation, when wallet with same id was created during unit of work execution.
-Let's intercept this error and return already created wallet. We also can handle DB constraint and throw some more meaningful exception.
+In our `CreateWalletUow` we check if a wallet with the same id already exists.
+But we can face a situation where a wallet with the same id was created during unit of work execution.
+Let's intercept this error and return the already created wallet. We can also handle a DB constraint and throw a more meaningful exception.
 
 ```kotlin
 override suspend fun onFailure(params: Params, ex: PersistenceException): Wallet = when(ex) {
@@ -571,9 +712,9 @@ override suspend fun onFailure(params: Params, ex: PersistenceException): Wallet
 ```
 
 ### Tracing and Monitoring
-If you care about your system performance - you want to collect some metrics, so you can create alerts and investigate poor performance.
+If you care about your system's performance, you want to collect metrics so you can create alerts and investigate issues.
 We allow you to collect some metrics via [Micrometer framework](https://micrometer.io/) and do instrumentation with [Opentracing](https://opentracing.io/).
-Both frameworks provide you interfaces, and you can choose your own implementation, how you want to collect metrics.
+Both frameworks provide interfaces, and you can choose your own implementation for how you want to collect metrics.
 In this example we use [Prometheus](https://prometheus.io/) and [Jaeger](https://www.jaegertracing.io/) implementations.
 > Don't forget to add Jaeger and Prometheus dependencies to your project
 ```kotlin
@@ -584,17 +725,17 @@ In this example we use [Prometheus](https://prometheus.io/) and [Jaeger](https:/
         tracer = tracer("wallet-service"),
         meterRegistry = meterRegistry,
         factories = listOf(
-            CreateWalletUow::class withFactory { CreateWalletUow(walletRepo, clock) }
-        )
+            CreateWalletUow::class withFactory { CreateWalletUow(walletRepo, clock) },
+        ),
     )
 ```
 
 ### Non-blocking persistence
-In the begging we suggested you to add *eva-persistence-jdbc* to your dependencies and explained how to configure **JdbcTransactionManager**.
+In the beginning we suggested you add *eva-persistence-jdbc* to your dependencies and explained how to configure **JdbcTransactionManager**.
 Under the hood it uses classic _blocking_ [Java JDBC driver](https://docs.oracle.com/javase/tutorial/jdbc/basics/processingsqlstatements.html).
 
 
-But we also ship non-blocking version of *TransactionManager* - **VertxTransactionManager**, based on [Vert.x](https://vertx.io/docs/vertx-pg-client/java/).
+But we also ship a non-blocking version of *TransactionManager* — **VertxTransactionManager**, based on [Vert.x](https://vertx.io/docs/vertx-pg-client/java/).
 Add this implementation to your dependencies
 ```kotlin
     implementation("team.razz.eva:eva-persistence-vertx:$eva_version")

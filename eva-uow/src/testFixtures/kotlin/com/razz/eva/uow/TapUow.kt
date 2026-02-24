@@ -11,6 +11,7 @@ import com.razz.eva.domain.DepartmentId
 import com.razz.eva.domain.ModelState.NewState.Companion.newState
 import com.razz.eva.domain.Ration
 import com.razz.eva.repository.EmployeeRepository
+import com.razz.eva.uow.params.kotlinx.UowParams
 import kotlinx.serialization.Serializable
 import java.time.Instant.now
 import java.util.*

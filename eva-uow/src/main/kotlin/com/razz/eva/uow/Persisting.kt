@@ -20,7 +20,6 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
-import kotlinx.serialization.StringFormat
 import java.time.Instant
 import java.util.UUID.randomUUID
 
@@ -30,20 +29,21 @@ class Persisting(
     private val entityRepos: EntityRepos,
     private val eventRepository: EventRepository,
     private val eventPublisher: EventPublisher = NoopEventPublisher,
-    private val json: StringFormat = com.razz.eva.serialization.json.JsonFormat.json,
+    private val paramsSerializer: ParamsSerializer,
 ) {
 
     constructor(
         transactionManager: TransactionManager<*>,
         modelRepos: ModelRepos,
         eventRepository: EventRepository,
+        paramsSerializer: ParamsSerializer,
     ) : this(
         transactionManager = transactionManager,
         modelRepos = modelRepos,
         entityRepos = EntityRepos(),
         eventRepository = eventRepository,
         eventPublisher = NoopEventPublisher,
-        json = com.razz.eva.serialization.json.JsonFormat.json,
+        paramsSerializer = paramsSerializer,
     )
 
     private object NoopEventPublisher : EventPublisher {
@@ -73,7 +73,7 @@ class Persisting(
                 principal = principal,
                 modelEvents = events.map { ModelEventId.random() to it },
                 idempotencyKey = params.idempotencyKey,
-                params = json.encodeToString(params.serialization(), params),
+                params = paramsSerializer.serialize(params),
                 occurredAt = startedAt,
             )
         }

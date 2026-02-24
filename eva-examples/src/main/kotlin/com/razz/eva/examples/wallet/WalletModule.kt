@@ -11,6 +11,7 @@ import com.razz.eva.repository.ModelRepos
 import com.razz.eva.repository.hasRepo
 import com.razz.eva.uow.Persisting
 import com.razz.eva.uow.UnitOfWorkExecutor
+import com.razz.eva.uow.params.kotlinx.KotlinxParamsSerializer
 import com.razz.eva.uow.withFactory
 import io.opentelemetry.api.OpenTelemetry.noop
 import java.time.Clock
@@ -48,6 +49,7 @@ class WalletModule(databaseConfig: DatabaseConfig) {
         modelRepos = ModelRepos(Wallet::class hasRepo walletRepo),
         entityRepos = EntityRepos(),
         eventRepository = JooqEventRepository(queryExecutor, dslContext, noop()),
+        paramsSerializer = KotlinxParamsSerializer(),
     )
 
     /**
