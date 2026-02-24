@@ -19,6 +19,7 @@ import io.vertx.pgclient.PgException
 import java.time.Instant
 import org.jooq.Condition
 import org.jooq.DSLContext
+import org.jooq.EnumType
 import org.jooq.Field
 import org.jooq.Record
 import org.jooq.Select
@@ -214,7 +215,13 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
                     valuesRow()
                         .fields()
                         .filterIndexed { i, _ -> createdAt != this.field(i) }
-                        .map { field -> field.cast(field.dataType) }
+                        .map { field ->
+                            if (EnumType::class.java.isAssignableFrom(field.type)) {
+                                field
+                            } else {
+                                field.cast(field.dataType)
+                            }
+                        }
                         .toTypedArray()
                 },
             )
@@ -265,11 +272,11 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
     private fun <Q : UpdateQuery<R>> prepareUpdate(updateQuery: Q): Q {
         return updateQuery.apply {
             addConditions(
-                DSL.field(DSL.name(VALUES_ALIAS, tableId.unqualifiedName)).cast(tableId.dataType).eq(
-                    DSL.field(DSL.name(ORIGIN_ALIAS, tableId.unqualifiedName)).cast(tableId.dataType),
+                DSL.field(DSL.name(VALUES_ALIAS, tableId.unqualifiedName)).coerce(tableId.dataType).eq(
+                    DSL.field(DSL.name(ORIGIN_ALIAS, tableId.unqualifiedName)).coerce(tableId.dataType),
                 ),
-                DSL.field(DSL.name(VALUES_ALIAS, version.unqualifiedName)).cast(version.dataType).eq(
-                    DSL.field(DSL.name(ORIGIN_ALIAS, version.unqualifiedName)).cast(version.dataType).plus(1),
+                DSL.field(DSL.name(VALUES_ALIAS, version.unqualifiedName)).coerce(version.dataType).eq(
+                    DSL.field(DSL.name(ORIGIN_ALIAS, version.unqualifiedName)).coerce(version.dataType).plus(1),
                 ),
                 // TODO map `partitionCond` to aliased fields
             )
