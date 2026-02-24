@@ -156,7 +156,7 @@ class UnitOfWorkExecutor(
                 @Suppress("UNCHECKED_CAST")
                 val roundtripped = persisted.singleOrNull { it.id() == result.id() } as? RESULT
                 if (roundtripped == null) logger.warn {
-                    "Unable to find returned model [${result.id()}] in persisted changes"
+                    "Unable to find returned model [${result.id().stringValue()}] in persisted changes"
                 }
                 roundtripped ?: result
             } else result

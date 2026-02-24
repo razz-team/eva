@@ -9,7 +9,7 @@ abstract class Model<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>>(
     final override fun isNew(): Boolean = modelState.isNew()
     final override fun isPersisted(): Boolean = modelState.isPersisted()
     final override fun version(): Version = modelState.version()
-    final override fun writeEvents(drive: ModelEventDrive<E>): ModelEventDrive<E> = modelState.writeEvents(drive)
+    internal fun modelEvents(): List<E> = modelState.modelEvents()
 
     override fun id(): ID = id
 

@@ -12,6 +12,7 @@ import com.razz.eva.domain.TestModel.Factory.existingCreatedTestModel
 import com.razz.eva.domain.TestModelEvent
 import com.razz.eva.domain.TestModelEvent.TestModelCreated
 import com.razz.eva.domain.TestModelEvent.TestModelEvent1
+import com.razz.eva.domain.TestModelEvent.TestModelEvent2
 import com.razz.eva.domain.TestModelEvent.TestModelStatusChanged
 import com.razz.eva.domain.TestModelId
 import com.razz.eva.domain.TestModelId.Companion.randomTestModelId
@@ -26,7 +27,6 @@ import com.razz.eva.uow.DeleteEntity
 import com.razz.eva.uow.DeleteEntityByKey
 import com.razz.eva.uow.ExecutionContext
 import com.razz.eva.uow.NoopModel
-import com.razz.eva.uow.TestExecutionContext.executionContextForSpec
 import com.razz.eva.uow.TestPrincipal
 import com.razz.eva.uow.UpdateModel
 import io.kotest.assertions.throwables.shouldThrow
@@ -52,7 +52,7 @@ class ChangesDslSpec : FunSpec({
             .activate()
         val model2 = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
 
-        val uow = object : DummyUow<String>(executionContextForSpec(clock, OpenTelemetry.noop())) {
+        val uow = object : DummyUow<String>(executionContext) {
             override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
                 add(model0)
                 update(model1)
@@ -76,7 +76,7 @@ class ChangesDslSpec : FunSpec({
         changes.result shouldBe "K P A C U B O"
     }
 
-    test("Should return RealisedChanges with UpdateModel change when new model updated") {
+    test("Should throw exception when new model updated without inherited change") {
         val model = createdTestModel("MLG", 420).activate()
 
         val uow = object : DummyUow<String>(executionContext) {
@@ -85,18 +85,13 @@ class ChangesDslSpec : FunSpec({
                 "K P A C U B O"
             }
         }
-        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
-
-        changes.modelChangesToPersist shouldBe listOf(
-            UpdateModel(
-                model,
-                listOf(TestModelCreated(model.id()), TestModelStatusChanged(model.id(), CREATED, ACTIVE)),
-            ),
-        )
-        changes.result shouldBe "K P A C U B O"
+        val exception = shouldThrow<IllegalArgumentException> {
+            uow.tryPerform(TestPrincipal, DummyUow.Params)
+        }
+        exception.message shouldBe "Attempted to register new model [${model.id().stringValue()}] as changed"
     }
 
-    test("Should return RealisedChanges with NoopModel change when new model marked as not changed") {
+    test("Should throw exception when new model marked as not changed without inherited change") {
         val model = createdTestModel("MLG", 420).activate()
 
         val uow = object : DummyUow<String>(executionContext) {
@@ -105,10 +100,10 @@ class ChangesDslSpec : FunSpec({
                 "K P A C U B O"
             }
         }
-        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
-
-        changes.modelChangesToPersist shouldBe listOf(NoopModel(model))
-        changes.result shouldBe "K P A C U B O"
+        val exception = shouldThrow<IllegalArgumentException> {
+            uow.tryPerform(TestPrincipal, DummyUow.Params)
+        }
+        exception.message shouldBe "Attempted to register new model [${model.id().stringValue()}] as unchanged"
     }
 
     test("Should throw exception when unchanged model added") {
@@ -215,10 +210,12 @@ class ChangesDslSpec : FunSpec({
     test("Should return properly built RealisedChanges when new model merged with updated model") {
         val model0 = createdTestModel("MLG", 420)
 
-        val innerUow = object : DummyUow<String>(executionContext) {
-            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
-                update(model0.activate())
-                "K P A C U B O  B H Y T P U"
+        val innerUow = { ctx: ExecutionContext ->
+            object : DummyUow<String>(ctx) {
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                    update(model0.activate())
+                    "K P A C U B O  B H Y T P U"
+                }
             }
         }
         val uow = object : DummyUow<String>(executionContext) {
@@ -244,9 +241,11 @@ class ChangesDslSpec : FunSpec({
     test("Should return properly built RealisedChanges when returned new model updated after") {
         val model0 = createdTestModel("MLG", 420)
 
-        val innerUow = object : DummyUow<CreatedTestModel>(executionContext) {
-            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
-                add(model0)
+        val innerUow = { ctx: ExecutionContext ->
+            object : DummyUow<CreatedTestModel>(ctx) {
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                    add(model0)
+                }
             }
         }
         val uow = object : DummyUow<String>(executionContext) {
@@ -275,16 +274,20 @@ class ChangesDslSpec : FunSpec({
             .activate()
         val model2 = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
 
-        val innerUow0 = object : DummyUow<CreatedTestModel>(executionContext) {
-            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
-                update(model1)
-                add(model0)
+        val innerUow0 = { ctx: ExecutionContext ->
+            object : DummyUow<CreatedTestModel>(ctx) {
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                    update(model1)
+                    add(model0)
+                }
             }
         }
-        val innerUow1 = object : DummyUow<CreatedTestModel>(executionContext) {
-            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
-                notChanged(model2)
-                update(model0.changeParam1("LEET"))
+        val innerUow1 = { ctx: ExecutionContext ->
+            object : DummyUow<CreatedTestModel>(ctx) {
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                    notChanged(model2)
+                    update(model0.changeParam1("LEET"))
+                }
             }
         }
         val uow = object : DummyUow<String>(executionContext) {
@@ -318,14 +321,18 @@ class ChangesDslSpec : FunSpec({
 
     test("Should throw exception when same model updated with composable uow case the same updates") {
         val model = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
-        val innerUow0 = object : DummyUow<CreatedTestModel>(executionContext) {
-            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
-                update(model.changeParam1("123"))
+        val innerUow0 = { ctx: ExecutionContext ->
+            object : DummyUow<CreatedTestModel>(ctx) {
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                    update(model.changeParam1("123"))
+                }
             }
         }
-        val innerUow1 = object : DummyUow<CreatedTestModel>(executionContext) {
-            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
-                update(model.changeParam1("123"))
+        val innerUow1 = { ctx: ExecutionContext ->
+            object : DummyUow<CreatedTestModel>(ctx) {
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                    update(model.changeParam1("123"))
+                }
             }
         }
         val uow = object : DummyUow<String>(executionContext) {
@@ -339,19 +346,23 @@ class ChangesDslSpec : FunSpec({
         val exception = shouldThrow<IllegalStateException> {
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
-        exception.message shouldBe "Failed to merge changes for model [${model.id()}]"
+        exception.message shouldBe "Failed to merge changes for model [${model.id().stringValue()}]"
     }
 
     test("Should throw exception when same model updated with composable uow case first updates with 2 events") {
         val model = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
-        val innerUow0 = object : DummyUow<CreatedTestModel>(executionContext) {
-            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
-                update(model.changeParam1("123").changeParam2(10L))
+        val innerUow0 = { ctx: ExecutionContext ->
+            object : DummyUow<CreatedTestModel>(ctx) {
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                    update(model.changeParam1("123").changeParam2(10L))
+                }
             }
         }
-        val innerUow1 = object : DummyUow<CreatedTestModel>(executionContext) {
-            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
-                update(model.changeParam1("123"))
+        val innerUow1 = { ctx: ExecutionContext ->
+            object : DummyUow<CreatedTestModel>(ctx) {
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                    update(model.changeParam1("123"))
+                }
             }
         }
         val uow = object : DummyUow<String>(executionContext) {
@@ -365,19 +376,23 @@ class ChangesDslSpec : FunSpec({
         val exception = shouldThrow<IllegalStateException> {
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
-        exception.message shouldBe "Failed to merge changes for model [${model.id()}]"
+        exception.message shouldBe "Failed to merge changes for model [${model.id().stringValue()}]"
     }
 
     test("Should throw exception when same model updated with composable uow case second updates with 2 events") {
         val model = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
-        val innerUow0 = object : DummyUow<CreatedTestModel>(executionContext) {
-            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
-                update(model.changeParam1("123"))
+        val innerUow0 = { ctx: ExecutionContext ->
+            object : DummyUow<CreatedTestModel>(ctx) {
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                    update(model.changeParam1("123"))
+                }
             }
         }
-        val innerUow1 = object : DummyUow<CreatedTestModel>(executionContext) {
-            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
-                update(model.changeParam1("123").changeParam2(10L))
+        val innerUow1 = { ctx: ExecutionContext ->
+            object : DummyUow<CreatedTestModel>(ctx) {
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                    update(model.changeParam1("123").changeParam2(10L))
+                }
             }
         }
         val uow = object : DummyUow<String>(executionContext) {
@@ -391,7 +406,7 @@ class ChangesDslSpec : FunSpec({
         val exception = shouldThrow<IllegalStateException> {
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
-        exception.message shouldBe "Failed to merge changes for model [${model.id()}]"
+        exception.message shouldBe "Failed to merge changes for model [${model.id().stringValue()}]"
     }
 
     test("Should return properly built RealisedChanges when entity is added") {
@@ -489,10 +504,12 @@ class ChangesDslSpec : FunSpec({
         val tag1 = Tag.environmentTag(departmentId.id, "production")
         val tag2 = Tag.priorityTag(departmentId.id, 1)
 
-        val innerUow = object : DummyUow<String>(executionContext) {
-            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
-                add(tag2)
-                "inner result"
+        val innerUow = { ctx: ExecutionContext ->
+            object : DummyUow<String>(ctx) {
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                    add(tag2)
+                    "inner result"
+                }
             }
         }
         val uow = object : DummyUow<String>(executionContext) {
@@ -581,10 +598,12 @@ class ChangesDslSpec : FunSpec({
         val tagKey1 = Tag.Key(departmentId.id, "tag1")
         val tagKey2 = Tag.Key(departmentId.id, "tag2")
 
-        val innerUow = object : DummyUow<String>(executionContext) {
-            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
-                delete(tagKey2)
-                "inner result"
+        val innerUow = { ctx: ExecutionContext ->
+            object : DummyUow<String>(ctx) {
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                    delete(tagKey2)
+                    "inner result"
+                }
             }
         }
         val uow = object : DummyUow<String>(executionContext) {
@@ -601,5 +620,244 @@ class ChangesDslSpec : FunSpec({
         changes.entityChangesToPersist[0].shouldBeTypeOf<DeleteEntityByKey<Tag, Tag.Key>>()
         changes.entityChangesToPersist[1].shouldBeTypeOf<DeleteEntityByKey<Tag, Tag.Key>>()
         changes.result shouldBe "MERGED KEY DELETES"
+    }
+
+    test("Should allow inner UoW to update inherited new model via merge path") {
+        val model = createdTestModel("MLG", 420)
+
+        val innerUow = { ctx: ExecutionContext ->
+            object : DummyUow<String>(ctx) {
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                    update(model.activate())
+                    "inner"
+                }
+            }
+        }
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                add(model)
+                execute(innerUow, TestPrincipal) { Params }
+                "outer"
+            }
+        }
+        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
+
+        changes.modelChangesToPersist shouldHaveSize 1
+        val add = changes.modelChangesToPersist.first()
+            .shouldBeTypeOf<AddModel<TestModelId, ActiveTestModel, TestModelEvent>>()
+        add.id shouldBe model.id()
+        add.modelEvents shouldBe listOf(
+            TestModelCreated(model.id()),
+            TestModelStatusChanged(model.id(), CREATED, ACTIVE),
+        )
+        changes.result shouldBe "outer"
+    }
+
+    test("Should allow inner UoW to notChanged inherited new model via merge path") {
+        val model = createdTestModel("MLG", 420)
+
+        val innerUow = { ctx: ExecutionContext ->
+            object : DummyUow<String>(ctx) {
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                    notChanged(model)
+                    "inner"
+                }
+            }
+        }
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                add(model)
+                execute(innerUow, TestPrincipal) { Params }
+                "outer"
+            }
+        }
+        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
+
+        changes.modelChangesToPersist shouldHaveSize 1
+        val add = changes.modelChangesToPersist.first()
+            .shouldBeTypeOf<AddModel<TestModelId, CreatedTestModel, TestModelEvent>>()
+        add.id shouldBe model.id()
+        add.modelEvents shouldBe listOf(TestModelCreated(model.id()))
+        changes.result shouldBe "outer"
+    }
+
+    test("Should allow inner UoW to update inherited not-changed model via merge path") {
+        val model = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
+
+        val innerUow = { ctx: ExecutionContext ->
+            object : DummyUow<String>(ctx) {
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                    update(model.changeParam1("123"))
+                    "inner"
+                }
+            }
+        }
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                notChanged(model)
+                execute(innerUow, TestPrincipal) { Params }
+                "outer"
+            }
+        }
+        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
+
+        changes.modelChangesToPersist shouldHaveSize 1
+        val update = changes.modelChangesToPersist.first()
+            .shouldBeTypeOf<UpdateModel<TestModelId, CreatedTestModel, TestModelEvent>>()
+        update.id shouldBe model.id()
+        update.modelEvents shouldBe listOf(TestModelEvent1(model.id()))
+        changes.result shouldBe "outer"
+    }
+
+    test("Should allow inner UoW to notChanged inherited not-changed model via merge path") {
+        val model = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
+
+        val innerUow = { ctx: ExecutionContext ->
+            object : DummyUow<String>(ctx) {
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                    notChanged(model)
+                    "inner"
+                }
+            }
+        }
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                notChanged(model)
+                execute(innerUow, TestPrincipal) { Params }
+                "outer"
+            }
+        }
+        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
+
+        changes.modelChangesToPersist shouldHaveSize 1
+        val noop = changes.modelChangesToPersist.first()
+            .shouldBeTypeOf<NoopModel>()
+        noop.id shouldBe model.id()
+        changes.result shouldBe "outer"
+    }
+
+    test("Should allow inner UoW to update inherited updated model via merge path") {
+        val model = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
+        val modified = model.changeParam1("123")
+
+        val innerUow = { ctx: ExecutionContext ->
+            object : DummyUow<String>(ctx) {
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                    update(modified.changeParam2(10L))
+                    "inner"
+                }
+            }
+        }
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                update(modified)
+                execute(innerUow, TestPrincipal) { Params }
+                "outer"
+            }
+        }
+        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
+
+        changes.modelChangesToPersist shouldHaveSize 1
+        val update = changes.modelChangesToPersist.first()
+            .shouldBeTypeOf<UpdateModel<TestModelId, CreatedTestModel, TestModelEvent>>()
+        update.id shouldBe model.id()
+        update.modelEvents shouldBe listOf(
+            TestModelEvent1(model.id()),
+            TestModelEvent2(model.id()),
+        )
+        changes.result shouldBe "outer"
+    }
+
+    test("Should allow inner UoW to notChanged inherited updated model via merge path") {
+        val model = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
+
+        val innerUow = { ctx: ExecutionContext ->
+            object : DummyUow<String>(ctx) {
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                    notChanged(model)
+                    "inner"
+                }
+            }
+        }
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                update(model.changeParam1("123"))
+                execute(innerUow, TestPrincipal) { Params }
+                "outer"
+            }
+        }
+        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
+
+        changes.modelChangesToPersist shouldHaveSize 1
+        val update = changes.modelChangesToPersist.first()
+            .shouldBeTypeOf<UpdateModel<TestModelId, CreatedTestModel, TestModelEvent>>()
+        update.id shouldBe model.id()
+        update.modelEvents shouldBe listOf(TestModelEvent1(model.id()))
+        changes.result shouldBe "outer"
+    }
+
+    test("Should preserve outer changes when inner UoW returns noChanges") {
+        val model = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
+
+        val innerUow = { ctx: ExecutionContext ->
+            object : DummyUow<Unit>(ctx) {
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params) = noChanges()
+            }
+        }
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                update(model.activate())
+                execute(innerUow, TestPrincipal) { Params }
+                "outer"
+            }
+        }
+        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
+
+        changes.modelChangesToPersist shouldHaveSize 1
+        val update = changes.modelChangesToPersist.first()
+            .shouldBeTypeOf<UpdateModel<TestModelId, ActiveTestModel, TestModelEvent>>()
+        update.id shouldBe model.id()
+        update.modelEvents shouldBe listOf(TestModelStatusChanged(model.id(), CREATED, ACTIVE))
+        changes.result shouldBe "outer"
+    }
+
+    test("Should throw exception when inner UoW tries to add model already in inherited changes") {
+        val model = createdTestModel("MLG", 420)
+
+        val innerUow = { ctx: ExecutionContext ->
+            object : DummyUow<String>(ctx) {
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                    add(model)
+                    "inner"
+                }
+            }
+        }
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                add(model)
+                execute(innerUow, TestPrincipal) { Params }
+                "outer"
+            }
+        }
+        val exception = shouldThrow<IllegalStateException> {
+            uow.tryPerform(TestPrincipal, DummyUow.Params)
+        }
+        exception.message shouldBe "Change for a given model [${model.id().stringValue()}] was already registered"
+    }
+
+    test("Should throw exception when duplicate model registered in same DSL") {
+        val model = createdTestModel("MLG", 420)
+
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                add(model)
+                add(model)
+                "K P A C U B O"
+            }
+        }
+        val exception = shouldThrow<IllegalStateException> {
+            uow.tryPerform(TestPrincipal, DummyUow.Params)
+        }
+        exception.message shouldBe "Change for a given model [${model.id().stringValue()}] was already registered"
     }
 })

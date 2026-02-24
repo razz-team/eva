@@ -12,9 +12,7 @@ sealed class ModelState<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>>(
 
     final override fun version(): Version = version
 
-    override fun writeEvents(drive: ModelEventDrive<E>): ModelEventDrive<E> {
-        return drive.with(occurredEvents)
-    }
+    internal fun modelEvents(): List<E> = occurredEvents
 
     override fun isNew(): Boolean = this is NewState<ID, E>
 
@@ -115,8 +113,6 @@ sealed class ModelState<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>>(
 }
 
 interface ModelStateMixin<MID : ModelId<out Comparable<*>>, E : ModelEvent<MID>> : Versioned {
-
-    fun writeEvents(drive: ModelEventDrive<E>): ModelEventDrive<E>
 
     fun isNew(): Boolean
 

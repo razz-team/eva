@@ -16,8 +16,6 @@ import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldBeEqualIgnoringCase
 import io.kotest.matchers.types.beInstanceOf
-import io.mockk.coEvery
-import io.mockk.mockk
 
 class ModelStateSpec : BehaviorSpec({
 
@@ -35,17 +33,11 @@ class ModelStateSpec : BehaviorSpec({
             }
         }
 
-        And("Event drive") {
-            val eventDrive = mockk<ModelEventDrive<ModelEvent<TestModelId>>>()
-            val eventDriveWithCreatedEvent = mockk<ModelEventDrive<ModelEvent<TestModelId>>>()
-            coEvery { eventDrive.with(listOf(createdEvent)) } returns eventDriveWithCreatedEvent
+        When("Get model events") {
+            val events = newState.modelEvents()
 
-            When("Write state events on drive") {
-                val updatedDrive = newState.writeEvents(eventDrive)
-
-                Then("Only created event should be written") {
-                    updatedDrive shouldBe eventDriveWithCreatedEvent
-                }
+            Then("Only created event should be present") {
+                events shouldBe listOf(createdEvent)
             }
         }
 
@@ -75,24 +67,12 @@ class ModelStateSpec : BehaviorSpec({
             events = listOf(firstTestModelEvent, secondTestModelEvent),
             proto = null,
         )
-        And("Event drive") {
-            val eventDrive = mockk<ModelEventDrive<TestModelEvent>>()
-            val eventDriveWithTwoTestEvents = mockk<ModelEventDrive<TestModelEvent>>()
-            coEvery {
-                eventDrive.with(
-                    listOf(
-                        firstTestModelEvent,
-                        secondTestModelEvent,
-                    ),
-                )
-            } returns eventDriveWithTwoTestEvents
 
-            When("Write state events on drive") {
-                val updatedDrive = dirtyState.writeEvents(eventDrive)
+        When("Get model events") {
+            val events = dirtyState.modelEvents()
 
-                Then("Two test events are written") {
-                    updatedDrive shouldBe eventDriveWithTwoTestEvents
-                }
+            Then("Two test events are present") {
+                events shouldBe listOf(firstTestModelEvent, secondTestModelEvent)
             }
         }
     }
@@ -108,6 +88,14 @@ class ModelStateSpec : BehaviorSpec({
 
             Then("Updated date and created date are set correctly") {
                 version shouldBe V1
+            }
+        }
+
+        When("Get model events") {
+            val events = persistentState.modelEvents()
+
+            Then("No events should be present") {
+                events shouldBe emptyList()
             }
         }
 
@@ -138,7 +126,8 @@ class ModelStateSpec : BehaviorSpec({
 
             Then("Exception is thrown") {
                 val e = shouldThrow<IllegalStateException>(action)
-                e.message shouldBeEqualIgnoringCase "version should be greater then 0, and events should not occurred"
+                e.message shouldBeEqualIgnoringCase
+                    "version should be greater then 0, and events should not occurred"
             }
         }
     }
