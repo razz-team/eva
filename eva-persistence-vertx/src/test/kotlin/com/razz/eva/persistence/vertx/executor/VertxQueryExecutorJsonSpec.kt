@@ -5,6 +5,7 @@ import com.razz.eva.persistence.vertx.VertxConnectionElement
 import com.razz.eva.persistence.vertx.VertxTransactionManager
 import io.kotest.core.spec.style.ShouldSpec
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import io.mockk.clearMocks
 import io.mockk.coEvery
 import io.mockk.every
@@ -12,11 +13,12 @@ import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.spyk
 import io.vertx.core.Future.succeededFuture
-import io.vertx.core.buffer.Buffer
+import io.vertx.core.json.JsonObject
 import io.vertx.pgclient.PgConnection
 import io.vertx.sqlclient.PreparedQuery
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
+import io.vertx.sqlclient.Tuple
 import io.vertx.sqlclient.impl.ListTuple
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -75,24 +77,7 @@ class VertxQueryExecutorJsonSpec : ShouldSpec({
         every { connection.preparedQuery(capture(sqlSlot)) } answers { preparedQueryMock }
     }
 
-    should("cast JSONB field to varchar in SELECT") {
-        executor.executeSelect(dslContext, dslContext.selectFrom(jsonTable), jsonTable)
-
-        sqlSlot.captured shouldBe """
-            select "json_test"."id", "json_test"."name", cast("json_test"."data" as varchar) as "data"
-            from "json_test"
-        """.trim().replace(Regex("\\s+"), " ")
-    }
-
-    should("not modify SELECT for table without JSON fields") {
-        resetMocks()
-        executor.executeSelect(dslContext, dslContext.selectFrom(plainTable), plainTable)
-
-        sqlSlot.captured shouldBe
-            """select "plain_test"."id", "plain_test"."name" from "plain_test""""
-    }
-
-    should("cast JSONB to varchar in RETURNING and bind JSONB param as Buffer") {
+    should("pass JSONB param as decoded JsonObject") {
         resetMocks()
         val insert = dslContext.insertQuery(jsonTable).apply {
             addValue(jsonTable.ID, UUID.randomUUID())
@@ -104,32 +89,40 @@ class VertxQueryExecutorJsonSpec : ShouldSpec({
             executor.executeStore(dslContext, insert, jsonTable)
         }
 
-        sqlSlot.captured shouldBe """
-            insert into "json_test" ("id", "name", "data")
-            values (cast(:1 as uuid), :2, cast(:3 as jsonb))
-            returning "json_test"."id", "json_test"."name", cast("json_test"."data" as varchar) as "data"
-        """.trim().replace(Regex("\\s+"), " ")
-
         val values = (0 until paramsSlot.captured.size()).map { paramsSlot.captured.getValue(it) }
-        val buffer = values.filterIsInstance<Buffer>().single()
-        buffer.toString() shouldBe """{"key":"value"}"""
+        val jsonValue = values[2]
+        jsonValue.shouldBeInstanceOf<JsonObject>()
+        jsonValue.getString("key") shouldBe "value"
     }
 
-    should("not modify RETURNING for table without JSON fields") {
+    should("use JSON_NULL for JSONB null literal") {
         resetMocks()
-        val insert = dslContext.insertQuery(plainTable).apply {
-            addValue(plainTable.ID, UUID.randomUUID())
-            addValue(plainTable.NAME, "test")
+        val insert = dslContext.insertQuery(jsonTable).apply {
+            addValue(jsonTable.ID, UUID.randomUUID())
+            addValue(jsonTable.NAME, "test")
+            addValue(jsonTable.DATA, JSONB.jsonb("null"))
         }
 
         withContext(Dispatchers.IO + VertxConnectionElement(connection)) {
-            executor.executeStore(dslContext, insert, plainTable)
+            executor.executeStore(dslContext, insert, jsonTable)
         }
 
-        sqlSlot.captured shouldBe """
-            insert into "plain_test" ("id", "name")
-            values (cast(:1 as uuid), :2)
-            returning "plain_test"."id", "plain_test"."name"
-        """.trim().replace(Regex("\\s+"), " ")
+        val values = (0 until paramsSlot.captured.size()).map { paramsSlot.captured.getValue(it) }
+        values[2] shouldBe Tuple.JSON_NULL
+    }
+
+    should("not rewrite SELECT for table with JSON fields") {
+        executor.executeSelect(dslContext, dslContext.selectFrom(jsonTable), jsonTable)
+
+        sqlSlot.captured shouldBe
+            """select "json_test"."id", "json_test"."name", "json_test"."data" from "json_test""""
+    }
+
+    should("not rewrite SELECT for table without JSON fields") {
+        resetMocks()
+        executor.executeSelect(dslContext, dslContext.selectFrom(plainTable), plainTable)
+
+        sqlSlot.captured shouldBe
+            """select "plain_test"."id", "plain_test"."name" from "plain_test""""
     }
 })
