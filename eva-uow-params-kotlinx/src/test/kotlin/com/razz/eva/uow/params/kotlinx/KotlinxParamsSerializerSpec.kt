@@ -78,7 +78,10 @@ class KotlinxParamsSerializerSpec : ShouldSpec({
             ration = Ration.BUBALEH,
         )
         val json = serializer.serialize(params)
-        json shouldBe """{"departmentId":{"id":"${depId.id}"},"employees":[{"id":"${emp1.id}"},{"id":"${emp2.id}"}],"names":[{"first":"John","last":"Doe"},{"first":"Jane","last":"Smith"}],"ration":"BUBALEH"}"""
+        json shouldBe """{"departmentId":{"id":"${depId.id}"},""" +
+            """"employees":[{"id":"${emp1.id}"},{"id":"${emp2.id}"}],""" +
+            """"names":[{"first":"John","last":"Doe"},{"first":"Jane","last":"Smith"}],""" +
+            """"ration":"BUBALEH"}"""
     }
 
     should("serialize params with model param") {
