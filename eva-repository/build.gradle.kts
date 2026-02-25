@@ -14,9 +14,9 @@ tasks.withType<KotlinCompile>().configureEach {
 dependencies {
     api(libs.jooq)
 
-    implementation(libs.vertx_pg)
-    implementation(libs.kotlin_coroutines)
-    implementation(libs.kotlin_reflect)
+    implementation(libs.vertx.pg)
+    implementation(libs.kotlin.coroutines)
+    implementation(libs.kotlin.reflect)
 
     api(project(eva.eva_domain))
     api(project(eva.eva_events))
@@ -35,7 +35,7 @@ dependencies {
     testImplementation(testFixtures(project(eva.eva_domain)))
     testImplementation(testFixtures(project(eva.eva_repository)))
 
-    testFixturesImplementation(libs.kotlin_coroutines)
+    testFixturesImplementation(libs.kotlin.coroutines)
     testFixturesImplementation(project(eva.eva_events))
     testFixturesImplementation(project(eva.eva_events_db_schema))
     testFixturesImplementation(project(eva.eva_repository))

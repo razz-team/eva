@@ -6,8 +6,8 @@ plugins {
 dependencies {
     implementation(project(eva.eva_persistence))
 
-    implementation(libs.kotlin_stdlib)
+    implementation(libs.kotlin.stdlib)
     implementation(libs.flyway)
-    implementation(libs.flyway_postgres)
+    implementation(libs.flyway.postgres)
     implementation(libs.hikari)
 }

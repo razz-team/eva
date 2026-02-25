@@ -18,10 +18,10 @@ tasks.withType<KotlinCompile>().configureEach {
 }
 
 dependencies {
-    implementation(libs.kotlin_stdlib)
-    implementation(libs.kotlin_reflect)
-    implementation(libs.kotlin_coroutines)
-    implementation(libs.kotlin_logging)
+    implementation(libs.kotlin.stdlib)
+    implementation(libs.kotlin.reflect)
+    implementation(libs.kotlin.coroutines)
+    implementation(libs.kotlin.logging)
 
     api(project(eva.eva_idempotency_key))
     api(project(eva.eva_domain))
@@ -30,7 +30,7 @@ dependencies {
     api(project(eva.eva_persistence))
     implementation(project(eva.eva_repository))
 
-    testImplementation(libs.opentelemetry_sdk_testing)
+    testImplementation(libs.opentelemetry.sdk.testing)
     testImplementation(project(eva.eva_migrations))
     testImplementation(project(eva.eva_persistence))
     testImplementation(project(eva.eva_persistence_jdbc))
@@ -43,7 +43,7 @@ dependencies {
     testImplementation(testFixtures(project(eva.eva_repository)))
     testImplementation(testFixtures(project(eva.eva_persistence)))
 
-    testFixturesImplementation(libs.kotlin_coroutines)
+    testFixturesImplementation(libs.kotlin.coroutines)
     testFixturesImplementation(project(eva.eva_uow_params_kotlinx))
     testFixturesImplementation(project(eva.eva_repository))
     testFixturesImplementation(testFixtures(project(eva.eva_repository)))

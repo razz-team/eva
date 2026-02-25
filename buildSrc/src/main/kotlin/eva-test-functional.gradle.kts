@@ -35,7 +35,7 @@ tasks.check { dependsOn(testFunctional) }
 
 tasks.named<KotlinCompile>("compileTestFunctionalKotlin") {
     compilerOptions {
-        jvmTarget.set(JvmTarget.fromTarget(versions.jvm))
+        jvmTarget.set(JvmTarget.JVM_21)
     }
 }
 
