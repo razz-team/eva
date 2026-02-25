@@ -10,7 +10,7 @@ import com.razz.eva.examples.composition.inventory.Inventory.InventoryItem
 import com.razz.eva.examples.composition.inventory.ReduceInventoryUow
 import com.razz.eva.uow.ExecutionContext
 import com.razz.eva.uow.composable.UnitOfWork
-import com.razz.eva.uow.UowParams
+import com.razz.eva.uow.params.kotlinx.UowParams
 import kotlinx.serialization.Serializable
 
 class CheckoutUow(
@@ -25,9 +25,7 @@ class CheckoutUow(
         val cartId: Cart.Id,
         val accountId: Account.Id,
         val inventoryId: Inventory.Id,
-    ) : UowParams<Params> {
-        override fun serialization() = serializer()
-    }
+    ) : UowParams<Params>
 
     override suspend fun tryPerform(principal: ServicePrincipal, params: Params) = changes {
         val cart = cartQueries(params.cartId)

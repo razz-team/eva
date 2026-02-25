@@ -23,7 +23,7 @@ import com.razz.eva.persistence.executor.FakeMemorizingQueryExecutor.ExecutionSt
 import com.razz.eva.serialization.json.JsonFormat.json
 import com.razz.eva.test.tracing.OpenTelemetryTestConfiguration
 import com.razz.eva.tracing.use
-import com.razz.eva.uow.UowParams
+import com.razz.eva.uow.params.kotlinx.UowParams
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.matchers.shouldBe

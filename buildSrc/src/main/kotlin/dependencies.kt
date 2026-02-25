@@ -26,6 +26,7 @@ object versions {
 object libs {
     val kotlin_stdlib = "org.jetbrains.kotlin:kotlin-stdlib:${versions.kotlin}"
     val kotlin_reflect = "org.jetbrains.kotlin:kotlin-reflect:${versions.kotlin}"
+    val kotlin_compiler_embeddable = "org.jetbrains.kotlin:kotlin-compiler-embeddable:${versions.kotlin}"
     val kotlin_serialization = "org.jetbrains.kotlin:kotlin-serialization:${versions.kotlin}"
     val kotlin_logging = "io.github.microutils:kotlin-logging:${versions.kotlin_logging}"
     val kotlin_slf4 = "org.jetbrains.kotlinx:kotlinx-coroutines-slf4j:${versions.kotlin_slf4}"
@@ -53,6 +54,8 @@ object libs {
     val testcontainers = "org.testcontainers:testcontainers:${versions.testcontainers}"
     val testcontainers_postgres = "org.testcontainers:postgresql:${versions.testcontainers_postgres}"
     val detekt = "io.gitlab.arturbosch.detekt:detekt-formatting:${versions.detekt}"
+    val jackson_databind = "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
+    val jackson_kotlin = "com.fasterxml.jackson.module:jackson-module-kotlin:${versions.jackson}"
     val micrometer_prometheus = "io.micrometer:micrometer-registry-prometheus:${versions.micrometer}"
 
     val detekt_plugin = "io.gitlab.arturbosch.detekt:detekt-gradle-plugin:${versions.detekt}"

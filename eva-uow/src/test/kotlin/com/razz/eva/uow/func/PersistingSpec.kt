@@ -59,7 +59,8 @@ import com.razz.eva.uow.SpyCreatableEntityRepo
 import com.razz.eva.uow.SpyKeyDeletableEntityRepo
 import com.razz.eva.uow.SpyModelRepo
 import com.razz.eva.uow.TestPrincipal
-import com.razz.eva.uow.UowParams
+import com.razz.eva.uow.params.kotlinx.KotlinxParamsSerializer
+import com.razz.eva.uow.params.kotlinx.UowParams
 import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.should
@@ -187,6 +188,7 @@ class PersistingSpec : BehaviorSpec({
             entityRepos = entityRepos,
             eventRepository = eventsRepo,
             eventPublisher = eventPublisher,
+            paramsSerializer = KotlinxParamsSerializer(),
         )
 
         val now = now()

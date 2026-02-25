@@ -7,7 +7,7 @@ import com.razz.eva.examples.changes.user.User.Address
 import com.razz.eva.examples.changes.user.User.FirstName
 import com.razz.eva.examples.changes.user.User.LastName
 import com.razz.eva.uow.ExecutionContext
-import com.razz.eva.uow.UowParams
+import com.razz.eva.uow.params.kotlinx.UowParams
 import kotlinx.serialization.Serializable
 
 class UpdateUserUow(
@@ -21,9 +21,7 @@ class UpdateUserUow(
         val firstName: FirstName?,
         val lastName: LastName?,
         val address: Address?,
-    ) : UowParams<Params> {
-        override fun serialization() = serializer()
-    }
+    ) : UowParams<Params>
 
     override suspend fun tryPerform(principal: ServicePrincipal, params: Params) = changes {
         val user = userQueries.get(params.userId)

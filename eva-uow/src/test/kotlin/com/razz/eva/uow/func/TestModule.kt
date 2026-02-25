@@ -26,6 +26,7 @@ import com.razz.eva.uow.ExecutionContext
 import com.razz.eva.uow.HireEmployeesUow
 import com.razz.eva.uow.Persisting
 import com.razz.eva.uow.UnitOfWorkExecutor
+import com.razz.eva.uow.params.kotlinx.KotlinxParamsSerializer
 import com.razz.eva.uow.withFactory
 import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.sdk.testing.exporter.InMemoryMetricReader
@@ -92,6 +93,7 @@ class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
         modelRepos = modelRepos,
         entityRepos = entityRepos,
         eventRepository = eventRepository,
+        paramsSerializer = KotlinxParamsSerializer(),
     )
 
     val factories = listOf(
@@ -162,6 +164,7 @@ class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
                 queryExecutor = patchingEventsQueryExecutor,
                 dslContext = dslContext,
             ),
+            paramsSerializer = KotlinxParamsSerializer(),
         ),
         clock = fixedUTC(now + Duration.ofDays(6)),
         openTelemetry = openTelemetry,
@@ -196,6 +199,7 @@ class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
             ),
             entityRepos = entityRepos,
             eventRepository = eventRepository,
+            paramsSerializer = KotlinxParamsSerializer(),
         ),
         clock = clock,
         openTelemetry = openTelemetry,

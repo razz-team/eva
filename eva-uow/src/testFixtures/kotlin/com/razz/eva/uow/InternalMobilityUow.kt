@@ -7,6 +7,7 @@ import com.razz.eva.domain.Tag
 import com.razz.eva.repository.DepartmentRepository
 import com.razz.eva.repository.EmployeeRepository
 import com.razz.eva.uow.composable.UnitOfWork as ComposableUnitOfWork
+import com.razz.eva.uow.params.kotlinx.UowParams
 import kotlinx.serialization.Serializable
 
 class InternalMobilityUow(

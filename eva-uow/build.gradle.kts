@@ -28,7 +28,6 @@ dependencies {
     api(project(eva.eva_events))
     api(project(eva.eva_tracing))
     api(project(eva.eva_persistence))
-    implementation(project(eva.eva_serialization))
     implementation(project(eva.eva_repository))
 
     testImplementation(libs.opentelemetry_sdk_testing)
@@ -38,12 +37,14 @@ dependencies {
     testImplementation(project(eva.eva_persistence_vertx))
     testImplementation(project(eva.eva_test))
     testImplementation(project(eva.eva_serialization))
+    testImplementation(project(eva.eva_uow_params_kotlinx))
     testImplementation(testFixtures(project(eva.eva_domain)))
     testImplementation(testFixtures(project(eva.eva_uow)))
     testImplementation(testFixtures(project(eva.eva_repository)))
     testImplementation(testFixtures(project(eva.eva_persistence)))
 
     testFixturesImplementation(libs.kotlin_coroutines)
+    testFixturesImplementation(project(eva.eva_uow_params_kotlinx))
     testFixturesImplementation(project(eva.eva_repository))
     testFixturesImplementation(testFixtures(project(eva.eva_repository)))
     testFixturesImplementation(testFixtures(project(eva.eva_domain)))

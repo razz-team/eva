@@ -14,6 +14,7 @@ import com.razz.eva.domain.Ration
 import com.razz.eva.repository.DepartmentRepository
 import com.razz.eva.repository.EmployeeRepository
 import com.razz.eva.uow.CreateSoloDepartmentUow.Params
+import com.razz.eva.uow.params.kotlinx.UowParams
 import kotlinx.serialization.Serializable
 import java.util.UUID.randomUUID
 

@@ -10,6 +10,7 @@ import com.razz.eva.repository.DepartmentRepository
 import com.razz.eva.repository.EmployeeRepository
 import com.razz.eva.uow.HireEmployeesUow.Params
 import com.razz.eva.uow.Retry.StaleRecordFixedRetry
+import com.razz.eva.uow.params.kotlinx.UowParams
 import kotlinx.serialization.Serializable
 import java.time.Duration
 import java.util.UUID.randomUUID

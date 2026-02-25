@@ -8,6 +8,7 @@ import com.razz.eva.domain.ModelState.NewState.Companion.newState
 import com.razz.eva.domain.Ration
 import com.razz.eva.repository.DepartmentRepository
 import com.razz.eva.uow.CreateDepartmentUow.Params
+import com.razz.eva.uow.params.kotlinx.UowParams
 import kotlinx.serialization.Serializable
 import java.util.*
 
