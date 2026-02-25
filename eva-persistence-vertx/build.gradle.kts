@@ -4,15 +4,15 @@ plugins {
 }
 
 dependencies {
-    api(libs.vertx_pg)
+    api(libs.vertx.pg)
 
     api(project(eva.eva_persistence))
 
-    implementation(libs.kotlin_stdlib)
-    implementation(libs.kotlin_coroutines)
+    implementation(libs.kotlin.stdlib)
+    implementation(libs.kotlin.coroutines)
 
-    implementation(libs.vertx_kotlin)
-    implementation(libs.vertx_kotlin_coroutines)
+    implementation(libs.vertx.kotlin)
+    implementation(libs.vertx.kotlin.coroutines)
     implementation(libs.jooq)
-    implementation(libs.jooq_postgres)
+    implementation(libs.jooq.postgres)
 }

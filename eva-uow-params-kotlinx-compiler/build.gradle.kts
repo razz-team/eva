@@ -5,5 +5,5 @@ plugins {
 }
 
 dependencies {
-    compileOnly(libs.kotlin_compiler_embeddable)
+    compileOnly(libs.kotlin.compiler.embeddable)
 }

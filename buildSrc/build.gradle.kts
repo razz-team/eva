@@ -5,16 +5,10 @@ plugins {
     `kotlin-dsl-precompiled-script-plugins`
 }
 
-repositories {
-    mavenLocal()
-    mavenCentral()
-    gradlePluginPortal()
-}
-
-java.sourceCompatibility = versions.java
-java.targetCompatibility = versions.java
+java.sourceCompatibility = JavaVersion.VERSION_21
+java.targetCompatibility = JavaVersion.VERSION_21
 tasks.compileJava {
-    options.release.set(versions.java.majorVersion.toInt())
+    options.release.set(21)
 }
 
 tasks.compileKotlin {
@@ -24,12 +18,12 @@ tasks.compileKotlin {
 }
 
 dependencies {
-    implementation(libs.kotlin_serialization)
-    implementation(libs.detekt_plugin)
-    implementation(libs.kotlin_plugin)
+    implementation(libs.kotlin.serialization.plugin)
+    implementation(libs.detekt.plugin)
+    implementation(libs.kotlin.plugin)
+    implementation(libs.dokka.plugin)
+    implementation(libs.maven.publish.plugin)
 
-    // publishing
-    implementation("org.jetbrains.dokka:dokka-gradle-plugin:2.1.0")
-    implementation("com.vanniktech:gradle-maven-publish-plugin:0.33.0")
-
+    // make version catalog accessors available to precompiled script plugins
+    implementation(files(libs.javaClass.superclass.protectionDomain.codeSource.location))
 }

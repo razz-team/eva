@@ -9,6 +9,8 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization")
 }
 
+val libs = the<org.gradle.accessors.dm.LibrariesForLibs>()
+
 tasks.test {
     useJUnitPlatform()
     testLogging {
@@ -19,20 +21,20 @@ tasks.test {
 apply<ProjectsPlugin>()
 
 dependencies {
-    detektPlugins(libs.detekt)
+    detektPlugins(libs.detekt.formatting)
 
-    api(libs.kotlinx_serialization)
-    api(libs.kotlinx_serialization_json)
-    api(libs.kotlin_coroutines)
+    api(libs.kotlinx.serialization)
+    api(libs.kotlinx.serialization.json)
+    api(libs.kotlin.coroutines)
 
     testImplementation(libs.mockk)
-    testImplementation(libs.kotest_assertions_core)
-    testImplementation(libs.kotest_assertions_json)
-    testImplementation(libs.kotest_runner)
+    testImplementation(libs.kotest.assertions.core)
+    testImplementation(libs.kotest.assertions.json)
+    testImplementation(libs.kotest.runner)
 }
 
 tasks.compileJava {
-    options.release.set(versions.java.majorVersion.toInt())
+    options.release.set(21)
 }
 tasks.compileKotlin {
     compilerOptions {
@@ -44,7 +46,7 @@ tasks.compileKotlin {
     }
 }
 tasks.compileTestJava {
-    options.release.set(versions.java.majorVersion.toInt())
+    options.release.set(21)
 }
 tasks.compileTestKotlin {
     compilerOptions {
@@ -56,7 +58,7 @@ tasks.compileTestKotlin {
 }
 tasks.compileTestFixturesJava {
     enabled = true
-    options.release.set(versions.java.majorVersion.toInt())
+    options.release.set(21)
 }
 tasks.compileTestFixturesKotlin {
     compilerOptions {

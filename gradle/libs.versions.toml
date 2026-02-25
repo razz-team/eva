@@ -1,0 +1,67 @@
+[versions]
+kotlin = "2.2.21"
+kotlin-coroutines = "1.10.2"
+kotlinx-serialization = "1.9.0"
+kotest = "6.0.7"
+jooq = "3.20.10"
+flywaydb = "11.20.0"
+opentelemetry = "1.57.0"
+micrometer = "1.14.1"
+detekt = "1.23.8"
+logback = "1.5.24"
+kotlin-logging = "3.0.5"
+jackson = "2.19.1"
+mockk = "1.14.7"
+testcontainers = "2.0.3"
+testcontainers-postgres = "1.21.4"
+postgresql = "42.7.8"
+vertx = "5.0.6"
+hikari = "7.0.2"
+kafka-clients = "3.8.0"
+dokka = "2.1.0"
+maven-publish = "0.33.0"
+ben-manes-versions = "0.53.0"
+
+[libraries]
+kotlin-stdlib = { module = "org.jetbrains.kotlin:kotlin-stdlib", version.ref = "kotlin" }
+kotlin-reflect = { module = "org.jetbrains.kotlin:kotlin-reflect", version.ref = "kotlin" }
+kotlin-compiler-embeddable = { module = "org.jetbrains.kotlin:kotlin-compiler-embeddable", version.ref = "kotlin" }
+kotlin-logging = { module = "io.github.microutils:kotlin-logging", version.ref = "kotlin-logging" }
+kotlin-coroutines = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlin-coroutines" }
+kotlin-coroutines-slf4j = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-slf4j", version.ref = "kotlin-coroutines" }
+kotlinx-serialization = { module = "org.jetbrains.kotlinx:kotlinx-serialization-core-jvm", version.ref = "kotlinx-serialization" }
+kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinx-serialization" }
+kotest-runner = { module = "io.kotest:kotest-runner-junit5-jvm", version.ref = "kotest" }
+kotest-assertions-json = { module = "io.kotest:kotest-assertions-json-jvm", version.ref = "kotest" }
+kotest-assertions-core = { module = "io.kotest:kotest-assertions-core-jvm", version.ref = "kotest" }
+hikari = { module = "com.zaxxer:HikariCP", version.ref = "hikari" }
+jooq = { module = "org.jooq:jooq", version.ref = "jooq" }
+jooq-postgres = { module = "org.jooq:jooq-postgres-extensions", version.ref = "jooq" }
+logback = { module = "ch.qos.logback:logback-classic", version.ref = "logback" }
+opentelemetry-sdk = { module = "io.opentelemetry:opentelemetry-sdk", version.ref = "opentelemetry" }
+opentelemetry-sdk-testing = { module = "io.opentelemetry:opentelemetry-sdk-testing", version.ref = "opentelemetry" }
+opentelemetry-kotlin = { module = "io.opentelemetry:opentelemetry-extension-kotlin", version.ref = "opentelemetry" }
+flyway = { module = "org.flywaydb:flyway-core", version.ref = "flywaydb" }
+flyway-postgres = { module = "org.flywaydb:flyway-database-postgresql", version.ref = "flywaydb" }
+postgres = { module = "org.postgresql:postgresql", version.ref = "postgresql" }
+vertx-pg = { module = "io.vertx:vertx-pg-client", version.ref = "vertx" }
+vertx-kotlin = { module = "io.vertx:vertx-lang-kotlin", version.ref = "vertx" }
+vertx-kotlin-coroutines = { module = "io.vertx:vertx-lang-kotlin-coroutines", version.ref = "vertx" }
+mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
+kafka-clients = { module = "org.apache.kafka:kafka-clients", version.ref = "kafka-clients" }
+testcontainers = { module = "org.testcontainers:testcontainers", version.ref = "testcontainers" }
+testcontainers-postgres = { module = "org.testcontainers:postgresql", version.ref = "testcontainers-postgres" }
+detekt-formatting = { module = "io.gitlab.arturbosch.detekt:detekt-formatting", version.ref = "detekt" }
+jackson-databind = { module = "com.fasterxml.jackson.core:jackson-databind", version.ref = "jackson" }
+jackson-kotlin = { module = "com.fasterxml.jackson.module:jackson-module-kotlin", version.ref = "jackson" }
+micrometer-prometheus = { module = "io.micrometer:micrometer-registry-prometheus", version.ref = "micrometer" }
+
+# buildSrc plugin dependencies
+kotlin-serialization-plugin = { module = "org.jetbrains.kotlin:kotlin-serialization", version.ref = "kotlin" }
+detekt-plugin = { module = "io.gitlab.arturbosch.detekt:detekt-gradle-plugin", version.ref = "detekt" }
+kotlin-plugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
+dokka-plugin = { module = "org.jetbrains.dokka:dokka-gradle-plugin", version.ref = "dokka" }
+maven-publish-plugin = { module = "com.vanniktech:gradle-maven-publish-plugin", version.ref = "maven-publish" }
+
+[plugins]
+versions = { id = "com.github.ben-manes.versions", version.ref = "ben-manes-versions" }

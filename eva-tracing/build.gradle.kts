@@ -4,9 +4,9 @@ plugins {
 }
 
 dependencies {
-    api(libs.opentelemetry_sdk)
-    api(libs.opentelemetry_kotlin)
-    implementation(libs.opentelemetry_sdk_testing)
+    api(libs.opentelemetry.sdk)
+    api(libs.opentelemetry.kotlin)
+    implementation(libs.opentelemetry.sdk.testing)
     implementation(libs.jooq)
-    implementation(libs.kotlin_coroutines)
+    implementation(libs.kotlin.coroutines)
 }

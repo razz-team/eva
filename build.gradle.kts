@@ -1,5 +1,5 @@
 plugins {
-    id("com.github.ben-manes.versions") version "0.53.0"
+    alias(libs.plugins.versions)
 }
 
 fun isNonStable(version: String): Boolean {
