@@ -1,15 +1,11 @@
-name: Pull request checks
+name: Publish pipeline
 
 on:
-  pull_request:
-    branches: [ main ]
-
-defaults:
-  run:
-    shell: bash
+  release:
+    types: [published]
 
 jobs:
-  build_pr:
+  build_main:
     runs-on: ubuntu-latest
 
     steps:
@@ -24,12 +20,10 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
 
-      - name: Build project
-        run: ./gradlew build --parallel
-
-      - name: Publish to Maven snapshots with sha ${{ github.sha }}
-        run: ./gradlew publishToMavenCentral
+      - name: Publish
+        run: ./gradlew publishAndReleaseToMavenCentral
         env:
+          RELEASE_VERSION: ${{ github.event.release.tag_name }}
           ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.SONATYPE_TOKEN }}
           ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.SONATYPE_TOKEN_PASS }}
           ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.GPG_KEY }}
