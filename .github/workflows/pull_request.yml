@@ -33,11 +33,5 @@ jobs:
       - name: Build project
         run: ./gradlew build -Drelease=false
 
-      - name: Get the short SHA
-        run: echo "::set-output name=short::$(git rev-parse --short HEAD)"
-        id: git_sha
-
-      - name: Publish to Maven snapshots with sha ${{ steps.git_sha.outputs.short }}
+      - name: Publish to Maven snapshots with sha ${{ env.GITHUB_SHA }}
         run: ./gradlew publishToMavenCentral -Drelease=false
-        env:
-          GITHUB_SHA: ${{ steps.git_sha.outputs.short }}
