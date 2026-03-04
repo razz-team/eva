@@ -31,9 +31,7 @@ jobs:
           distribution: 'temurin'
 
       - name: Build project
-        run: ./gradlew build
+        run: ./gradlew build --parallel
 
       - name: Publish to Maven snapshots with sha ${{ github.sha }}
         run: ./gradlew publishToMavenCentral
-        env:
-          GITHUB_SHA: ${{ github.sha }}
