@@ -7,12 +7,13 @@ import com.razz.eva.domain.ModelId
 internal sealed interface ModelChange {
     fun persist(persisting: ModelPersisting)
 
+    val model: Model<*, *>
     val modelEvents: List<ModelEvent<out ModelId<out Comparable<*>>>>
     val id: ModelId<out Comparable<*>>
 }
 
 internal data class AddModel<MID : ModelId<out Comparable<*>>, M : Model<MID, *>, E : ModelEvent<MID>>(
-    private val model: M,
+    override val model: M,
     override val modelEvents: List<E>,
 ) : ModelChange {
 
@@ -28,7 +29,7 @@ internal data class AddModel<MID : ModelId<out Comparable<*>>, M : Model<MID, *>
 }
 
 internal data class UpdateModel<MID : ModelId<out Comparable<*>>, M : Model<MID, *>, E : ModelEvent<MID>>(
-    private val model: M,
+    override val model: M,
     override val modelEvents: List<E>,
 ) : ModelChange {
 
@@ -44,7 +45,7 @@ internal data class UpdateModel<MID : ModelId<out Comparable<*>>, M : Model<MID,
 }
 
 internal data class NoopModel(
-    private val model: Model<*, *>,
+    override val model: Model<*, *>,
 ) : ModelChange {
 
     override val id: ModelId<out Comparable<*>> = model.id()

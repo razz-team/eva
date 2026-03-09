@@ -50,6 +50,16 @@ class EmployeeRepository(
         return findAllWhere(EMPLOYEES.DEPARTMENT_ID.eq(departmentId.id))
     }
 
+    suspend fun findByDepartments(
+        departmentIds: List<DepartmentId>,
+    ): Map<DepartmentId, List<Employee>> {
+        if (departmentIds.isEmpty()) return mapOf()
+        val employees = findAllWhere(
+            EMPLOYEES.DEPARTMENT_ID.`in`(departmentIds.map { it.id })
+        )
+        return employees.groupBy { it.departmentId }
+    }
+
     suspend fun findByName(name: Name): Employee? {
         return findOneWhere(EMPLOYEES.FIRST_NAME.eq(name.first).and(EMPLOYEES.LAST_NAME.eq(name.last)))
     }

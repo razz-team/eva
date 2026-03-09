@@ -1,5 +1,6 @@
 package com.razz.eva.uow
 
+import com.razz.eva.domain.Aggregate
 import com.razz.eva.domain.CreatableEntity
 import com.razz.eva.domain.DeletableEntity
 import com.razz.eva.domain.EntityKey
@@ -69,7 +70,30 @@ class ChangesAccumulator private constructor(
 
     fun <R> withResult(result: R): Changes<R> {
         require(modelChanges.isNotEmpty() || entityChanges.isNotEmpty()) { "No changes to persist" }
-        return RealisedChanges(result, modelChanges.values.toList(), entityChanges)
+        return RealisedChanges(result, flattenChildModels(), entityChanges)
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun flattenChildModels(): List<ModelChange> {
+        val result = mutableListOf<ModelChange>()
+        val seen = modelChanges.keys.toMutableSet()
+        fun flatten(model: Model<*, *>) {
+            if (model !is Aggregate<*, *>) return
+            for (child in model.ownedModels()) {
+                if (!seen.add(child.id())) continue
+                val m = child as Model<ModelId<out Comparable<*>>, ModelEvent<ModelId<out Comparable<*>>>>
+                when {
+                    child.isNew() -> result.add(AddModel(m, m.modelEvents()))
+                    child.isDirty() -> result.add(UpdateModel(m, m.modelEvents()))
+                }
+                flatten(child)
+            }
+        }
+        for (change in modelChanges.values) {
+            result.add(change)
+            flatten(change.model)
+        }
+        return result
     }
 
     private fun <E : ModelEvent<MID>, M : Model<MID, E>, MID : ModelId<out Comparable<*>>>
