@@ -17,5 +17,5 @@ tasks.withType<com.github.benmanes.gradle.versions.updates.DependencyUpdatesTask
 
 allprojects {
     group = "team.razz.eva"
-    version = System.getenv("RELEASE_VERSION") ?: System.getenv("GITHUB_SHA") ?: "1.0-SNAPSHOT"
+    version = System.getenv("RELEASE_VERSION") ?: System.getenv("GITHUB_SHA")?.let { "${it.take(7)}-SNAPSHOT" } ?: "1.0-SNAPSHOT"
 }

@@ -4,7 +4,7 @@ plugins {
 }
 
 mavenPublishing {
-    println("Publishing artifact $group:$name-$version")
+    println("Publishing artifact $group:$name:$version")
 
     publishToMavenCentral()
 
