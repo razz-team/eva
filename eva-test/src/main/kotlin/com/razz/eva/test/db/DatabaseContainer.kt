@@ -38,7 +38,7 @@ data class DatabaseContainer(
 
     fun jdbcUrl(dbName: String): String {
         return "jdbc:postgresql://${pgContainer.host}:" +
-                "${pgContainer.getMappedPort(POSTGRESQL_PORT)}/$dbName${pgContainer.additionalUrlParams}"
+            "${pgContainer.getMappedPort(POSTGRESQL_PORT)}/$dbName${pgContainer.additionalUrlParams}"
     }
 
     companion object {
@@ -52,24 +52,24 @@ data class DatabaseContainer(
             .withUsername("test")
             .withPassword("test")
             .withCommand(
-                "-c fsync=off" +
-                        " -c full_page_writes=off" +
-                        " -c synchronous_commit=off" +
-                        " -c wal_level=minimal" +
-                        " -c checkpoint_timeout=1d" +
-                        " -c wal_init_zero=off" +
-                        " -c max_wal_senders=0" +
-                        " -c max_connections=200" +
-                        " -c shared_buffers=512MB" +
-                        " -c wal_buffers=16MB" +
-                        " -c effective_cache_size=1536MB" +
-                        " -c effective_io_concurrency=200" +
-                        " -c maintenance_work_mem=128MB" +
-                        " -c work_mem=1310kB" +
-                        " -c max_worker_processes=2" +
-                        " -c max_parallel_workers_per_gather=1" +
-                        " -c max_parallel_workers=2" +
-                        " -c max_parallel_maintenance_workers=1",
+            "-c fsync=off" +
+                    " -c full_page_writes=off" +
+                    " -c synchronous_commit=off" +
+                    " -c wal_level=minimal" +
+                    " -c checkpoint_timeout=1d" +
+                    " -c wal_init_zero=off" +
+                    " -c max_wal_senders=0" +
+                    " -c max_connections=200" +
+                    " -c shared_buffers=512MB" +
+                    " -c wal_buffers=16MB" +
+                    " -c effective_cache_size=1536MB" +
+                    " -c effective_io_concurrency=200" +
+                    " -c maintenance_work_mem=128MB" +
+                    " -c work_mem=1310kB" +
+                    " -c max_worker_processes=2" +
+                    " -c max_parallel_workers_per_gather=1" +
+                    " -c max_parallel_workers=2" +
+                    " -c max_parallel_maintenance_workers=1",
             )
             .withTmpFs(mapOf("/var/lib/postgresql/data" to "rw"))
             .withReuse(true)
