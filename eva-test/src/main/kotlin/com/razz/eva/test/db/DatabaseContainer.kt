@@ -96,6 +96,6 @@ open class DockerImageName(internal val value: String) {
 
     object PostgrePartmanImage16 : DockerImageName(
         System.getenv("EVA_TEST_POSTGRES_IMAGE")
-            ?: "public.ecr.aws/t9u6q1l4/testdb:pg16.12_p5.4.1_ts2.25"
+            ?: "public.ecr.aws/t9u6q1l4/testdb:pg16.12_p5.4.1_ts2.25",
     )
 }
