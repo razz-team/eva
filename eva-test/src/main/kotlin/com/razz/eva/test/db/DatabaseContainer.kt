@@ -52,7 +52,7 @@ data class DatabaseContainer(
             .withUsername("test")
             .withPassword("test")
             .withCommand(
-            "-c fsync=off" +
+                "-c fsync=off" +
                     " -c full_page_writes=off" +
                     " -c synchronous_commit=off" +
                     " -c wal_level=minimal" +
