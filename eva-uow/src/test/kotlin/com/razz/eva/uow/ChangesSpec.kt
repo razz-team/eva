@@ -1,6 +1,20 @@
 package com.razz.eva.uow
 
+import com.razz.eva.domain.Aggregate
+import com.razz.eva.domain.DepartmentEvent
+import com.razz.eva.domain.DepartmentEvent.OwnedDepartmentCreated
+import com.razz.eva.domain.DepartmentId
+import com.razz.eva.domain.DeptAggregate
+import com.razz.eva.domain.DeptAggregate.Companion.newDeptAggregate
+import com.razz.eva.domain.Employee
+import com.razz.eva.domain.Employee.Companion.newEmployee
+import com.razz.eva.domain.EmployeeEvent.EmployeeCreated
 import com.razz.eva.domain.EmployeeId
+import com.razz.eva.domain.Model
+import com.razz.eva.domain.ModelState
+import com.razz.eva.domain.ModelState.NewState.Companion.newState
+import com.razz.eva.domain.ModelState.PersistentState.Companion.persistentState
+import com.razz.eva.domain.Name
 import com.razz.eva.domain.Ration.BUBALEH
 import com.razz.eva.domain.RationAllocation
 import com.razz.eva.domain.Tag
@@ -12,9 +26,12 @@ import com.razz.eva.domain.TestModelId.Companion.randomTestModelId
 import com.razz.eva.domain.TestModelStatus.ACTIVE
 import com.razz.eva.domain.TestModelStatus.CREATED
 import com.razz.eva.domain.Version.Companion.V1
+import com.razz.eva.domain.addEmployee
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.BehaviorSpec
+import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import java.time.LocalDate
 import java.util.UUID
 
@@ -233,7 +250,6 @@ class ChangesSpec : BehaviorSpec({
             val model1Event = TestModelStatusChanged(model1.id(), CREATED, ACTIVE)
             val model2 = existingCreatedTestModel(randomTestModelId(), "name2", 100500, V1)
                 .activate()
-            val model2Event = TestModelStatusChanged(model2.id(), CREATED, ACTIVE)
             val model3 = existingCreatedTestModel(randomTestModelId(), "name3", 0xBABE, V1)
                 .activate()
             val model3Event = TestModelStatusChanged(model3.id(), CREATED, ACTIVE)
@@ -266,6 +282,7 @@ class ChangesSpec : BehaviorSpec({
             }
         }
     }
+
     Given("ChangesAccumulator query and replace methods") {
         val model1 = createdTestModel("model1", 100)
         val model1Event = TestModelCreated(model1.id())
@@ -460,4 +477,191 @@ class ChangesSpec : BehaviorSpec({
             }
         }
     }
-})
+
+    Given("Child models flattening") {
+        val bossId = EmployeeId()
+
+        When("Aggregate with new child models is added") {
+            val deptWithEmployee = newDeptAggregate(
+                name = "Engineering",
+                boss = bossId,
+                ration = BUBALEH,
+            ).let { d ->
+                val emp = newEmployee(Name("Alice", "Smith"), d.id(), "alice@test.com", BUBALEH)
+                d.addEmployee(emp)
+            }
+            val changes = ChangesAccumulator()
+                .withAddedModel(deptWithEmployee)
+                .withResult("dept added")
+
+            Then("Parent and child are flattened into separate changes") {
+                changes.modelChangesToPersist shouldHaveSize 2
+
+                val parentChange = changes.modelChangesToPersist[0]
+                parentChange.shouldBeInstanceOf<AddModel<*, *, *>>()
+                parentChange.model shouldBe deptWithEmployee
+
+                val childChange = changes.modelChangesToPersist[1]
+                childChange.shouldBeInstanceOf<AddModel<*, *, *>>()
+                childChange.model shouldBe deptWithEmployee.employees[0]
+            }
+
+            Then("Child events are on the child change, not on the parent") {
+                val parentChange = changes.modelChangesToPersist[0]
+                val childChange = changes.modelChangesToPersist[1]
+
+                // Parent has its own events (OwnedDepartmentCreated + EmployeeAdded)
+                parentChange.modelEvents.any { it is OwnedDepartmentCreated } shouldBe true
+
+                // Child has its own event (EmployeeCreated)
+                childChange.modelEvents shouldHaveSize 1
+                childChange.modelEvents[0].shouldBeInstanceOf<EmployeeCreated>()
+            }
+        }
+
+        When("Aggregate without children is added") {
+            val dept = newDeptAggregate(
+                name = "Empty Dept",
+                boss = bossId,
+                ration = BUBALEH,
+            )
+            val changes = ChangesAccumulator()
+                .withAddedModel(dept)
+                .withResult("no children")
+
+            Then("Only parent change is produced") {
+                changes.modelChangesToPersist shouldHaveSize 1
+                changes.modelChangesToPersist[0].model shouldBe dept
+            }
+        }
+
+        When("Child model is explicitly registered and also in parent's ownedModels") {
+            val dept = newDeptAggregate(
+                name = "Engineering",
+                boss = bossId,
+                ration = BUBALEH,
+            )
+            val emp = newEmployee(Name("Bob", "Jones"), dept.id(), "bob@test.com", BUBALEH)
+            val deptWithEmp = dept.addEmployee(emp)
+
+            val changes = ChangesAccumulator()
+                .withAddedModel(emp)
+                .withAddedModel(deptWithEmp)
+                .withResult("explicit child")
+
+            Then("Child is not duplicated - explicit registration takes precedence") {
+                changes.modelChangesToPersist shouldHaveSize 2
+                changes.modelChangesToPersist[0].model shouldBe emp
+                changes.modelChangesToPersist[1].model shouldBe deptWithEmp
+            }
+        }
+
+        When("Updated parent has new child models") {
+            val existingDept = DeptAggregate(
+                id = DepartmentId.randomDepartmentId(),
+                name = "Engineering",
+                boss = bossId,
+                headcount = 1,
+                ration = BUBALEH,
+                employees = listOf(),
+                modelState = persistentState(V1, null),
+            )
+            val emp = newEmployee(Name("Carol", "White"), existingDept.id(), "carol@test.com", BUBALEH)
+            val renamedWithEmp = existingDept.rename("Eng v2").addEmployee(emp)
+
+            val changes = ChangesAccumulator()
+                .withUpdatedModel(renamedWithEmp)
+                .withResult("updated parent new child")
+
+            Then("UpdateModel for parent and AddModel for new child") {
+                changes.modelChangesToPersist shouldHaveSize 2
+
+                val parentChange = changes.modelChangesToPersist[0]
+                parentChange.shouldBeInstanceOf<UpdateModel<*, *, *>>()
+                parentChange.model shouldBe renamedWithEmp
+
+                val childChange = changes.modelChangesToPersist[1]
+                childChange.shouldBeInstanceOf<AddModel<*, *, *>>()
+                childChange.model shouldBe emp
+            }
+        }
+
+        When("Parent carries persistent child that is not dirty") {
+            val existingEmp = Employee(
+                id = EmployeeId(),
+                name = Name("Dave", "Brown"),
+                departmentId = DepartmentId.randomDepartmentId(),
+                email = "dave@test.com",
+                ration = BUBALEH,
+                modelState = persistentState(V1, null),
+            )
+            val existingDept = DeptAggregate(
+                id = existingEmp.departmentId,
+                name = "Engineering",
+                boss = bossId,
+                headcount = 2,
+                ration = BUBALEH,
+                employees = listOf(existingEmp),
+                modelState = persistentState(V1, null),
+            )
+            val renamedDept = existingDept.rename("Eng v3")
+
+            val changes = ChangesAccumulator()
+                .withUpdatedModel(renamedDept)
+                .withResult("persistent child skipped")
+
+            Then("Only UpdateModel for parent, persistent child is skipped") {
+                changes.modelChangesToPersist shouldHaveSize 1
+
+                val parentChange = changes.modelChangesToPersist[0]
+                parentChange.shouldBeInstanceOf<UpdateModel<*, *, *>>()
+                parentChange.model shouldBe renamedDept
+            }
+        }
+
+        When("Nested aggregates (2-level deep) are added") {
+            val deptWithEmployee = newDeptAggregate(
+                name = "Inner Dept",
+                boss = bossId,
+                ration = BUBALEH,
+            ).let { d ->
+                val emp = newEmployee(Name("Eve", "Green"), d.id(), "eve@test.com", BUBALEH)
+                d.addEmployee(emp)
+            }
+            val wrapperId = DepartmentId.randomDepartmentId()
+            val wrapper = WrapperAggregate(
+                id = wrapperId,
+                modelState = newState(
+                    OwnedDepartmentCreated(wrapperId, "wrapper", bossId, 1, BUBALEH),
+                ),
+                ownedModels = listOf(deptWithEmployee),
+            )
+
+            val changes = ChangesAccumulator()
+                .withAddedModel(wrapper)
+                .withResult("nested 2 levels")
+
+            Then("All 3 models appear: wrapper, dept, employee") {
+                changes.modelChangesToPersist shouldHaveSize 3
+
+                val wrapperChange = changes.modelChangesToPersist[0]
+                wrapperChange.shouldBeInstanceOf<AddModel<*, *, *>>()
+                wrapperChange.model shouldBe wrapper
+
+                val deptChange = changes.modelChangesToPersist[1]
+                deptChange.shouldBeInstanceOf<AddModel<*, *, *>>()
+                deptChange.model shouldBe deptWithEmployee
+
+                val empChange = changes.modelChangesToPersist[2]
+                empChange.shouldBeInstanceOf<AddModel<*, *, *>>()
+                empChange.model shouldBe deptWithEmployee.employees[0]
+            }
+        }
+    }
+}) {
+    private class WrapperAggregate(
+        id: DepartmentId,
+        modelState: ModelState<DepartmentId, DepartmentEvent>,
+        ownedModels: List<Model<*, *>> = listOf(),
+    ) : Aggregate<DepartmentId, DepartmentEvent>(id, modelState, ownedModels)
+}

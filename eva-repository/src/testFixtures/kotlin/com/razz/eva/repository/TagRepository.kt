@@ -9,9 +9,9 @@ import org.jooq.DSLContext
 import java.util.UUID
 
 class TagRepository(
-    queryExecutor: QueryExecutor,
-    dslContext: DSLContext,
-) : JooqKeyDeletableEntityRepository<Tag, Tag.Key, TagRecord>(queryExecutor, dslContext, TagTable.TAG) {
+    private val qe: QueryExecutor,
+    private val dsl: DSLContext,
+) : JooqKeyDeletableEntityRepository<Tag, Tag.Key, TagRecord>(qe, dsl, TagTable.TAG) {
 
     override fun toRecord(entity: Tag): TagRecord =
         TagRecord(entity.subjectId, entity.name, entity.value)
@@ -30,9 +30,26 @@ class TagRepository(
     suspend fun listBySubject(subjectId: UUID): List<Tag> =
         listAllWhere(TagTable.TAG.SUBJECT_ID.eq(subjectId))
 
+    suspend fun listBySubjects(subjectIds: List<UUID>): Map<UUID, List<Tag>> {
+        if (subjectIds.isEmpty()) return mapOf()
+        val tags = listAllWhere(
+            TagTable.TAG.SUBJECT_ID.`in`(subjectIds)
+        )
+        return tags.groupBy { it.subjectId }
+    }
+
     suspend fun findBySubjectAndName(subjectId: UUID, name: String): Tag? =
         findOneWhere(TagTable.TAG.SUBJECT_ID.eq(subjectId).and(TagTable.TAG.NAME.eq(name)))
 
     suspend fun existsForSubject(subjectId: UUID): Boolean =
         existsWhere(TagTable.TAG.SUBJECT_ID.eq(subjectId))
+
+    suspend fun deleteBySubject(
+        @Suppress("UNUSED_PARAMETER") context: TransactionalContext,
+        subjectId: UUID,
+    ): Int {
+        val deleteQuery = dsl.deleteFrom(TagTable.TAG)
+            .where(TagTable.TAG.SUBJECT_ID.eq(subjectId))
+        return qe.executeQuery(dslContext = dsl, jooqQuery = deleteQuery)
+    }
 }

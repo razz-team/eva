@@ -87,6 +87,58 @@ class Wallet(
 }
 ```
 
+### Aggregate
+When a model is an aggregate root that owns child models, extend `Aggregate` instead of `Model`. Child models are carried by the aggregate and automatically persisted alongside it in the same transaction.
+
+```kotlin
+class Invoice(
+    id: Id,
+    val state: State,
+    val totalAmount: Money,
+    val lineItems: List<LineItem>,
+    modelState: ModelState<Id, Event>,
+) : Aggregate<Invoice.Id, Event>(id, modelState, lineItems) {
+
+    data class Id(override val id: UUID) : ModelId<UUID>
+
+    fun addLineItem(lineItem: LineItem): Invoice = copy(
+        totalAmount = totalAmount + lineItem.amount,
+        lineItems = lineItems + lineItem,
+        modelState = raiseEvent(LineItemAdded(id(), lineItem.id(), lineItem.amount)),
+    )
+}
+```
+
+The third parameter to `Aggregate` is the list of owned child models. When you `add` or `update` an aggregate through a unit of work, Eva automatically flattens owned children into separate `add`/`update` changes -- new children are inserted, dirty children are updated, and unchanged children are skipped.
+
+Aggregate repositories extend `JooqAggregateRepository` and implement a three-argument `fromRecord`:
+```kotlin
+class InvoiceRepository(
+    queryExecutor: QueryExecutor,
+    dslContext: DSLContext,
+) : JooqAggregateRepository<UUID, Invoice.Id, Invoice, Event, InvoiceRecord>(
+    queryExecutor = queryExecutor,
+    dslContext = dslContext,
+    table = INVOICE,
+    ownedModelSpecs = listOf(lineItemSpec),
+) {
+    override fun toRecord(model: Invoice) = InvoiceRecord().apply { ... }
+
+    override fun fromRecord(
+        record: InvoiceRecord,
+        modelState: PersistentState<Invoice.Id, Event>,
+        ownedModels: List<Model<*, *>>,
+    ) = Invoice(
+        id = Invoice.Id(record.id),
+        lineItems = ownedModels.filterIsInstance<LineItem>(),
+        modelState = modelState,
+        ...
+    )
+}
+```
+
+The `ownedModelSpecs` parameter defines how to load children when reading aggregates from the database. Each `OwnedModelSpec` loads children for a batch of parent aggregates.
+
 ### Entity
 While Models are the primary building blocks for your domain, sometimes you need simpler data structures that don't require full lifecycle management. Entities serve this purpose.
 
@@ -332,7 +384,11 @@ Eva provides two fundamental building blocks for your domain: **Models** and **E
 - The object has a **distinct identity** that persists over time (e.g., User, Order, Wallet)
 - You need to track **state changes** and emit **domain events**
 - The object has a **lifecycle** with meaningful state transitions
+
+#### Use Aggregate when:
 - The object is an **aggregate root** in DDD terms
+- It **owns child models** that should be persisted alongside it (e.g., Invoice with LineItems)
+- Children are loaded together with the parent and don't exist independently
 
 #### Use Entity when:
 - The object's identity is defined by its **content/attributes** rather than a separate Id
@@ -343,33 +399,42 @@ Eva provides two fundamental building blocks for your domain: **Models** and **E
 
 #### Key Differences
 
-| Aspect | Model | Entity |
-|--------|-------|--------|
-| Identity | Explicit ID field (`ModelId`) | Implicit, defined by content |
-| Versioning | Yes (`version` field for optimistic locking) | No |
-| Events | Emits `ModelEvent` on state changes | No events |
-| Lifecycle | Full lifecycle with state management | No lifecycle |
-| Operations | `add`, `update`, `notChanged` | `add`, `delete` |
-| Typical use | Aggregate roots, core domain objects | Tags, labels, mappings, allocations |
+| Aspect | Model | Aggregate | Entity |
+|--------|-------|-----------|--------|
+| Identity | Explicit ID field (`ModelId`) | Explicit ID field (`ModelId`) | Implicit, defined by content |
+| Versioning | Yes (optimistic locking) | Yes (optimistic locking) | No |
+| Events | Emits `ModelEvent` on state changes | Emits `ModelEvent` on state changes | No events |
+| Owned children | No | Yes, via `ownedModels` | No |
+| Operations | `add`, `update`, `notChanged` | `add`, `update`, `notChanged` | `add`, `delete` |
+| Typical use | Core domain objects | Aggregate roots with children | Tags, labels, mappings |
 
 #### Example Decision
 
 Consider a `Department` with employees and tags:
 
 ```kotlin
-// Model: Has identity, lifecycle, emits events
+// Aggregate: Aggregate root that owns child Employee models
 class Department(
     id: Id,
     val name: String,
     val headcount: Int,
+    val employees: List<Employee>,
     modelState: ModelState<Id, DepartmentEvent>,
-) : Model<Department.Id, DepartmentEvent>(id, modelState) {
-    
-    fun addEmployee(employee: Employee) = copy(
-        headcount = headcount + 1,
-        modelState = modelState().raiseEvent(EmployeeAdded(id(), employee.id(), headcount + 1)),
+) : Aggregate<Department.Id, DepartmentEvent>(id, modelState, employees) {
+
+    fun addEmployee(employee: Employee) = Department(
+        id = id(), name = name, headcount = headcount + 1,
+        employees = employees + employee,
+        modelState = raiseEvent(EmployeeAdded(id(), employee.id(), headcount + 1)),
     )
 }
+
+// Model: Has identity, lifecycle, emits events, but no children
+class Employee(
+    id: Id,
+    val name: String,
+    modelState: ModelState<Id, EmployeeEvent>,
+) : Model<Employee.Id, EmployeeEvent>(id, modelState)
 
 // Entity: Identity is (subjectId + name), no lifecycle, no events
 data class Tag(
@@ -379,7 +444,7 @@ data class Tag(
 ) : DeletableEntity()
 ```
 
-The `Department` is a Model because it's an aggregate root with identity, state transitions, and meaningful events. The `Tag` is an Entity because it's supplementary data whose identity is fully determined by its attributes.
+The `Department` is an Aggregate because it's an aggregate root that owns child `Employee` models. The `Employee` is a Model because it has identity and lifecycle but doesn't own children. The `Tag` is an Entity because it's supplementary data whose identity is fully determined by its attributes.
 
 ### Implementation Details
 
@@ -388,6 +453,7 @@ Models and Entities have **independent type hierarchies**. Both `Model` and `Ent
 
 ```
 Model<ID, E> (abstract class)
+  ├── Aggregate<ID, E> (abstract class) -- owns child models
   └── Your domain models
 
 Entity (abstract class)
