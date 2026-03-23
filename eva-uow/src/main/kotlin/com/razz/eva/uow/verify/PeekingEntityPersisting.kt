@@ -3,6 +3,7 @@ package com.razz.eva.uow.verify
 import com.razz.eva.domain.CreatableEntity
 import com.razz.eva.domain.DeletableEntity
 import com.razz.eva.domain.EntityKey
+import com.razz.eva.domain.UpdatableEntity
 import com.razz.eva.uow.EntityPersisting
 import kotlin.reflect.KClass
 
@@ -16,9 +17,19 @@ internal class PeekingEntityPersisting : EntityPersisting {
         currentEntity = entity
     }
 
+    override fun <E : UpdatableEntity> update(entity: E) {
+        require(currentEntity == null && currentKey == null)
+        currentEntity = entity
+    }
+
     override fun <E : DeletableEntity> delete(entity: E) {
         require(currentEntity == null && currentKey == null)
         currentEntity = entity
+    }
+
+    override fun <E : UpdatableEntity, K : EntityKey<E>> update(key: K, entityClass: KClass<E>) {
+        require(currentEntity == null && currentKey == null)
+        currentKey = key
     }
 
     override fun <E : DeletableEntity, K : EntityKey<E>> delete(key: K, entityClass: KClass<E>) {

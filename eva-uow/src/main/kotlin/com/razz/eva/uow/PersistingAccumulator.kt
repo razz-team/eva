@@ -5,6 +5,7 @@ import com.razz.eva.domain.DeletableEntity
 import com.razz.eva.domain.EntityKey
 import com.razz.eva.domain.Model
 import com.razz.eva.domain.ModelId
+import com.razz.eva.domain.UpdatableEntity
 import com.razz.eva.repository.EntityRepos
 import com.razz.eva.repository.ModelRepos
 import com.razz.eva.repository.TransactionalContext
@@ -46,9 +47,23 @@ internal sealed interface PersistingAccumulator : ModelPersisting, EntityPersist
             }
         }
 
+        override fun <E : UpdatableEntity> update(entity: E) {
+            changes.add { context ->
+                entityRepos.updatableRepoFor(entity).update(context, entity)
+                listOf()
+            }
+        }
+
         override fun <E : DeletableEntity, K : EntityKey<E>> delete(key: K, entityClass: KClass<E>) {
             changes.add { context ->
                 entityRepos.keyDeletableRepoFor(entityClass).delete(context, key)
+                listOf()
+            }
+        }
+
+        override fun <E : UpdatableEntity, K : EntityKey<E>> update(key: K, entityClass: KClass<E>) {
+            changes.add { context ->
+                entityRepos.keyUpdatableRepoFor(entityClass).update(context, key)
                 listOf()
             }
         }
@@ -63,8 +78,11 @@ internal sealed interface PersistingAccumulator : ModelPersisting, EntityPersist
         private val updates: MutableMap<KClass<out Model<*, *>>, ModelBatch.Update<*, *>> = mutableMapOf()
         private val inserts: MutableMap<KClass<out Model<*, *>>, ModelBatch.Add<*, *>> = mutableMapOf()
         private val entityInserts: MutableMap<KClass<out CreatableEntity>, EntityBatch.Add<*>> = mutableMapOf()
+        private val entityUpdates: MutableMap<KClass<out UpdatableEntity>, EntityBatch.Update<*>> = mutableMapOf()
         private val entityDeletes: MutableMap<KClass<out DeletableEntity>, EntityBatch.Delete<*>> = mutableMapOf()
         private val entityKeyDeletes: MutableMap<KClass<out DeletableEntity>, EntityBatch.DeleteByKey<*, *>> =
+            mutableMapOf()
+        private val entityKeyUpdates: MutableMap<KClass<out UpdatableEntity>, EntityBatch.UpdateByKey<*, *>> =
             mutableMapOf()
 
         override fun <ID : ModelId<out Comparable<*>>, M : Model<ID, *>> add(model: M) {
@@ -85,6 +103,12 @@ internal sealed interface PersistingAccumulator : ModelPersisting, EntityPersist
             }
         }
 
+        override fun <E : UpdatableEntity> update(entity: E) {
+            entityUpdates.compute(entity::class) { _, v ->
+                v?.with(entity) ?: EntityBatch.Update(entity)
+            }
+        }
+
         override fun <E : DeletableEntity> delete(entity: E) {
             entityDeletes.compute(entity::class) { _, v ->
                 v?.with(entity) ?: EntityBatch.Delete(entity)
@@ -94,6 +118,12 @@ internal sealed interface PersistingAccumulator : ModelPersisting, EntityPersist
         override fun <E : DeletableEntity, K : EntityKey<E>> delete(key: K, entityClass: KClass<E>) {
             entityKeyDeletes.compute(entityClass) { _, v ->
                 v?.withKey(key) ?: EntityBatch.DeleteByKey(key, entityClass)
+            }
+        }
+
+        override fun <E : UpdatableEntity, K : EntityKey<E>> update(key: K, entityClass: KClass<E>) {
+            entityKeyUpdates.compute(entityClass) { _, v ->
+                v?.withKey(key) ?: EntityBatch.UpdateByKey(key, entityClass)
             }
         }
 

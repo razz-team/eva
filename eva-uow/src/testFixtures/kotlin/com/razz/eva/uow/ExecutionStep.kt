@@ -5,6 +5,7 @@ import com.razz.eva.domain.DeletableEntity
 import com.razz.eva.domain.EntityKey
 import com.razz.eva.domain.Model
 import com.razz.eva.domain.ModelId
+import com.razz.eva.domain.UpdatableEntity
 import com.razz.eva.events.UowEvent
 import com.razz.eva.persistence.ConnectionMode
 import com.razz.eva.repository.TransactionalContext
@@ -45,6 +46,16 @@ sealed class ExecutionStep {
         val entities: List<E>,
     ) : ExecutionStep()
 
+    data class EntityUpdated<E : UpdatableEntity>(
+        val context: TransactionalContext,
+        val entity: E,
+    ) : ExecutionStep()
+
+    data class EntitiesUpdated<E : UpdatableEntity>(
+        val context: TransactionalContext,
+        val entities: List<E>,
+    ) : ExecutionStep()
+
     data class EntityDeleted<E : DeletableEntity>(
         val context: TransactionalContext,
         val entity: E,
@@ -61,6 +72,16 @@ sealed class ExecutionStep {
     ) : ExecutionStep()
 
     data class EntitiesDeletedByKey<E : DeletableEntity, K : EntityKey<E>>(
+        val context: TransactionalContext,
+        val keys: List<K>,
+    ) : ExecutionStep()
+
+    data class EntityUpdatedByKey<E : UpdatableEntity, K : EntityKey<E>>(
+        val context: TransactionalContext,
+        val key: K,
+    ) : ExecutionStep()
+
+    data class EntitiesUpdatedByKey<E : UpdatableEntity, K : EntityKey<E>>(
         val context: TransactionalContext,
         val keys: List<K>,
     ) : ExecutionStep()

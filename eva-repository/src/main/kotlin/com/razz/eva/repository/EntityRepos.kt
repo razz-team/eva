@@ -3,6 +3,7 @@ package com.razz.eva.repository
 import com.razz.eva.domain.CreatableEntity
 import com.razz.eva.domain.DeletableEntity
 import com.razz.eva.domain.EntityKey
+import com.razz.eva.domain.UpdatableEntity
 import kotlin.reflect.KClass
 
 class EntityRepos(
@@ -37,6 +38,15 @@ class EntityRepos(
         return repo as DeletableEntityRepository<E>
     }
 
+    fun <E : UpdatableEntity> updatableRepoFor(entity: E): UpdatableEntityRepository<E> {
+        val repo = classToRepo[entity::class] ?: throw EntityRepositoryNotFoundException(entity)
+        if (repo !is UpdatableEntityRepository<*>) {
+            throw IllegalStateException("Repository for ${entity::class} does not support updating")
+        }
+        @Suppress("UNCHECKED_CAST")
+        return repo as UpdatableEntityRepository<E>
+    }
+
     fun <E : DeletableEntity, K : EntityKey<E>> keyDeletableRepoFor(entityClass: KClass<E>): KeyDeletable<E, K> {
         val repo = classToRepo[entityClass] ?: throw EntityRepositoryNotFoundException(entityClass)
         if (repo !is KeyDeletable<*, *>) {
@@ -47,6 +57,18 @@ class EntityRepos(
         }
         @Suppress("UNCHECKED_CAST")
         return repo as KeyDeletable<E, K>
+    }
+
+    fun <E : UpdatableEntity, K : EntityKey<E>> keyUpdatableRepoFor(entityClass: KClass<E>): KeyUpdatable<E, K> {
+        val repo = classToRepo[entityClass] ?: throw EntityRepositoryNotFoundException(entityClass)
+        if (repo !is KeyDeletable<*, *>) {
+            throw IllegalStateException(
+                "Repository for $entityClass does not support key-based update. " +
+                        "Implement KeyUpdatable interface to enable this feature.",
+            )
+        }
+        @Suppress("UNCHECKED_CAST")
+        return repo as KeyUpdatable<E, K>
     }
 }
 

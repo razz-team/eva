@@ -7,6 +7,7 @@ import com.razz.eva.domain.EntityKey
 import com.razz.eva.domain.Model
 import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
+import com.razz.eva.domain.UpdatableEntity
 import kotlin.reflect.KClass
 
 private fun existingChangeExceptionMessage(modelId: ModelId<*>) =
@@ -47,6 +48,11 @@ class ChangesAccumulator private constructor(
     fun <E : DeletableEntity>
     withDeletedEntity(entity: E): ChangesAccumulator {
         return ChangesAccumulator(modelChanges, entityChanges + DeleteEntity(entity))
+    }
+
+    fun <E : UpdatableEntity>
+    withUpdatedEntity(entity: E): ChangesAccumulator {
+        return ChangesAccumulator(modelChanges, entityChanges + UpdateEntity(entity))
     }
 
     fun <E : DeletableEntity, K : EntityKey<E>>

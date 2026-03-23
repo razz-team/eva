@@ -7,6 +7,7 @@ import com.razz.eva.domain.Model
 import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
 import com.razz.eva.domain.Principal
+import com.razz.eva.domain.UpdatableEntity
 import com.razz.eva.uow.OtelAttributes.MODEL_ID
 import com.razz.eva.tracing.getEvaTracer
 import com.razz.eva.tracing.use
@@ -78,6 +79,11 @@ class ChangesDsl internal constructor(
 
     fun <E : CreatableEntity> add(entity: E): E {
         changes = changes.withAddedEntity(entity)
+        return entity
+    }
+
+    fun <E : UpdatableEntity> update(entity: E): E {
+        changes = changes.withUpdatedEntity(entity)
         return entity
     }
 

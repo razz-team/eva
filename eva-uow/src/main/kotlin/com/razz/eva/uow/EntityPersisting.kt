@@ -3,11 +3,16 @@ package com.razz.eva.uow
 import com.razz.eva.domain.CreatableEntity
 import com.razz.eva.domain.DeletableEntity
 import com.razz.eva.domain.EntityKey
+import com.razz.eva.domain.UpdatableEntity
 import kotlin.reflect.KClass
 
 internal interface EntityPersisting {
 
     fun <E : CreatableEntity> add(entity: E)
+
+    fun <E : UpdatableEntity> update(entity: E)
+
+    fun <E : UpdatableEntity, K : EntityKey<E>> update(key: K, entityClass: KClass<E>)
 
     fun <E : DeletableEntity> delete(entity: E)
 
