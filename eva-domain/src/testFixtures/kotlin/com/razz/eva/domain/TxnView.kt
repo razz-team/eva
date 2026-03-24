@@ -2,9 +2,7 @@ package com.razz.eva.domain
 
 import java.util.UUID
 
-data class TxnMaterialisedView(
-    val originEntity: UUID,
-    val cpartyEntity: UUID,
+data class TxnView(
     val transactionId: UUID,
     val value: Int,
     val currency: String,
@@ -12,5 +10,5 @@ data class TxnMaterialisedView(
 
     data class Key(
         val transactionId: UUID,
-    ) : EntityKey<TxnMaterialisedView>
+    ) : EntityKey<TxnView>
 }

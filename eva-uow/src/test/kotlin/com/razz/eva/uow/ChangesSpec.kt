@@ -18,7 +18,7 @@ import com.razz.eva.domain.Name
 import com.razz.eva.domain.Ration.BUBALEH
 import com.razz.eva.domain.RationAllocation
 import com.razz.eva.domain.Tag
-import com.razz.eva.domain.TxnMaterialisedView
+import com.razz.eva.domain.TxnView
 import com.razz.eva.domain.TestModel.Factory.createdTestModel
 import com.razz.eva.domain.TestModel.Factory.existingCreatedTestModel
 import com.razz.eva.domain.TestModelEvent.TestModelCreated
@@ -450,7 +450,7 @@ class ChangesSpec : BehaviorSpec({
         }
 
         When("Principal calling withUpdatedEntity and then withResult") {
-            val txnView = TxnMaterialisedView(subjectId, subjectId, subjectId, 100, "USD")
+            val txnView = TxnView(originEntity = "company", cpartyEntity = "customer", transactionId = subjectId, value = 100, currency = "USD")
             val changes = ChangesAccumulator()
                 .withUpdatedEntity(txnView)
                 .withResult("entity updated")
@@ -461,8 +461,21 @@ class ChangesSpec : BehaviorSpec({
             }
         }
 
+        When("Principal calling withUpdatedEntity twice for the same entity") {
+            val txnView = TxnView(originEntity = "company", cpartyEntity = "customer", transactionId = subjectId, value = 100, currency = "USD")
+            val changes = ChangesAccumulator()
+                .withUpdatedEntity(txnView)
+                .withUpdatedEntity(txnView)
+                .withResult("duplicate tag")
+
+            Then("Changes contain duplicate entities (no deduplication)") {
+                changes.entityChangesToPersist shouldBe listOf(UpdateEntity(txnView), UpdateEntity(txnView))
+                changes.result shouldBe "duplicate tag"
+            }
+        }
+
         When("Principal calling withAddedEntity and withUpdatedEntity") {
-            val txnView = TxnMaterialisedView(subjectId, subjectId, subjectId, 100, "USD")
+            val txnView = TxnView(originEntity = "company", cpartyEntity = "customer", transactionId = subjectId, value = 100, currency = "USD")
             val changes = ChangesAccumulator()
                 .withAddedEntity(tag1)
                 .withUpdatedEntity(txnView)

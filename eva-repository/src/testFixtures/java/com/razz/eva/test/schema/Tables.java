@@ -10,6 +10,7 @@ import com.razz.eva.test.schema.tables.Employees;
 import com.razz.eva.test.schema.tables.RationAllocation;
 import com.razz.eva.test.schema.tables.Shakshoukas;
 import com.razz.eva.test.schema.tables.Tag;
+import com.razz.eva.test.schema.tables.TxnView;
 
 import javax.annotation.processing.Generated;
 
@@ -57,4 +58,9 @@ public class Tables {
      * The table <code>tag</code>.
      */
     public static final Tag TAG = Tag.TAG;
+
+    /**
+     * The table <code>txn_view</code>.
+     */
+    public static final TxnView TXN_VIEW = TxnView.TXN_VIEW;
 }

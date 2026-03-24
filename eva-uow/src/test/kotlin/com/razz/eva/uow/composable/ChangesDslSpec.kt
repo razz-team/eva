@@ -3,7 +3,7 @@ package com.razz.eva.uow.composable
 import com.razz.eva.domain.DepartmentId.Companion.randomDepartmentId
 import com.razz.eva.domain.EmployeeId.Companion.randomEmployeeId
 import com.razz.eva.domain.Tag
-import com.razz.eva.domain.TxnMaterialisedView
+import com.razz.eva.domain.TxnView
 import com.razz.eva.domain.Ration
 import com.razz.eva.domain.RationAllocation
 import com.razz.eva.domain.TestModel.ActiveTestModel
@@ -626,9 +626,9 @@ class ChangesDslSpec : FunSpec({
     }
 
     test("Should return properly built RealisedChanges when entity is updated") {
-        val txnView = TxnMaterialisedView(
-            java.util.UUID.randomUUID(), java.util.UUID.randomUUID(),
-            java.util.UUID.randomUUID(), 100, "USD",
+        val txnView = TxnView(
+            originEntity = "company", cpartyEntity = "customer",
+            transactionId = java.util.UUID.randomUUID(), value = 100, currency = "USD",
         )
 
         val uow = object : DummyUow<String>(executionContext) {
@@ -647,9 +647,9 @@ class ChangesDslSpec : FunSpec({
     test("Should return properly built RealisedChanges when multiple entities added and updated") {
         val departmentId = randomDepartmentId()
         val tag = Tag.environmentTag(departmentId.id, "production")
-        val txnView = TxnMaterialisedView(
-            java.util.UUID.randomUUID(), java.util.UUID.randomUUID(),
-            java.util.UUID.randomUUID(), 200, "EUR",
+        val txnView = TxnView(
+            originEntity = "company", cpartyEntity = "customer",
+            transactionId = java.util.UUID.randomUUID(), value = 200, currency = "EUR",
         )
 
         val uow = object : DummyUow<String>(executionContext) {
@@ -670,7 +670,7 @@ class ChangesDslSpec : FunSpec({
     }
 
     test("Should return properly built RealisedChanges when entity is updated by key") {
-        val txnKey = TxnMaterialisedView.Key(java.util.UUID.randomUUID())
+        val txnKey = TxnView.Key(java.util.UUID.randomUUID())
 
         val uow = object : DummyUow<String>(executionContext) {
             override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
@@ -683,13 +683,13 @@ class ChangesDslSpec : FunSpec({
         changes.modelChangesToPersist shouldBe listOf()
         changes.entityChangesToPersist shouldHaveSize 1
         changes.entityChangesToPersist.first()
-            .shouldBeTypeOf<UpdateEntityByKey<TxnMaterialisedView, TxnMaterialisedView.Key>>()
+            .shouldBeTypeOf<UpdateEntityByKey<TxnView, TxnView.Key>>()
         changes.result shouldBe "ENTITY UPDATED BY KEY"
     }
 
     test("Should return properly built RealisedChanges when model added and entity updated by key") {
         val model = createdTestModel("MLG", 420).activate()
-        val txnKey = TxnMaterialisedView.Key(java.util.UUID.randomUUID())
+        val txnKey = TxnView.Key(java.util.UUID.randomUUID())
 
         val uow = object : DummyUow<String>(executionContext) {
             override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
@@ -711,16 +711,16 @@ class ChangesDslSpec : FunSpec({
         )
         changes.entityChangesToPersist shouldHaveSize 1
         changes.entityChangesToPersist.first()
-            .shouldBeTypeOf<UpdateEntityByKey<TxnMaterialisedView, TxnMaterialisedView.Key>>()
+            .shouldBeTypeOf<UpdateEntityByKey<TxnView, TxnView.Key>>()
         changes.result shouldBe "MIXED CHANGES WITH KEY UPDATE"
     }
 
     test("Should return properly built RealisedChanges with both entity update and key update") {
-        val txnView = TxnMaterialisedView(
-            java.util.UUID.randomUUID(), java.util.UUID.randomUUID(),
-            java.util.UUID.randomUUID(), 100, "USD",
+        val txnView = TxnView(
+            originEntity = "company", cpartyEntity = "customer",
+            transactionId = java.util.UUID.randomUUID(), value = 100, currency = "USD",
         )
-        val txnKey = TxnMaterialisedView.Key(java.util.UUID.randomUUID())
+        val txnKey = TxnView.Key(java.util.UUID.randomUUID())
 
         val uow = object : DummyUow<String>(executionContext) {
             override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
@@ -735,13 +735,13 @@ class ChangesDslSpec : FunSpec({
         changes.entityChangesToPersist shouldHaveSize 2
         changes.entityChangesToPersist[0] shouldBe UpdateEntity(txnView)
         changes.entityChangesToPersist[1]
-            .shouldBeTypeOf<UpdateEntityByKey<TxnMaterialisedView, TxnMaterialisedView.Key>>()
+            .shouldBeTypeOf<UpdateEntityByKey<TxnView, TxnView.Key>>()
         changes.result shouldBe "BOTH UPDATES"
     }
 
     test("Should merge key update changes from sub-uow") {
-        val txnKey1 = TxnMaterialisedView.Key(java.util.UUID.randomUUID())
-        val txnKey2 = TxnMaterialisedView.Key(java.util.UUID.randomUUID())
+        val txnKey1 = TxnView.Key(java.util.UUID.randomUUID())
+        val txnKey2 = TxnView.Key(java.util.UUID.randomUUID())
 
         val innerUow = { ctx: ExecutionContext ->
             object : DummyUow<String>(ctx) {
@@ -763,9 +763,9 @@ class ChangesDslSpec : FunSpec({
         changes.modelChangesToPersist shouldBe listOf()
         changes.entityChangesToPersist shouldHaveSize 2
         changes.entityChangesToPersist[0]
-            .shouldBeTypeOf<UpdateEntityByKey<TxnMaterialisedView, TxnMaterialisedView.Key>>()
+            .shouldBeTypeOf<UpdateEntityByKey<TxnView, TxnView.Key>>()
         changes.entityChangesToPersist[1]
-            .shouldBeTypeOf<UpdateEntityByKey<TxnMaterialisedView, TxnMaterialisedView.Key>>()
+            .shouldBeTypeOf<UpdateEntityByKey<TxnView, TxnView.Key>>()
         changes.result shouldBe "MERGED KEY UPDATES"
     }
 

@@ -16,7 +16,7 @@ import com.razz.eva.domain.Name
 import com.razz.eva.domain.Ration.BUBALEH
 import com.razz.eva.domain.RationAllocation
 import com.razz.eva.domain.Tag
-import com.razz.eva.domain.TxnMaterialisedView
+import com.razz.eva.domain.TxnView
 import com.razz.eva.domain.TestModel.Factory.existingCreatedTestModel
 import com.razz.eva.domain.UpdatableEntity
 import com.razz.eva.domain.Version.Companion.V1
@@ -172,8 +172,8 @@ class PersistingSpec : BehaviorSpec({
         val entityRepos = EntityRepos(
             Tag::class hasEntityRepo deletableEntityRepo as DeletableEntityRepository<Tag>,
             RationAllocation::class hasEntityRepo creatableEntityRepo as EntityRepository<RationAllocation>,
-            TxnMaterialisedView::class hasEntityRepo
-                updatableEntityRepo as UpdatableEntityRepository<TxnMaterialisedView>,
+            TxnView::class hasEntityRepo
+                updatableEntityRepo as UpdatableEntityRepository<TxnView>,
         )
 
         val txnManager = WithCtxConnectionTransactionManager(
@@ -600,8 +600,20 @@ class PersistingSpec : BehaviorSpec({
             }
         }
 
-        val txnView1 = TxnMaterialisedView(randomUUID(), randomUUID(), randomUUID(), 100, "USD")
-        val txnView2 = TxnMaterialisedView(randomUUID(), randomUUID(), randomUUID(), 200, "EUR")
+        val txnView1 = TxnView(
+            originEntity = "company1",
+            cpartyEntity = "customer1",
+            transactionId = randomUUID(),
+            value = 100,
+            currency = "USD"
+        )
+        val txnView2 = TxnView(
+            originEntity = "company2",
+            cpartyEntity = "customer2",
+            transactionId = randomUUID(),
+            value = 200,
+            currency = "EUR"
+        )
 
         history.clear()
         When("Principal persists entity update with out of order support") {
@@ -671,9 +683,9 @@ class PersistingSpec : BehaviorSpec({
         }
 
         val updateKeySubjectId = randomUUID()
-        val updateKey1 = TxnMaterialisedView.Key(updateKeySubjectId)
-        val updateKey2 = TxnMaterialisedView.Key(randomUUID())
-        val updateKey3 = TxnMaterialisedView.Key(randomUUID())
+        val updateKey1 = TxnView.Key(updateKeySubjectId)
+        val updateKey2 = TxnView.Key(randomUUID())
+        val updateKey3 = TxnView.Key(randomUUID())
 
         history.clear()
         When("Principal persists single key update with out of order support") {
@@ -683,7 +695,7 @@ class PersistingSpec : BehaviorSpec({
                 principal = TestPrincipal,
                 modelChanges = listOf(),
                 entityChanges = listOf(
-                    UpdateEntityByKey(updateKey1, TxnMaterialisedView::class),
+                    UpdateEntityByKey(updateKey1, TxnView::class),
                 ),
                 now = clock.instant(),
                 uowSupportsOutOfOrderPersisting = true,
@@ -715,9 +727,9 @@ class PersistingSpec : BehaviorSpec({
                 principal = TestPrincipal,
                 modelChanges = listOf(),
                 entityChanges = listOf(
-                    UpdateEntityByKey(updateKey1, TxnMaterialisedView::class),
-                    UpdateEntityByKey(updateKey2, TxnMaterialisedView::class),
-                    UpdateEntityByKey(updateKey3, TxnMaterialisedView::class),
+                    UpdateEntityByKey(updateKey1, TxnView::class),
+                    UpdateEntityByKey(updateKey2, TxnView::class),
+                    UpdateEntityByKey(updateKey3, TxnView::class),
                 ),
                 now = clock.instant(),
                 uowSupportsOutOfOrderPersisting = true,
@@ -754,8 +766,8 @@ class PersistingSpec : BehaviorSpec({
                 modelChanges = listOf(),
                 entityChanges = listOf(
                     AddEntity(newTag),
-                    UpdateEntityByKey(updateKey1, TxnMaterialisedView::class),
-                    UpdateEntityByKey(updateKey2, TxnMaterialisedView::class),
+                    UpdateEntityByKey(updateKey1, TxnView::class),
+                    UpdateEntityByKey(updateKey2, TxnView::class),
                 ),
                 now = clock.instant(),
                 uowSupportsOutOfOrderPersisting = true,
@@ -791,8 +803,8 @@ class PersistingSpec : BehaviorSpec({
                 principal = TestPrincipal,
                 modelChanges = listOf(),
                 entityChanges = listOf(
-                    UpdateEntityByKey(updateKey1, TxnMaterialisedView::class),
-                    UpdateEntityByKey(updateKey2, TxnMaterialisedView::class),
+                    UpdateEntityByKey(updateKey1, TxnView::class),
+                    UpdateEntityByKey(updateKey2, TxnView::class),
                 ),
                 now = clock.instant(),
                 uowSupportsOutOfOrderPersisting = false,
