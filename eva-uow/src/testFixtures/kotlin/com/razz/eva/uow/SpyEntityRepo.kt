@@ -109,6 +109,7 @@ class SpyKeyUpdatableEntityRepo<E : UpdatableEntity, K : EntityKey<E>>(
         return true
     }
 
+    @JvmName("updateByKeys")
     override suspend fun update(context: TransactionalContext, keys: List<K>): Int {
         history.add(EntitiesUpdatedByKey(context, keys))
         return keys.size

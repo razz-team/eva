@@ -3,6 +3,7 @@ package com.razz.eva.uow.composable
 import com.razz.eva.domain.DepartmentId.Companion.randomDepartmentId
 import com.razz.eva.domain.EmployeeId.Companion.randomEmployeeId
 import com.razz.eva.domain.Tag
+import com.razz.eva.domain.TxnMaterialisedView
 import com.razz.eva.domain.Ration
 import com.razz.eva.domain.RationAllocation
 import com.razz.eva.domain.TestModel.ActiveTestModel
@@ -28,6 +29,8 @@ import com.razz.eva.uow.DeleteEntityByKey
 import com.razz.eva.uow.ExecutionContext
 import com.razz.eva.uow.NoopModel
 import com.razz.eva.uow.TestPrincipal
+import com.razz.eva.uow.UpdateEntity
+import com.razz.eva.uow.UpdateEntityByKey
 import com.razz.eva.uow.UpdateModel
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
@@ -620,6 +623,150 @@ class ChangesDslSpec : FunSpec({
         changes.entityChangesToPersist[0].shouldBeTypeOf<DeleteEntityByKey<Tag, Tag.Key>>()
         changes.entityChangesToPersist[1].shouldBeTypeOf<DeleteEntityByKey<Tag, Tag.Key>>()
         changes.result shouldBe "MERGED KEY DELETES"
+    }
+
+    test("Should return properly built RealisedChanges when entity is updated") {
+        val txnView = TxnMaterialisedView(
+            java.util.UUID.randomUUID(), java.util.UUID.randomUUID(),
+            java.util.UUID.randomUUID(), 100, "USD",
+        )
+
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                update(txnView)
+                "ENTITY UPDATED"
+            }
+        }
+        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
+
+        changes.modelChangesToPersist shouldBe listOf()
+        changes.entityChangesToPersist shouldBe listOf(UpdateEntity(txnView))
+        changes.result shouldBe "ENTITY UPDATED"
+    }
+
+    test("Should return properly built RealisedChanges when multiple entities added and updated") {
+        val departmentId = randomDepartmentId()
+        val tag = Tag.environmentTag(departmentId.id, "production")
+        val txnView = TxnMaterialisedView(
+            java.util.UUID.randomUUID(), java.util.UUID.randomUUID(),
+            java.util.UUID.randomUUID(), 200, "EUR",
+        )
+
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                add(tag)
+                update(txnView)
+                "MULTIPLE ENTITIES"
+            }
+        }
+        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
+
+        changes.modelChangesToPersist shouldBe listOf()
+        changes.entityChangesToPersist shouldBe listOf(
+            AddEntity(tag),
+            UpdateEntity(txnView),
+        )
+        changes.result shouldBe "MULTIPLE ENTITIES"
+    }
+
+    test("Should return properly built RealisedChanges when entity is updated by key") {
+        val txnKey = TxnMaterialisedView.Key(java.util.UUID.randomUUID())
+
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                update(txnKey)
+                "ENTITY UPDATED BY KEY"
+            }
+        }
+        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
+
+        changes.modelChangesToPersist shouldBe listOf()
+        changes.entityChangesToPersist shouldHaveSize 1
+        changes.entityChangesToPersist.first()
+            .shouldBeTypeOf<UpdateEntityByKey<TxnMaterialisedView, TxnMaterialisedView.Key>>()
+        changes.result shouldBe "ENTITY UPDATED BY KEY"
+    }
+
+    test("Should return properly built RealisedChanges when model added and entity updated by key") {
+        val model = createdTestModel("MLG", 420).activate()
+        val txnKey = TxnMaterialisedView.Key(java.util.UUID.randomUUID())
+
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                add(model)
+                update(txnKey)
+                "MIXED CHANGES WITH KEY UPDATE"
+            }
+        }
+        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
+
+        changes.modelChangesToPersist shouldBe listOf(
+            AddModel(
+                model,
+                listOf(
+                    TestModelCreated(model.id()),
+                    TestModelStatusChanged(model.id(), CREATED, ACTIVE),
+                ),
+            ),
+        )
+        changes.entityChangesToPersist shouldHaveSize 1
+        changes.entityChangesToPersist.first()
+            .shouldBeTypeOf<UpdateEntityByKey<TxnMaterialisedView, TxnMaterialisedView.Key>>()
+        changes.result shouldBe "MIXED CHANGES WITH KEY UPDATE"
+    }
+
+    test("Should return properly built RealisedChanges with both entity update and key update") {
+        val txnView = TxnMaterialisedView(
+            java.util.UUID.randomUUID(), java.util.UUID.randomUUID(),
+            java.util.UUID.randomUUID(), 100, "USD",
+        )
+        val txnKey = TxnMaterialisedView.Key(java.util.UUID.randomUUID())
+
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                update(txnView)
+                update(txnKey)
+                "BOTH UPDATES"
+            }
+        }
+        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
+
+        changes.modelChangesToPersist shouldBe listOf()
+        changes.entityChangesToPersist shouldHaveSize 2
+        changes.entityChangesToPersist[0] shouldBe UpdateEntity(txnView)
+        changes.entityChangesToPersist[1]
+            .shouldBeTypeOf<UpdateEntityByKey<TxnMaterialisedView, TxnMaterialisedView.Key>>()
+        changes.result shouldBe "BOTH UPDATES"
+    }
+
+    test("Should merge key update changes from sub-uow") {
+        val txnKey1 = TxnMaterialisedView.Key(java.util.UUID.randomUUID())
+        val txnKey2 = TxnMaterialisedView.Key(java.util.UUID.randomUUID())
+
+        val innerUow = { ctx: ExecutionContext ->
+            object : DummyUow<String>(ctx) {
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                    update(txnKey2)
+                    "inner result"
+                }
+            }
+        }
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                update(txnKey1)
+                execute(innerUow, TestPrincipal) { Params }
+                "MERGED KEY UPDATES"
+            }
+        }
+        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
+
+        changes.modelChangesToPersist shouldBe listOf()
+        changes.entityChangesToPersist shouldHaveSize 2
+        changes.entityChangesToPersist[0]
+            .shouldBeTypeOf<UpdateEntityByKey<TxnMaterialisedView, TxnMaterialisedView.Key>>()
+        changes.entityChangesToPersist[1]
+            .shouldBeTypeOf<UpdateEntityByKey<TxnMaterialisedView, TxnMaterialisedView.Key>>()
+        changes.result shouldBe "MERGED KEY UPDATES"
     }
 
     test("Should allow inner UoW to update inherited new model via merge path") {

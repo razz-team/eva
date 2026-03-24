@@ -131,7 +131,13 @@ internal sealed interface PersistingAccumulator : ModelPersisting, EntityPersist
             val modelOps = listOf(updates.values, inserts.values).flatMap {
                 it.map { b -> FlushOperation { context -> b.persist(context, modelRepos) } }
             }
-            val entityOps = listOf(entityInserts.values, entityDeletes.values, entityKeyDeletes.values).flatMap {
+            val entityOps = listOf(
+                entityInserts.values,
+                entityUpdates.values,
+                entityDeletes.values,
+                entityKeyUpdates.values,
+                entityKeyDeletes.values,
+            ).flatMap {
                 it.map { b ->
                     FlushOperation { context ->
                         b.persist(context, entityRepos)

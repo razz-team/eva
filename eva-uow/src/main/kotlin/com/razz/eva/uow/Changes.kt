@@ -55,6 +55,11 @@ class ChangesAccumulator private constructor(
         return ChangesAccumulator(modelChanges, entityChanges + UpdateEntity(entity))
     }
 
+    fun <E : UpdatableEntity, K : EntityKey<E>>
+    withUpdatedEntityByKey(key: K, entityClass: KClass<E>): ChangesAccumulator {
+        return ChangesAccumulator(modelChanges, entityChanges + UpdateEntityByKey(key, entityClass))
+    }
+
     fun <E : DeletableEntity, K : EntityKey<E>>
     withDeletedEntityByKey(key: K, entityClass: KClass<E>): ChangesAccumulator {
         return ChangesAccumulator(modelChanges, entityChanges + DeleteEntityByKey(key, entityClass))

@@ -31,7 +31,7 @@ internal sealed interface EntityBatch {
         private val entities = mutableListOf(entity)
 
         override suspend fun persist(context: TransactionalContext, repos: EntityRepos) {
-            repos.repoFor(entities.first()).add(context, entities)
+            repos.updatableRepoFor(entities.first()).update(context, entities)
         }
 
         override fun with(entity: CreatableEntity): Update<E> {

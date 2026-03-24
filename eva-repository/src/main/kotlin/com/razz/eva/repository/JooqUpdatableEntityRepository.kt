@@ -21,24 +21,25 @@ abstract class JooqUpdatableEntityRepository<E : UpdatableEntity, R : BaseEntity
     protected abstract fun entityCondition(entity: E): Condition
 
     override suspend fun update(context: TransactionalContext, entity: E): Boolean {
-        val updateQuery = dslContext.updateQuery(table)
-            .where(entityCondition(entity))
-        val deleted = queryExecutor.executeQuery(
+        val updateQuery = dslContext.updateQuery(table).apply {
+            setRecord(toRecord(entity))
+            addConditions(entityCondition(entity))
+        }
+
+        val updated = queryExecutor.executeQuery(
             dslContext = dslContext,
             jooqQuery = updateQuery,
         )
-        return deleted > 0
+        return updated > 0
     }
 
     override suspend fun update(context: TransactionalContext, entities: List<E>): Int {
         if (entities.isEmpty()) return 0
         if (entities.size == 1) return if (update(context, entities.first())) 1 else 0
-        val conditions = entities.map(::entityCondition).reduce(Condition::or)
-        val deleteQuery = dslContext.deleteFrom(table).where(conditions)
-        val deleted = queryExecutor.executeQuery(
-            dslContext = dslContext,
-            jooqQuery = deleteQuery,
-        )
-        return deleted
+        var updated = 0
+        for (entity in entities) {
+            if (update(context, entity)) updated++
+        }
+        return updated
     }
 }

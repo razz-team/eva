@@ -37,6 +37,16 @@ internal data class DeleteEntity<E : DeletableEntity>(
     }
 }
 
+internal data class UpdateEntityByKey<E : UpdatableEntity, K : EntityKey<E>>(
+    private val key: K,
+    private val entityClass: KClass<E>,
+) : EntityChange {
+
+    override fun persist(persisting: EntityPersisting) {
+        persisting.update(key, entityClass)
+    }
+}
+
 internal data class DeleteEntityByKey<E : DeletableEntity, K : EntityKey<E>>(
     private val key: K,
     private val entityClass: KClass<E>,

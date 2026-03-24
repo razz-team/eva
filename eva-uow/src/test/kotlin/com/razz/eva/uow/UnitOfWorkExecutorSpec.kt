@@ -9,6 +9,7 @@ import com.razz.eva.domain.ModelState.NewState.Companion.newState
 import com.razz.eva.domain.Ration
 import com.razz.eva.domain.RationAllocation
 import com.razz.eva.domain.Tag
+import com.razz.eva.domain.TxnMaterialisedView
 import com.razz.eva.events.UowEvent
 import com.razz.eva.persistence.PersistenceException.ModelRecordConstraintViolationException
 import com.razz.eva.persistence.PersistenceException.StaleRecordException
@@ -20,6 +21,7 @@ import com.razz.eva.repository.EntityRepos
 import com.razz.eva.repository.EntityRepository
 import com.razz.eva.repository.ModelRepos
 import com.razz.eva.repository.ModelRepository
+import com.razz.eva.repository.UpdatableEntityRepository
 import com.razz.eva.repository.hasEntityRepo
 import com.razz.eva.repository.hasRepo
 import com.razz.eva.uow.BaseUnitOfWork.Configuration
@@ -331,6 +333,76 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
 
                     And("Entity repository delete was called") {
                         coVerify { tagRepo.delete(any(), tagToDelete) }
+                    }
+                }
+            }
+        }
+
+        And("Ad hoc factory with mixed model and entity update changes") {
+            val tag = Tag.environmentTag(departmentId.id, "production")
+            val txnView = TxnMaterialisedView(
+                java.util.UUID.randomUUID(), java.util.UUID.randomUUID(),
+                java.util.UUID.randomUUID(), 100, "USD",
+            )
+
+            val factory = { exCtx: ExecutionContext ->
+                object : ComposableUnitOfWork<TestPrincipal, DummyUow.Params, OwnedDepartment>(exCtx) {
+                    override suspend fun tryPerform(
+                        principal: TestPrincipal,
+                        params: DummyUow.Params,
+                    ) = changes {
+                        val addedDepartment = add(department)
+                        add(tag)
+                        update(txnView)
+                        addedDepartment
+                    }
+                }
+            }
+
+            When("UnitOfWorkExecutor created with model and entity repos including updatable") {
+                val departmentRepo = mockk<ModelRepository<DepartmentId, OwnedDepartment>>(relaxed = true)
+                val tagRepo = mockk<DeletableEntityRepository<Tag>>(relaxed = true)
+                val txnViewRepo = mockk<UpdatableEntityRepository<TxnMaterialisedView>>(relaxed = true)
+
+                coEvery { departmentRepo.add(any(), department) } returns department
+                coEvery { tagRepo.add(any(), tag) } returns tag
+                coEvery { txnViewRepo.update(any(), txnView) } returns true
+
+                val uowx = UnitOfWorkExecutor(
+                    listOf(),
+                    Persisting(
+                        transactionManager = WithCtxConnectionTransactionManager(),
+                        modelRepos = ModelRepos(
+                            OwnedDepartment::class hasRepo departmentRepo,
+                        ),
+                        entityRepos = EntityRepos(
+                            Tag::class hasEntityRepo tagRepo,
+                            TxnMaterialisedView::class hasEntityRepo txnViewRepo,
+                        ),
+                        eventRepository = DummyEventRepository(),
+                        paramsSerializer = KotlinxParamsSerializer(),
+                    ),
+                    clock,
+                    OpenTelemetry.noop(),
+                )
+
+                And("UnitOfWorkExecutor executes Uow with mixed model and entity update changes") {
+                    val result = uowx.execute(TestPrincipal, factory) { DummyUow.Params }
+
+                    Then("Result should be the added department") {
+                        result shouldBe department
+                    }
+
+                    And("Model repository was called") {
+                        coVerify { departmentRepo.add(any(), department) }
+                    }
+
+                    And("Entity repository add was called") {
+                        coVerify { tagRepo.add(any(), tag) }
+                    }
+
+                    And("Entity repository update was called") {
+                        coVerify { txnViewRepo.update(any(), txnView) }
                     }
                 }
             }

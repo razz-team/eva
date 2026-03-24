@@ -92,6 +92,16 @@ class ChangesDsl internal constructor(
         return entity
     }
 
+    inline fun <reified E : UpdatableEntity, K : EntityKey<E>> update(key: K): K {
+        updateByKeyInternal(key, E::class)
+        return key
+    }
+
+    @PublishedApi
+    internal fun <E : UpdatableEntity, K : EntityKey<E>> updateByKeyInternal(key: K, entityClass: KClass<E>) {
+        changes = changes.withUpdatedEntityByKey(key, entityClass)
+    }
+
     inline fun <reified E : DeletableEntity, K : EntityKey<E>> delete(key: K): K {
         deleteByKeyInternal(key, E::class)
         return key

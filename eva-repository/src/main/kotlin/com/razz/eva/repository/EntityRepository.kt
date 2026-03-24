@@ -38,4 +38,3 @@ interface UpdatableEntityRepository<E : UpdatableEntity> : DeletableEntityReposi
 
     suspend fun update(context: TransactionalContext, entities: List<E>): Int
 }
-

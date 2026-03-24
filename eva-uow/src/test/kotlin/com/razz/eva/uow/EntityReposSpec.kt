@@ -4,11 +4,14 @@ import com.razz.eva.domain.EmployeeId
 import com.razz.eva.domain.Ration
 import com.razz.eva.domain.RationAllocation
 import com.razz.eva.domain.Tag
+import com.razz.eva.domain.TxnMaterialisedView
 import com.razz.eva.repository.EntityRepos
 import com.razz.eva.repository.EntityRepositoryNotFoundException
 import com.razz.eva.repository.KeyDeletable
+import com.razz.eva.repository.KeyUpdatable
 import com.razz.eva.repository.RationAllocationRepository
 import com.razz.eva.repository.TagRepository
+import com.razz.eva.repository.UpdatableEntityRepository
 import com.razz.eva.repository.hasEntityRepo
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.BehaviorSpec
@@ -168,4 +171,86 @@ class EntityReposSpec : BehaviorSpec({
             }
         }
     }
-})
+
+    Given("EntityRepos is configured with UpdatableEntity repository") {
+        val updatableRepo = mockk<UpdatableEntityRepository<TxnMaterialisedView>>()
+
+        val entityRepos = EntityRepos(
+            TxnMaterialisedView::class hasEntityRepo updatableRepo,
+        )
+
+        And("TxnMaterialisedView entity is defined") {
+            val txnView = TxnMaterialisedView(randomUUID(), randomUUID(), randomUUID(), 100, "USD")
+
+            When("Principal gets updatable repository for entity") {
+                val repo = entityRepos.updatableRepoFor(txnView)
+
+                Then("Principal should get a correct updatable repository") {
+                    repo shouldBe updatableRepo
+                }
+            }
+        }
+
+        And("Tag entity is defined (not updatable)") {
+            val tag = Tag.environmentTag(randomUUID(), "production")
+
+            When("Principal tries to get updatable repository for non-updatable entity") {
+                val getUpdatableRepo = {
+                    entityRepos.updatableRepoFor(tag as com.razz.eva.domain.UpdatableEntity)
+                }
+
+                Then("Principal should get an exception") {
+                    shouldThrow<ClassCastException> {
+                        @Suppress("UNCHECKED_CAST")
+                        getUpdatableRepo()
+                    }
+                }
+            }
+        }
+    }
+
+    Given("EntityRepos is configured with KeyUpdatable repository") {
+        val keyUpdatableRepo =
+            mockk<KeyUpdatableEntityRepo<TxnMaterialisedView, TxnMaterialisedView.Key>>()
+
+        val entityRepos = EntityRepos(
+            TxnMaterialisedView::class hasEntityRepo keyUpdatableRepo,
+        )
+
+        When("Principal gets key updatable repository for TxnMaterialisedView class") {
+            val repo = entityRepos.keyUpdatableRepoFor(TxnMaterialisedView::class)
+
+            Then("Principal should get a KeyUpdatable repository") {
+                repo.shouldBeInstanceOf<KeyUpdatable<TxnMaterialisedView, TxnMaterialisedView.Key>>()
+                repo shouldBe keyUpdatableRepo
+            }
+        }
+    }
+
+    Given("EntityRepos with non-KeyUpdatable repo for updatable entity") {
+        val updatableRepo = mockk<UpdatableEntityRepository<TxnMaterialisedView>>()
+
+        val entityRepos = EntityRepos(
+            TxnMaterialisedView::class hasEntityRepo updatableRepo,
+        )
+
+        When("Principal tries to get key updatable repository") {
+            val getRepo = {
+                entityRepos.keyUpdatableRepoFor(TxnMaterialisedView::class)
+            }
+
+            Then("Principal should get IllegalStateException") {
+                val ex = shouldThrow<IllegalStateException> {
+                    getRepo()
+                }
+                ex.message shouldBe "Repository for ${TxnMaterialisedView::class} does not support key-based update. " +
+                    "Implement KeyUpdatable interface to enable this feature."
+            }
+        }
+    }
+}) {
+    private interface KeyUpdatableEntityRepo<
+        E : com.razz.eva.domain.UpdatableEntity,
+        K : com.razz.eva.domain.EntityKey<E>,
+        > : UpdatableEntityRepository<E>, KeyUpdatable<E, K>
+}

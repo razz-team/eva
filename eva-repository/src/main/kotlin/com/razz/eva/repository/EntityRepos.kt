@@ -61,10 +61,10 @@ class EntityRepos(
 
     fun <E : UpdatableEntity, K : EntityKey<E>> keyUpdatableRepoFor(entityClass: KClass<E>): KeyUpdatable<E, K> {
         val repo = classToRepo[entityClass] ?: throw EntityRepositoryNotFoundException(entityClass)
-        if (repo !is KeyDeletable<*, *>) {
+        if (repo !is KeyUpdatable<*, *>) {
             throw IllegalStateException(
                 "Repository for $entityClass does not support key-based update. " +
-                        "Implement KeyUpdatable interface to enable this feature.",
+                    "Implement KeyUpdatable interface to enable this feature.",
             )
         }
         @Suppress("UNCHECKED_CAST")

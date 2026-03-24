@@ -19,8 +19,9 @@ abstract class JooqKeyUpdatableEntityRepository<E : UpdatableEntity, K : EntityK
     abstract fun keyCondition(key: K): Condition
 
     override suspend fun update(context: TransactionalContext, key: K): Boolean {
-        val updateQuery = dslContext.update(table)
-            .where(keyCondition(key))
+        val updateQuery = dslContext.updateQuery(table).apply {
+            addConditions(keyCondition(key))
+        }
         val updated = queryExecutor.executeQuery(
             dslContext = dslContext,
             jooqQuery = updateQuery,
@@ -33,7 +34,9 @@ abstract class JooqKeyUpdatableEntityRepository<E : UpdatableEntity, K : EntityK
         if (keys.isEmpty()) return 0
         if (keys.size == 1) return if (update(context, keys.first())) 1 else 0
         val conditions = keys.map(::keyCondition).reduce(Condition::or)
-        val updateQuery = dslContext.updateFrom(table).where(conditions)
+        val updateQuery = dslContext.updateQuery(table).apply {
+            addConditions(conditions)
+        }
         val updated = queryExecutor.executeQuery(
             dslContext = dslContext,
             jooqQuery = updateQuery,
