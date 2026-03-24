@@ -176,7 +176,6 @@ class UnitOfWorkExecutor(
                 roundtripped ?: result
             } else result
         }
-
         is Collection<*> -> {
             val models = result.filterIsInstance<Model<*, *>>()
             if (models.isEmpty()) result
@@ -199,7 +198,6 @@ class UnitOfWorkExecutor(
                 }
             }
         }
-
         else -> result
     }
 
