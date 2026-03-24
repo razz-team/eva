@@ -28,9 +28,9 @@ import kotlin.reflect.KClass
 infix fun <PRINCIPAL, PARAMS, RESULT, UOW> KClass<UOW>.withFactory(
     factory: (ExecutionContext) -> UOW,
 ) where PRINCIPAL : Principal<*>,
-        PARAMS : UowParams<PARAMS>,
-        UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *>,
-        RESULT : Any =
+      PARAMS : UowParams<PARAMS>,
+      UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *>,
+      RESULT : Any =
     ClassToUow(this, factory)
 
 class UnitOfWorkExecutor(
@@ -46,9 +46,9 @@ class UnitOfWorkExecutor(
         internal val uowClass: KClass<UOW>,
         internal val uowFactory: (ExecutionContext) -> UOW,
     ) where PRINCIPAL : Principal<*>,
-            UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *>,
-            PARAMS : UowParams<PARAMS>,
-            RESULT : Any
+          UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *>,
+          PARAMS : UowParams<PARAMS>,
+          RESULT : Any
 
     private val logger = KotlinLogging.logger {}
     private val classToFactory = factories.groupBy(ClassToUow<*, *, *, *>::uowClass).mapValues {
@@ -61,9 +61,14 @@ class UnitOfWorkExecutor(
         uowFactory: (ExecutionContext) -> UOW,
         params: InstantiationContext.() -> PARAMS,
     ): RESULT where PRINCIPAL : Principal<*>,
-                    PARAMS : UowParams<PARAMS>,
-                    UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *> {
-        return execute(principal = principal, uowName = "<dynamic uow factory>", uowFactory = uowFactory, params = params)
+          PARAMS : UowParams<PARAMS>,
+          UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *> {
+        return execute(
+            principal = principal,
+            uowName = "<dynamic uow factory>",
+            uowFactory = uowFactory,
+            params = params,
+        )
     }
 
     suspend fun <PRINCIPAL, PARAMS, RESULT, UOW> execute(
@@ -72,8 +77,8 @@ class UnitOfWorkExecutor(
         uowFactory: (ExecutionContext) -> UOW,
         params: InstantiationContext.() -> PARAMS,
     ): RESULT where PRINCIPAL : Principal<*>,
-                    PARAMS : UowParams<PARAMS>,
-                    UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *> {
+          PARAMS : UowParams<PARAMS>,
+          UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *> {
         val startTime = System.nanoTime()
         val timer = createTimer()
         val uowSpan = uowSpan().apply {
@@ -203,8 +208,8 @@ class UnitOfWorkExecutor(
         principal: PRINCIPAL,
         params: InstantiationContext.() -> PARAMS,
     ): RESULT where PRINCIPAL : Principal<*>,
-                    PARAMS : UowParams<PARAMS>,
-                    UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *> {
+          PARAMS : UowParams<PARAMS>,
+          UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *> {
         return execute(
             principal = principal,
             uowName = target.java.simpleName,
@@ -221,7 +226,7 @@ class UnitOfWorkExecutor(
 
     @Suppress("UNCHECKED_CAST")
     private fun <PRINCIPAL : Principal<*>, PARAMS, RESULT, UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *>>
-            create(executionContext: ExecutionContext, target: KClass<UOW>): UOW {
+    create(executionContext: ExecutionContext, target: KClass<UOW>): UOW {
         val factory = classToFactory[target] ?: throw UowFactoryNotFoundException(target)
         return (factory as (ExecutionContext) -> UOW)(executionContext)
     }
