@@ -18,7 +18,6 @@ import com.razz.eva.uow.UnitOfWorkExecutor.ClassToUow
 import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
-import io.opentelemetry.api.trace.Span
 import io.opentelemetry.extension.kotlin.asContextElement
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -29,9 +28,9 @@ import kotlin.reflect.KClass
 infix fun <PRINCIPAL, PARAMS, RESULT, UOW> KClass<UOW>.withFactory(
     factory: (ExecutionContext) -> UOW,
 ) where PRINCIPAL : Principal<*>,
-      PARAMS : UowParams<PARAMS>,
-      UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *>,
-      RESULT : Any =
+        PARAMS : UowParams<PARAMS>,
+        UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *>,
+        RESULT : Any =
     ClassToUow(this, factory)
 
 class UnitOfWorkExecutor(
@@ -47,9 +46,9 @@ class UnitOfWorkExecutor(
         internal val uowClass: KClass<UOW>,
         internal val uowFactory: (ExecutionContext) -> UOW,
     ) where PRINCIPAL : Principal<*>,
-          UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *>,
-          PARAMS : UowParams<PARAMS>,
-          RESULT : Any
+            UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *>,
+            PARAMS : UowParams<PARAMS>,
+            RESULT : Any
 
     private val logger = KotlinLogging.logger {}
     private val classToFactory = factories.groupBy(ClassToUow<*, *, *, *>::uowClass).mapValues {
@@ -62,18 +61,29 @@ class UnitOfWorkExecutor(
         uowFactory: (ExecutionContext) -> UOW,
         params: InstantiationContext.() -> PARAMS,
     ): RESULT where PRINCIPAL : Principal<*>,
-          PARAMS : UowParams<PARAMS>,
-          UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *> {
+                    PARAMS : UowParams<PARAMS>,
+                    UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *> {
+        return execute(principal = principal, uowName = "<dynamic uow factory>", uowFactory = uowFactory, params = params)
+    }
+
+    suspend fun <PRINCIPAL, PARAMS, RESULT, UOW> execute(
+        principal: PRINCIPAL,
+        uowName: String,
+        uowFactory: (ExecutionContext) -> UOW,
+        params: InstantiationContext.() -> PARAMS,
+    ): RESULT where PRINCIPAL : Principal<*>,
+                    PARAMS : UowParams<PARAMS>,
+                    UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *> {
         val startTime = System.nanoTime()
         val timer = createTimer()
-        lateinit var uowSpan: Span
-        lateinit var name: String
+        val uowSpan = uowSpan().apply {
+            updateName(uowName)
+            setAttribute(UOW_NAME, uowName)
+        }
+        var name = uowName
         try {
             var currentAttempt = 0
             while (true) {
-                if (currentAttempt == 0) {
-                    uowSpan = uowSpan()
-                }
                 val now = clock.instant()
                 val uow = uowFactory(ExecutionContext(Clocks.fixedUTC(now), openTelemetry))
                 if (currentAttempt == 0) {
@@ -161,6 +171,7 @@ class UnitOfWorkExecutor(
                 roundtripped ?: result
             } else result
         }
+
         is Collection<*> -> {
             val models = result.filterIsInstance<Model<*, *>>()
             if (models.isEmpty()) result
@@ -183,6 +194,7 @@ class UnitOfWorkExecutor(
                 }
             }
         }
+
         else -> result
     }
 
@@ -191,9 +203,14 @@ class UnitOfWorkExecutor(
         principal: PRINCIPAL,
         params: InstantiationContext.() -> PARAMS,
     ): RESULT where PRINCIPAL : Principal<*>,
-          PARAMS : UowParams<PARAMS>,
-          UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *> {
-        return execute(principal, { exCtx -> create(exCtx, target) }, params)
+                    PARAMS : UowParams<PARAMS>,
+                    UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *> {
+        return execute(
+            principal = principal,
+            uowName = target.java.simpleName,
+            uowFactory = { exCtx -> create(exCtx, target) },
+            params = params,
+        )
     }
 
     private suspend fun Retry?.shouldRetry(currentAttempt: Int, ex: PersistenceException): Boolean =
@@ -204,7 +221,7 @@ class UnitOfWorkExecutor(
 
     @Suppress("UNCHECKED_CAST")
     private fun <PRINCIPAL : Principal<*>, PARAMS, RESULT, UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *>>
-    create(executionContext: ExecutionContext, target: KClass<UOW>): UOW {
+            create(executionContext: ExecutionContext, target: KClass<UOW>): UOW {
         val factory = classToFactory[target] ?: throw UowFactoryNotFoundException(target)
         return (factory as (ExecutionContext) -> UOW)(executionContext)
     }
