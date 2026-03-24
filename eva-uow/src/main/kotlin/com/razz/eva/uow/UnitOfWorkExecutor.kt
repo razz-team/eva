@@ -18,7 +18,6 @@ import com.razz.eva.uow.UnitOfWorkExecutor.ClassToUow
 import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
-import io.opentelemetry.api.trace.Span
 import io.opentelemetry.extension.kotlin.asContextElement
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -64,16 +63,32 @@ class UnitOfWorkExecutor(
     ): RESULT where PRINCIPAL : Principal<*>,
           PARAMS : UowParams<PARAMS>,
           UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *> {
+        return execute(
+            principal = principal,
+            uowName = "<dynamic uow factory>",
+            uowFactory = uowFactory,
+            params = params,
+        )
+    }
+
+    private suspend fun <PRINCIPAL, PARAMS, RESULT, UOW> execute(
+        principal: PRINCIPAL,
+        uowName: String,
+        uowFactory: (ExecutionContext) -> UOW,
+        params: InstantiationContext.() -> PARAMS,
+    ): RESULT where PRINCIPAL : Principal<*>,
+          PARAMS : UowParams<PARAMS>,
+          UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *> {
         val startTime = System.nanoTime()
         val timer = createTimer()
-        lateinit var uowSpan: Span
-        lateinit var name: String
+        val uowSpan = uowSpan().apply {
+            updateName(uowName)
+            setAttribute(UOW_NAME, uowName)
+        }
+        var name = uowName
         try {
             var currentAttempt = 0
             while (true) {
-                if (currentAttempt == 0) {
-                    uowSpan = uowSpan()
-                }
                 val now = clock.instant()
                 val uow = uowFactory(ExecutionContext(Clocks.fixedUTC(now), openTelemetry))
                 if (currentAttempt == 0) {
@@ -193,7 +208,12 @@ class UnitOfWorkExecutor(
     ): RESULT where PRINCIPAL : Principal<*>,
           PARAMS : UowParams<PARAMS>,
           UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *> {
-        return execute(principal, { exCtx -> create(exCtx, target) }, params)
+        return execute(
+            principal = principal,
+            uowName = target.java.simpleName,
+            uowFactory = { exCtx -> create(exCtx, target) },
+            params = params,
+        )
     }
 
     private suspend fun Retry?.shouldRetry(currentAttempt: Int, ex: PersistenceException): Boolean =
