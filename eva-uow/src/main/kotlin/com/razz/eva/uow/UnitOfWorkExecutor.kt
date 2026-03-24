@@ -56,6 +56,7 @@ class UnitOfWorkExecutor(
             ?: throw IllegalArgumentException("Attempted to register multiple factories for ${it.key.simpleName}")
     }
 
+    @Deprecated("Use execute with explicit UoW")
     suspend fun <PRINCIPAL, PARAMS, RESULT, UOW> execute(
         principal: PRINCIPAL,
         uowFactory: (ExecutionContext) -> UOW,
