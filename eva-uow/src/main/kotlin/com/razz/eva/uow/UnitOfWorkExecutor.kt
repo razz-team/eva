@@ -71,7 +71,7 @@ class UnitOfWorkExecutor(
         )
     }
 
-    suspend fun <PRINCIPAL, PARAMS, RESULT, UOW> execute(
+    private suspend fun <PRINCIPAL, PARAMS, RESULT, UOW> execute(
         principal: PRINCIPAL,
         uowName: String,
         uowFactory: (ExecutionContext) -> UOW,
