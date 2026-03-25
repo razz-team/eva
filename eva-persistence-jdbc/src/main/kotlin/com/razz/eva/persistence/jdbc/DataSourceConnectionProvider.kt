@@ -4,6 +4,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.withContext
 import java.sql.Connection
 import javax.sql.DataSource
@@ -14,10 +15,15 @@ typealias HikariPoolConnectionProvider = DataSourceConnectionProvider
 class DataSourceConnectionProvider(
     private val pool: DataSource,
     private val blockingJdbcContext: CoroutineDispatcher = Dispatchers.IO,
+    poolMaxSize: Int = Int.MAX_VALUE,
 ) : JdbcConnectionProvider {
+
+    private val semaphore = Semaphore(poolMaxSize)
 
     override suspend fun acquire(): Connection {
         coroutineContext.ensureActive() // fail-fast if current coroutine was cancelled before acquiring a connection
+
+        semaphore.acquire() // acquire a permit before acquiring a connection from the pool
 
         // here are 2 issues to solve:
         // 1. if the current coroutine is cancelled and we don't have NonCancellable at all,
@@ -38,9 +44,13 @@ class DataSourceConnectionProvider(
     override suspend fun release(connection: Connection) =
         // If we close current coroutine (by service/http/call/etc timeout f.e.) -
         // we can't call withContext() block, because it will throw an exception.
-        withContext(NonCancellable) {
-            withContext(blockingJdbcContext) {
-                connection.close()
+        try {
+            withContext(NonCancellable) {
+                withContext(blockingJdbcContext) {
+                    connection.close()
+                }
             }
+        } finally {
+            semaphore.release() // release the permit after closing the connection
         }
 }
