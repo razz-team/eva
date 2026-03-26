@@ -45,8 +45,8 @@ class DataSourceConnectionProvider(
         // If we close current coroutine (by service/http/call/etc timeout f.e.) -
         // we can't call withContext() block, because it will throw an exception.
         try {
-            withContext(NonCancellable) {
-                withContext(blockingJdbcContext) {
+            withContext(NonCancellable) { // do not change a dispatcher when doing NonCancellable
+                withContext(blockingJdbcContext) { // change a dispatcher separately
                     connection.close()
                 }
             }
