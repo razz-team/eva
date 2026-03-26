@@ -29,7 +29,9 @@ class WalletModule(databaseConfig: DatabaseConfig) {
     /**
      * Query executor definition
      */
-    val primaryMaxPoolSize = databaseConfig.maxPoolSize.value() // in this example primary and replica have the same size
+
+    // in this example primary and replica have the same size
+    val primaryMaxPoolSize = databaseConfig.maxPoolSize.value()
     val replicaMaxPoolSize = databaseConfig.maxPoolSize.value()
 
     // dispatcher must have at least primary+replica number of threads, otherwise it will cause deadlocks
@@ -38,12 +40,12 @@ class WalletModule(databaseConfig: DatabaseConfig) {
         primaryProvider = DataSourceConnectionProvider(
             pool = dataSource(databaseConfig, isPrimary = true),
             blockingJdbcContext = dispatcher,
-            poolMaxSize = primaryMaxPoolSize
+            poolMaxSize = primaryMaxPoolSize,
         ),
         replicaProvider = DataSourceConnectionProvider(
             pool = dataSource(databaseConfig, isPrimary = false),
             blockingJdbcContext = dispatcher,
-            poolMaxSize = replicaMaxPoolSize
+            poolMaxSize = replicaMaxPoolSize,
         ),
         blockingJdbcContext = dispatcher,
     )
