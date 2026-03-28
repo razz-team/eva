@@ -16,7 +16,9 @@ import com.razz.eva.domain.Name
 import com.razz.eva.domain.Ration.BUBALEH
 import com.razz.eva.domain.RationAllocation
 import com.razz.eva.domain.Tag
+import com.razz.eva.domain.TxnView
 import com.razz.eva.domain.TestModel.Factory.existingCreatedTestModel
+import com.razz.eva.domain.UpdatableEntity
 import com.razz.eva.domain.Version.Companion.V1
 import com.razz.eva.events.EventPublisher
 import com.razz.eva.events.UowEvent
@@ -31,6 +33,7 @@ import com.razz.eva.repository.EventRepository
 import com.razz.eva.repository.ModelRepos
 import com.razz.eva.repository.ModelRepository
 import com.razz.eva.repository.TransactionalContext.Companion.transactionalContext
+import com.razz.eva.repository.UpdatableEntityRepository
 import com.razz.eva.repository.hasEntityRepo
 import com.razz.eva.repository.hasRepo
 import com.razz.eva.test.domain.persistentStateV1
@@ -42,9 +45,13 @@ import com.razz.eva.uow.ExecutionStep
 import com.razz.eva.uow.ExecutionStep.EntitiesAdded
 import com.razz.eva.uow.ExecutionStep.EntitiesDeleted
 import com.razz.eva.uow.ExecutionStep.EntitiesDeletedByKey
+import com.razz.eva.uow.ExecutionStep.EntitiesUpdated
+import com.razz.eva.uow.ExecutionStep.EntitiesUpdatedByKey
 import com.razz.eva.uow.ExecutionStep.EntityAdded
 import com.razz.eva.uow.ExecutionStep.EntityDeleted
 import com.razz.eva.uow.ExecutionStep.EntityDeletedByKey
+import com.razz.eva.uow.ExecutionStep.EntityUpdated
+import com.razz.eva.uow.ExecutionStep.EntityUpdatedByKey
 import com.razz.eva.uow.ExecutionStep.ModelAdded
 import com.razz.eva.uow.ExecutionStep.ModelUpdated
 import com.razz.eva.uow.ExecutionStep.ModelsAdded
@@ -57,8 +64,11 @@ import com.razz.eva.uow.NoopModel
 import com.razz.eva.uow.Persisting
 import com.razz.eva.uow.SpyCreatableEntityRepo
 import com.razz.eva.uow.SpyKeyDeletableEntityRepo
+import com.razz.eva.uow.SpyKeyUpdatableEntityRepo
 import com.razz.eva.uow.SpyModelRepo
 import com.razz.eva.uow.TestPrincipal
+import com.razz.eva.uow.UpdateEntity
+import com.razz.eva.uow.UpdateEntityByKey
 import com.razz.eva.uow.params.kotlinx.KotlinxParamsSerializer
 import com.razz.eva.uow.params.kotlinx.UowParams
 import io.kotest.core.spec.style.BehaviorSpec
@@ -151,6 +161,7 @@ class PersistingSpec : BehaviorSpec({
         val topRepo = SpyModelRepo(history)
         val deletableEntityRepo = SpyKeyDeletableEntityRepo<DeletableEntity, EntityKey<DeletableEntity>>(history)
         val creatableEntityRepo = SpyCreatableEntityRepo(history)
+        val updatableEntityRepo = SpyKeyUpdatableEntityRepo<UpdatableEntity, EntityKey<UpdatableEntity>>(history)
 
         @Suppress("UNCHECKED_CAST")
         val modelRepos = ModelRepos(
@@ -161,6 +172,8 @@ class PersistingSpec : BehaviorSpec({
         val entityRepos = EntityRepos(
             Tag::class hasEntityRepo deletableEntityRepo as DeletableEntityRepository<Tag>,
             RationAllocation::class hasEntityRepo creatableEntityRepo as EntityRepository<RationAllocation>,
+            TxnView::class hasEntityRepo
+                updatableEntityRepo as UpdatableEntityRepository<TxnView>,
         )
 
         val txnManager = WithCtxConnectionTransactionManager(
@@ -582,6 +595,235 @@ class PersistingSpec : BehaviorSpec({
                     it[5] should { eh ->
                         eh.shouldBeTypeOf<UowEventPublished>()
                         eh.uowEvent.uowName shouldBe UowName("SequentialDeleteByKey")
+                    }
+                }
+            }
+        }
+
+        val txnView1 = TxnView(
+            originEntity = "company1",
+            cpartyEntity = "customer1",
+            transactionId = randomUUID(),
+            value = 100,
+            currency = "USD"
+        )
+        val txnView2 = TxnView(
+            originEntity = "company2",
+            cpartyEntity = "customer2",
+            transactionId = randomUUID(),
+            value = 200,
+            currency = "EUR"
+        )
+
+        history.clear()
+        When("Principal persists entity update with out of order support") {
+            persisting.persist(
+                uowName = "EntityUpdate",
+                params = params,
+                principal = TestPrincipal,
+                modelChanges = listOf(),
+                entityChanges = listOf(
+                    UpdateEntity(txnView1),
+                    UpdateEntity(txnView2),
+                ),
+                now = clock.instant(),
+                uowSupportsOutOfOrderPersisting = true,
+            )
+
+            Then("Persisting history contains batched entity update step") {
+                history should {
+                    it.size shouldBe 5
+                    it[0] shouldBe TransactionStarted(REQUIRE_NEW)
+                    it[1] shouldBe EntitiesUpdated(transactionalContext(now), listOf(txnView1, txnView2))
+                    it[2] should { eh ->
+                        eh.shouldBeTypeOf<UowEventAdded>()
+                        eh.uowEvent.uowName shouldBe UowName("EntityUpdate")
+                    }
+                    it[3] shouldBe TransactionFinished(REQUIRE_NEW)
+                    it[4] should { eh ->
+                        eh.shouldBeTypeOf<UowEventPublished>()
+                        eh.uowEvent.uowName shouldBe UowName("EntityUpdate")
+                    }
+                }
+            }
+        }
+
+        history.clear()
+        When("Principal persists entity update without out of order support") {
+            persisting.persist(
+                uowName = "SequentialEntityUpdate",
+                params = params,
+                principal = TestPrincipal,
+                modelChanges = listOf(),
+                entityChanges = listOf(
+                    UpdateEntity(txnView1),
+                    UpdateEntity(txnView2),
+                ),
+                now = clock.instant(),
+                uowSupportsOutOfOrderPersisting = false,
+            )
+
+            Then("Persisting history contains individual entity update steps") {
+                history should {
+                    it.size shouldBe 6
+                    it[0] shouldBe TransactionStarted(REQUIRE_NEW)
+                    it[1] shouldBe EntityUpdated(transactionalContext(now), txnView1)
+                    it[2] shouldBe EntityUpdated(transactionalContext(now), txnView2)
+                    it[3] should { eh ->
+                        eh.shouldBeTypeOf<UowEventAdded>()
+                        eh.uowEvent.uowName shouldBe UowName("SequentialEntityUpdate")
+                    }
+                    it[4] shouldBe TransactionFinished(REQUIRE_NEW)
+                    it[5] should { eh ->
+                        eh.shouldBeTypeOf<UowEventPublished>()
+                        eh.uowEvent.uowName shouldBe UowName("SequentialEntityUpdate")
+                    }
+                }
+            }
+        }
+
+        val updateKeySubjectId = randomUUID()
+        val updateKey1 = TxnView.Key(updateKeySubjectId)
+        val updateKey2 = TxnView.Key(randomUUID())
+        val updateKey3 = TxnView.Key(randomUUID())
+
+        history.clear()
+        When("Principal persists single key update with out of order support") {
+            persisting.persist(
+                uowName = "UpdateByKey",
+                params = params,
+                principal = TestPrincipal,
+                modelChanges = listOf(),
+                entityChanges = listOf(
+                    UpdateEntityByKey(updateKey1, TxnView::class),
+                ),
+                now = clock.instant(),
+                uowSupportsOutOfOrderPersisting = true,
+            )
+
+            Then("Persisting history contains key update step") {
+                history should {
+                    it.size shouldBe 5
+                    it[0] shouldBe TransactionStarted(REQUIRE_NEW)
+                    it[1] shouldBe EntitiesUpdatedByKey(transactionalContext(now), listOf(updateKey1))
+                    it[2] should { eh ->
+                        eh.shouldBeTypeOf<UowEventAdded>()
+                        eh.uowEvent.uowName shouldBe UowName("UpdateByKey")
+                    }
+                    it[3] shouldBe TransactionFinished(REQUIRE_NEW)
+                    it[4] should { eh ->
+                        eh.shouldBeTypeOf<UowEventPublished>()
+                        eh.uowEvent.uowName shouldBe UowName("UpdateByKey")
+                    }
+                }
+            }
+        }
+
+        history.clear()
+        When("Principal persists multiple key updates with out of order support") {
+            persisting.persist(
+                uowName = "BatchUpdateByKey",
+                params = params,
+                principal = TestPrincipal,
+                modelChanges = listOf(),
+                entityChanges = listOf(
+                    UpdateEntityByKey(updateKey1, TxnView::class),
+                    UpdateEntityByKey(updateKey2, TxnView::class),
+                    UpdateEntityByKey(updateKey3, TxnView::class),
+                ),
+                now = clock.instant(),
+                uowSupportsOutOfOrderPersisting = true,
+            )
+
+            Then("Persisting history contains batched key update step") {
+                history should {
+                    it.size shouldBe 5
+                    it[0] shouldBe TransactionStarted(REQUIRE_NEW)
+                    it[1] shouldBe EntitiesUpdatedByKey(
+                        transactionalContext(now),
+                        listOf(updateKey1, updateKey2, updateKey3),
+                    )
+                    it[2] should { eh ->
+                        eh.shouldBeTypeOf<UowEventAdded>()
+                        eh.uowEvent.uowName shouldBe UowName("BatchUpdateByKey")
+                    }
+                    it[3] shouldBe TransactionFinished(REQUIRE_NEW)
+                    it[4] should { eh ->
+                        eh.shouldBeTypeOf<UowEventPublished>()
+                        eh.uowEvent.uowName shouldBe UowName("BatchUpdateByKey")
+                    }
+                }
+            }
+        }
+
+        history.clear()
+        When("Principal persists mixed entity add and key update") {
+            val newTag = Tag.tag(updateKeySubjectId, "new-tag", "value")
+            persisting.persist(
+                uowName = "MixedAddAndUpdate",
+                params = params,
+                principal = TestPrincipal,
+                modelChanges = listOf(),
+                entityChanges = listOf(
+                    AddEntity(newTag),
+                    UpdateEntityByKey(updateKey1, TxnView::class),
+                    UpdateEntityByKey(updateKey2, TxnView::class),
+                ),
+                now = clock.instant(),
+                uowSupportsOutOfOrderPersisting = true,
+            )
+
+            Then("Persisting history contains both add and key update steps") {
+                history should {
+                    it.size shouldBe 6
+                    it[0] shouldBe TransactionStarted(REQUIRE_NEW)
+                    it[1] shouldBe EntitiesAdded(transactionalContext(now), listOf(newTag))
+                    it[2] shouldBe EntitiesUpdatedByKey(
+                        transactionalContext(now),
+                        listOf(updateKey1, updateKey2),
+                    )
+                    it[3] should { eh ->
+                        eh.shouldBeTypeOf<UowEventAdded>()
+                        eh.uowEvent.uowName shouldBe UowName("MixedAddAndUpdate")
+                    }
+                    it[4] shouldBe TransactionFinished(REQUIRE_NEW)
+                    it[5] should { eh ->
+                        eh.shouldBeTypeOf<UowEventPublished>()
+                        eh.uowEvent.uowName shouldBe UowName("MixedAddAndUpdate")
+                    }
+                }
+            }
+        }
+
+        history.clear()
+        When("Principal persists key update without out of order support") {
+            persisting.persist(
+                uowName = "SequentialUpdateByKey",
+                params = params,
+                principal = TestPrincipal,
+                modelChanges = listOf(),
+                entityChanges = listOf(
+                    UpdateEntityByKey(updateKey1, TxnView::class),
+                    UpdateEntityByKey(updateKey2, TxnView::class),
+                ),
+                now = clock.instant(),
+                uowSupportsOutOfOrderPersisting = false,
+            )
+
+            Then("Persisting history contains individual key update steps") {
+                history should {
+                    it.size shouldBe 6
+                    it[0] shouldBe TransactionStarted(REQUIRE_NEW)
+                    it[1] shouldBe EntityUpdatedByKey(transactionalContext(now), updateKey1)
+                    it[2] shouldBe EntityUpdatedByKey(transactionalContext(now), updateKey2)
+                    it[3] should { eh ->
+                        eh.shouldBeTypeOf<UowEventAdded>()
+                        eh.uowEvent.uowName shouldBe UowName("SequentialUpdateByKey")
+                    }
+                    it[4] shouldBe TransactionFinished(REQUIRE_NEW)
+                    it[5] should { eh ->
+                        eh.shouldBeTypeOf<UowEventPublished>()
+                        eh.uowEvent.uowName shouldBe UowName("SequentialUpdateByKey")
                     }
                 }
             }

@@ -42,6 +42,7 @@ public class Keys {
     public static final UniqueKey<ShakshoukasRecord> SHAKSHOUKAS_PKEY = Internal.createUniqueKey(Shakshoukas.SHAKSHOUKAS, DSL.name("shakshoukas_pkey"), new TableField[] { Shakshoukas.SHAKSHOUKAS.ID }, true);
     public static final UniqueKey<RationAllocationRecord> RATION_ALLOCATION_PKEY = Internal.createUniqueKey(RationAllocation.RATION_ALLOCATION, DSL.name("ration_allocation_pkey"), new TableField[] { RationAllocation.RATION_ALLOCATION.EMPLOYEE_ID, RationAllocation.RATION_ALLOCATION.RATION, RationAllocation.RATION_ALLOCATION.EFFECTIVE_DATE }, true);
     public static final UniqueKey<TagRecord> TAG_PKEY = Internal.createUniqueKey(Tag.TAG, DSL.name("tag_pkey"), new TableField[] { Tag.TAG.SUBJECT_ID, Tag.TAG.NAME }, true);
+    public static final UniqueKey<TxnViewRecord> TXN_VIEW_PKEY = Internal.createUniqueKey(TxnView.TXN_VIEW, DSL.name("txn_view_pkey"), new TableField[] { TxnView.TXN_VIEW.TRANSACTION_ID }, true);
 
     // -------------------------------------------------------------------------
     // FOREIGN KEY definitions

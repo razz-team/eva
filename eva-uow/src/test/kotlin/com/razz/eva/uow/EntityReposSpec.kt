@@ -4,11 +4,15 @@ import com.razz.eva.domain.EmployeeId
 import com.razz.eva.domain.Ration
 import com.razz.eva.domain.RationAllocation
 import com.razz.eva.domain.Tag
+import com.razz.eva.domain.TxnView
 import com.razz.eva.repository.EntityRepos
 import com.razz.eva.repository.EntityRepositoryNotFoundException
 import com.razz.eva.repository.KeyDeletable
+import com.razz.eva.repository.KeyUpdatable
 import com.razz.eva.repository.RationAllocationRepository
 import com.razz.eva.repository.TagRepository
+import com.razz.eva.repository.TxnViewRepository
+import com.razz.eva.repository.UpdatableEntityRepository
 import com.razz.eva.repository.hasEntityRepo
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.BehaviorSpec
@@ -165,6 +169,65 @@ class EntityReposSpec : BehaviorSpec({
                 shouldThrow<EntityRepositoryNotFoundException> {
                     getRepo()
                 }
+            }
+        }
+    }
+
+    Given("EntityRepos is configured with UpdatableEntity repository") {
+        val updatableRepo = TxnViewRepository(mockk(), mockk())
+
+        val entityRepos = EntityRepos(
+            TxnView::class hasEntityRepo updatableRepo,
+        )
+
+        And("TxnMaterialisedView entity is defined") {
+            val txnView = TxnView(randomUUID(), 100, "USD")
+
+            When("Principal gets updatable repository for entity") {
+                val repo = entityRepos.updatableRepoFor(txnView)
+
+                Then("Principal should get a correct updatable repository") {
+                    repo shouldBe updatableRepo
+                }
+            }
+        }
+    }
+
+    Given("EntityRepos is configured with KeyUpdatable repository") {
+        val keyUpdatableRepo = TxnViewRepository(mockk(), mockk())
+
+        val entityRepos = EntityRepos(
+            TxnView::class hasEntityRepo keyUpdatableRepo,
+        )
+
+        When("Principal gets key updatable repository for TxnMaterialisedView class") {
+            val repo = entityRepos.keyUpdatableRepoFor(TxnView::class)
+
+            Then("Principal should get a KeyUpdatable repository") {
+                repo.shouldBeInstanceOf<KeyUpdatable<TxnView, TxnView.Key>>()
+                repo shouldBe keyUpdatableRepo
+            }
+        }
+    }
+
+    Given("EntityRepos with non-KeyUpdatable repo for updatable entity") {
+        val updatableRepo = TxnViewRepository(mockk(), mockk())
+
+        val entityRepos = EntityRepos(
+            TxnView::class hasEntityRepo updatableRepo,
+        )
+
+        When("Principal tries to get key updatable repository") {
+            val getRepo = {
+                entityRepos.keyUpdatableRepoFor(TxnView::class)
+            }
+
+            Then("Principal should get IllegalStateException") {
+                val ex = shouldThrow<IllegalStateException> {
+                    getRepo()
+                }
+                ex.message shouldBe "Repository for ${TxnView::class} does not support key-based update. " +
+                    "Implement KeyUpdatable interface to enable this feature."
             }
         }
     }

@@ -8,6 +8,7 @@ import com.razz.eva.test.schema.tables.Bubalehs;
 import com.razz.eva.test.schema.tables.Departments;
 import com.razz.eva.test.schema.tables.Employees;
 import com.razz.eva.test.schema.tables.Shakshoukas;
+import com.razz.eva.test.schema.tables.TxnView;
 import org.jooq.Catalog;
 import org.jooq.Table;
 import org.jooq.impl.SchemaImpl;
@@ -59,6 +60,11 @@ public class DefaultSchema extends SchemaImpl {
     public final Shakshoukas SHAKSHOUKAS = Shakshoukas.SHAKSHOUKAS;
 
     /**
+     * The table <code>txn_view</code>.
+     */
+    public final TxnView TXN_VIEW = TxnView.TXN_VIEW;
+
+    /**
      * No further instances allowed
      */
     private DefaultSchema() {
@@ -77,7 +83,8 @@ public class DefaultSchema extends SchemaImpl {
             Bubalehs.BUBALEHS,
             Departments.DEPARTMENTS,
             Employees.EMPLOYEES,
-            Shakshoukas.SHAKSHOUKAS
+            Shakshoukas.SHAKSHOUKAS,
+            TxnView.TXN_VIEW
         );
     }
 }

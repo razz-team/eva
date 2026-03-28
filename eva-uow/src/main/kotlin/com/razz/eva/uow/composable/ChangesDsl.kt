@@ -7,6 +7,7 @@ import com.razz.eva.domain.Model
 import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
 import com.razz.eva.domain.Principal
+import com.razz.eva.domain.UpdatableEntity
 import com.razz.eva.uow.OtelAttributes.MODEL_ID
 import com.razz.eva.tracing.getEvaTracer
 import com.razz.eva.tracing.use
@@ -81,9 +82,24 @@ class ChangesDsl internal constructor(
         return entity
     }
 
+    fun <E : UpdatableEntity> update(entity: E): E {
+        changes = changes.withUpdatedEntity(entity)
+        return entity
+    }
+
     fun <E : DeletableEntity> delete(entity: E): E {
         changes = changes.withDeletedEntity(entity)
         return entity
+    }
+
+    inline fun <reified E : UpdatableEntity, K : EntityKey<E>> update(key: K): K {
+        updateByKeyInternal(key, E::class)
+        return key
+    }
+
+    @PublishedApi
+    internal fun <E : UpdatableEntity, K : EntityKey<E>> updateByKeyInternal(key: K, entityClass: KClass<E>) {
+        changes = changes.withUpdatedEntityByKey(key, entityClass)
     }
 
     inline fun <reified E : DeletableEntity, K : EntityKey<E>> delete(key: K): K {

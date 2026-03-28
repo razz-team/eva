@@ -18,6 +18,7 @@ import com.razz.eva.domain.Name
 import com.razz.eva.domain.Ration.BUBALEH
 import com.razz.eva.domain.RationAllocation
 import com.razz.eva.domain.Tag
+import com.razz.eva.domain.TxnView
 import com.razz.eva.domain.TestModel.Factory.createdTestModel
 import com.razz.eva.domain.TestModel.Factory.existingCreatedTestModel
 import com.razz.eva.domain.TestModelEvent.TestModelCreated
@@ -445,6 +446,44 @@ class ChangesSpec : BehaviorSpec({
             Then("Changes contain both add and delete") {
                 changes.entityChangesToPersist shouldBe listOf(AddEntity(tag1), DeleteEntity(tag2))
                 changes.result shouldBe "mixed entity ops"
+            }
+        }
+
+        When("Principal calling withUpdatedEntity and then withResult") {
+            val txnView = TxnView(originEntity = "company", cpartyEntity = "customer", transactionId = subjectId, value = 100, currency = "USD")
+            val changes = ChangesAccumulator()
+                .withUpdatedEntity(txnView)
+                .withResult("entity updated")
+
+            Then("Changes matching updated entity and result produced") {
+                changes.entityChangesToPersist shouldBe listOf(UpdateEntity(txnView))
+                changes.result shouldBe "entity updated"
+            }
+        }
+
+        When("Principal calling withUpdatedEntity twice for the same entity") {
+            val txnView = TxnView(originEntity = "company", cpartyEntity = "customer", transactionId = subjectId, value = 100, currency = "USD")
+            val changes = ChangesAccumulator()
+                .withUpdatedEntity(txnView)
+                .withUpdatedEntity(txnView)
+                .withResult("duplicate tag")
+
+            Then("Changes contain duplicate entities (no deduplication)") {
+                changes.entityChangesToPersist shouldBe listOf(UpdateEntity(txnView), UpdateEntity(txnView))
+                changes.result shouldBe "duplicate tag"
+            }
+        }
+
+        When("Principal calling withAddedEntity and withUpdatedEntity") {
+            val txnView = TxnView(originEntity = "company", cpartyEntity = "customer", transactionId = subjectId, value = 100, currency = "USD")
+            val changes = ChangesAccumulator()
+                .withAddedEntity(tag1)
+                .withUpdatedEntity(txnView)
+                .withResult("mixed add and update")
+
+            Then("Changes contain both add and update") {
+                changes.entityChangesToPersist shouldBe listOf(AddEntity(tag1), UpdateEntity(txnView))
+                changes.result shouldBe "mixed add and update"
             }
         }
 
