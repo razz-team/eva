@@ -73,6 +73,9 @@ class UnitOfWorkDemoSpec : UowBehaviorSpec({
                     addsEq(Tag.tag(newDepId.id, "transfer-${zoomerId.id}", "from-${oldDepId.id}"))
                     updatesEq(boomer.changeDepartment(newDep))
                     addsEq(Tag.tag(newDepId.id, "transfer-${boomerId.id}", "from-${oldDepId.id}"))
+                    updates<Tag> {
+                        this shouldBe Tag.tag(newDepId.id, "last-transfer", "batch-2")
+                    }
                     updatesEq(newDep.addEmployee(zoomer).addEmployee(boomer))
                     updatesEq(oldDep.removeEmployee(boomer).removeEmployee(zoomer))
                     deletesEq(Tag.tag(oldDepId.id, "full-staff", "true"))
@@ -105,6 +108,11 @@ class UnitOfWorkDemoSpec : UowBehaviorSpec({
                         subjectId shouldBe newDepId.id
                         name shouldBe "transfer-${boomerId.id}"
                         value shouldBe "from-${oldDepId.id}"
+                    }
+                    updates<Tag> {
+                        subjectId shouldBe newDepId.id
+                        name shouldBe "last-transfer"
+                        value shouldBe "batch-2"
                     }
                     updates<OwnedDepartment> {
                         headcount shouldBe 3

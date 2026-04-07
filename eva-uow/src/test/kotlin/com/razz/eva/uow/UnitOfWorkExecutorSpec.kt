@@ -272,7 +272,8 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
         }
 
         And("Ad hoc factory with mixed model and entity changes") {
-            val tag = Tag.environmentTag(departmentId.id, "production")
+            val tagToAdd = Tag.environmentTag(departmentId.id, "production")
+            val tagToUpdate = Tag.priorityTag(departmentId.id, 5)
             val tagToDelete = Tag.tag(departmentId.id, "deprecated", "true")
 
             val factory = { exCtx: ExecutionContext ->
@@ -282,7 +283,8 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                         params: DummyUow.Params,
                     ) = changes {
                         val addedDepartment = add(department)
-                        add(tag)
+                        add(tagToAdd)
+                        update(tagToUpdate)
                         delete(tagToDelete)
                         addedDepartment
                     }
@@ -294,7 +296,8 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                 val tagRepo = mockk<DeletableEntityRepository<Tag>>(relaxed = true)
 
                 coEvery { departmentRepo.add(any(), department) } returns department
-                coEvery { tagRepo.add(any(), tag) } returns tag
+                coEvery { tagRepo.add(any(), tagToAdd) } returns tagToAdd
+                coEvery { tagRepo.update(any(), tagToUpdate) } returns tagToUpdate
                 coEvery { tagRepo.delete(any(), tagToDelete) } returns true
 
                 val uowx = UnitOfWorkExecutor(
@@ -320,15 +323,15 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                     Then("Result should be the added department") {
                         result shouldBe department
                     }
-
                     And("Model repository was called") {
                         coVerify { departmentRepo.add(any(), department) }
                     }
-
                     And("Entity repository add was called") {
-                        coVerify { tagRepo.add(any(), tag) }
+                        coVerify { tagRepo.add(any(), tagToAdd) }
                     }
-
+                    And("Entity repository update was called") {
+                        coVerify { tagRepo.update(any(), tagToUpdate) }
+                    }
                     And("Entity repository delete was called") {
                         coVerify { tagRepo.delete(any(), tagToDelete) }
                     }

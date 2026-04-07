@@ -5,6 +5,7 @@ import com.razz.eva.domain.CreatableEntity
 import com.razz.eva.domain.DeletableEntity
 import com.razz.eva.domain.EntityKey
 import com.razz.eva.domain.Model
+import com.razz.eva.domain.UpdatableEntity
 import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
 import kotlin.reflect.KClass
@@ -42,6 +43,11 @@ class ChangesAccumulator private constructor(
     fun <E : CreatableEntity>
     withAddedEntity(entity: E): ChangesAccumulator {
         return ChangesAccumulator(modelChanges, entityChanges + AddEntity(entity))
+    }
+
+    fun <E : UpdatableEntity>
+    withUpdatedEntity(entity: E): ChangesAccumulator {
+        return ChangesAccumulator(modelChanges, entityChanges + UpdateEntity(entity))
     }
 
     fun <E : DeletableEntity>

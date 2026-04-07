@@ -6,6 +6,7 @@ import com.razz.eva.domain.EntityKey
 import com.razz.eva.domain.Model
 import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
+import com.razz.eva.domain.UpdatableEntity
 import com.razz.eva.uow.AddEntity
 import com.razz.eva.uow.AddModel
 import com.razz.eva.uow.Changes
@@ -14,6 +15,7 @@ import com.razz.eva.uow.DeleteEntityByKey
 import com.razz.eva.uow.EntityChange
 import com.razz.eva.uow.ModelChange
 import com.razz.eva.uow.NoopModel
+import com.razz.eva.uow.UpdateEntity
 import com.razz.eva.uow.UpdateModel
 import java.util.ArrayDeque
 import java.util.Deque
@@ -109,6 +111,22 @@ open class UowSpecBase<R> private constructor(
                 peekingEntityPersisting.peek()
             }
             else -> throw IllegalStateException("Expecting [AddEntity] was [$next]")
+        }
+        @Suppress("UNCHECKED_CAST")
+        verify(entity as E)
+        return entity
+    }
+
+    @PublishedApi
+    internal fun <E : UpdatableEntity> verifyUpdatedEntity(verify: (E) -> Unit): E {
+        val entity = when (
+            val next = checkNotNull(entityChangeHistory.pollFirst()) { "Expecting [UpdateEntity] got nothing" }
+        ) {
+            is UpdateEntity<*> -> {
+                next.persist(peekingEntityPersisting)
+                peekingEntityPersisting.peek()
+            }
+            else -> throw IllegalStateException("Expecting [UpdateEntity] was [$next]")
         }
         @Suppress("UNCHECKED_CAST")
         verify(entity as E)

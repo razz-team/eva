@@ -3,6 +3,7 @@ package com.razz.eva.uow
 import com.razz.eva.domain.CreatableEntity
 import com.razz.eva.domain.DeletableEntity
 import com.razz.eva.domain.EntityKey
+import com.razz.eva.domain.UpdatableEntity
 import com.razz.eva.repository.EntityRepos
 import com.razz.eva.repository.TransactionalContext
 import kotlin.reflect.KClass
@@ -20,6 +21,20 @@ internal sealed interface EntityBatch {
         }
 
         override fun with(entity: CreatableEntity): Add<E> {
+            @Suppress("UNCHECKED_CAST")
+            entities.add(entity as E)
+            return this
+        }
+    }
+
+    class Update<E : UpdatableEntity>(entity: E) : EntityBatch {
+        private val entities = mutableListOf(entity)
+
+        override suspend fun persist(context: TransactionalContext, repos: EntityRepos) {
+            repos.updatableRepoFor(entities.first()).update(context, entities)
+        }
+
+        override fun with(entity: CreatableEntity): Update<E> {
             @Suppress("UNCHECKED_CAST")
             entities.add(entity as E)
             return this

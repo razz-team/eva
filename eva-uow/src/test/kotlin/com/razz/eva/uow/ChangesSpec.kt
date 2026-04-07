@@ -380,6 +380,21 @@ class ChangesSpec : BehaviorSpec({
                 restored.result shouldBe "restored"
             }
         }
+
+        When("from is called with Changes that include updated entity") {
+            val subjectId2 = UUID.randomUUID()
+            val updatedTag = Tag(subjectId2, "key", "updated-value")
+            val changes = ChangesAccumulator()
+                .withUpdatedEntity(updatedTag)
+                .withResult("with-updated-entity")
+
+            val restored = ChangesAccumulator.from(changes).withResult("restored")
+
+            Then("accumulator contains updated entity change") {
+                restored.entityChangesToPersist shouldBe listOf(UpdateEntity(updatedTag))
+                restored.result shouldBe "restored"
+            }
+        }
     }
 
     Given("Entities") {
@@ -448,6 +463,60 @@ class ChangesSpec : BehaviorSpec({
             }
         }
 
+        When("Principal calling withUpdatedEntity and then withResult") {
+            val changes = ChangesAccumulator()
+                .withUpdatedEntity(tag1)
+                .withResult("tag updated")
+
+            Then("Changes matching updated entity and result produced") {
+                changes.entityChangesToPersist shouldBe listOf(UpdateEntity(tag1))
+                changes.modelChangesToPersist shouldBe listOf()
+                changes.result shouldBe "tag updated"
+            }
+        }
+
+        When("Principal calling withUpdatedEntity twice for different entities") {
+            val changes = ChangesAccumulator()
+                .withUpdatedEntity(tag1)
+                .withUpdatedEntity(tag2)
+                .withResult("tags updated")
+
+            Then("Changes contain both entities") {
+                changes.entityChangesToPersist shouldBe listOf(UpdateEntity(tag1), UpdateEntity(tag2))
+                changes.result shouldBe "tags updated"
+            }
+        }
+
+        When("Principal calling withUpdatedEntity twice for the same entity") {
+            val changes = ChangesAccumulator()
+                .withUpdatedEntity(tag1)
+                .withUpdatedEntity(tag1)
+                .withResult("duplicate tag update")
+
+            Then("Changes contain duplicate entities (no deduplication)") {
+                changes.entityChangesToPersist shouldBe listOf(UpdateEntity(tag1), UpdateEntity(tag1))
+                changes.result shouldBe "duplicate tag update"
+            }
+        }
+
+        When("Principal calling withAddedEntity and withUpdatedEntity and withDeletedEntity") {
+            val tag3 = Tag(subjectId, "key3", "value3")
+            val changes = ChangesAccumulator()
+                .withAddedEntity(tag1)
+                .withUpdatedEntity(tag2)
+                .withDeletedEntity(tag3)
+                .withResult("all entity ops")
+
+            Then("Changes contain add, update and delete") {
+                changes.entityChangesToPersist shouldBe listOf(
+                    AddEntity(tag1),
+                    UpdateEntity(tag2),
+                    DeleteEntity(tag3),
+                )
+                changes.result shouldBe "all entity ops"
+            }
+        }
+
         When("Principal calling withAddedEntity for CreatableEntity (not DeletableEntity)") {
             val changes = ChangesAccumulator()
                 .withAddedEntity(allocation)
@@ -473,6 +542,23 @@ class ChangesSpec : BehaviorSpec({
                     changes.modelChangesToPersist shouldBe listOf(AddModel(model, listOf(modelEvent)))
                     changes.entityChangesToPersist shouldBe listOf(AddEntity(tag1))
                     changes.result shouldBe "mixed changes"
+                }
+            }
+
+            When("Principal updates both model and entity") {
+                val existingModel = existingCreatedTestModel(param1 = "existing", param2 = 1L).activate()
+                val statusEvent = TestModelStatusChanged(existingModel.id(), CREATED, ACTIVE)
+                val changes = ChangesAccumulator()
+                    .withUpdatedModel(existingModel)
+                    .withUpdatedEntity(tag1)
+                    .withResult("mixed updates")
+
+                Then("Changes contain both model and entity updates") {
+                    changes.modelChangesToPersist shouldBe listOf(
+                        UpdateModel(existingModel, listOf(statusEvent)),
+                    )
+                    changes.entityChangesToPersist shouldBe listOf(UpdateEntity(tag1))
+                    changes.result shouldBe "mixed updates"
                 }
             }
         }

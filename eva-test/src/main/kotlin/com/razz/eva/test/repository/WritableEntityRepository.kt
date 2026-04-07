@@ -2,6 +2,7 @@ package com.razz.eva.test.repository
 
 import com.razz.eva.domain.CreatableEntity
 import com.razz.eva.domain.DeletableEntity
+import com.razz.eva.domain.UpdatableEntity
 import com.razz.eva.persistence.ConnectionMode.REQUIRE_NEW
 import com.razz.eva.persistence.TransactionManager
 import com.razz.eva.repository.EntityRepos
@@ -38,6 +39,20 @@ class WritableEntityRepository(
         txStartedAt: Instant = clock.instant(),
     ): List<E> = inTransaction(txStartedAt) { context ->
         entityRepos.repoFor(entities.first()).add(context, entities)
+    }
+
+    suspend fun <E : UpdatableEntity> update(
+        entity: E,
+        txStartedAt: Instant = clock.instant(),
+    ): E = inTransaction(txStartedAt) {
+        entityRepos.updatableRepoFor(entity).update(it, entity)
+    }
+
+    suspend fun <E : UpdatableEntity> update(
+        entities: List<E>,
+        txStartedAt: Instant = clock.instant(),
+    ): List<E> = inTransaction(txStartedAt) { context ->
+        entityRepos.updatableRepoFor(entities.first()).update(context, entities)
     }
 
     suspend fun <E : DeletableEntity> delete(
