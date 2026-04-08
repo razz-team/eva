@@ -3,16 +3,20 @@ package com.razz.eva.uow
 import com.razz.eva.domain.CreatableEntity
 import com.razz.eva.domain.DeletableEntity
 import com.razz.eva.domain.EntityKey
+import com.razz.eva.domain.UpdatableEntity
 import com.razz.eva.repository.DeletableEntityRepository
 import com.razz.eva.repository.EntityRepository
 import com.razz.eva.repository.KeyDeletable
 import com.razz.eva.repository.TransactionalContext
+import com.razz.eva.repository.UpdatableEntityRepository
 import com.razz.eva.uow.ExecutionStep.EntitiesAdded
 import com.razz.eva.uow.ExecutionStep.EntitiesDeleted
 import com.razz.eva.uow.ExecutionStep.EntitiesDeletedByKey
+import com.razz.eva.uow.ExecutionStep.EntitiesUpdated
 import com.razz.eva.uow.ExecutionStep.EntityAdded
 import com.razz.eva.uow.ExecutionStep.EntityDeleted
 import com.razz.eva.uow.ExecutionStep.EntityDeletedByKey
+import com.razz.eva.uow.ExecutionStep.EntityUpdated
 
 @Suppress("INAPPLICABLE_JVM_NAME")
 class SpyKeyDeletableEntityRepo<E : DeletableEntity, K : EntityKey<E>>(
@@ -26,6 +30,16 @@ class SpyKeyDeletableEntityRepo<E : DeletableEntity, K : EntityKey<E>>(
 
     override suspend fun add(context: TransactionalContext, entities: List<E>): List<E> {
         history.add(EntitiesAdded(context, entities))
+        return entities
+    }
+
+    override suspend fun update(context: TransactionalContext, entity: E): E {
+        history.add(EntityUpdated(context, entity))
+        return entity
+    }
+
+    override suspend fun update(context: TransactionalContext, entities: List<E>): List<E> {
+        history.add(EntitiesUpdated(context, entities))
         return entities
     }
 

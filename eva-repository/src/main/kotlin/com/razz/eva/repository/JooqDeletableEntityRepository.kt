@@ -11,14 +11,8 @@ abstract class JooqDeletableEntityRepository<E : DeletableEntity, R : BaseEntity
     private val queryExecutor: QueryExecutor,
     private val dslContext: DSLContext,
     private val table: Table<R>,
-) : JooqBaseEntityRepository<E, R>(queryExecutor, dslContext, table),
+) : JooqUpdatableEntityRepository<E, R>(queryExecutor, dslContext, table),
     DeletableEntityRepository<E> {
-
-    /**
-     * Derive the unique condition to identify this entity in the database.
-     * Typically based on composite primary key or unique constraint columns.
-     */
-    protected abstract fun entityCondition(entity: E): Condition
 
     override suspend fun delete(context: TransactionalContext, entity: E): Boolean {
         val deleteQuery = dslContext.deleteFrom(table)

@@ -25,6 +25,7 @@ import com.razz.eva.uow.Clocks.fixedUTC
 import com.razz.eva.uow.Clocks.millisUTC
 import com.razz.eva.uow.DeleteEntity
 import com.razz.eva.uow.DeleteEntityByKey
+import com.razz.eva.uow.UpdateEntity
 import com.razz.eva.uow.ExecutionContext
 import com.razz.eva.uow.NoopModel
 import com.razz.eva.uow.TestPrincipal
@@ -441,6 +442,58 @@ class ChangesDslSpec : FunSpec({
         changes.modelChangesToPersist shouldBe listOf()
         changes.entityChangesToPersist shouldBe listOf(DeleteEntity(tag))
         changes.result shouldBe "ENTITY DELETED"
+    }
+
+    test("Should return properly built RealisedChanges when entity added, updated and deleted") {
+        val departmentId = randomDepartmentId()
+        val tag1 = Tag.environmentTag(departmentId.id, "staging")
+        val tag2 = Tag.priorityTag(departmentId.id, 5)
+        val tag3 = Tag.tag(departmentId.id, "region", "eu-west")
+
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                add(tag1)
+                update(tag2)
+                delete(tag3)
+                "ALL ENTITY OPS"
+            }
+        }
+        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
+
+        changes.modelChangesToPersist shouldBe listOf()
+        changes.entityChangesToPersist shouldBe listOf(
+            AddEntity(tag1),
+            UpdateEntity(tag2),
+            DeleteEntity(tag3),
+        )
+        changes.result shouldBe "ALL ENTITY OPS"
+    }
+
+    test("Should merge entity update changes from sub-uow") {
+        val departmentId = randomDepartmentId()
+        val tag1 = Tag.environmentTag(departmentId.id, "production")
+        val tag2 = Tag.priorityTag(departmentId.id, 5)
+
+        val innerUow = { ctx: ExecutionContext ->
+            object : DummyUow<String>(ctx) {
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                    update(tag2)
+                    "inner result"
+                }
+            }
+        }
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                update(tag1)
+                execute(innerUow, TestPrincipal) { Params }
+                "MERGED ENTITY UPDATES"
+            }
+        }
+        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
+
+        changes.modelChangesToPersist shouldBe listOf()
+        changes.entityChangesToPersist shouldBe listOf(UpdateEntity(tag1), UpdateEntity(tag2))
+        changes.result shouldBe "MERGED ENTITY UPDATES"
     }
 
     test("Should return properly built RealisedChanges when model added and entity added") {

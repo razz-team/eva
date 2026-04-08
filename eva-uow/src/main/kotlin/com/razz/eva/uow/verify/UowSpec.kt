@@ -6,6 +6,7 @@ import com.razz.eva.domain.EntityKey
 import com.razz.eva.domain.Model
 import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
+import com.razz.eva.domain.UpdatableEntity
 import com.razz.eva.uow.Changes
 import kotlin.jvm.java
 
@@ -91,8 +92,17 @@ class UowSpec<R> internal constructor(
         }
     }
 
-    inline fun <reified M : Model<*, *>> updates(noinline verify: M.() -> Unit): M {
-        return verifyUpdatedModel(verify)
+    @Suppress("UNCHECKED_CAST")
+    inline fun <reified T> updates(noinline verify: T.() -> Unit): T {
+        return when {
+            Model::class.java.isAssignableFrom(T::class.java) ->
+                verifyUpdatedModel(verify as (Model<*, *>) -> Unit) as T
+            UpdatableEntity::class.java.isAssignableFrom(T::class.java) ->
+                verifyUpdatedEntity(verify as (UpdatableEntity) -> Unit) as T
+            else -> throw IllegalArgumentException(
+                "Type parameter must be either Model or UpdatableEntity, was ${T::class}",
+            )
+        }
     }
 
     inline fun <reified M : Model<*, *>> EqualityVerifierAware.updates(

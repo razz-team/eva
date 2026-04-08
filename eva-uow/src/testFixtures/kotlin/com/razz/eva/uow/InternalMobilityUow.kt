@@ -46,6 +46,7 @@ class InternalMobilityUow(
             )
         }
         update(newDep)
+        update(Tag.tag(newDep.id().id, "last-transfer", "batch-${params.employees.size}"))
         for (oldDep in oldDeps.values) {
             update(oldDep)
             delete(

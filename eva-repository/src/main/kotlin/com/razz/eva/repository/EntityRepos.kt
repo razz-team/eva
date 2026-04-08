@@ -3,6 +3,7 @@ package com.razz.eva.repository
 import com.razz.eva.domain.CreatableEntity
 import com.razz.eva.domain.DeletableEntity
 import com.razz.eva.domain.EntityKey
+import com.razz.eva.domain.UpdatableEntity
 import kotlin.reflect.KClass
 
 class EntityRepos(
@@ -26,6 +27,15 @@ class EntityRepos(
         val repo = classToRepo[entity::class] ?: throw EntityRepositoryNotFoundException(entity)
         @Suppress("UNCHECKED_CAST")
         return repo as EntityRepository<E>
+    }
+
+    fun <E : UpdatableEntity> updatableRepoFor(entity: E): UpdatableEntityRepository<E> {
+        val repo = classToRepo[entity::class] ?: throw EntityRepositoryNotFoundException(entity)
+        if (repo !is UpdatableEntityRepository<*>) {
+            throw IllegalStateException("Repository for ${entity::class} does not support updates")
+        }
+        @Suppress("UNCHECKED_CAST")
+        return repo as UpdatableEntityRepository<E>
     }
 
     fun <E : DeletableEntity> deletableRepoFor(entity: E): DeletableEntityRepository<E> {

@@ -15,7 +15,13 @@ abstract class Entity
 abstract class CreatableEntity : Entity()
 
 /**
- * Base class for entities that can be deleted via Unit of Work.
- * Deletable entities must also be creatable (you need to create an entity before you can delete it).
+ * Base class for entities that can be updated via Unit of Work.
+ * Updatable entities must also be creatable (you need to create an entity before you can update it).
  */
-abstract class DeletableEntity : CreatableEntity()
+abstract class UpdatableEntity : CreatableEntity()
+
+/**
+ * Base class for entities that can be deleted via Unit of Work.
+ * Deletable entities are also updatable and creatable.
+ */
+abstract class DeletableEntity : UpdatableEntity()

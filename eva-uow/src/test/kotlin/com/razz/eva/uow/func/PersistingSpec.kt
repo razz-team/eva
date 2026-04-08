@@ -42,9 +42,11 @@ import com.razz.eva.uow.ExecutionStep
 import com.razz.eva.uow.ExecutionStep.EntitiesAdded
 import com.razz.eva.uow.ExecutionStep.EntitiesDeleted
 import com.razz.eva.uow.ExecutionStep.EntitiesDeletedByKey
+import com.razz.eva.uow.ExecutionStep.EntitiesUpdated
 import com.razz.eva.uow.ExecutionStep.EntityAdded
 import com.razz.eva.uow.ExecutionStep.EntityDeleted
 import com.razz.eva.uow.ExecutionStep.EntityDeletedByKey
+import com.razz.eva.uow.ExecutionStep.EntityUpdated
 import com.razz.eva.uow.ExecutionStep.ModelAdded
 import com.razz.eva.uow.ExecutionStep.ModelUpdated
 import com.razz.eva.uow.ExecutionStep.ModelsAdded
@@ -55,6 +57,7 @@ import com.razz.eva.uow.ExecutionStep.UowEventAdded
 import com.razz.eva.uow.ExecutionStep.UowEventPublished
 import com.razz.eva.uow.NoopModel
 import com.razz.eva.uow.Persisting
+import com.razz.eva.uow.UpdateEntity
 import com.razz.eva.uow.SpyCreatableEntityRepo
 import com.razz.eva.uow.SpyKeyDeletableEntityRepo
 import com.razz.eva.uow.SpyModelRepo
@@ -138,6 +141,7 @@ class PersistingSpec : BehaviorSpec({
 
     val tag1 = Tag.environmentTag(departmentId1.id, "production")
     val tag2 = Tag.priorityTag(departmentId2.id, 1)
+    val tagToUpdate = Tag.environmentTag(departmentId2.id, "staging")
     val tagToDelete = Tag.tag(departmentId3.id, "deprecated", "true")
 
     val rationAllocation1 = RationAllocation.allocation(bossId1, BUBALEH, java.time.LocalDate.now(), 3)
@@ -217,6 +221,7 @@ class PersistingSpec : BehaviorSpec({
                     entityChanges = listOf(
                         AddEntity(tag1),
                         AddEntity(tag2),
+                        UpdateEntity(tagToUpdate),
                         AddEntity(rationAllocation1),
                         AddEntity(rationAllocation2),
                         DeleteEntity(tagToDelete),
@@ -237,7 +242,7 @@ class PersistingSpec : BehaviorSpec({
                         " with context created from configured clock",
                 ) {
                     history should {
-                        it.size shouldBe 10
+                        it.size shouldBe 11
                         it[0] shouldBe TransactionStarted(REQUIRE_NEW)
                         it[1] shouldBe ModelsUpdated(transactionalContext(now), listOf(boss1, boss2))
                         it[2] shouldBe ModelsUpdated(transactionalContext(now), listOf(department3))
@@ -247,8 +252,9 @@ class PersistingSpec : BehaviorSpec({
                             transactionalContext(now),
                             listOf(rationAllocation1, rationAllocation2),
                         )
-                        it[6] shouldBe EntitiesDeleted(transactionalContext(now), listOf(tagToDelete))
-                        it[7] should { eh ->
+                        it[6] shouldBe EntitiesUpdated(transactionalContext(now), listOf(tagToUpdate))
+                        it[7] shouldBe EntitiesDeleted(transactionalContext(now), listOf(tagToDelete))
+                        it[8] should { eh ->
                             eh.shouldBeTypeOf<UowEventAdded>()
                             eh.uowEvent.occurredAt shouldBe now
                             eh.uowEvent.uowName shouldBe UowName("Hoba")
@@ -273,8 +279,8 @@ class PersistingSpec : BehaviorSpec({
                                 vals[4] shouldBe DepartmentChanged(bossId2, oldDepId, departmentId2)
                             }
                         }
-                        it[8] shouldBe TransactionFinished(REQUIRE_NEW)
-                        it[9] should { eh ->
+                        it[9] shouldBe TransactionFinished(REQUIRE_NEW)
+                        it[10] should { eh ->
                             eh.shouldBeTypeOf<UowEventPublished>()
                             eh.uowEvent.occurredAt shouldBe now
                             eh.uowEvent.uowName shouldBe UowName("Hoba")
@@ -315,7 +321,7 @@ class PersistingSpec : BehaviorSpec({
                         " with context created from configured clock",
                 ) {
                     history should {
-                        it.size shouldBe 14
+                        it.size shouldBe 15
                         it[0] shouldBe TransactionStarted(REQUIRE_NEW)
                         it[1] shouldBe ModelAdded(transactionalContext(now), department1)
                         it[2] shouldBe ModelUpdated(transactionalContext(now), boss1)
@@ -324,10 +330,11 @@ class PersistingSpec : BehaviorSpec({
                         it[5] shouldBe ModelUpdated(transactionalContext(now), boss2)
                         it[6] shouldBe EntityAdded(transactionalContext(now), tag1)
                         it[7] shouldBe EntityAdded(transactionalContext(now), tag2)
-                        it[8] shouldBe EntityAdded(transactionalContext(now), rationAllocation1)
-                        it[9] shouldBe EntityAdded(transactionalContext(now), rationAllocation2)
-                        it[10] shouldBe EntityDeleted(transactionalContext(now), tagToDelete)
-                        it[11] should { eh ->
+                        it[8] shouldBe EntityUpdated(transactionalContext(now), tagToUpdate)
+                        it[9] shouldBe EntityAdded(transactionalContext(now), rationAllocation1)
+                        it[10] shouldBe EntityAdded(transactionalContext(now), rationAllocation2)
+                        it[11] shouldBe EntityDeleted(transactionalContext(now), tagToDelete)
+                        it[12] should { eh ->
                             eh.shouldBeTypeOf<UowEventAdded>()
                             eh.uowEvent.occurredAt shouldBe now
                             eh.uowEvent.uowName shouldBe UowName("Hoba")
@@ -352,8 +359,8 @@ class PersistingSpec : BehaviorSpec({
                                 vals[4] shouldBe DepartmentChanged(bossId2, oldDepId, departmentId2)
                             }
                         }
-                        it[12] shouldBe TransactionFinished(REQUIRE_NEW)
-                        it[13] should { eh ->
+                        it[13] shouldBe TransactionFinished(REQUIRE_NEW)
+                        it[14] should { eh ->
                             eh.shouldBeTypeOf<UowEventPublished>()
                             eh.uowEvent.occurredAt shouldBe now
                             eh.uowEvent.uowName shouldBe UowName("Hoba")

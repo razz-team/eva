@@ -150,17 +150,19 @@ data class Tag(
 ) : DeletableEntity()
 ```
 
-Entities can be added and deleted within the same Unit of Work as Models:
+Entities can be added, updated and deleted within the same Unit of Work as Models:
 ```kotlin
 override suspend fun tryPerform(principal: ServicePrincipal, params: Params): Changes<Unit> {
     return changes {
         update(department.addEmployee(employee))
         add(Tag(department.id().id, "employee-added", employee.id().toString()))
+        update(Tag(department.id().id, "last-modified", clock.instant().toString()))
+        delete(Tag(department.id().id, "vacant", "true"))
     }
 }
 ```
 
-Entity repositories extend `JooqBaseEntityRepository` or `JooqDeletableEntityRepository`:
+Entity repositories extend `JooqBaseEntityRepository`, `JooqUpdatableEntityRepository` or `JooqDeletableEntityRepository`:
 ```kotlin
 class TagRepository(
     queryExecutor: QueryExecutor,
@@ -405,7 +407,7 @@ Eva provides two fundamental building blocks for your domain: **Models** and **E
 
 #### Use Entity when:
 - The object's identity is defined by its **content/attributes** rather than a separate Id
-- You need simple **add/delete** operations without lifecycle management
+- You need simple **add/update/delete** operations without lifecycle management
 - The object represents **supplementary data** like tags, labels, allocations, or mappings
 - No domain events need to be emitted for changes
 - The object is essentially a **value object that needs persistence**
@@ -418,7 +420,7 @@ Eva provides two fundamental building blocks for your domain: **Models** and **E
 | Versioning | Yes (optimistic locking) | Yes (optimistic locking) | No |
 | Events | Emits `ModelEvent` on state changes | Emits `ModelEvent` on state changes | No events |
 | Owned children | No | Yes, via `ownedModels` | No |
-| Operations | `add`, `update`, `notChanged` | `add`, `update`, `notChanged` | `add`, `delete` |
+| Operations | `add`, `update`, `notChanged` | `add`, `update`, `notChanged` | `add`, `update`, `delete` |
 | Typical use | Core domain objects | Aggregate roots with children | Tags, labels, mappings |
 
 #### Example Decision
@@ -471,15 +473,17 @@ Model<ID, E> (abstract class)
 
 Entity (abstract class)
   └── CreatableEntity (abstract class)
-        └── DeletableEntity (abstract class)
-              └── Your deletable entities
+        └── UpdatableEntity (abstract class)
+              └── DeletableEntity (abstract class)
+                    └── Your deletable entities
 ```
 
 #### Entity Classes
 - `CreatableEntity`: Can be added via `add()` in ChangesDsl
-- `DeletableEntity`: Extends `CreatableEntity`, can also be deleted via `delete()` in ChangesDsl
+- `UpdatableEntity`: Extends `CreatableEntity`, can also be updated via `update()` in ChangesDsl
+- `DeletableEntity`: Extends `UpdatableEntity`, can also be deleted via `delete()` in ChangesDsl
 
-Use `CreatableEntity` for append-only data (audit logs, historical records). Use `DeletableEntity` when entities can be removed.
+Use `CreatableEntity` for append-only data (audit logs, historical records). Use `UpdatableEntity` when entity fields can change. Use `DeletableEntity` when entities can be removed.
 
 #### Repository Pattern
 Entity repositories follow the same pattern as Model repositories but without versioning:
@@ -491,8 +495,14 @@ interface EntityRepository<E : CreatableEntity> {
     suspend fun add(context: TransactionalContext, entities: List<E>): List<E>
 }
 
-// For entities that can be added and deleted
-interface DeletableEntityRepository<E : DeletableEntity> : EntityRepository<E> {
+// For entities that can be added and updated
+interface UpdatableEntityRepository<E : UpdatableEntity> : EntityRepository<E> {
+    suspend fun update(context: TransactionalContext, entity: E): E
+    suspend fun update(context: TransactionalContext, entities: List<E>): List<E>
+}
+
+// For entities that can be added, updated and deleted
+interface DeletableEntityRepository<E : DeletableEntity> : UpdatableEntityRepository<E> {
     suspend fun delete(context: TransactionalContext, entity: E): Boolean
     suspend fun delete(context: TransactionalContext, entities: List<E>): Int
 }
@@ -518,6 +528,7 @@ Models and Entities are persisted in the **same transaction**, ensuring consiste
 changes {
     update(department.addEmployee(employee))      // Model update
     add(Tag.tag(department.id().id, "new-hire", employee.name))  // Entity add
+    update(Tag.tag(department.id().id, "headcount", department.headcount.toString())) // Entity update
     delete(oldTag)                                 // Entity delete
 }
 // All changes committed atomically
@@ -695,6 +706,8 @@ Use the `verifyInOrder` function to start the verification process.
         // Entity verification (same methods, distinguished by type parameter)
         adds<Tag> { entity -> ... }
         addsEq(expectedTag)
+
+        updates<Tag> { entity -> ... }
         
         deletes<Tag> { entity -> ... }
         deletesEq(expectedTag)
@@ -706,7 +719,7 @@ Use the `verifyInOrder` function to start the verification process.
         returns { result -> ... }
     }
 ```
-The `adds` and `addsEq` methods work for both Models and Entities - the correct verification is chosen based on the type parameter. Entity-specific methods `deletes` and `deletesEq` are available for `DeletableEntity` types.
+The `adds`, `updates` and `addsEq` methods work for both Models and Entities -- the correct verification is chosen based on the type parameter. Entity-specific methods `deletes` and `deletesEq` are available for `DeletableEntity` types.
 
 You can check some examples [here](eva-uow/src/test/kotlin/com/razz/eva/uow/UnitOfWorkDemoSpec.kt)
 

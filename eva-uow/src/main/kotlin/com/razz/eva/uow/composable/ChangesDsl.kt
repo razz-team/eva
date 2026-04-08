@@ -4,6 +4,7 @@ import com.razz.eva.domain.CreatableEntity
 import com.razz.eva.domain.DeletableEntity
 import com.razz.eva.domain.EntityKey
 import com.razz.eva.domain.Model
+import com.razz.eva.domain.UpdatableEntity
 import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
 import com.razz.eva.domain.Principal
@@ -78,6 +79,11 @@ class ChangesDsl internal constructor(
 
     fun <E : CreatableEntity> add(entity: E): E {
         changes = changes.withAddedEntity(entity)
+        return entity
+    }
+
+    fun <E : UpdatableEntity> update(entity: E): E {
+        changes = changes.withUpdatedEntity(entity)
         return entity
     }
 
