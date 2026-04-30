@@ -9,7 +9,6 @@ import org.jooq.Condition
 import org.jooq.DSLContext
 import org.jooq.Record
 import org.jooq.Select
-import org.jooq.SelectConditionStep
 import org.jooq.Table
 
 abstract class JooqBaseEntityRepository<E : CreatableEntity, R : BaseEntityRecord>(
@@ -67,15 +66,7 @@ abstract class JooqBaseEntityRepository<E : CreatableEntity, R : BaseEntityRecor
     }
 
     /**
-     * Keyset-paginated read. Mirrors [JooqBaseModelRepository.findPage] for entities.
-     *
-     * Example generated SQL when [page] is [Page.Next]:
-     * ```
-     * SELECT * FROM table
-     * WHERE <condition> AND (timestamp, id) > (X, Y)
-     * ORDER BY timestamp, id
-     * LIMIT pageSize
-     * ```
+     * Keyset-paginated read for entity repositories. See [executeFindPage] for the SQL shape.
      */
     protected suspend fun <ID : Comparable<ID>, N, S, P> findPage(
         condition: Condition,
@@ -85,19 +76,15 @@ abstract class JooqBaseEntityRepository<E : CreatableEntity, R : BaseEntityRecor
             @Suppress("UNCHECKED_CAST")
             fromRecord(it) as N
         },
-    ): PagedList<S, P> where S : N, P : Comparable<P> {
-        val list = allRecords(
-            dslContext.selectFrom(table)
-                .where(condition)
-                .page(page, pagingStrategy),
-        )
-        return pagingStrategy.pagedList(list, mapper, page.size)
-    }
-
-    private fun <ID : Comparable<ID>, N, S, P> SelectConditionStep<R>.page(
-        page: Page<P>,
-        pagingStrategy: PagingStrategy<ID, N, S, P, R>,
-    ) where S : N, P : Comparable<P> = pagingStrategy.select(this, page)
+    ): PagedList<S, P> where S : N, P : Comparable<P> = executeFindPage(
+        queryExecutor = queryExecutor,
+        dslContext = dslContext,
+        table = table,
+        condition = condition,
+        page = page,
+        pagingStrategy = pagingStrategy,
+        mapper = mapper,
+    )
 
     protected suspend fun findOneWhere(condition: Condition): E? {
         val select = dslContext.selectFrom(table).where(condition)

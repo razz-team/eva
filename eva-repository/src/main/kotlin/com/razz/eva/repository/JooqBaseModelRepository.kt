@@ -14,7 +14,6 @@ import org.jooq.DSLContext
 import org.jooq.Field
 import org.jooq.Record
 import org.jooq.Select
-import org.jooq.SelectConditionStep
 import org.jooq.SortField
 import org.jooq.Table
 import org.jooq.TableField
@@ -22,7 +21,7 @@ import org.jooq.impl.DSL
 import org.jooq.impl.SQLDataType
 
 abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
-    queryExecutor: QueryExecutor,
+    private val queryExecutor: QueryExecutor,
     private val dslContext: DSLContext,
     private val table: Table<R>,
     @Suppress("UNCHECKED_CAST")
@@ -140,17 +139,7 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
     ).singleOrNull()
 
     /**
-     * If page is not first, we use JOOQ 'seek' method to find position of page
-     * https://www.jooq.org/doc/latest/manual/sql-building/sql-statements/select-statement/seek-clause/
-     *
-     * Example of generated SQL query -
-     * SELECT id, timestamp, value
-     * FROM model
-     * WHERE (timestamp, id) > (X, Y)
-     * ORDER BY timestamp, id
-     * LIMIT 5
-     *
-     * (timestamp, id) > (X, Y) is equivalent to (timestamp > X) OR ((timestamp = X) AND (id > Y))
+     * Keyset-paginated read. See [executeFindPage] for the SQL shape.
      */
     protected suspend fun <N, S, P> findPage(
         condition: Condition,
@@ -160,19 +149,15 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
             @Suppress("UNCHECKED_CAST")
             fromRecord(it) as N
         },
-    ): PagedList<S, P> where S : N, P : Comparable<P> {
-        val list = allRecords(
-            dslContext.selectFrom(table)
-                .where(condition)
-                .page(page, pagingStrategy),
-        )
-        return pagingStrategy.pagedList(list, mapper, page.size)
-    }
-
-    private fun <N, S, P> SelectConditionStep<R>.page(
-        page: Page<P>,
-        pagingStrategy: PagingStrategy<ID, N, S, P, R>,
-    ) where S : N, P : Comparable<P> = pagingStrategy.select(this, page)
+    ): PagedList<S, P> where S : N, P : Comparable<P> = executeFindPage(
+        queryExecutor = queryExecutor,
+        dslContext = dslContext,
+        table = table,
+        condition = condition,
+        page = page,
+        pagingStrategy = pagingStrategy,
+        mapper = mapper,
+    )
 
     protected suspend fun findAllWhere(
         condition: Condition,
