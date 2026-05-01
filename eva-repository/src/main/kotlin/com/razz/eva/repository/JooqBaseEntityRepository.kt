@@ -1,6 +1,8 @@
 package com.razz.eva.repository
 
 import com.razz.eva.domain.CreatableEntity
+import com.razz.eva.paging.Page
+import com.razz.eva.paging.PagedList
 import com.razz.eva.persistence.executor.QueryExecutor
 import com.razz.jooq.record.BaseEntityRecord
 import org.jooq.Condition
@@ -62,6 +64,27 @@ abstract class JooqBaseEntityRepository<E : CreatableEntity, R : BaseEntityRecor
         val select = dslContext.selectFrom(table).where(condition).limit(limit)
         return allRecords(select).map(::fromRecord)
     }
+
+    /**
+     * Keyset-paginated read for entity repositories. See [executeFindPage] for the SQL shape.
+     */
+    protected suspend fun <ID : Comparable<ID>, N, S, P> findPage(
+        condition: Condition,
+        page: Page<P>,
+        pagingStrategy: PagingStrategy<ID, N, S, P, R>,
+        mapper: (R) -> N = {
+            @Suppress("UNCHECKED_CAST")
+            fromRecord(it) as N
+        },
+    ): PagedList<S, P> where S : N, P : Comparable<P> = executeFindPage(
+        queryExecutor = queryExecutor,
+        dslContext = dslContext,
+        table = table,
+        condition = condition,
+        page = page,
+        pagingStrategy = pagingStrategy,
+        mapper = mapper,
+    )
 
     protected suspend fun findOneWhere(condition: Condition): E? {
         val select = dslContext.selectFrom(table).where(condition)
