@@ -120,6 +120,7 @@ class UnitOfWorkExecutor(
                             Attributes.of(
                                 AttributeKey.stringKey(MODEL_NAME), modelEvent.modelName,
                                 AttributeKey.stringKey(EVENT_NAME), modelEvent.eventName(),
+                                AttributeKey.stringKey(UOW_NAME), uowName,
                             ),
                         )
                     }

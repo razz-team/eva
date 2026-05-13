@@ -152,13 +152,15 @@ class PersistenceSpec : PersistenceBaseSpec({
                 val pointsForDepartmentEvent = metric!!.longSumData.points.filter { point ->
                     val attributes = point.attributes.asMap()
                     attributes.containsValue("Department") &&
-                        attributes.containsValue("OwnedDepartmentCreated")
+                        attributes.containsValue("OwnedDepartmentCreated") &&
+                        attributes.containsValue("CreateSoloDepartmentUow")
                 }
                 pointsForDepartmentEvent.size shouldBe 1
                 val pointsForEmployeeEvent = metric.longSumData.points.filter { point ->
                     val attributes = point.attributes.asMap()
                     attributes.containsValue("Employee") &&
-                        attributes.containsValue("EmployeeCreated")
+                        attributes.containsValue("EmployeeCreated") &&
+                        attributes.containsValue("CreateSoloDepartmentUow")
                 }
                 pointsForEmployeeEvent.size shouldBe 1
             }
