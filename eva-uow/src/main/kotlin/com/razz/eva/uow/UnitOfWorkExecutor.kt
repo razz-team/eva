@@ -7,7 +7,9 @@ import com.razz.eva.persistence.PrimaryConnectionRequiredFlag
 import com.razz.eva.tracing.getEvaMeter
 import com.razz.eva.tracing.getEvaTracer
 import com.razz.eva.tracing.use
+import com.razz.eva.uow.OtelAttributes.EVENT_NAME
 import com.razz.eva.uow.OtelAttributes.MODEL_ID
+import com.razz.eva.uow.OtelAttributes.MODEL_NAME
 import com.razz.eva.uow.OtelAttributes.PRINCIPAL_ID
 import com.razz.eva.uow.OtelAttributes.SPAN_PERFORM
 import com.razz.eva.uow.OtelAttributes.SPAN_PERSIST
@@ -110,6 +112,18 @@ class UnitOfWorkExecutor(
                     PRINCIPAL_ID,
                     principal.id.toString(),
                 )
+                changes.modelChangesToPersist
+                    .flatMap { it.modelEvents }
+                    .forEach { modelEvent ->
+                        eventsMetric().add(
+                            1,
+                            Attributes.of(
+                                AttributeKey.stringKey(MODEL_NAME), modelEvent.modelName,
+                                AttributeKey.stringKey(EVENT_NAME), modelEvent.eventName(),
+                                AttributeKey.stringKey(UOW_NAME), uowName,
+                            ),
+                        )
+                    }
                 val (uowId, persisted) = try {
                     withContext(uowSpan.asContextElement()) {
                         persistingSpan(name).use {
@@ -228,6 +242,12 @@ class UnitOfWorkExecutor(
         val factory = classToFactory[target] ?: throw UowFactoryNotFoundException(target)
         return (factory as (ExecutionContext) -> UOW)(executionContext)
     }
+
+    private fun eventsMetric() = openTelemetry.getEvaMeter()
+        .counterBuilder("model.event")
+        .setDescription("Number of model events emitted")
+        .setUnit("count")
+        .build()
 
     private fun uowSpan() = openTelemetry.getEvaTracer()
         .spanBuilder("Uow")

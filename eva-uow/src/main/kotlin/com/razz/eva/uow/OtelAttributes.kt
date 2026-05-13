@@ -9,5 +9,7 @@ internal object OtelAttributes {
     const val UOW_ID = "uow.id"
     const val UOW_NAME = "uow.name"
     const val PRINCIPAL_ID = "principal.id"
+    const val MODEL_NAME = "model.name"
+    const val EVENT_NAME = "event.name"
     val MODEL_ID = AttributeKey.stringArrayKey("model.id")
 }
