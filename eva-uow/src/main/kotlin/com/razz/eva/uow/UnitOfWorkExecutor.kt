@@ -122,7 +122,7 @@ class UnitOfWorkExecutor(
                                 AttributeKey.stringKey(EVENT_NAME), modelEvent.eventName(),
                             ),
                         )
-                }
+                    }
                 val (uowId, persisted) = try {
                     withContext(uowSpan.asContextElement()) {
                         persistingSpan(name).use {
