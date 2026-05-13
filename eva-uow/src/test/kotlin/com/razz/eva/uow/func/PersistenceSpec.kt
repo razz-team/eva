@@ -137,13 +137,30 @@ class PersistenceSpec : PersistenceBaseSpec({
                 uowSpan?.parentSpanId shouldBe spanId
             }
 
+            val metrics = module.metricReader.collectAllMetrics()
+
             And("the uow timer metric is incremented") {
-                val metrics = module.metricReader.collectAllMetrics()
-                val metric = metrics.first()
-                val pointsForUow = metric.histogramData.points.filter {
+                val metric = metrics.find { it.name == "uow.timer" }
+                val pointsForUow = metric!!.histogramData.points.filter {
                     it.attributes.asMap().containsValue("CreateSoloDepartmentUow")
                 }
                 pointsForUow.size shouldBe 1
+            }
+
+            And("the model event counter metric is incremented") {
+                val metric = metrics.find { it.name == "model.event" }
+                val pointsForDepartmentEvent = metric!!.longSumData.points.filter { point ->
+                    val attributes = point.attributes.asMap()
+                    attributes.containsValue("Department") &&
+                        attributes.containsValue("OwnedDepartmentCreated")
+                }
+                pointsForDepartmentEvent.size shouldBe 1
+                val pointsForEmployeeEvent = metric.longSumData.points.filter { point ->
+                    val attributes = point.attributes.asMap()
+                    attributes.containsValue("Employee") &&
+                        attributes.containsValue("EmployeeCreated")
+                }
+                pointsForEmployeeEvent.size shouldBe 1
             }
         }
 
