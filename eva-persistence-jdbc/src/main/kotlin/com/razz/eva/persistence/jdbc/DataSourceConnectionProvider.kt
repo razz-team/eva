@@ -1,5 +1,7 @@
 package com.razz.eva.persistence.jdbc
 
+import com.razz.eva.tracing.withSpan
+import io.opentelemetry.api.OpenTelemetry
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
@@ -15,6 +17,7 @@ typealias HikariPoolConnectionProvider = DataSourceConnectionProvider
 class DataSourceConnectionProvider(
     private val pool: DataSource,
     private val blockingJdbcContext: CoroutineDispatcher = Dispatchers.IO,
+    private val openTelemetry: OpenTelemetry? = null,
     poolMaxSize: Int = Int.MAX_VALUE,
 ) : JdbcConnectionProvider {
 
@@ -23,7 +26,13 @@ class DataSourceConnectionProvider(
     override suspend fun acquire(): Connection {
         coroutineContext.ensureActive() // fail-fast if current coroutine was cancelled before acquiring a connection
 
-        semaphore.acquire() // acquire a permit before acquiring a connection from the pool
+        // acquire a permit before acquiring a connection from the pool,
+        // so we can be sure that won't just reserve a thread and wait for a connection to be available
+        openTelemetry?.withSpan(spanName = "semaphore-acquire", parameters = {
+            setAttribute("semaphore.availablePermits", semaphore.availablePermits.toLong())
+        }) {
+            semaphore.acquire()
+        } ?: semaphore.acquire()
 
         // here are 2 issues to solve:
         // 1. if the current coroutine is cancelled and we don't have NonCancellable at all,
@@ -36,7 +45,9 @@ class DataSourceConnectionProvider(
         // see https://kotlinlang.org/api/kotlinx.coroutines/kotlinx-coroutines-core/kotlinx.coroutines/with-context.html
         return withContext(NonCancellable) { // do not change a dispatcher when doing NonCancellable
             withContext(blockingJdbcContext) { // change a dispatcher separately
-                pool.connection
+                openTelemetry?.withSpan("connection-acquire") {
+                    pool.connection
+                } ?: pool.connection
             }
         }
     }
@@ -47,7 +58,9 @@ class DataSourceConnectionProvider(
         try {
             withContext(NonCancellable) { // do not change a dispatcher when doing NonCancellable
                 withContext(blockingJdbcContext) { // change a dispatcher separately
-                    connection.close()
+                    openTelemetry?.withSpan("connection-release") {
+                        connection.close()
+                    } ?: connection.close()
                 }
             }
         } finally {
