@@ -10,17 +10,21 @@ fun OpenTelemetry.getEvaTracer(): Tracer = getTracer("eva")
 
 fun OpenTelemetry.getEvaMeter(): Meter = getMeter("eva")
 
-suspend fun <T> OpenTelemetry.withSpan(
+suspend fun <T> OpenTelemetry?.withSpan(
     spanName: String,
     parameters: (SpanBuilder.() -> Unit)? = null,
-    block: suspend (span: Span) -> T,
+    block: suspend () -> T,
 ): T {
-    val span = startSpan(
-        spanName = spanName,
-        parameters = parameters,
-    )
-    return span.use {
-        block(span)
+    if (this == null) {
+        return block()
+    } else {
+        val span = startSpan(
+            spanName = spanName,
+            parameters = parameters,
+        )
+        return span.use {
+            block()
+        }
     }
 }
 

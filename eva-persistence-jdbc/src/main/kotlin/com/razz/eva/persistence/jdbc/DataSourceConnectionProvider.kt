@@ -28,11 +28,11 @@ class DataSourceConnectionProvider(
 
         // acquire a permit before acquiring a connection from the pool,
         // so we can be sure that won't just reserve a thread and wait for a connection to be available
-        openTelemetry?.withSpan(spanName = "semaphore-acquire", parameters = {
+        openTelemetry.withSpan(spanName = "semaphore-acquire", parameters = {
             setAttribute("semaphore.availablePermits", semaphore.availablePermits.toLong())
         }) {
             semaphore.acquire()
-        } ?: semaphore.acquire()
+        }
 
         // here are 2 issues to solve:
         // 1. if the current coroutine is cancelled and we don't have NonCancellable at all,
@@ -45,9 +45,9 @@ class DataSourceConnectionProvider(
         // see https://kotlinlang.org/api/kotlinx.coroutines/kotlinx-coroutines-core/kotlinx.coroutines/with-context.html
         return withContext(NonCancellable) { // do not change a dispatcher when doing NonCancellable
             withContext(blockingJdbcContext) { // change a dispatcher separately
-                openTelemetry?.withSpan("connection-acquire") {
+                openTelemetry.withSpan("connection-acquire") {
                     pool.connection
-                } ?: pool.connection
+                }
             }
         }
     }
@@ -58,9 +58,9 @@ class DataSourceConnectionProvider(
         try {
             withContext(NonCancellable) { // do not change a dispatcher when doing NonCancellable
                 withContext(blockingJdbcContext) { // change a dispatcher separately
-                    openTelemetry?.withSpan("connection-release") {
+                    openTelemetry.withSpan("connection-release") {
                         connection.close()
-                    } ?: connection.close()
+                    }
                 }
             }
         } finally {
