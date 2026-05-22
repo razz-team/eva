@@ -7,7 +7,7 @@ import java.util.*
 class LocaleSerializerSpec : BehaviorSpec({
 
     Given("Locale has language and country code") {
-        val template = Template(Locale("fr", "CH"))
+        val template = Template(Locale.of("fr", "CH"))
 
         lateinit var templateJson: String
 

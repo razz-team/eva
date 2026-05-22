@@ -99,6 +99,7 @@ class JooqEventRepositorySpec : BehaviorSpec({
 
                 val spanId = span.spanContext.spanId
                 val traceId = span.spanContext.traceId
+                val traceFlags = span.spanContext.traceFlags.asHex()
 
                 span.use {
                     eventRepo.add(uowEvent)
@@ -159,7 +160,7 @@ class JooqEventRepositorySpec : BehaviorSpec({
                                                         }
                                                     """).toString()
                                                 this.tracingContext = """
-                                                    {"traceparent":"00-$traceId-$spanId-01"}
+                                                    {"traceparent":"00-$traceId-$spanId-$traceFlags"}
                                                 """.trimIndent()
                                             }
                                         },
@@ -183,7 +184,7 @@ class JooqEventRepositorySpec : BehaviorSpec({
                                                         }
                                                     """).toString()
                                                 this.tracingContext = """
-                                                    {"traceparent":"00-$traceId-$spanId-01"}
+                                                    {"traceparent":"00-$traceId-$spanId-$traceFlags"}
                                                 """.trimIndent()
                                             }
                                         },
@@ -209,7 +210,7 @@ class JooqEventRepositorySpec : BehaviorSpec({
                                                         }
                                                     """).toString()
                                                 this.tracingContext = """
-                                                    {"traceparent":"00-$traceId-$spanId-01"}
+                                                    {"traceparent":"00-$traceId-$spanId-$traceFlags"}
                                                 """.trimIndent()
                                             }
                                         },

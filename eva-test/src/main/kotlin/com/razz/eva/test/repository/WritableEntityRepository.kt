@@ -21,10 +21,9 @@ class WritableEntityRepository(
         block: suspend (context: TransactionalContext) -> R,
     ): R {
         val context = TransactionalContext.transactionalContext(txStartedAt)
-        val txBlock: suspend () -> R = {
+        return txnManager.inTransaction(REQUIRE_NEW) { _ ->
             block(context)
         }
-        return txnManager.inTransaction(REQUIRE_NEW, txBlock)
     }
 
     suspend fun <E : CreatableEntity> add(

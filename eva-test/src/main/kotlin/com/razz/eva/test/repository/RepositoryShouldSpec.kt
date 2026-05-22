@@ -30,9 +30,8 @@ abstract class RepositoryShouldSpec(
 
     suspend fun <R> inTransaction(ctxInstant: Instant? = null, block: suspend (context: TransactionalContext) -> R): R {
         val context = transactionalContext(ctxInstant ?: clock.instant())
-        val txBlock: suspend () -> R = {
+        return txnManager.inTransaction(ConnectionMode.REQUIRE_NEW) { _ ->
             block(context)
         }
-        return txnManager.inTransaction(ConnectionMode.REQUIRE_NEW, txBlock)
     }
 }
