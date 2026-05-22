@@ -93,10 +93,9 @@ class Persisting(
         }
         val persisting = newPersistingAccumulator(uowSupportsOutOfOrderPersisting, modelRepos, entityRepos)
         val uowEvent = block(persisting, now)
-        val flushed = transactionManager.inTransaction(
-            REQUIRE_NEW,
-            suspend { flush(persisting, uowEvent, transactionalContext(now), persistingMode) },
-        )
+        val flushed = transactionManager.inTransaction(REQUIRE_NEW) { _ ->
+            flush(persisting, uowEvent, transactionalContext(now), persistingMode)
+        }
         return uowEvent to flushed
     }
 

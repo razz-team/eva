@@ -21,10 +21,9 @@ class WritableModelRepository(
         block: suspend (context: TransactionalContext) -> R,
     ): R {
         val context = TransactionalContext.transactionalContext(txStartedAt)
-        val txBlock: suspend () -> R = {
+        return txnManager.inTransaction(REQUIRE_NEW) { _ ->
             block(context)
         }
-        return txnManager.inTransaction(REQUIRE_NEW, txBlock)
     }
 
     suspend fun <ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>, M : Model<ID, E>> add(

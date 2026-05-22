@@ -8,6 +8,7 @@ import org.jetbrains.kotlin.fir.extensions.FirExtensionRegistrarAdapter
 
 @OptIn(ExperimentalCompilerApi::class)
 class UowParamsCompilerPluginRegistrar : CompilerPluginRegistrar() {
+    override val pluginId: String = "com.razz.eva.uow-params-kotlinx"
     override val supportsK2: Boolean = true
 
     override fun ExtensionStorage.registerExtensions(configuration: CompilerConfiguration) {

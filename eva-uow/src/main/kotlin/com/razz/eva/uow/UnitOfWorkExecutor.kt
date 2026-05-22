@@ -62,6 +62,7 @@ class UnitOfWorkExecutor(
         params: InstantiationContext.() -> PARAMS,
     ): RESULT where PRINCIPAL : Principal<*>,
           PARAMS : UowParams<PARAMS>,
+          RESULT : Any,
           UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *> {
         return execute(
             principal = principal,
@@ -78,6 +79,7 @@ class UnitOfWorkExecutor(
         params: InstantiationContext.() -> PARAMS,
     ): RESULT where PRINCIPAL : Principal<*>,
           PARAMS : UowParams<PARAMS>,
+          RESULT : Any,
           UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *> {
         val startTime = System.nanoTime()
         val timer = createTimer()
@@ -207,6 +209,7 @@ class UnitOfWorkExecutor(
         params: InstantiationContext.() -> PARAMS,
     ): RESULT where PRINCIPAL : Principal<*>,
           PARAMS : UowParams<PARAMS>,
+          RESULT : Any,
           UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *> {
         return execute(
             principal = principal,
@@ -223,8 +226,13 @@ class UnitOfWorkExecutor(
         } ?: false
 
     @Suppress("UNCHECKED_CAST")
-    private fun <PRINCIPAL : Principal<*>, PARAMS, RESULT, UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *>>
-    create(executionContext: ExecutionContext, target: KClass<UOW>): UOW {
+    private fun <PRINCIPAL, PARAMS, RESULT, UOW> create(
+        executionContext: ExecutionContext,
+        target: KClass<UOW>,
+    ): UOW where PRINCIPAL : Principal<*>,
+          PARAMS : UowParams<PARAMS>,
+          RESULT : Any,
+          UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *> {
         val factory = classToFactory[target] ?: throw UowFactoryNotFoundException(target)
         return (factory as (ExecutionContext) -> UOW)(executionContext)
     }
