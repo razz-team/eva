@@ -25,6 +25,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import mu.KotlinLogging
 import java.time.InstantSource
+import kotlin.collections.flatMap
 import kotlin.reflect.KClass
 
 infix fun <PRINCIPAL, PARAMS, RESULT, UOW> KClass<UOW>.withFactory(
@@ -112,18 +113,7 @@ class UnitOfWorkExecutor(
                     PRINCIPAL_ID,
                     principal.id.toString(),
                 )
-                changes.modelChangesToPersist
-                    .flatMap { it.modelEvents }
-                    .forEach { modelEvent ->
-                        eventsMetric().add(
-                            1,
-                            Attributes.of(
-                                AttributeKey.stringKey(MODEL_NAME), modelEvent.modelName,
-                                AttributeKey.stringKey(EVENT_NAME), modelEvent.eventName(),
-                                AttributeKey.stringKey(UOW_NAME), uowName,
-                            ),
-                        )
-                    }
+                incrementEventsMetric(changes.modelChangesToPersist, uowName)
                 val (uowId, persisted) = try {
                     withContext(uowSpan.asContextElement()) {
                         persistingSpan(name).use {
@@ -241,6 +231,20 @@ class UnitOfWorkExecutor(
     create(executionContext: ExecutionContext, target: KClass<UOW>): UOW {
         val factory = classToFactory[target] ?: throw UowFactoryNotFoundException(target)
         return (factory as (ExecutionContext) -> UOW)(executionContext)
+    }
+
+    private fun incrementEventsMetric(modelChanges: List<ModelChange>, uowName: String) {
+        modelChanges.flatMap { it.modelEvents }
+            .forEach { modelEvent ->
+                eventsMetric().add(
+                    1,
+                    Attributes.of(
+                        AttributeKey.stringKey(MODEL_NAME), modelEvent.modelName,
+                        AttributeKey.stringKey(EVENT_NAME), modelEvent.eventName(),
+                        AttributeKey.stringKey(UOW_NAME), uowName,
+                    ),
+                )
+            }
     }
 
     private fun eventsMetric() = openTelemetry.getEvaMeter()
