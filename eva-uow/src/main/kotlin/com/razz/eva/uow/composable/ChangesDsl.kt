@@ -46,7 +46,12 @@ class ChangesDsl internal constructor(
         if (existing != null && model.id() in inheritedModelIds) {
             val newEvents = model.modelEvents()
             check(newEvents isSuccessorOf existing.modelEvents) {
-                "Failed to merge changes for model [${model.id().stringValue()}]"
+                if (newEvents isSameAs existing.modelEvents) {
+                    "No-op update for model [${model.id().stringValue()}]: no new events on top of the " +
+                        "existing change. Use notChanged(...) or guard update(...)."
+                } else {
+                    "Failed to merge changes for model [${model.id().stringValue()}]"
+                }
             }
             val merged = when (existing) {
                 is AddModel<*, *, *> -> AddModel(model, newEvents)
@@ -152,6 +157,19 @@ class ChangesDsl internal constructor(
     private infix fun List<ModelEvent<*>>
         .isSuccessorOf(events: List<ModelEvent<*>>): Boolean {
         if (size <= events.size) {
+            return false
+        }
+        events.forEachIndexed { i, e ->
+            if (this[i] !== e) {
+                return false
+            }
+        }
+        return true
+    }
+
+    private infix fun List<ModelEvent<*>>
+        .isSameAs(events: List<ModelEvent<*>>): Boolean {
+        if (size != events.size) {
             return false
         }
         events.forEachIndexed { i, e ->
