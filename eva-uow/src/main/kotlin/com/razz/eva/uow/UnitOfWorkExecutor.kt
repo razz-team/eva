@@ -115,7 +115,7 @@ class UnitOfWorkExecutor(
                     PRINCIPAL_ID,
                     principal.id.toString(),
                 )
-                incrementEventsMetric(changes.modelChangesToPersist, uowName)
+                incrementEventsMetric(changes.modelChangesToPersist, name)
                 val (uowId, persisted) = try {
                     withContext(uowSpan.asContextElement()) {
                         persistingSpan(name).use {
