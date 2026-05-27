@@ -410,6 +410,30 @@ class ChangesDslSpec : FunSpec({
         exception.message shouldBe "Failed to merge changes for model [${model.id().stringValue()}]"
     }
 
+    test("Should throw no-op message when inherited model re-registered with identical events") {
+        val model = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
+        val innerUow0 = { ctx: ExecutionContext ->
+            object : DummyUow<CreatedTestModel>(ctx) {
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                    update(model.changeParam1("123"))
+                }
+            }
+        }
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                val updated = execute(innerUow0, TestPrincipal) { Params }
+                update(updated)
+                "K P A C U B O"
+            }
+        }
+
+        val exception = shouldThrow<IllegalStateException> {
+            uow.tryPerform(TestPrincipal, DummyUow.Params)
+        }
+        exception.message shouldBe "No-op update for model [${model.id().stringValue()}]: no new events on " +
+            "top of the existing change. Use notChanged(...) or guard update(...)."
+    }
+
     test("Should return properly built RealisedChanges when entity is added") {
         val departmentId = randomDepartmentId()
         val tag = Tag.environmentTag(departmentId.id, "production")
