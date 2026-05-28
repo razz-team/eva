@@ -14,7 +14,7 @@ tasks.withType<KotlinCompile>().configureEach {
 dependencies {
     api(libs.jooq)
 
-    implementation(libs.vertx.pg)
+    compileOnly(libs.vertx.pg)
     implementation(libs.kotlin.coroutines)
     implementation(libs.kotlin.reflect)
 
