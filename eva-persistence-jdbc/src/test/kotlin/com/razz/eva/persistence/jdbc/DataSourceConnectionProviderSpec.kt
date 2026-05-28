@@ -206,7 +206,8 @@ class DataSourceConnectionProviderSpec : ShouldSpec({
         // try to acquire a connection, which will fail
         runCatching { provider.acquire() }.exceptionOrNull()?.message shouldBe message
 
-        // try to acquire another connection, it will stuck if the permit was leaked, otherwise it will throw the same exception again
+        // try to acquire another connection, it will stuck if the permit was leaked,
+        // otherwise it will throw the same exception again
         withTimeout(Duration.ofMillis(200)) {
             runCatching { provider.acquire() }.exceptionOrNull()?.message shouldBe message
         }
