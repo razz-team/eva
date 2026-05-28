@@ -52,7 +52,8 @@ class DataSourceConnectionProvider(
                 }
             }
         } catch (t: Throwable) {
-            // if we failed to acquire a connection, we should release the permit, otherwise it will be leaked
+            // in a normal flow we will release the permit in the release() function, along with closing the connection,
+            // but if we failed to acquire a connection, we should release the permit here, otherwise it will be leaked
             semaphore.release()
             throw t
         }
