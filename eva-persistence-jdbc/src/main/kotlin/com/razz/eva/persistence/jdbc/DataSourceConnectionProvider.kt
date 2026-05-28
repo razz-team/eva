@@ -43,12 +43,19 @@ class DataSourceConnectionProvider(
         //    if the current coroutine is cancelled before withContext starts executing the block
         //
         // see https://kotlinlang.org/api/kotlinx.coroutines/kotlinx-coroutines-core/kotlinx.coroutines/with-context.html
-        return withContext(NonCancellable) { // do not change a dispatcher when doing NonCancellable
-            withContext(blockingJdbcContext) { // change a dispatcher separately
-                openTelemetry.withSpan("connection-acquire") {
-                    pool.connection
+        return try {
+            withContext(NonCancellable) { // do not change a dispatcher when doing NonCancellable
+                withContext(blockingJdbcContext) { // change a dispatcher separately
+                    openTelemetry.withSpan("connection-acquire") {
+                        pool.connection
+                    }
                 }
             }
+        } catch (t: Throwable) {
+            // in a normal flow we will release the permit in the release() function, along with closing the connection,
+            // but if we failed to acquire a connection, we should release the permit here, otherwise it will be leaked
+            semaphore.release()
+            throw t
         }
     }
 

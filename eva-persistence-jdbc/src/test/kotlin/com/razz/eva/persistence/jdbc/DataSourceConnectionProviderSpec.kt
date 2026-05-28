@@ -16,7 +16,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.newFixedThreadPoolContext
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.time.withTimeout
 import java.sql.Connection
+import java.time.Duration
+import java.util.UUID
 import java.util.concurrent.CopyOnWriteArraySet
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
@@ -191,5 +194,22 @@ class DataSourceConnectionProviderSpec : ShouldSpec({
             thread.isAlive shouldBe false
         }
         closed.get() shouldBe 1
+    }
+
+    should("not leak permits if acquiring a connection fails") {
+        val dataSource = mockk<DataSource>()
+        val message = UUID.randomUUID().toString()
+        every { dataSource.connection } throws RuntimeException(message)
+
+        val provider = DataSourceConnectionProvider(dataSource, poolMaxSize = 1)
+
+        // try to acquire a connection, which will fail
+        runCatching { provider.acquire() }.exceptionOrNull()?.message shouldBe message
+
+        // try to acquire another connection, it will stuck if the permit was leaked,
+        // otherwise it will throw the same exception again
+        withTimeout(Duration.ofMillis(200)) {
+            runCatching { provider.acquire() }.exceptionOrNull()?.message shouldBe message
+        }
     }
 })
