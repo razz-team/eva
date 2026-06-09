@@ -32,6 +32,7 @@ kotlin-coroutines-slf4j = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-s
 kotlinx-serialization = { module = "org.jetbrains.kotlinx:kotlinx-serialization-core-jvm", version.ref = "kotlinx-serialization" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinx-serialization" }
 kotest-runner = { module = "io.kotest:kotest-runner-junit5-jvm", version.ref = "kotest" }
+kotest-framework-engine = { module = "io.kotest:kotest-framework-engine", version.ref = "kotest" }
 kotest-assertions-json = { module = "io.kotest:kotest-assertions-json-jvm", version.ref = "kotest" }
 kotest-assertions-core = { module = "io.kotest:kotest-assertions-core-jvm", version.ref = "kotest" }
 hikari = { module = "com.zaxxer:HikariCP", version.ref = "hikari" }

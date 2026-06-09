@@ -24,7 +24,8 @@ dependencies {
 
     implementation(libs.kotlin.reflect)
     implementation(libs.postgres)
-    implementation(libs.kotest.runner)
+    implementation(libs.kotest.framework.engine)
+    implementation(libs.kotest.assertions.core)
     implementation(libs.mockk)
     implementation(libs.hikari)
     implementation(libs.testcontainers)
