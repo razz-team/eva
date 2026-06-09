@@ -1,14 +1,13 @@
 package com.razz.eva.repository
 
-import com.razz.eva.domain.ModelState.PersistentState
 import com.razz.eva.domain.Model
 import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
+import com.razz.eva.domain.ModelState.PersistentState
 import com.razz.eva.paging.Page
 import com.razz.eva.paging.PagedList
 import com.razz.eva.persistence.executor.QueryExecutor
 import com.razz.jooq.record.BaseModelRecord
-import java.time.Instant
 import org.jooq.Condition
 import org.jooq.DSLContext
 import org.jooq.Field
@@ -19,6 +18,7 @@ import org.jooq.Table
 import org.jooq.TableField
 import org.jooq.impl.DSL
 import org.jooq.impl.SQLDataType
+import java.time.Instant
 
 abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
     private val queryExecutor: QueryExecutor,
@@ -163,15 +163,24 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
         condition: Condition,
         sortField: SortField<*>? = null,
         sortFields: Array<SortField<*>> = emptyArray(),
-        limit: Int = MAX_RETURNED_RECORDS,
+        limit: Int? = null,
     ): List<M> {
         val select = dslContext.selectFrom(table)
             .where(condition)
-        return if (sortField != null) {
-            findAll(select.orderBy(sortField, *sortFields).limit(limit))
-        } else {
-            findAll(select.limit(limit))
-        }
+            .let {
+                when (sortField) {
+                    null -> it
+                    else -> it.orderBy(sortField, *sortFields)
+                }
+            }
+            .let {
+                when (limit) {
+                    null -> it
+                    else -> it.limit(limit)
+                }
+            }
+
+        return findAll(select)
     }
 
     protected suspend fun findAll(select: Select<R>): List<M> {
@@ -209,8 +218,6 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
     }
 
     private companion object {
-        private const val MAX_RETURNED_RECORDS = 1000
-
         private val LONG_COUNT = DSL.field("count(*)", SQLDataType.BIGINT)
     }
 }

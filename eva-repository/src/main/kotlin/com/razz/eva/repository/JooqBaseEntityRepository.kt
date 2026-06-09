@@ -60,8 +60,16 @@ abstract class JooqBaseEntityRepository<E : CreatableEntity, R : BaseEntityRecor
         return added.map(::fromRecord)
     }
 
-    protected suspend fun listAllWhere(condition: Condition, limit: Int = MAX_RETURNED_RECORDS): List<E> {
-        val select = dslContext.selectFrom(table).where(condition).limit(limit)
+    protected suspend fun listAllWhere(condition: Condition, limit: Int? = null): List<E> {
+        val select = dslContext.selectFrom(table)
+            .where(condition)
+            .let {
+                when (limit) {
+                    null -> it
+                    else -> it.limit(limit)
+                }
+            }
+
         return allRecords(select).map(::fromRecord)
     }
 
@@ -115,9 +123,5 @@ abstract class JooqBaseEntityRepository<E : CreatableEntity, R : BaseEntityRecor
             jooqQuery = select,
             table = select.asTable(),
         )
-    }
-
-    private companion object {
-        private const val MAX_RETURNED_RECORDS = 1000
     }
 }
