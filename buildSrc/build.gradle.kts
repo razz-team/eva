@@ -1,5 +1,4 @@
 plugins {
-    kotlin("jvm") version "2.1.0"
     `java-gradle-plugin`
     `kotlin-dsl`
     `kotlin-dsl-precompiled-script-plugins`
@@ -18,6 +17,7 @@ tasks.compileKotlin {
 }
 
 dependencies {
+    implementation(platform(libs.kotlin.bom))
     implementation(libs.kotlin.serialization.plugin)
     implementation(libs.detekt.plugin)
     implementation(libs.kotlin.plugin)

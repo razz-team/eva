@@ -1,4 +1,3 @@
-import org.gradle.kotlin.dsl.withType
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
@@ -13,6 +12,9 @@ tasks.withType<KotlinCompile>().configureEach {
 }
 
 dependencies {
+    implementation(platform(libs.kotest.bom))
+    implementation(platform(libs.testcontainers.bom))
+
     implementation(project(eva.eva_domain))
     implementation(project(eva.eva_repository))
     implementation(project(eva.eva_uow))
@@ -27,7 +29,6 @@ dependencies {
     implementation(libs.kotest.runner)
     implementation(libs.mockk)
     implementation(libs.hikari)
-    implementation(libs.testcontainers)
     implementation(libs.testcontainers.postgres)
     implementation(libs.kotlin.logging)
     implementation(libs.flyway)

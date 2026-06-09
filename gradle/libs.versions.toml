@@ -1,67 +1,72 @@
 [versions]
-kotlin = "2.3.21"
-kotlin-coroutines = "1.11.0"
-kotlinx-serialization = "1.11.0"
-kotest = "6.1.11"
-jooq = "3.21.4"
 flywaydb = "12.6.2"
-opentelemetry = "1.62.0"
-micrometer = "1.14.1"
 detekt = "1.23.8"
-logback = "1.5.32"
-kotlin-logging = "3.0.5"
-jackson = "2.21.3"
-mockk = "1.14.9"
-testcontainers = "2.0.5"
-testcontainers-postgres = "1.21.4"
-postgresql = "42.7.11"
-vertx = "5.0.12"
-hikari = "7.0.2"
-kafka-clients = "3.8.0"
-dokka = "2.2.0"
-maven-publish = "0.33.0"
-ben-manes-versions = "0.54.0"
 
 [libraries]
-kotlin-stdlib = { module = "org.jetbrains.kotlin:kotlin-stdlib", version.ref = "kotlin" }
-kotlin-reflect = { module = "org.jetbrains.kotlin:kotlin-reflect", version.ref = "kotlin" }
-kotlin-compiler-embeddable = { module = "org.jetbrains.kotlin:kotlin-compiler-embeddable", version.ref = "kotlin" }
-kotlin-logging = { module = "io.github.microutils:kotlin-logging", version.ref = "kotlin-logging" }
-kotlin-coroutines = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlin-coroutines" }
-kotlin-coroutines-slf4j = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-slf4j", version.ref = "kotlin-coroutines" }
-kotlinx-serialization = { module = "org.jetbrains.kotlinx:kotlinx-serialization-core-jvm", version.ref = "kotlinx-serialization" }
-kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinx-serialization" }
-kotest-runner = { module = "io.kotest:kotest-runner-junit5-jvm", version.ref = "kotest" }
-kotest-assertions-json = { module = "io.kotest:kotest-assertions-json-jvm", version.ref = "kotest" }
-kotest-assertions-core = { module = "io.kotest:kotest-assertions-core-jvm", version.ref = "kotest" }
-hikari = { module = "com.zaxxer:HikariCP", version.ref = "hikari" }
-jooq = { module = "org.jooq:jooq", version.ref = "jooq" }
-jooq-postgres = { module = "org.jooq:jooq-postgres-extensions", version.ref = "jooq" }
-logback = { module = "ch.qos.logback:logback-classic", version.ref = "logback" }
-opentelemetry-sdk = { module = "io.opentelemetry:opentelemetry-sdk", version.ref = "opentelemetry" }
-opentelemetry-sdk-testing = { module = "io.opentelemetry:opentelemetry-sdk-testing", version.ref = "opentelemetry" }
-opentelemetry-kotlin = { module = "io.opentelemetry:opentelemetry-extension-kotlin", version.ref = "opentelemetry" }
+# not managed by BOMs
 flyway = { module = "org.flywaydb:flyway-core", version.ref = "flywaydb" }
 flyway-postgres = { module = "org.flywaydb:flyway-database-postgresql", version.ref = "flywaydb" }
-postgres = { module = "org.postgresql:postgresql", version.ref = "postgresql" }
-vertx-pg = { module = "io.vertx:vertx-pg-client", version.ref = "vertx" }
-vertx-kotlin = { module = "io.vertx:vertx-lang-kotlin", version.ref = "vertx" }
-vertx-kotlin-coroutines = { module = "io.vertx:vertx-lang-kotlin-coroutines", version.ref = "vertx" }
-mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
-kafka-clients = { module = "org.apache.kafka:kafka-clients", version.ref = "kafka-clients" }
-testcontainers = { module = "org.testcontainers:testcontainers", version.ref = "testcontainers" }
-testcontainers-postgres = { module = "org.testcontainers:postgresql", version.ref = "testcontainers-postgres" }
+hikari = { module = "com.zaxxer:HikariCP", version = "7.0.2" }
+kotlin-logging = { module = "io.github.microutils:kotlin-logging", version = "3.0.5" }
+logback = { module = "ch.qos.logback:logback-classic", version = "1.5.32" }
+mockk = { module = "io.mockk:mockk", version = "1.14.9" }
+postgres = { module = "org.postgresql:postgresql", version = "42.7.11" }
+
+# BOMs
+kotlin-bom = { module = "org.jetbrains.kotlin:kotlin-bom", version = "2.3.21" }
+kotlinx-coroutines-bom = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-bom", version = "1.11.0" }
+kotlinx-serialization-bom = { module = "org.jetbrains.kotlinx:kotlinx-serialization-bom", version = "1.11.0" }
+
+micrometer-bom = { module = "io.micrometer:micrometer-bom", version = "1.14.1" }
+jooq-bom = { module = "org.jooq:jooq-bom", version = "3.21.4" }
+jackson-bom = { module = "com.fasterxml.jackson:jackson-bom", version = "2.21.3" }
+
+opentelemetry-instrumentation-bom = { module = "io.opentelemetry.instrumentation:opentelemetry-instrumentation-bom", version = "2.28.1" }
+opentelemetry-instrumentation-alpha-bom = { module = "io.opentelemetry.instrumentation:opentelemetry-instrumentation-bom-alpha", version = "2.28.1-alpha" }
+vertx-bom = { module = "io.vertx:vertx-stack-depchain", version = "5.0.12" }
+
+testcontainers-bom = { module = "org.testcontainers:testcontainers-bom", version = "1.21.4" }
+kotest-bom = { module = "io.kotest:kotest-bom", version = "6.1.11" }
+
+# managed by BOMs
+kotlin-stdlib = { module = "org.jetbrains.kotlin:kotlin-stdlib" }
+kotlin-reflect = { module = "org.jetbrains.kotlin:kotlin-reflect" }
+kotlin-compiler-embeddable = { module = "org.jetbrains.kotlin:kotlin-compiler-embeddable" }
+
+kotlin-coroutines = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core" }
+kotlin-coroutines-slf4j = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-slf4j" }
+kotlinx-serialization = { module = "org.jetbrains.kotlinx:kotlinx-serialization-core-jvm" }
+kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json" }
+
+jackson-databind = { module = "com.fasterxml.jackson.core:jackson-databind" }
+jackson-kotlin = { module = "com.fasterxml.jackson.module:jackson-module-kotlin" }
+
+vertx-pg = { module = "io.vertx:vertx-pg-client" }
+vertx-kotlin = { module = "io.vertx:vertx-lang-kotlin" }
+vertx-kotlin-coroutines = { module = "io.vertx:vertx-lang-kotlin-coroutines" }
+
+opentelemetry-sdk = { module = "io.opentelemetry:opentelemetry-sdk" }
+opentelemetry-sdk-testing = { module = "io.opentelemetry:opentelemetry-sdk-testing" }
+opentelemetry-kotlin = { module = "io.opentelemetry:opentelemetry-extension-kotlin" }
+
+kotest-runner = { module = "io.kotest:kotest-runner-junit5-jvm" }
+kotest-assertions-json = { module = "io.kotest:kotest-assertions-json-jvm" }
+kotest-assertions-core = { module = "io.kotest:kotest-assertions-core-jvm" }
+
+testcontainers-postgres = { module = "org.testcontainers:postgresql" }
+
+jooq = { module = "org.jooq:jooq" }
+jooq-postgres = { module = "org.jooq:jooq-postgres-extensions" }
+
 detekt-formatting = { module = "io.gitlab.arturbosch.detekt:detekt-formatting", version.ref = "detekt" }
-jackson-databind = { module = "com.fasterxml.jackson.core:jackson-databind", version.ref = "jackson" }
-jackson-kotlin = { module = "com.fasterxml.jackson.module:jackson-module-kotlin", version.ref = "jackson" }
-micrometer-prometheus = { module = "io.micrometer:micrometer-registry-prometheus", version.ref = "micrometer" }
 
 # buildSrc plugin dependencies
-kotlin-serialization-plugin = { module = "org.jetbrains.kotlin:kotlin-serialization", version.ref = "kotlin" }
+kotlin-plugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin" }
+kotlin-serialization-plugin = { module = "org.jetbrains.kotlin:kotlin-serialization" }
+
 detekt-plugin = { module = "io.gitlab.arturbosch.detekt:detekt-gradle-plugin", version.ref = "detekt" }
-kotlin-plugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
-dokka-plugin = { module = "org.jetbrains.dokka:dokka-gradle-plugin", version.ref = "dokka" }
-maven-publish-plugin = { module = "com.vanniktech:gradle-maven-publish-plugin", version.ref = "maven-publish" }
+dokka-plugin = { module = "org.jetbrains.dokka:dokka-gradle-plugin", version = "2.2.0" }
+maven-publish-plugin = { module = "com.vanniktech:gradle-maven-publish-plugin", version = "0.33.0" }
 
 [plugins]
-versions = { id = "com.github.ben-manes.versions", version.ref = "ben-manes-versions" }
+versions = { id = "com.github.ben-manes.versions", version = "0.54.0" }
