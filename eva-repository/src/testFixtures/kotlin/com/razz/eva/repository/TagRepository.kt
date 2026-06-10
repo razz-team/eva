@@ -2,11 +2,11 @@ package com.razz.eva.repository
 
 import com.razz.eva.domain.Tag
 import com.razz.eva.persistence.executor.QueryExecutor
-import com.razz.eva.test.schema.tables.Tag as TagTable
 import com.razz.eva.test.schema.tables.records.TagRecord
 import org.jooq.Condition
 import org.jooq.DSLContext
 import java.util.UUID
+import com.razz.eva.test.schema.tables.Tag as TagTable
 
 class TagRepository(
     private val qe: QueryExecutor,
@@ -28,12 +28,12 @@ class TagRepository(
             .and(TagTable.TAG.NAME.eq(key.name))
 
     suspend fun listBySubject(subjectId: UUID): List<Tag> =
-        listAllWhere(TagTable.TAG.SUBJECT_ID.eq(subjectId))
+        listAllWhere(TagTable.TAG.SUBJECT_ID.eq(subjectId), limit = 1_000)
 
     suspend fun listBySubjects(subjectIds: List<UUID>): Map<UUID, List<Tag>> {
         if (subjectIds.isEmpty()) return mapOf()
         val tags = listAllWhere(
-            TagTable.TAG.SUBJECT_ID.`in`(subjectIds)
+            condition = TagTable.TAG.SUBJECT_ID.`in`(subjectIds), limit = 1_000
         )
         return tags.groupBy { it.subjectId }
     }

@@ -1,14 +1,13 @@
 package com.razz.eva.repository
 
-import com.razz.eva.domain.ModelState.PersistentState
 import com.razz.eva.domain.Model
 import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
+import com.razz.eva.domain.ModelState.PersistentState
 import com.razz.eva.paging.Page
 import com.razz.eva.paging.PagedList
 import com.razz.eva.persistence.executor.QueryExecutor
 import com.razz.jooq.record.BaseModelRecord
-import java.time.Instant
 import org.jooq.Condition
 import org.jooq.DSLContext
 import org.jooq.Field
@@ -19,6 +18,7 @@ import org.jooq.Table
 import org.jooq.TableField
 import org.jooq.impl.DSL
 import org.jooq.impl.SQLDataType
+import java.time.Instant
 
 abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
     private val queryExecutor: QueryExecutor,
@@ -97,11 +97,11 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
         return when {
             uniqueDbIds.isEmpty() -> listOf()
             uniqueDbIds.size <= 3 -> {
-                findAllWhere(tableId.`in`(uniqueDbIds))
+                findAllWhere(condition = tableId.`in`(uniqueDbIds), limit = uniqueDbIds.size)
             }
             else -> {
                 val idParams = uniqueDbIds.map<ID, Field<ID>>(DSL::`val`).toTypedArray()
-                findAllWhere(tableId.eq(DSL.any(*idParams)))
+                findAllWhere(condition = tableId.eq(DSL.any(*idParams)), limit = uniqueDbIds.size)
             }
         }
     }
@@ -159,19 +159,30 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
         mapper = mapper,
     )
 
+    @Deprecated("Use findAllWhere with limit instead to avoid OOM")
     protected suspend fun findAllWhere(
         condition: Condition,
         sortField: SortField<*>? = null,
         sortFields: Array<SortField<*>> = emptyArray(),
-        limit: Int = MAX_RETURNED_RECORDS,
+    ): List<M> = findAllWhere(condition, sortField, sortFields, limit = Int.MAX_VALUE)
+
+    protected suspend fun findAllWhere(
+        condition: Condition,
+        sortField: SortField<*>? = null,
+        sortFields: Array<SortField<*>> = emptyArray(),
+        limit: Int,
     ): List<M> {
         val select = dslContext.selectFrom(table)
             .where(condition)
-        return if (sortField != null) {
-            findAll(select.orderBy(sortField, *sortFields).limit(limit))
-        } else {
-            findAll(select.limit(limit))
-        }
+            .let {
+                when (sortField) {
+                    null -> it
+                    else -> it.orderBy(sortField, *sortFields)
+                }
+            }
+            .limit(limit)
+
+        return findAll(select)
     }
 
     protected suspend fun findAll(select: Select<R>): List<M> {
@@ -209,8 +220,6 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
     }
 
     private companion object {
-        private const val MAX_RETURNED_RECORDS = 1000
-
         private val LONG_COUNT = DSL.field("count(*)", SQLDataType.BIGINT)
     }
 }

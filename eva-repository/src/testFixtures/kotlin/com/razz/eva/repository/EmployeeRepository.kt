@@ -11,7 +11,7 @@ import com.razz.eva.persistence.executor.QueryExecutor
 import com.razz.eva.test.schema.Tables.EMPLOYEES
 import com.razz.eva.test.schema.tables.records.EmployeesRecord
 import org.jooq.DSLContext
-import java.util.*
+import java.util.UUID
 
 class EmployeeRepository(
     queryExecutor: QueryExecutor,
@@ -47,7 +47,7 @@ class EmployeeRepository(
     }
 
     suspend fun findByDepartment(departmentId: DepartmentId): List<Employee> {
-        return findAllWhere(EMPLOYEES.DEPARTMENT_ID.eq(departmentId.id))
+        return findAllWhere(condition = EMPLOYEES.DEPARTMENT_ID.eq(departmentId.id), limit = 10_000)
     }
 
     suspend fun findByDepartments(
@@ -55,7 +55,8 @@ class EmployeeRepository(
     ): Map<DepartmentId, List<Employee>> {
         if (departmentIds.isEmpty()) return mapOf()
         val employees = findAllWhere(
-            EMPLOYEES.DEPARTMENT_ID.`in`(departmentIds.map { it.id })
+            condition = EMPLOYEES.DEPARTMENT_ID.`in`(departmentIds.map { it.id }),
+            limit = 10_000
         )
         return employees.groupBy { it.departmentId }
     }

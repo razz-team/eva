@@ -6,7 +6,6 @@ import com.razz.eva.domain.RationAllocation
 import com.razz.eva.persistence.executor.QueryExecutor
 import com.razz.eva.test.schema.tables.RationAllocation.RATION_ALLOCATION
 import com.razz.eva.test.schema.tables.records.RationAllocationRecord
-import org.jooq.Condition
 import org.jooq.DSLContext
 import java.sql.Date
 import java.time.LocalDate
@@ -37,12 +36,13 @@ class RationAllocationRepository(
         )
 
     suspend fun listByEmployee(employeeId: EmployeeId): List<RationAllocation> =
-        listAllWhere(RATION_ALLOCATION.EMPLOYEE_ID.eq(employeeId.id))
+        listAllWhere(condition = RATION_ALLOCATION.EMPLOYEE_ID.eq(employeeId.id), limit = 1_000)
 
     suspend fun listByEmployeeAndDate(employeeId: EmployeeId, effectiveDate: LocalDate): List<RationAllocation> =
         listAllWhere(
-            RATION_ALLOCATION.EMPLOYEE_ID.eq(employeeId.id)
+            condition = RATION_ALLOCATION.EMPLOYEE_ID.eq(employeeId.id)
                 .and(RATION_ALLOCATION.EFFECTIVE_DATE.eq(Date.valueOf(effectiveDate))),
+            limit = 1_000
         )
 
     suspend fun existsForEmployee(employeeId: EmployeeId): Boolean =

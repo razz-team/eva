@@ -16,7 +16,7 @@ import com.razz.eva.test.schema.enums.BubalehsState
 import com.razz.eva.test.schema.tables.records.BubalehsRecord
 import org.jooq.DSLContext
 import org.jooq.impl.DSL
-import java.util.*
+import java.util.UUID
 
 class BubalehRepository(
     queryExecutor: QueryExecutor,
@@ -77,6 +77,6 @@ class BubalehRepository(
     }
 
     suspend fun findAll(): List<Bubaleh> {
-        return findAllWhere(DSL.trueCondition())
+        return findAllWhere(condition = DSL.trueCondition(), limit = Int.MAX_VALUE)
     }
 }

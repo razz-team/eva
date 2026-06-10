@@ -15,7 +15,7 @@ import com.razz.eva.test.schema.enums.ShakshoukasState.SERVED
 import com.razz.eva.test.schema.tables.records.ShakshoukasRecord
 import org.jooq.DSLContext
 import org.jooq.impl.DSL
-import java.util.*
+import java.util.UUID
 
 class ShakshoukaRepository(
     queryExecutor: QueryExecutor,
@@ -75,6 +75,6 @@ class ShakshoukaRepository(
     }
 
     suspend fun findAll(): List<Shakshouka> {
-        return findAllWhere(DSL.trueCondition())
+        return findAllWhere(condition = DSL.trueCondition(), limit = Int.MAX_VALUE)
     }
 }
