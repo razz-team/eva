@@ -97,11 +97,11 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
         return when {
             uniqueDbIds.isEmpty() -> listOf()
             uniqueDbIds.size <= 3 -> {
-                findAllWhere(tableId.`in`(uniqueDbIds))
+                findAllWhere(condition = tableId.`in`(uniqueDbIds), limit = uniqueDbIds.size)
             }
             else -> {
                 val idParams = uniqueDbIds.map<ID, Field<ID>>(DSL::`val`).toTypedArray()
-                findAllWhere(tableId.eq(DSL.any(*idParams)))
+                findAllWhere(condition = tableId.eq(DSL.any(*idParams)), limit = uniqueDbIds.size)
             }
         }
     }
@@ -159,11 +159,18 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
         mapper = mapper,
     )
 
+    @Deprecated("Use findAllWhere with limit instead to avoid OOM")
     protected suspend fun findAllWhere(
         condition: Condition,
         sortField: SortField<*>? = null,
         sortFields: Array<SortField<*>> = emptyArray(),
-        limit: Int? = null,
+    ): List<M> = findAllWhere(condition, sortField, sortFields, limit = Int.MAX_VALUE)
+
+    protected suspend fun findAllWhere(
+        condition: Condition,
+        sortField: SortField<*>? = null,
+        sortFields: Array<SortField<*>> = emptyArray(),
+        limit: Int,
     ): List<M> {
         val select = dslContext.selectFrom(table)
             .where(condition)
@@ -173,12 +180,7 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
                     else -> it.orderBy(sortField, *sortFields)
                 }
             }
-            .let {
-                when (limit) {
-                    null -> it
-                    else -> it.limit(limit)
-                }
-            }
+            .limit(limit)
 
         return findAll(select)
     }
