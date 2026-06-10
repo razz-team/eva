@@ -61,7 +61,12 @@ abstract class JooqBaseEntityRepository<E : CreatableEntity, R : BaseEntityRecor
     }
 
     @Deprecated("Use listAllWhere with limit instead to avoid OOM")
-    protected suspend fun listAllWhere(condition: Condition) = listAllWhere(condition = condition, limit = Int.MAX_VALUE)
+    protected suspend fun listAllWhere(
+        condition: Condition,
+    ) = listAllWhere(
+        condition = condition,
+        limit = Int.MAX_VALUE,
+    )
 
     protected suspend fun listAllWhere(condition: Condition, limit: Int): List<E> {
         val select = dslContext.selectFrom(table)
