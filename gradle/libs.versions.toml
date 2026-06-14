@@ -13,7 +13,7 @@ mockk = { module = "io.mockk:mockk", version = "1.14.9" }
 postgres = { module = "org.postgresql:postgresql", version = "42.7.11" }
 
 # BOMs
-kotlin-bom = { module = "org.jetbrains.kotlin:kotlin-bom", version = "2.3.21" }
+kotlin-bom = { module = "org.jetbrains.kotlin:kotlin-bom", version = "2.4.0" }
 kotlinx-coroutines-bom = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-bom", version = "1.11.0" }
 kotlinx-serialization-bom = { module = "org.jetbrains.kotlinx:kotlinx-serialization-bom", version = "1.11.0" }
 
