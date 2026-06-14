@@ -1,6 +1,8 @@
 [versions]
 flywaydb = "12.8.1"
 detekt = "1.23.8"
+kotlin = "2.4.0"
+kotlinx-serialization = "1.11.0"
 
 [libraries]
 # not managed by BOMs
@@ -13,9 +15,9 @@ mockk = { module = "io.mockk:mockk", version = "1.14.11" }
 postgres = { module = "org.postgresql:postgresql", version = "42.7.11" }
 
 # BOMs
-kotlin-bom = { module = "org.jetbrains.kotlin:kotlin-bom", version = "2.4.0" }
+kotlin-bom = { module = "org.jetbrains.kotlin:kotlin-bom", version.ref = "kotlin" }
 kotlinx-coroutines-bom = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-bom", version = "1.11.0" }
-kotlinx-serialization-bom = { module = "org.jetbrains.kotlinx:kotlinx-serialization-bom", version = "1.11.0" }
+kotlinx-serialization-bom = { module = "org.jetbrains.kotlinx:kotlinx-serialization-bom", version.ref = "kotlinx-serialization" }
 
 jooq-bom = { module = "org.jooq:jooq-bom", version = "3.21.5" }
 jackson-bom = { module = "com.fasterxml.jackson:jackson-bom", version = "2.22.0" }
@@ -61,8 +63,8 @@ jooq-postgres = { module = "org.jooq:jooq-postgres-extensions" }
 detekt-formatting = { module = "io.gitlab.arturbosch.detekt:detekt-formatting", version.ref = "detekt" }
 
 # buildSrc plugin dependencies
-kotlin-plugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin" }
-kotlin-serialization-plugin = { module = "org.jetbrains.kotlin:kotlin-serialization" }
+kotlin-plugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
+kotlin-serialization-plugin = { module = "org.jetbrains.kotlin:kotlin-serialization", version.ref = "kotlinx-serialization" }
 
 detekt-plugin = { module = "io.gitlab.arturbosch.detekt:detekt-gradle-plugin", version.ref = "detekt" }
 dokka-plugin = { module = "org.jetbrains.dokka:dokka-gradle-plugin", version = "2.2.0" }

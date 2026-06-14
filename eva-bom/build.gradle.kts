@@ -43,6 +43,10 @@ dependencies {
         api("team.razz.eva:eva-uow-params-kotlinx:$version")
         api("team.razz.eva:eva-uow-params-kotlinx-compiler:$version")
 
+        // gradle plugins are not included in the BOMs
+        api(libs.kotlin.plugin.get().toString())
+        api(libs.kotlin.serialization.plugin.get().toString())
+
         // no BOM available
         api(libs.mockk)
     }
