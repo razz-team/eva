@@ -17,13 +17,13 @@ kotlin-bom = { module = "org.jetbrains.kotlin:kotlin-bom", version = "2.3.21" }
 kotlinx-coroutines-bom = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-bom", version = "1.11.0" }
 kotlinx-serialization-bom = { module = "org.jetbrains.kotlinx:kotlinx-serialization-bom", version = "1.11.0" }
 
-micrometer-bom = { module = "io.micrometer:micrometer-bom", version = "1.14.1" }
 jooq-bom = { module = "org.jooq:jooq-bom", version = "3.21.4" }
 jackson-bom = { module = "com.fasterxml.jackson:jackson-bom", version = "2.21.3" }
+vertx-bom = { module = "io.vertx:vertx-stack-depchain", version = "5.0.12" }
 
+micrometer-bom = { module = "io.micrometer:micrometer-bom", version = "1.14.1" }
 opentelemetry-instrumentation-bom = { module = "io.opentelemetry.instrumentation:opentelemetry-instrumentation-bom", version = "2.28.1" }
 opentelemetry-instrumentation-alpha-bom = { module = "io.opentelemetry.instrumentation:opentelemetry-instrumentation-bom-alpha", version = "2.28.1-alpha" }
-vertx-bom = { module = "io.vertx:vertx-stack-depchain", version = "5.0.12" }
 
 testcontainers-bom = { module = "org.testcontainers:testcontainers-bom", version = "1.21.4" }
 kotest-bom = { module = "io.kotest:kotest-bom", version = "6.1.11" }
