@@ -18,7 +18,7 @@ kotlinx-coroutines-bom = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-bo
 kotlinx-serialization-bom = { module = "org.jetbrains.kotlinx:kotlinx-serialization-bom", version = "1.11.0" }
 
 jooq-bom = { module = "org.jooq:jooq-bom", version = "3.21.5" }
-jackson-bom = { module = "com.fasterxml.jackson:jackson-bom", version = "2.21.3" }
+jackson-bom = { module = "com.fasterxml.jackson:jackson-bom", version = "2.22.0" }
 vertx-bom = { module = "io.vertx:vertx-stack-depchain", version = "5.0.12" }
 
 micrometer-bom = { module = "io.micrometer:micrometer-bom", version = "1.14.1" }
