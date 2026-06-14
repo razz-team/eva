@@ -1,5 +1,5 @@
 [versions]
-flywaydb = "12.6.2"
+flywaydb = "12.8.1"
 detekt = "1.23.8"
 
 [libraries]
