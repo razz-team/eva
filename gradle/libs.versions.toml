@@ -8,8 +8,8 @@ flyway = { module = "org.flywaydb:flyway-core", version.ref = "flywaydb" }
 flyway-postgres = { module = "org.flywaydb:flyway-database-postgresql", version.ref = "flywaydb" }
 hikari = { module = "com.zaxxer:HikariCP", version = "7.0.2" }
 kotlin-logging = { module = "io.github.microutils:kotlin-logging", version = "3.0.5" }
-logback = { module = "ch.qos.logback:logback-classic", version = "1.5.32" }
-mockk = { module = "io.mockk:mockk", version = "1.14.9" }
+logback = { module = "ch.qos.logback:logback-classic", version = "1.5.34" }
+mockk = { module = "io.mockk:mockk", version = "1.14.11" }
 postgres = { module = "org.postgresql:postgresql", version = "42.7.11" }
 
 # BOMs
@@ -17,7 +17,7 @@ kotlin-bom = { module = "org.jetbrains.kotlin:kotlin-bom", version = "2.3.21" }
 kotlinx-coroutines-bom = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-bom", version = "1.11.0" }
 kotlinx-serialization-bom = { module = "org.jetbrains.kotlinx:kotlinx-serialization-bom", version = "1.11.0" }
 
-jooq-bom = { module = "org.jooq:jooq-bom", version = "3.21.4" }
+jooq-bom = { module = "org.jooq:jooq-bom", version = "3.21.5" }
 jackson-bom = { module = "com.fasterxml.jackson:jackson-bom", version = "2.21.3" }
 vertx-bom = { module = "io.vertx:vertx-stack-depchain", version = "5.0.12" }
 
