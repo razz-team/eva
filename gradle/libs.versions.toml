@@ -53,7 +53,7 @@ kotest-runner = { module = "io.kotest:kotest-runner-junit5-jvm" }
 kotest-assertions-json = { module = "io.kotest:kotest-assertions-json-jvm" }
 kotest-assertions-core = { module = "io.kotest:kotest-assertions-core-jvm" }
 
-testcontainers-postgres = { module = "org.testcontainers:postgresql" }
+testcontainers-postgres = { module = "org.testcontainers:testcontainers-postgresql" }
 
 jooq = { module = "org.jooq:jooq" }
 jooq-postgres = { module = "org.jooq:jooq-postgres-extensions" }

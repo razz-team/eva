@@ -2,7 +2,7 @@ package com.razz.eva.test.db
 
 import com.razz.eva.test.db.DatabaseContainer.Companion.BASIC
 import mu.KotlinLogging
-import org.testcontainers.containers.PostgreSQLContainer
+import org.testcontainers.postgresql.PostgreSQLContainer
 import java.io.Closeable
 import java.sql.SQLException
 import java.time.Duration
