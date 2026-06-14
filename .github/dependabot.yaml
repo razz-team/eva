@@ -1,0 +1,21 @@
+version: 2
+updates:
+
+  - package-ecosystem: "gradle"
+    open-pull-requests-limit: 10
+    directory: "/"
+    cooldown:
+      default-days: 2
+    schedule:
+      interval: "daily"
+
+    groups:
+      jvm-patch:
+        patterns:
+          - "*"
+        update-types: [ "patch" ]
+      kotlin-minor:
+        patterns:
+          - "org.jetbrains.kotlin*"
+          - "org.jetbrains.kotlinx*"
+        update-types: [ "minor" ]

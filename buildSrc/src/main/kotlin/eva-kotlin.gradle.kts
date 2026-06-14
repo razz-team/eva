@@ -23,6 +23,25 @@ apply<ProjectsPlugin>()
 dependencies {
     detektPlugins(libs.detekt.formatting)
 
+    listOf(
+        libs.kotlin.bom,
+        libs.kotlinx.serialization.bom,
+        libs.kotlinx.coroutines.bom,
+        libs.jooq.bom,
+        libs.opentelemetry.instrumentation.bom,
+        libs.opentelemetry.instrumentation.alpha.bom,
+        libs.vertx.bom,
+    ).forEach {
+        api(platform(it))
+        implementation(platform(it))
+    }
+
+    listOf(
+        libs.kotest.bom,
+    ).forEach {
+        testImplementation(platform(it))
+    }
+
     api(libs.kotlinx.serialization)
     api(libs.kotlinx.serialization.json)
     api(libs.kotlin.coroutines)
