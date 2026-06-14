@@ -1,6 +1,6 @@
 plugins {
     `java-platform`
-    id("eva-platform-publish")
+    id("eva-publish")
 }
 
 javaPlatform {
