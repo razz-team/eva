@@ -394,6 +394,84 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
             }
         }
 
+        And("A composed child UoW registers the model and the result is built via roundtrip { p -> }") {
+            val persistedDepartment = OwnedDepartment(
+                id = departmentId,
+                name = "PersistedDepartment",
+                headcount = 1,
+                ration = Ration.BUBALEH,
+                boss = bossId,
+                modelState = newState(
+                    OwnedDepartmentCreated(
+                        departmentId = departmentId,
+                        name = "PersistedDepartment",
+                        headcount = 1,
+                        ration = Ration.BUBALEH,
+                        boss = bossId,
+                    ),
+                ),
+            )
+            fun uowxWith(departmentRepo: ModelRepository<DepartmentId, OwnedDepartment>): UnitOfWorkExecutor {
+                coEvery { departmentRepo.add(any(), department) } returns persistedDepartment
+                return UnitOfWorkExecutor(
+                    listOf(),
+                    Persisting(
+                        transactionManager = WithCtxConnectionTransactionManager(),
+                        modelRepos = ModelRepos(OwnedDepartment::class hasRepo departmentRepo),
+                        entityRepos = EntityRepos(),
+                        eventRepository = DummyEventRepository(),
+                        paramsSerializer = KotlinxParamsSerializer(),
+                    ),
+                    clock,
+                    OpenTelemetry.noop(),
+                )
+            }
+            val childRoundtrips = { exCtx: ExecutionContext ->
+                object : ComposableUnitOfWork<TestPrincipal, DummyUow.Params, DeptResult>(exCtx) {
+                    override suspend fun tryPerform(principal: TestPrincipal, params: DummyUow.Params) = changes {
+                        add(department)
+                        roundtrip { p -> DeptResult(p(department), "inner") }
+                    }
+                }
+            }
+
+            When("only the INNER (composed) UoW calls roundtrip { p -> }") {
+                val outer = { exCtx: ExecutionContext ->
+                    object : ComposableUnitOfWork<TestPrincipal, DummyUow.Params, DeptResult>(exCtx) {
+                        override suspend fun tryPerform(principal: TestPrincipal, params: DummyUow.Params) = changes {
+                            execute(childRoundtrips, principal) { DummyUow.Params }
+                        }
+                    }
+                }
+                val repo = mockk<ModelRepository<DepartmentId, OwnedDepartment>>(relaxed = true)
+                val result = uowxWith(repo).execute(TestPrincipal, outer) { DummyUow.Params }
+
+                Then("the inner builder is not re-run by the executor; the caller gets the in-memory seed") {
+                    result.dept.name shouldBe "KazahDepartment"
+                    result.note shouldBe "inner"
+                }
+            }
+
+            When("BOTH the inner and the outer UoW call roundtrip { p -> }") {
+                val outer = { exCtx: ExecutionContext ->
+                    object : ComposableUnitOfWork<TestPrincipal, DummyUow.Params, DeptResult>(exCtx) {
+                        override suspend fun tryPerform(principal: TestPrincipal, params: DummyUow.Params) = changes {
+                            val child = execute(childRoundtrips, principal) { DummyUow.Params }
+                            roundtrip { p -> DeptResult(p(child.dept), "outer") }
+                        }
+                    }
+                }
+                val repo = mockk<ModelRepository<DepartmentId, OwnedDepartment>>(relaxed = true)
+                val result = uowxWith(repo).execute(TestPrincipal, outer) { DummyUow.Params }
+
+                Then("the outer builder wins and resolves persisted; the inner builder does not interfere") {
+                    result.dept shouldBe persistedDepartment
+                    result.dept.name shouldBe "PersistedDepartment"
+                    result.note shouldBe "outer"
+                }
+            }
+        }
+
         And("Two ClassToUow with the same key") {
             val factories = listOf(
                 CreateDepartmentUow::class withFactory { mockk() },

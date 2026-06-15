@@ -17,23 +17,24 @@ abstract class Changes<R> {
     internal abstract val result: R
     internal abstract val modelChangesToPersist: List<ModelChange>
     internal abstract val entityChangesToPersist: List<EntityChange>
+    // Builder set by roundtrip { }; the executor runs it over persisted models. Any? since R is known only per call.
     internal open val resultBuilder: ((PersistedLookup) -> Any?)? get() = null
 }
 
 /**
- * Resolves a model to its persisted (DB-roundtripped) instance. Passed to `roundtrip { p -> ... }`;
- * post-flush it returns the flushed instance, under composition the in-memory one. Returns the argument
- * unchanged when the model was not part of this change set (e.g. read-only references).
+ * Resolves a model to its change-set instance by id: the flushed instance post-flush (top-level run),
+ * the in-memory one under composition. Returns the argument unchanged when its id is not in the change set.
  */
 interface PersistedLookup {
     operator fun <M : Model<*, *>> invoke(model: M): M
 }
 
-internal class PersistedById(
-    private val byId: Map<ModelId<out Comparable<*>>, Model<*, *>>,
+// One PersistedLookup over a by-id resolver: persisted map at top level, in-memory change set under composition.
+internal class ChangeSetLookup(
+    private val resolve: (ModelId<out Comparable<*>>) -> Model<*, *>?,
 ) : PersistedLookup {
     @Suppress("UNCHECKED_CAST")
-    override fun <M : Model<*, *>> invoke(model: M): M = (byId[model.id()] ?: model) as M
+    override fun <M : Model<*, *>> invoke(model: M): M = (resolve(model.id()) ?: model) as M
 }
 
 class ChangesAccumulator private constructor(

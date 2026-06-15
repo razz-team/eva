@@ -171,10 +171,12 @@ class UnitOfWorkExecutor(
         changes: Changes<RESULT>,
         persisted: List<Model<*, *>>,
     ): RESULT {
+        // roundtrip { } builder rebuilds the result from persisted models; otherwise default-roundtrip the result.
         val builder = changes.resultBuilder
         if (builder != null) {
+            val byId = persisted.associateBy { it.id() }
             @Suppress("UNCHECKED_CAST")
-            return builder(PersistedById(persisted.associateBy { it.id() })) as RESULT
+            return builder(ChangeSetLookup { byId[it] }) as RESULT
         }
         return roundtrippedResult(changes, persisted)
     }

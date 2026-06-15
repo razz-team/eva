@@ -671,6 +671,29 @@ class DebitAccountUow(
 }
 ```
 
+#### Returning persisted models with `roundtrip { }`
+
+When a UoW result is a single model or a collection of models, it is roundtripped through the database for you, so callers receive the flushed (version-bumped) instances. A data class that wraps several models is not roundtripped automatically. Use `roundtrip { p -> ... }` to build such a result: the lookup `p` resolves each model to its persisted instance by id.
+
+```kotlin
+class CheckoutUow(
+    private val cartQueries: (Cart.Id) -> Cart,
+    private val accountQueries: (Account.Id) -> Account,
+    executionContext: ExecutionContext,
+) : UnitOfWork<ServicePrincipal, Params, CheckoutUow.Result>(executionContext) {
+
+    data class Result(val cart: Cart, val account: Account)
+
+    override suspend fun tryPerform(principal: ServicePrincipal, params: Params) = changes {
+        val account = update(accountQueries(params.accountId).debit(totalAmount))
+        val cart = update(cartQueries(params.cartId).checkout(account.id()))
+        roundtrip { p -> Result(p(cart), p(account)) }
+    }
+}
+```
+
+At top-level execution the builder is rerun over the persisted set, so `Result` carries the flushed models, including ones registered by composed child UoWs. Under composition (a child's result consumed by a parent) the eagerly built in-memory value is returned, since there is no flush yet, so place `roundtrip { }` in the top-level UoW when you need persisted instances.
+
 ### Event sourcing
 
 #### Transactional outbox 
