@@ -17,6 +17,23 @@ abstract class Changes<R> {
     internal abstract val result: R
     internal abstract val modelChangesToPersist: List<ModelChange>
     internal abstract val entityChangesToPersist: List<EntityChange>
+    internal open val resultBuilder: ((PersistedLookup) -> Any?)? get() = null
+}
+
+/**
+ * Resolves a model to its persisted (DB-roundtripped) instance. Passed to `roundtrip { p -> ... }`;
+ * post-flush it returns the flushed instance, under composition the in-memory one. Returns the argument
+ * unchanged when the model was not part of this change set (e.g. read-only references).
+ */
+interface PersistedLookup {
+    operator fun <M : Model<*, *>> invoke(model: M): M
+}
+
+internal class PersistedById(
+    private val byId: Map<ModelId<out Comparable<*>>, Model<*, *>>,
+) : PersistedLookup {
+    @Suppress("UNCHECKED_CAST")
+    override fun <M : Model<*, *>> invoke(model: M): M = (byId[model.id()] ?: model) as M
 }
 
 class ChangesAccumulator private constructor(
@@ -74,9 +91,12 @@ class ChangesAccumulator private constructor(
 
     internal fun modelIds(): Set<ModelId<out Comparable<*>>> = modelChanges.keys
 
-    fun <R> withResult(result: R): Changes<R> {
+    fun <R> withResult(
+        result: R,
+        resultBuilder: ((PersistedLookup) -> Any?)? = null,
+    ): Changes<R> {
         require(modelChanges.isNotEmpty() || entityChanges.isNotEmpty()) { "No changes to persist" }
-        return RealisedChanges(result, flattenChildModels(), entityChanges)
+        return RealisedChanges(result, flattenChildModels(), entityChanges, resultBuilder)
     }
 
     @Suppress("UNCHECKED_CAST")
@@ -129,4 +149,5 @@ internal class RealisedChanges<R>(
     override val result: R,
     override val modelChangesToPersist: List<ModelChange>,
     override val entityChangesToPersist: List<EntityChange>,
+    override val resultBuilder: ((PersistedLookup) -> Any?)? = null,
 ) : Changes<R>()

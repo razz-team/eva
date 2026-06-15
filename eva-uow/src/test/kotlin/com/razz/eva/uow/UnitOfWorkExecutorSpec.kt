@@ -339,6 +339,61 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
             }
         }
 
+        And("Ad hoc factory returning a data class result built via roundtrip { p -> }") {
+            val persistedDepartment = OwnedDepartment(
+                id = departmentId,
+                name = "PersistedDepartment",
+                headcount = 1,
+                ration = Ration.BUBALEH,
+                boss = bossId,
+                modelState = newState(
+                    OwnedDepartmentCreated(
+                        departmentId = departmentId,
+                        name = "PersistedDepartment",
+                        headcount = 1,
+                        ration = Ration.BUBALEH,
+                        boss = bossId,
+                    ),
+                ),
+            )
+            val factory = { exCtx: ExecutionContext ->
+                object : ComposableUnitOfWork<TestPrincipal, DummyUow.Params, DeptResult>(exCtx) {
+                    override suspend fun tryPerform(
+                        principal: TestPrincipal,
+                        params: DummyUow.Params,
+                    ) = changes {
+                        add(department)
+                        roundtrip { p -> DeptResult(p(department), "seed") }
+                    }
+                }
+            }
+
+            When("executed top-level with a repo returning a distinct persisted instance") {
+                val departmentRepo = mockk<ModelRepository<DepartmentId, OwnedDepartment>>(relaxed = true)
+                coEvery { departmentRepo.add(any(), department) } returns persistedDepartment
+                val uowx = UnitOfWorkExecutor(
+                    listOf(),
+                    Persisting(
+                        transactionManager = WithCtxConnectionTransactionManager(),
+                        modelRepos = ModelRepos(OwnedDepartment::class hasRepo departmentRepo),
+                        entityRepos = EntityRepos(),
+                        eventRepository = DummyEventRepository(),
+                        paramsSerializer = KotlinxParamsSerializer(),
+                    ),
+                    clock,
+                    OpenTelemetry.noop(),
+                )
+
+                val result = uowx.execute(TestPrincipal, factory) { DummyUow.Params }
+
+                Then("the transform folds the persisted instance, not the in-memory seed") {
+                    result.dept shouldBe persistedDepartment
+                    result.dept.name shouldBe "PersistedDepartment"
+                    result.note shouldBe "seed"
+                }
+            }
+        }
+
         And("Two ClassToUow with the same key") {
             val factories = listOf(
                 CreateDepartmentUow::class withFactory { mockk() },
@@ -675,3 +730,5 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
         }
     }
 })
+
+private data class DeptResult(val dept: OwnedDepartment, val note: String)

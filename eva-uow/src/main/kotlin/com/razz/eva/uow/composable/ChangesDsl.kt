@@ -17,6 +17,7 @@ import com.razz.eva.uow.ChangesAccumulator
 import com.razz.eva.uow.ExecutionContext
 import com.razz.eva.uow.InstantiationContext
 import com.razz.eva.uow.NoopModel
+import com.razz.eva.uow.PersistedLookup
 import com.razz.eva.uow.UpdateModel
 import com.razz.eva.uow.UowParams
 import io.opentelemetry.api.trace.Span
@@ -27,8 +28,20 @@ class ChangesDsl internal constructor(
 ) {
     private var changes: ChangesAccumulator = executionContext.inheritedChanges ?: ChangesAccumulator()
     private val inheritedModelIds: MutableSet<ModelId<out Comparable<*>>> = changes.modelIds().toMutableSet()
+    private var resultBuilder: ((PersistedLookup) -> Any?)? = null
 
-    private fun <R> withResult(result: R): Changes<R> = changes.withResult(result)
+    private fun <R> withResult(result: R): Changes<R> = changes.withResult(result, resultBuilder)
+
+    /**
+     * Builds the UoW result from persisted (DB-roundtripped) models. The lookup [p] returns each model's
+     * persisted instance post-flush; under composition (no flush yet) it returns the in-memory instance.
+     * Works for models registered by composed child UoWs too, since lookup is by id over the whole flushed
+     * set. The eagerly-built (in-memory) value is the seed callers see under composition.
+     */
+    fun <R> roundtrip(build: (p: PersistedLookup) -> R): R {
+        resultBuilder = build
+        return build(InMemoryLookup(changes))
+    }
 
     fun <MID, E, M> add(model: M): M
         where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
@@ -179,4 +192,10 @@ class ChangesDsl internal constructor(
         }
         return true
     }
+}
+
+internal class InMemoryLookup(private val changes: ChangesAccumulator) : PersistedLookup {
+    @Suppress("UNCHECKED_CAST")
+    override fun <M : Model<*, *>> invoke(model: M): M =
+        (changes.changeFor(model.id())?.model ?: model) as M
 }
