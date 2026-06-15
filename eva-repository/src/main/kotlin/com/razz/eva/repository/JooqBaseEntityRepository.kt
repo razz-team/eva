@@ -98,7 +98,7 @@ abstract class JooqBaseEntityRepository<E : CreatableEntity, R : BaseEntityRecor
     )
 
     protected suspend fun findOneWhere(condition: Condition): E? {
-        val select = dslContext.selectFrom(table).where(condition)
+        val select = dslContext.selectFrom(table).where(condition).limit(2)
         return atMostOneRecord(select)?.let(::fromRecord)
     }
 
