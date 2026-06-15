@@ -120,6 +120,7 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
     protected suspend fun findOneWhere(condition: Condition): M? {
         val select = dslContext.selectFrom(table)
             .where(condition)
+            .limit(2)
         return findOne(select)
     }
 
