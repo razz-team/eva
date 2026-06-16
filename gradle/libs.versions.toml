@@ -27,7 +27,7 @@ micrometer-bom = { module = "io.micrometer:micrometer-bom", version = "1.14.1" }
 opentelemetry-instrumentation-bom = { module = "io.opentelemetry.instrumentation:opentelemetry-instrumentation-bom", version = "2.28.1" }
 opentelemetry-instrumentation-alpha-bom = { module = "io.opentelemetry.instrumentation:opentelemetry-instrumentation-bom-alpha", version = "2.28.1-alpha" }
 
-testcontainers-bom = { module = "org.testcontainers:testcontainers-bom", version = "1.21.4" }
+testcontainers-bom = { module = "org.testcontainers:testcontainers-bom", version = "2.0.5" }
 kotest-bom = { module = "io.kotest:kotest-bom", version = "6.1.11" }
 
 # managed by BOMs
@@ -55,7 +55,7 @@ kotest-runner = { module = "io.kotest:kotest-runner-junit5-jvm" }
 kotest-assertions-json = { module = "io.kotest:kotest-assertions-json-jvm" }
 kotest-assertions-core = { module = "io.kotest:kotest-assertions-core-jvm" }
 
-testcontainers-postgres = { module = "org.testcontainers:postgresql" }
+testcontainers-postgres = { module = "org.testcontainers:testcontainers-postgresql" }
 
 jooq = { module = "org.jooq:jooq" }
 jooq-postgres = { module = "org.jooq:jooq-postgres-extensions" }

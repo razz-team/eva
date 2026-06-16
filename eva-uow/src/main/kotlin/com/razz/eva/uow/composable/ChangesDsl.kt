@@ -12,11 +12,13 @@ import com.razz.eva.uow.OtelAttributes.MODEL_ID
 import com.razz.eva.tracing.getEvaTracer
 import com.razz.eva.tracing.use
 import com.razz.eva.uow.AddModel
+import com.razz.eva.uow.ChangeSetLookup
 import com.razz.eva.uow.Changes
 import com.razz.eva.uow.ChangesAccumulator
 import com.razz.eva.uow.ExecutionContext
 import com.razz.eva.uow.InstantiationContext
 import com.razz.eva.uow.NoopModel
+import com.razz.eva.uow.PersistedLookup
 import com.razz.eva.uow.UpdateModel
 import com.razz.eva.uow.UowParams
 import io.opentelemetry.api.trace.Span
@@ -27,8 +29,21 @@ class ChangesDsl internal constructor(
 ) {
     private var changes: ChangesAccumulator = executionContext.inheritedChanges ?: ChangesAccumulator()
     private val inheritedModelIds: MutableSet<ModelId<out Comparable<*>>> = changes.modelIds().toMutableSet()
+    // var: assigned by roundtrip { } mid-block; null means no roundtrip, so the executor default-roundtrips.
+    private var resultBuilder: ((PersistedLookup) -> Any?)? = null
 
-    private fun <R> withResult(result: R): Changes<R> = changes.withResult(result)
+    private fun <R> withResult(result: R): Changes<R> = changes.withResult(result, resultBuilder)
+
+    /**
+     * Builds the UoW result via [p], which resolves each model to its change-set instance by id. Top-level
+     * execution reruns this over the persisted (flushed) set, so the result carries DB-roundtripped models,
+     * including ones registered by composed child UoWs. The value built eagerly here (in-memory) is the seed
+     * returned under composition, where only the top-level UoW's builder is rerun.
+     */
+    fun <R> roundtrip(build: (p: PersistedLookup) -> R): R {
+        resultBuilder = build
+        return build(ChangeSetLookup { changes.changeFor(it)?.model })
+    }
 
     fun <MID, E, M> add(model: M): M
         where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
@@ -130,6 +145,7 @@ class ChangesDsl internal constructor(
                 changes = ChangesAccumulator.from(subChanges)
                 inheritedModelIds.addAll(changes.modelIds())
             }
+            // Under composition the caller gets this in-memory seed; the child's resultBuilder is not rerun.
             subChanges.result
         }
     }

@@ -17,6 +17,24 @@ abstract class Changes<R> {
     internal abstract val result: R
     internal abstract val modelChangesToPersist: List<ModelChange>
     internal abstract val entityChangesToPersist: List<EntityChange>
+    // Builder set by roundtrip { }; the executor runs it over persisted models. Any? since R is known only per call.
+    internal open val resultBuilder: ((PersistedLookup) -> Any?)? get() = null
+}
+
+/**
+ * Resolves a model to its change-set instance by id: the flushed instance post-flush (top-level run),
+ * the in-memory one under composition. Returns the argument unchanged when its id is not in the change set.
+ */
+interface PersistedLookup {
+    operator fun <M : Model<*, *>> invoke(model: M): M
+}
+
+// One PersistedLookup over a by-id resolver: persisted map at top level, in-memory change set under composition.
+internal class ChangeSetLookup(
+    private val resolve: (ModelId<out Comparable<*>>) -> Model<*, *>?,
+) : PersistedLookup {
+    @Suppress("UNCHECKED_CAST")
+    override fun <M : Model<*, *>> invoke(model: M): M = (resolve(model.id()) ?: model) as M
 }
 
 class ChangesAccumulator private constructor(
@@ -74,9 +92,12 @@ class ChangesAccumulator private constructor(
 
     internal fun modelIds(): Set<ModelId<out Comparable<*>>> = modelChanges.keys
 
-    fun <R> withResult(result: R): Changes<R> {
+    fun <R> withResult(
+        result: R,
+        resultBuilder: ((PersistedLookup) -> Any?)? = null,
+    ): Changes<R> {
         require(modelChanges.isNotEmpty() || entityChanges.isNotEmpty()) { "No changes to persist" }
-        return RealisedChanges(result, flattenChildModels(), entityChanges)
+        return RealisedChanges(result, flattenChildModels(), entityChanges, resultBuilder)
     }
 
     @Suppress("UNCHECKED_CAST")
@@ -129,4 +150,5 @@ internal class RealisedChanges<R>(
     override val result: R,
     override val modelChangesToPersist: List<ModelChange>,
     override val entityChangesToPersist: List<EntityChange>,
+    override val resultBuilder: ((PersistedLookup) -> Any?)? = null,
 ) : Changes<R>()

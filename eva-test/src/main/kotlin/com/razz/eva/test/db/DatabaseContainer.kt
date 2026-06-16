@@ -3,8 +3,8 @@ package com.razz.eva.test.db
 import com.razz.eva.test.db.DockerImageName.PostgrePartmanImage16
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
-import org.testcontainers.containers.PostgreSQLContainer
-import org.testcontainers.containers.PostgreSQLContainer.POSTGRESQL_PORT
+import org.testcontainers.postgresql.PostgreSQLContainer
+import org.testcontainers.postgresql.PostgreSQLContainer.POSTGRESQL_PORT
 import java.lang.Runtime.getRuntime
 import kotlin.math.ceil
 import org.testcontainers.utility.DockerImageName as TestcontainersDockerImageName
@@ -79,12 +79,12 @@ data class DatabaseContainer(
                     ?.withCpuCount(cpuCount)
             }.apply { start() }
 
-        val BASIC = DatabaseContainer(pgContainer)
+        val BASIC = DatabaseContainer(pgContainer as PostgreDockerContainer)
     }
 
     class PostgreDockerContainer(
         imageName: DockerImageName,
-    ) : PostgreSQLContainer<PostgreDockerContainer>(imageName.toTestcontainers()), Startable {
+    ) : PostgreSQLContainer(imageName.toTestcontainers()), Startable {
 
         val additionalUrlParams: String = constructUrlParameters("?", "&")
     }

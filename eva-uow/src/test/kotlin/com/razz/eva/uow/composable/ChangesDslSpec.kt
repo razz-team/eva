@@ -28,11 +28,13 @@ import com.razz.eva.uow.DeleteEntityByKey
 import com.razz.eva.uow.UpdateEntity
 import com.razz.eva.uow.ExecutionContext
 import com.razz.eva.uow.NoopModel
+import com.razz.eva.uow.PersistedLookup
 import com.razz.eva.uow.TestPrincipal
 import com.razz.eva.uow.UpdateModel
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldHaveSize
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeTypeOf
 import io.opentelemetry.api.OpenTelemetry
@@ -75,6 +77,49 @@ class ChangesDslSpec : FunSpec({
             NoopModel(model2),
         )
         changes.result shouldBe "K P A C U B O"
+    }
+
+    test("roundtrip { p -> } seeds with the in-memory result and exposes a builder over persisted models") {
+        val model0 = createdTestModel("MLG", 420).activate()
+
+        val uow = object : DummyUow<RoundtripResult>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                add(model0)
+                roundtrip { p -> RoundtripResult(p(model0), "label") }
+            }
+        }
+        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
+
+        // seed is the in-memory model (composition / pre-flush view)
+        changes.result shouldBe RoundtripResult(model0, "label")
+
+        // the builder rebuilds from whatever the persisted lookup resolves
+        val persisted = existingCreatedTestModel(model0.id(), "PERSISTED", 999, V1).activate()
+        val lookup = object : PersistedLookup {
+            @Suppress("UNCHECKED_CAST")
+            override fun <M : com.razz.eva.domain.Model<*, *>> invoke(model: M): M =
+                (if (model.id() == model0.id()) persisted else model) as M
+        }
+        changes.resultBuilder.shouldNotBeNull().invoke(lookup) shouldBe RoundtripResult(persisted, "label")
+    }
+
+    test("roundtrip { p -> } leaves models absent from the change set untouched") {
+        val added = createdTestModel("MLG", 420).activate()
+        val unrelated = existingCreatedTestModel(randomTestModelId(), "other", 1, V1)
+
+        val uow = object : DummyUow<RoundtripResult>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                add(added)
+                roundtrip { p -> RoundtripResult(p(unrelated), "label") }
+            }
+        }
+        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
+
+        // unrelated was never added; an empty persisted lookup returns it unchanged
+        val emptyLookup = object : PersistedLookup {
+            override fun <M : com.razz.eva.domain.Model<*, *>> invoke(model: M): M = model
+        }
+        changes.resultBuilder.shouldNotBeNull().invoke(emptyLookup) shouldBe RoundtripResult(unrelated, "label")
     }
 
     test("Should throw exception when new model updated without inherited change") {
@@ -938,3 +983,5 @@ class ChangesDslSpec : FunSpec({
         exception.message shouldBe "Change for a given model [${model.id().stringValue()}] was already registered"
     }
 })
+
+private data class RoundtripResult(val model: com.razz.eva.domain.TestModel, val label: String)

@@ -170,6 +170,20 @@ class UnitOfWorkExecutor(
     private fun <RESULT> result(
         changes: Changes<RESULT>,
         persisted: List<Model<*, *>>,
+    ): RESULT {
+        // roundtrip { } builder rebuilds the result from persisted models; otherwise default-roundtrip the result.
+        val builder = changes.resultBuilder
+        if (builder != null) {
+            val byId = persisted.associateBy { it.id() }
+            @Suppress("UNCHECKED_CAST")
+            return builder(ChangeSetLookup { byId[it] }) as RESULT
+        }
+        return roundtrippedResult(changes, persisted)
+    }
+
+    private fun <RESULT> roundtrippedResult(
+        changes: Changes<RESULT>,
+        persisted: List<Model<*, *>>,
     ) = when (val result = changes.result) {
         is Model<*, *> -> {
             // don't try to find persisted data for returned values such as `notChanged(model)`
