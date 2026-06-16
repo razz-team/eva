@@ -14,13 +14,13 @@ import com.razz.eva.persistence.PersistenceException.UniqueModelRecordViolationE
 import com.razz.eva.persistence.executor.QueryExecutor
 import com.razz.jooq.record.BaseModelRecord
 import io.vertx.pgclient.PgException
-import java.time.Instant
 import org.jooq.Condition
 import org.jooq.DSLContext
 import org.jooq.EnumType
 import org.jooq.Field
 import org.jooq.Record
 import org.jooq.Select
+import org.jooq.SelectLimitStep
 import org.jooq.StoreQuery
 import org.jooq.Table
 import org.jooq.TableField
@@ -28,6 +28,7 @@ import org.jooq.UpdateQuery
 import org.jooq.exception.DataAccessException
 import org.jooq.exception.SQLStateClass
 import org.jooq.impl.DSL
+import java.time.Instant
 
 abstract class AbstractJooqRepository<ID, MID, M, ME, R>(
     private val queryExecutor: QueryExecutor,
@@ -323,8 +324,8 @@ abstract class AbstractJooqRepository<ID, MID, M, ME, R>(
 
     protected open fun mapConstraintViolation(ex: ConstraintViolation): Exception? = null
 
-    protected suspend fun <R : Record> atMostOneRecord(select: Select<R>): R? {
-        return allRecords(select)
+    protected suspend fun <R : Record> atMostOneRecord(select: SelectLimitStep<R>): R? {
+        return allRecords(select.limit(2))
             .getSingleOrNull({ it }) {
                 val type = select.recordType
                 JooqQueryException(select, it, "Found more than one record. Type: $type")

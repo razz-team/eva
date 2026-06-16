@@ -13,6 +13,7 @@ import org.jooq.DSLContext
 import org.jooq.Field
 import org.jooq.Record
 import org.jooq.Select
+import org.jooq.SelectLimitStep
 import org.jooq.SortField
 import org.jooq.Table
 import org.jooq.TableField
@@ -120,11 +121,10 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
     protected suspend fun findOneWhere(condition: Condition): M? {
         val select = dslContext.selectFrom(table)
             .where(condition)
-            .limit(2)
         return findOne(select)
     }
 
-    private suspend fun findOne(select: Select<R>): M? {
+    private suspend fun findOne(select: SelectLimitStep<R>): M? {
         return atMostOneRecord(select)?.let(::fromRecord)
     }
 

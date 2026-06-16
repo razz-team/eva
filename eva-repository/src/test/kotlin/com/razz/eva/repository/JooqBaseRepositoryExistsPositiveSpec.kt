@@ -31,7 +31,8 @@ class JooqBaseRepositoryExistsPositiveSpec : BehaviorSpec({
                       where exists 
                       (select 1 as "one" 
                         from "departments" 
-                        where "departments"."boss" = cast('${bossId.id}' as uuid))     
+                        where "departments"."boss" = cast('${bossId.id}' as uuid))   
+                      fetch next 2 rows only
                  """.trim().replace(Regex("\\s+"), " ")
             }
         }
