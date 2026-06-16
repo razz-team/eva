@@ -9,6 +9,7 @@ import org.jooq.Condition
 import org.jooq.DSLContext
 import org.jooq.Record
 import org.jooq.Select
+import org.jooq.SelectLimitStep
 import org.jooq.Table
 
 abstract class JooqBaseEntityRepository<E : CreatableEntity, R : BaseEntityRecord>(
@@ -98,7 +99,7 @@ abstract class JooqBaseEntityRepository<E : CreatableEntity, R : BaseEntityRecor
     )
 
     protected suspend fun findOneWhere(condition: Condition): E? {
-        val select = dslContext.selectFrom(table).where(condition).limit(2)
+        val select = dslContext.selectFrom(table).where(condition)
         return atMostOneRecord(select)?.let(::fromRecord)
     }
 
@@ -107,8 +108,8 @@ abstract class JooqBaseEntityRepository<E : CreatableEntity, R : BaseEntityRecor
         return atMostOneRecord(dslContext.selectOne().whereExists(select)) != null
     }
 
-    protected suspend fun <R : Record> atMostOneRecord(select: Select<R>): R? {
-        val records = allRecords(select)
+    protected suspend fun <R : Record> atMostOneRecord(select: SelectLimitStep<R>): R? {
+        val records = allRecords(select.limit(2))
         return when (records.size) {
             0 -> null
             1 -> records.first()
