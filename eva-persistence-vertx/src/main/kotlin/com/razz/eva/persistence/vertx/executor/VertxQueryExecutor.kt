@@ -66,6 +66,14 @@ class VertxQueryExecutor(
         }
     }
 
+    override suspend fun executeSetSession(
+        dslContext: DSLContext,
+        sessionParamName: String,
+        sessionParamValue: String
+    ) {
+        return
+    }
+
     private suspend inline fun <R : Record> executeQuery(
         connection: PgConnection,
         dslContext: DSLContext,

@@ -27,5 +27,11 @@ interface QueryExecutor {
         jooqQuery: DMLQuery<R>,
     ): Int
 
+    suspend fun executeSetSession(
+        dslContext: DSLContext,
+        sessionParamName: String,
+        sessionParamValue: String,
+    )
+
     fun getConstraintName(ex: DataAccessException): String?
 }

@@ -66,6 +66,14 @@ class FakeMemorizingQueryExecutor(
             .execute(jooqQuery.getSQL(INLINED))
     }
 
+    override suspend fun executeSetSession(
+        dslContext: DSLContext,
+        sessionParamName: String,
+        sessionParamValue: String,
+    ) {
+        return
+    }
+
     sealed class ExecutionStep {
 
         data class StoreExecuted(
