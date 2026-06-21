@@ -101,16 +101,16 @@ class JdbcQueryExecutor(
         }
     }
 
-    override fun extractModelException(ex: Exception, table: Table<*>, modelId: ModelId<*>): PersistenceException {
-        val dae = ex as? DataAccessException
+    override fun extractModelException(ex: Exception, table: Table<*>, modelId: ModelId<*>): PersistenceException? {
+        val dae = ex as? DataAccessException ?: return null
         return when {
-            dae?.sqlState() == PG_UNIQUE_VIOLATION -> UniqueModelRecordViolationException(
+            dae.sqlState() == PG_UNIQUE_VIOLATION -> UniqueModelRecordViolationException(
                 modelId = modelId,
                 tableName = table.name,
                 constraintName = extractUniqueConstraintName(dae, table),
             )
 
-            dae?.sqlStateClass() == C23_INTEGRITY_CONSTRAINT_VIOLATION -> ModelRecordConstraintViolationException(
+            dae.sqlStateClass() == C23_INTEGRITY_CONSTRAINT_VIOLATION -> ModelRecordConstraintViolationException(
                 modelId = modelId,
                 tableName = table.name,
                 constraintName = extractConstraintName(dae),
@@ -123,7 +123,7 @@ class JdbcQueryExecutor(
             //  and concurrent transaction T0 is trying to update the same record.
             //  This should not cause transaction rollback in T0 due to serialisation error,
             //  rather we should fail due to version mismatch (stale record).
-            dae?.sqlStateClass() == C40_TRANSACTION_ROLLBACK -> StaleRecordException(modelId, table.name)
+            dae.sqlStateClass() == C40_TRANSACTION_ROLLBACK -> StaleRecordException(modelId, table.name)
 
             else -> ModelPersistingGenericException(modelId, ex)
         }
