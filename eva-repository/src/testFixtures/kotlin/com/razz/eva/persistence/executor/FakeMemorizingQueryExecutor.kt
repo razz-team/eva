@@ -1,5 +1,7 @@
 package com.razz.eva.persistence.executor
 
+import com.razz.eva.domain.ModelId
+import com.razz.eva.persistence.PersistenceException
 import com.razz.eva.persistence.executor.FakeMemorizingQueryExecutor.ExecutionStep.QueryExecuted
 import com.razz.eva.persistence.executor.FakeMemorizingQueryExecutor.ExecutionStep.SelectExecuted
 import com.razz.eva.persistence.executor.FakeMemorizingQueryExecutor.ExecutionStep.StoreExecuted
@@ -12,17 +14,17 @@ import org.jooq.StoreQuery
 import org.jooq.Table
 import org.jooq.TableRecord
 import org.jooq.conf.ParamType.INLINED
-import org.jooq.exception.DataAccessException
 import org.jooq.impl.DSL
 import org.jooq.tools.jdbc.MockConnection
 import org.jooq.tools.jdbc.MockDataProvider
 import org.jooq.tools.jdbc.MockExecuteContext
 import org.jooq.tools.jdbc.MockResult
-import java.util.*
+import java.util.ArrayDeque
+import java.util.Deque
 
 class FakeMemorizingQueryExecutor(
     private val queries: Deque<List<TableRecord<*>>> = ArrayDeque(),
-    private var executions: List<ExecutionStep> = listOf()
+    private var executions: List<ExecutionStep> = listOf(),
 ) : QueryExecutor {
 
     val executionHistory: List<ExecutionStep>
@@ -66,6 +68,12 @@ class FakeMemorizingQueryExecutor(
             .execute(jooqQuery.getSQL(INLINED))
     }
 
+    override fun extractConstraintName(ex: Exception): String? = null
+
+    override fun extractUniqueConstraintName(ex: Exception, table: Table<*>): String? = null
+
+    override fun extractModelException(ex: Exception, table: Table<*>, modelId: ModelId<*>): PersistenceException? = null
+
     sealed class ExecutionStep {
 
         data class StoreExecuted(
@@ -100,6 +108,4 @@ class FakeMemorizingQueryExecutor(
             }
         }
     }
-
-    override fun getConstraintName(ex: DataAccessException): String? = null
 }

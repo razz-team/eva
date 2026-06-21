@@ -13,20 +13,16 @@ import com.razz.eva.persistence.PersistenceException
 import com.razz.eva.persistence.PersistenceException.UniqueUowEventRecordViolationException
 import com.razz.eva.persistence.executor.QueryExecutor
 import com.razz.eva.repository.Fake.FakeModelEvent
-import com.razz.eva.repository.PgHelpers.PG_UNIQUE_VIOLATION
-import com.razz.eva.repository.PgHelpers.extractUniqueConstraintName
 import com.razz.eva.serialization.json.JsonFormat.json
 import com.razz.eva.tracing.contextMap
 import io.opentelemetry.api.OpenTelemetry
-import io.vertx.pgclient.PgException
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
-import kotlinx.serialization.json.JsonPrimitive
 import org.jooq.DSLContext
 import org.jooq.InsertQuery
 import org.jooq.Record
-import org.jooq.exception.DataAccessException
 
 class JooqEventRepository(
     private val queryExecutor: QueryExecutor,
@@ -103,17 +99,12 @@ class JooqEventRepository(
                 },
             )
         } catch (ex: Exception) {
-            val constraintName = when (ex) {
-                is DataAccessException if ex.sqlState() == PG_UNIQUE_VIOLATION ->
-                    extractUniqueConstraintName(queryExecutor, UOW_EVENTS, ex)
-                is PgException if ex.sqlState == PG_UNIQUE_VIOLATION -> ex.constraint
-                else -> throw ex
-            }
+            val uniqueConstraintName = queryExecutor.extractUniqueConstraintName(ex, UOW_EVENTS) ?: throw ex
             throw UniqueUowEventRecordViolationException(
-                uowEvent.id.uuidValue(),
-                uowEvent.uowName.stringValue(),
-                uowEvent.idempotencyKey,
-                constraintName,
+                uowId = uowEvent.id.uuidValue(),
+                uowName = uowEvent.uowName.stringValue(),
+                idempotencyKey = uowEvent.idempotencyKey,
+                constraintName = uniqueConstraintName,
             )
         }
 

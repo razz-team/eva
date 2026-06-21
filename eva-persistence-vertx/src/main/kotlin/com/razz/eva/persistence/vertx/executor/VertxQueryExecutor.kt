@@ -1,20 +1,24 @@
 package com.razz.eva.persistence.vertx.executor
 
+import com.razz.eva.domain.ModelId
 import com.razz.eva.persistence.ConnectionMode.REQUIRE_EXISTING
+import com.razz.eva.persistence.PersistenceException
+import com.razz.eva.persistence.PersistenceException.ModelPersistingGenericException
+import com.razz.eva.persistence.PersistenceException.ModelRecordConstraintViolationException
+import com.razz.eva.persistence.PersistenceException.StaleRecordException
+import com.razz.eva.persistence.PersistenceException.UniqueModelRecordViolationException
 import com.razz.eva.persistence.TransactionManager
 import com.razz.eva.persistence.executor.QueryExecutor
+import com.razz.eva.persistence.postgres.PgHelpers.PG_UNIQUE_VIOLATION
 import io.vertx.core.json.Json
 import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.pgclient.PgConnection
+import io.vertx.pgclient.PgException
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
 import io.vertx.sqlclient.SqlResult
 import io.vertx.sqlclient.Tuple
 import io.vertx.sqlclient.impl.ListTuple
-import java.time.Instant
-import java.time.LocalDate
-import java.time.LocalDateTime
-import java.time.ZoneOffset.UTC
 import org.jooq.Converter
 import org.jooq.DMLQuery
 import org.jooq.DSLContext
@@ -25,9 +29,15 @@ import org.jooq.Record
 import org.jooq.Select
 import org.jooq.StoreQuery
 import org.jooq.Table
-import org.jooq.exception.DataAccessException
+import org.jooq.exception.SQLStateClass
+import org.jooq.exception.SQLStateClass.C23_INTEGRITY_CONSTRAINT_VIOLATION
+import org.jooq.exception.SQLStateClass.C40_TRANSACTION_ROLLBACK
 import org.jooq.impl.SQLDataType
 import org.jooq.postgres.extensions.types.Inet
+import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.ZoneOffset.UTC
 
 class VertxQueryExecutor(
     private val transactionManager: TransactionManager<PgConnection>,
@@ -131,5 +141,42 @@ class VertxQueryExecutor(
         return record.into(table)
     }
 
-    override fun getConstraintName(ex: DataAccessException): String? = null
+    override fun extractConstraintName(ex: Exception): String? = (ex as? PgException)?.constraint
+
+    override fun extractUniqueConstraintName(ex: Exception, table: Table<*>): String? {
+        return when ((ex as? PgException)?.sqlState) {
+            PG_UNIQUE_VIOLATION -> ex.constraint
+            else -> null
+        }
+    }
+
+    override fun extractModelException(ex: Exception, table: Table<*>, modelId: ModelId<*>): PersistenceException {
+        val pge = ex as? PgException
+
+        return when {
+            pge?.sqlState == PG_UNIQUE_VIOLATION -> UniqueModelRecordViolationException(
+                modelId = modelId,
+                tableName = table.name,
+                constraintName = pge.constraint,
+            )
+
+            pge?.sqlStateClass == C23_INTEGRITY_CONSTRAINT_VIOLATION -> ModelRecordConstraintViolationException(
+                modelId = modelId,
+                tableName = table.name,
+                constraintName = pge.constraint,
+            )
+            // https://www.postgresql.org/message-id/flat/CANbGkDhq9gZnEouo2PZHP3HGMAJKk7fZf3eU3Q8g46Y-1uGZ-w%40mail.gmail.com#e5de345d77abe0184e394f0701bb8bc5
+            //  According to the thread above, transaction error with message message
+            //  "tuple to be locked was already moved to another partition due to concurrent update"
+            //  is thrown when a record was moved to another partition in transaction T1,
+            //  and concurrent transaction T0 is trying to update the same record.
+            //  This should not cause transaction rollback in T0 due to serialisation error,
+            //  rather we should fail due to version mismatch (stale record).
+            pge?.sqlStateClass == C40_TRANSACTION_ROLLBACK -> StaleRecordException(modelId, table.name)
+
+            else -> ModelPersistingGenericException(modelId, ex)
+        }
+    }
 }
+
+private val PgException.sqlStateClass get() = SQLStateClass.fromCode(sqlState)

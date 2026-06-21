@@ -8,6 +8,6 @@ dependencies {
     implementation(libs.jooq)
     implementation(libs.kotlin.coroutines)
 
-    implementation(project(eva.eva_domain))
-    implementation(project(eva.eva_idempotency_key))
+    api(project(eva.eva_domain))
+    api(project(eva.eva_idempotency_key))
 }
