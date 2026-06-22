@@ -13,7 +13,9 @@ dependencies {
     api(platform(libs.kotlinx.serialization.bom))
     api(platform(libs.opentelemetry.instrumentation.bom))
     api(platform(libs.opentelemetry.instrumentation.alpha.bom))
-    api(platform(libs.vertx.bom))
+    api(platform(libs.vertx.bom)) {
+        exclude("io.vertx", "vertx-dependencies")
+    }
     api(platform(libs.micrometer.bom))
     api(platform(libs.jooq.bom))
     api(platform(libs.jackson.bom))
