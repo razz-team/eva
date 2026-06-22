@@ -4,6 +4,9 @@ plugins {
 }
 
 dependencies {
+    api(platform(libs.vertx.bom))
+    implementation(platform(libs.vertx.bom))
+
     api(libs.vertx.pg)
 
     api(project(eva.eva_persistence))

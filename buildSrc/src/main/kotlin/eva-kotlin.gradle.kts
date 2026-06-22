@@ -30,7 +30,7 @@ dependencies {
         libs.jooq.bom,
         libs.opentelemetry.instrumentation.bom,
         libs.opentelemetry.instrumentation.alpha.bom,
-        libs.vertx.bom,
+        libs.jackson.bom,
     ).forEach {
         api(platform(it))
         implementation(platform(it))
