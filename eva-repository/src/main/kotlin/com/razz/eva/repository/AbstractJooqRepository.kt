@@ -7,13 +7,9 @@ import com.razz.eva.domain.ModelState.PersistentState
 import com.razz.eva.domain.ModelState.PersistentState.Companion.persistentState
 import com.razz.eva.domain.Version.Companion.version
 import com.razz.eva.persistence.PersistenceException.ConstraintViolation
-import com.razz.eva.persistence.PersistenceException.ModelPersistingGenericException
-import com.razz.eva.persistence.PersistenceException.ModelRecordConstraintViolationException
 import com.razz.eva.persistence.PersistenceException.StaleRecordException
-import com.razz.eva.persistence.PersistenceException.UniqueModelRecordViolationException
 import com.razz.eva.persistence.executor.QueryExecutor
 import com.razz.jooq.record.BaseModelRecord
-import io.vertx.pgclient.PgException
 import org.jooq.Condition
 import org.jooq.DSLContext
 import org.jooq.EnumType
@@ -25,8 +21,6 @@ import org.jooq.StoreQuery
 import org.jooq.Table
 import org.jooq.TableField
 import org.jooq.UpdateQuery
-import org.jooq.exception.DataAccessException
-import org.jooq.exception.SQLStateClass
 import org.jooq.impl.DSL
 import java.time.Instant
 
@@ -256,67 +250,11 @@ abstract class AbstractJooqRepository<ID, MID, M, ME, R>(
 
     private inline fun <R : Record, ME : M> wrapException(model: ME, block: () -> List<R>) = try {
         block()
-    } catch (ex: DataAccessException) {
-        when {
-            ex.sqlState() == PgHelpers.PG_UNIQUE_VIOLATION -> {
-                val constraintName = PgHelpers.extractUniqueConstraintName(queryExecutor, table, ex)
-                val uex = UniqueModelRecordViolationException(
-                    modelId = model.id(),
-                    tableName = table.name,
-                    constraintName = constraintName,
-                )
-                throw mapConstraintViolation(uex) ?: uex
-            }
-            ex.sqlStateClass() == SQLStateClass.C23_INTEGRITY_CONSTRAINT_VIOLATION -> {
-                val constraintName = PgHelpers.extractConstraintName(queryExecutor, ex)
-                val cex = ModelRecordConstraintViolationException(
-                    modelId = model.id(),
-                    tableName = table.name,
-                    constraintName = constraintName,
-                )
-                throw mapConstraintViolation(cex) ?: cex
-            }
-            // https://www.postgresql.org/message-id/flat/CANbGkDhq9gZnEouo2PZHP3HGMAJKk7fZf3eU3Q8g46Y-1uGZ-w%40mail.gmail.com#e5de345d77abe0184e394f0701bb8bc5
-            //  According to the thread above, transaction error with message message
-            //  "tuple to be locked was already moved to another partition due to concurrent update"
-            //  is thrown when a record was moved to another partition in transaction T1,
-            //  and concurrent transaction T0 is trying to update the same record.
-            //  This should not cause transaction rollback in T0 due to serialisation error,
-            //  rather we should fail due to version mismatch (stale record).
-            ex.sqlStateClass() == SQLStateClass.C40_TRANSACTION_ROLLBACK -> {
-                throw StaleRecordException(model.id(), table.name)
-            }
-            else -> throw ModelPersistingGenericException(model.id(), ex)
-        }
-    } catch (ex: PgException) {
-        when {
-            ex.sqlState == PgHelpers.PG_UNIQUE_VIOLATION -> {
-                val uex = UniqueModelRecordViolationException(
-                    modelId = model.id(),
-                    tableName = table.name,
-                    constraintName = ex.constraint,
-                )
-                throw mapConstraintViolation(uex) ?: uex
-            }
-            SQLStateClass.fromCode(ex.sqlState) == SQLStateClass.C23_INTEGRITY_CONSTRAINT_VIOLATION -> {
-                val cex = ModelRecordConstraintViolationException(
-                    modelId = model.id(),
-                    tableName = table.name,
-                    constraintName = ex.constraint,
-                )
-                throw mapConstraintViolation(cex) ?: cex
-            }
-            // https://www.postgresql.org/message-id/flat/CANbGkDhq9gZnEouo2PZHP3HGMAJKk7fZf3eU3Q8g46Y-1uGZ-w%40mail.gmail.com#e5de345d77abe0184e394f0701bb8bc5
-            //  According to the thread above, transaction error with message message
-            //  "tuple to be locked was already moved to another partition due to concurrent update"
-            //  is thrown when a record was moved to another partition in transaction T1,
-            //  and concurrent transaction T0 is trying to update the same record.
-            //  This should not cause transaction rollback in T0 due to serialisation error,
-            //  rather we should fail due to version mismatch (stale record).
-            SQLStateClass.fromCode(ex.sqlState) == SQLStateClass.C40_TRANSACTION_ROLLBACK -> {
-                throw StaleRecordException(model.id(), table.name)
-            }
-            else -> throw ModelPersistingGenericException(model.id(), ex)
+    } catch (ex: Exception) {
+        val modelException = queryExecutor.extractModelException(ex, table, model.id()) ?: throw ex
+        throw when (modelException) {
+            is ConstraintViolation -> mapConstraintViolation(modelException) ?: modelException
+            else -> modelException
         }
     }
 

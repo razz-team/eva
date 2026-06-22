@@ -1,12 +1,13 @@
 package com.razz.eva.persistence.executor
 
+import com.razz.eva.domain.ModelId
+import com.razz.eva.persistence.PersistenceException
 import org.jooq.DMLQuery
 import org.jooq.DSLContext
 import org.jooq.Record
 import org.jooq.Select
 import org.jooq.StoreQuery
 import org.jooq.Table
-import org.jooq.exception.DataAccessException
 
 interface QueryExecutor {
 
@@ -27,5 +28,9 @@ interface QueryExecutor {
         jooqQuery: DMLQuery<R>,
     ): Int
 
-    fun getConstraintName(ex: DataAccessException): String?
+    fun extractConstraintName(ex: Exception): String?
+
+    fun extractUniqueConstraintName(ex: Exception, table: Table<*>): String?
+
+    fun extractModelException(ex: Exception, table: Table<*>, modelId: ModelId<*>): PersistenceException?
 }
