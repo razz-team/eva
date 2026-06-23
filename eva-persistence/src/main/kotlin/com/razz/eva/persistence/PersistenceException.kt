@@ -14,11 +14,15 @@ sealed class PersistenceException(message: String) : RuntimeException(message) {
         val constraintName: String?
     }
 
+    sealed interface TableAware {
+        val tableName: String
+    }
+
     open class UniqueModelRecordViolationException(
         val modelId: ModelId<*>,
-        val tableName: String,
+        override val tableName: String,
         override val constraintName: String?,
-    ) : ConstraintViolation, ModelAware, PersistenceException(
+    ) : ConstraintViolation, ModelAware, TableAware, PersistenceException(
         "Uniqueness of [$tableName]:[${modelId.stringValue()}]" +
             " violated ${constraintName?.let { ": [$it]" }}",
     ) {
@@ -28,9 +32,9 @@ sealed class PersistenceException(message: String) : RuntimeException(message) {
 
     open class ModelRecordConstraintViolationException(
         val modelId: ModelId<*>,
-        val tableName: String,
+        override val tableName: String,
         override val constraintName: String?,
-    ) : ConstraintViolation, ModelAware, PersistenceException(
+    ) : ConstraintViolation, ModelAware, TableAware, PersistenceException(
         "Constraint for [$tableName]:[${modelId.stringValue()}]" +
             " violated ${constraintName?.let { ": [$it]" }}",
     ) {
@@ -50,8 +54,8 @@ sealed class PersistenceException(message: String) : RuntimeException(message) {
 
     class StaleRecordException(
         override val modelIds: Set<ModelId<*>>,
-        val tableName: String,
-    ) : ModelAware, PersistenceException(
+        override val tableName: String,
+    ) : ModelAware, TableAware, PersistenceException(
         $$"Rows for $${
             modelIds.joinToString(
                 prefix = "[",

@@ -13,6 +13,7 @@ import com.razz.eva.events.UowEvent
 import com.razz.eva.persistence.PersistenceException.ModelRecordConstraintViolationException
 import com.razz.eva.persistence.PersistenceException.StaleRecordException
 import com.razz.eva.persistence.PersistenceException.UniqueModelRecordViolationException
+import com.razz.eva.persistence.PersistenceException.UniqueUowEventRecordViolationException
 import com.razz.eva.persistence.PrimaryConnectionRequiredFlag
 import com.razz.eva.persistence.WithCtxConnectionTransactionManager
 import com.razz.eva.repository.DeletableEntityRepository
@@ -22,6 +23,7 @@ import com.razz.eva.repository.ModelRepos
 import com.razz.eva.repository.ModelRepository
 import com.razz.eva.repository.hasEntityRepo
 import com.razz.eva.repository.hasRepo
+import com.razz.eva.test.tracing.OpenTelemetryTestConfiguration
 import com.razz.eva.uow.BaseUnitOfWork.Configuration
 import com.razz.eva.uow.Clocks.fixedUTC
 import com.razz.eva.uow.params.kotlinx.KotlinxParamsSerializer
@@ -38,6 +40,8 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import io.opentelemetry.api.OpenTelemetry
+import io.opentelemetry.api.common.AttributeKey
+import io.opentelemetry.sdk.testing.exporter.InMemoryMetricReader
 import java.time.Duration.ofMillis
 import java.time.Instant.ofEpochMilli
 import java.util.*
@@ -806,7 +810,177 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                 }
             }
         }
+
+        And("Persistence exception counter metric") {
+            val uowName = "MockOfCreateDepartmentUow"
+            val unitOfWork = mockk<CreateDepartmentUow>()
+            val rawUnitOfWork = unitOfWork as UnitOfWork<TestPrincipal, Params, OwnedDepartment>
+            val persisting = mockk<Persisting>(relaxed = true)
+            every { unitOfWork.name() } returns uowName
+            every { rawUnitOfWork.configuration() } returns
+                Configuration(StaleRecordFixedRetry(1, ofMillis(0)), supportsOutOfOrderPersisting = true)
+            coEvery {
+                rawUnitOfWork.tryPerform(TestPrincipal, eq(params))
+            } returns RealisedChanges(department, listOf(), listOf())
+            val metricReader = InMemoryMetricReader.create()
+            val uowx = UnitOfWorkExecutor(
+                persisting = persisting,
+                factories = listOf(CreateDepartmentUow::class withFactory { unitOfWork }),
+                clock = clock,
+                openTelemetry = OpenTelemetryTestConfiguration.create(metricReader = metricReader),
+            )
+
+            And("Persisting throws StaleRecordException once then succeeds") {
+                val ex = StaleRecordException(depId, "departments")
+                coEvery {
+                    persisting.persist(
+                        uowName = uowName,
+                        params = params,
+                        principal = TestPrincipal,
+                        modelChanges = listOf(),
+                        entityChanges = listOf(),
+                        now = clock.instant(),
+                        uowSupportsOutOfOrderPersisting = true,
+                    )
+                } throws ex andThen Pair(UowEvent.Id.random(), listOf(department))
+
+                When("Principal executes UnitOfWork") {
+                    uowx.execute(CreateDepartmentUow::class, TestPrincipal) { params }
+
+                    Then("Counter records a single retried conflict at attempt 0") {
+                        metricReader.persistenceExceptionPoints() shouldBe listOf(
+                            ExcPoint(uowName, "StaleRecordException", "departments", 0L, true, 1L),
+                        )
+                    }
+                }
+            }
+
+            And("Persisting throws StaleRecordException until retries are exhausted") {
+                val ex = StaleRecordException(depId, "departments")
+                coEvery {
+                    persisting.persist(
+                        uowName = uowName,
+                        params = params,
+                        principal = TestPrincipal,
+                        modelChanges = listOf(),
+                        entityChanges = listOf(),
+                        now = clock.instant(),
+                        uowSupportsOutOfOrderPersisting = true,
+                    )
+                } throws ex
+                coEvery { rawUnitOfWork.onFailure(eq(params), eq(ex)) } returns department
+
+                When("Principal executes UnitOfWork") {
+                    uowx.execute(CreateDepartmentUow::class, TestPrincipal) { params }
+
+                    Then("Counter records the retried conflict and the exhausted failure") {
+                        metricReader.persistenceExceptionPoints().toSet() shouldBe setOf(
+                            ExcPoint(uowName, "StaleRecordException", "departments", 0L, true, 1L),
+                            ExcPoint(uowName, "StaleRecordException", "departments", 1L, false, 1L),
+                        )
+                    }
+                }
+            }
+
+            And("Persisting succeeds on the first attempt") {
+                coEvery {
+                    persisting.persist(
+                        uowName = uowName,
+                        params = params,
+                        principal = TestPrincipal,
+                        modelChanges = listOf(),
+                        entityChanges = listOf(),
+                        now = clock.instant(),
+                        uowSupportsOutOfOrderPersisting = true,
+                    )
+                } returns Pair(UowEvent.Id.random(), listOf(department))
+
+                When("Principal executes UnitOfWork") {
+                    uowx.execute(CreateDepartmentUow::class, TestPrincipal) { params }
+
+                    Then("Counter is not incremented") {
+                        metricReader.persistenceExceptionPoints() shouldBe listOf()
+                    }
+                }
+            }
+
+            And("Persisting throws a non-retryable UniqueModelRecordViolationException") {
+                val ex = UniqueModelRecordViolationException(depId, "DEPARTMENTS", "departments_name_idx")
+                coEvery {
+                    persisting.persist(
+                        uowName = uowName,
+                        params = params,
+                        principal = TestPrincipal,
+                        modelChanges = listOf(),
+                        entityChanges = listOf(),
+                        now = clock.instant(),
+                        uowSupportsOutOfOrderPersisting = true,
+                    )
+                } throws ex
+                coEvery { rawUnitOfWork.onFailure(eq(params), eq(ex)) } returns department
+
+                When("Principal executes UnitOfWork") {
+                    uowx.execute(CreateDepartmentUow::class, TestPrincipal) { params }
+
+                    Then("Counter records the constraint table and a non-retried failure at attempt 0") {
+                        metricReader.persistenceExceptionPoints() shouldBe listOf(
+                            ExcPoint(uowName, "UniqueModelRecordViolationException", "DEPARTMENTS", 0L, false, 1L),
+                        )
+                    }
+                }
+            }
+
+            And("Persisting throws an exception without a table name") {
+                val ex = UniqueUowEventRecordViolationException(UUID.randomUUID(), uowName, null, "uow_events_idx")
+                coEvery {
+                    persisting.persist(
+                        uowName = uowName,
+                        params = params,
+                        principal = TestPrincipal,
+                        modelChanges = listOf(),
+                        entityChanges = listOf(),
+                        now = clock.instant(),
+                        uowSupportsOutOfOrderPersisting = true,
+                    )
+                } throws ex
+                coEvery { rawUnitOfWork.onFailure(eq(params), eq(ex)) } returns department
+
+                When("Principal executes UnitOfWork") {
+                    uowx.execute(CreateDepartmentUow::class, TestPrincipal) { params }
+
+                    Then("Counter falls back to the unknown table") {
+                        metricReader.persistenceExceptionPoints() shouldBe listOf(
+                            ExcPoint(uowName, "UniqueUowEventRecordViolationException", "unknown", 0L, false, 1L),
+                        )
+                    }
+                }
+            }
+        }
     }
 })
+
+private data class ExcPoint(
+    val uowName: String?,
+    val exception: String?,
+    val table: String?,
+    val attempt: Long?,
+    val willRetry: Boolean?,
+    val value: Long,
+)
+
+private fun InMemoryMetricReader.persistenceExceptionPoints(): List<ExcPoint> =
+    collectAllMetrics()
+        .filter { it.name == "uow.persistence_exception" }
+        .flatMap { metric -> metric.longSumData.points }
+        .map { point ->
+            ExcPoint(
+                uowName = point.attributes.get(AttributeKey.stringKey("uow.name")),
+                exception = point.attributes.get(AttributeKey.stringKey("exception")),
+                table = point.attributes.get(AttributeKey.stringKey("table")),
+                attempt = point.attributes.get(AttributeKey.longKey("attempt")),
+                willRetry = point.attributes.get(AttributeKey.booleanKey("will_retry")),
+                value = point.value,
+            )
+        }
 
 private data class DeptResult(val dept: OwnedDepartment, val note: String)
