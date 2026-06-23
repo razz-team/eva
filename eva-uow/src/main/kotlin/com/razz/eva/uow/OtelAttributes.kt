@@ -11,5 +11,9 @@ internal object OtelAttributes {
     const val PRINCIPAL_ID = "principal.id"
     const val MODEL_NAME = "model.name"
     const val EVENT_NAME = "event.name"
+    const val EXCEPTION = "exception"
+    const val TABLE = "table"
+    const val ATTEMPT = "attempt"
+    const val WILL_RETRY = "will_retry"
     val MODEL_ID = AttributeKey.stringArrayKey("model.id")
 }

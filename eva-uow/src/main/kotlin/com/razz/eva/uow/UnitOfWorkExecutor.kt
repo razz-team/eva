@@ -7,15 +7,19 @@ import com.razz.eva.persistence.PrimaryConnectionRequiredFlag
 import com.razz.eva.tracing.getEvaMeter
 import com.razz.eva.tracing.getEvaTracer
 import com.razz.eva.tracing.use
+import com.razz.eva.uow.OtelAttributes.ATTEMPT
 import com.razz.eva.uow.OtelAttributes.EVENT_NAME
+import com.razz.eva.uow.OtelAttributes.EXCEPTION
 import com.razz.eva.uow.OtelAttributes.MODEL_ID
 import com.razz.eva.uow.OtelAttributes.MODEL_NAME
 import com.razz.eva.uow.OtelAttributes.PRINCIPAL_ID
 import com.razz.eva.uow.OtelAttributes.SPAN_PERFORM
 import com.razz.eva.uow.OtelAttributes.SPAN_PERSIST
+import com.razz.eva.uow.OtelAttributes.TABLE
 import com.razz.eva.uow.OtelAttributes.UOW_ID
 import com.razz.eva.uow.OtelAttributes.UOW_NAME
 import com.razz.eva.uow.OtelAttributes.UOW_OPERATION
+import com.razz.eva.uow.OtelAttributes.WILL_RETRY
 import com.razz.eva.uow.UnitOfWorkExecutor.ClassToUow
 import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.api.common.AttributeKey
@@ -141,7 +145,9 @@ class UnitOfWorkExecutor(
                         ),
                     )
                     val config = uow.configuration()
-                    if (config.retry.shouldRetry(currentAttempt, ex)) {
+                    val willRetry = config.retry.shouldRetry(currentAttempt, ex)
+                    incrementPersistenceExceptionMetric(ex, name, currentAttempt, willRetry)
+                    if (willRetry) {
                         currentAttempt += 1
                         logger.warn(ex) {
                             "Retrying UnitOfWork: ${uow.name()}. Attempt: $currentAttempt"
@@ -272,6 +278,35 @@ class UnitOfWorkExecutor(
     private fun eventsMetric() = openTelemetry.getEvaMeter()
         .counterBuilder("model.event")
         .setDescription("Number of model events emitted")
+        .setUnit("count")
+        .build()
+
+    private fun incrementPersistenceExceptionMetric(
+        ex: PersistenceException,
+        uowName: String,
+        attempt: Int,
+        willRetry: Boolean,
+    ) {
+        runCatching {
+            persistenceExceptionMetric().add(
+                1,
+                Attributes.of(
+                    AttributeKey.stringKey(UOW_NAME), uowName,
+                    AttributeKey.stringKey(EXCEPTION), ex::class.simpleName ?: "Unknown",
+                    AttributeKey.stringKey(TABLE), tableName(ex),
+                    AttributeKey.longKey(ATTEMPT), attempt.toLong(),
+                    AttributeKey.booleanKey(WILL_RETRY), willRetry,
+                ),
+            )
+        }
+    }
+
+    private fun tableName(ex: PersistenceException): String =
+        (ex as? PersistenceException.TableAware)?.tableName ?: "unknown"
+
+    private fun persistenceExceptionMetric() = openTelemetry.getEvaMeter()
+        .counterBuilder("uow.persistence_exception")
+        .setDescription("Number of persistence exceptions caught during UnitOfWork execution")
         .setUnit("count")
         .build()
 
