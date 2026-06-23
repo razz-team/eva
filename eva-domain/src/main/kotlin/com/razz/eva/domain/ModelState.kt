@@ -6,6 +6,9 @@ import com.razz.eva.domain.Version.Companion.V0
 sealed class ModelState<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>>(
     protected val version: Version,
     events: Collection<E>,
+    // Monotonic System.nanoTime() taken when the model was hydrated from storage; null for never-persisted models.
+    // Measures the in-process age of a held model between read and use; JVM-local and never serialized.
+    internal val readMark: Long?,
 ) : ModelStateMixin<ID, E> {
 
     protected val occurredEvents = events.toList()
@@ -31,7 +34,7 @@ sealed class ModelState<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>>(
     class PersistentState<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>> private constructor(
         version: Version,
         internal val proto: Any?,
-    ) : ModelState<ID, E>(version, listOf()) {
+    ) : ModelState<ID, E>(version, listOf(), System.nanoTime()) {
 
         init {
             check(version() != V0 && occurredEvents.isEmpty()) {
@@ -40,7 +43,7 @@ sealed class ModelState<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>>(
         }
 
         override fun raiseEvents(newEvents: List<E>): DirtyState<ID, E> {
-            return dirtyState(version, newEvents, proto)
+            return dirtyState(version, newEvents, proto, readMark)
         }
 
         companion object {
@@ -57,7 +60,8 @@ sealed class ModelState<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>>(
         version: Version,
         events: Collection<E>,
         internal val proto: Any?,
-    ) : ModelState<ID, E>(version, events) {
+        readMark: Long?,
+    ) : ModelState<ID, E>(version, events, readMark) {
 
         init {
             check(occurredEvents.isNotEmpty()) {
@@ -66,7 +70,7 @@ sealed class ModelState<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>>(
         }
 
         override fun raiseEvents(newEvents: List<E>): DirtyState<ID, E> {
-            return dirtyState(version, occurredEvents + newEvents, proto)
+            return dirtyState(version, occurredEvents + newEvents, proto, readMark)
         }
 
         companion object {
@@ -74,15 +78,16 @@ sealed class ModelState<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>>(
                 version: Version,
                 events: Collection<E>,
                 proto: Any?,
+                readMark: Long?,
             ): DirtyState<ID, E> {
-                return DirtyState(version, events, proto)
+                return DirtyState(version, events, proto, readMark)
             }
         }
     }
 
     class NewState<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>> private constructor(
         events: Collection<E>,
-    ) : ModelState<ID, E>(V0, events) {
+    ) : ModelState<ID, E>(V0, events, null) {
 
         init {
             check(version() == V0 && occurredEvents.isNotEmpty()) {

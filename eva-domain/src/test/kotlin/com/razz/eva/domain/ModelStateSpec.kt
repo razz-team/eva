@@ -14,6 +14,7 @@ import com.razz.eva.domain.Version.Companion.V1
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldBeEqualIgnoringCase
 import io.kotest.matchers.types.beInstanceOf
 
@@ -56,6 +57,14 @@ class ModelStateSpec : BehaviorSpec({
                 }
             }
         }
+
+        When("Get read mark") {
+            val readMark = newState.readMark
+
+            Then("Read mark is absent for a never-persisted model") {
+                readMark shouldBe null
+            }
+        }
     }
 
     Given("Dirty model state") {
@@ -66,6 +75,7 @@ class ModelStateSpec : BehaviorSpec({
             version = V1,
             events = listOf(firstTestModelEvent, secondTestModelEvent),
             proto = null,
+            readMark = null,
         )
 
         When("Get model events") {
@@ -73,6 +83,14 @@ class ModelStateSpec : BehaviorSpec({
 
             Then("Two test events are present") {
                 events shouldBe listOf(firstTestModelEvent, secondTestModelEvent)
+            }
+        }
+
+        When("Get read mark") {
+            val readMark = dirtyState.readMark
+
+            Then("Read mark reflects the value it was built with") {
+                readMark shouldBe null
             }
         }
     }
@@ -99,6 +117,14 @@ class ModelStateSpec : BehaviorSpec({
             }
         }
 
+        When("Get read mark") {
+            val readMark = persistentState.readMark
+
+            Then("Read mark is captured at construction") {
+                readMark shouldNotBe null
+            }
+        }
+
         And("New events") {
             val event1 = TestModelEvent1(randomTestModelId())
             val event2 = TestModelEvent1(randomTestModelId())
@@ -111,6 +137,13 @@ class ModelStateSpec : BehaviorSpec({
                 }
                 And("Model state is dirty") {
                     dirtyState shouldBe beInstanceOf<DirtyState<TestModelId, TestModelEvent>>()
+                }
+                And("Read mark is carried over from the persistent state") {
+                    dirtyState.readMark shouldBe persistentState.readMark
+                }
+                And("Raising further events keeps the same read mark") {
+                    dirtyState.raiseEvent(TestModelEvent2(randomTestModelId())).readMark shouldBe
+                        persistentState.readMark
                 }
             }
         }
