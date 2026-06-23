@@ -24,4 +24,8 @@ abstract class Model<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>>(
         @Suppress("UNCHECKED_CAST")
         return proto as? T
     }
+
+    // Nanoseconds this model has been held in memory since it was hydrated from storage, or null if it was
+    // never persisted (a brand-new model). Monotonic and JVM-local; lets a holder decide if its reference is stale.
+    internal fun heldNanos(): Long? = modelState.readMark?.let { System.nanoTime() - it }
 }
