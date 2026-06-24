@@ -41,6 +41,13 @@ class TagRepository(
     suspend fun findBySubjectAndName(subjectId: UUID, name: String): Tag? =
         findOneWhere(TagTable.TAG.SUBJECT_ID.eq(subjectId).and(TagTable.TAG.NAME.eq(name)))
 
+    suspend fun findFirstBySubject(subjectId: UUID): Tag? {
+        val select = dsl.selectFrom(TagTable.TAG)
+            .where(TagTable.TAG.SUBJECT_ID.eq(subjectId))
+            .orderBy(TagTable.TAG.NAME.asc())
+        return firstRecord(select)?.let(::fromRecord)
+    }
+
     suspend fun existsForSubject(subjectId: UUID): Boolean =
         existsWhere(TagTable.TAG.SUBJECT_ID.eq(subjectId))
 

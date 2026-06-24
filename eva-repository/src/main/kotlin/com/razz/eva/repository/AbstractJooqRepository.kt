@@ -270,6 +270,18 @@ abstract class AbstractJooqRepository<ID, MID, M, ME, R>(
             }
     }
 
+    /**
+     * Returns the first record of [select] or null if none.
+     *
+     * Use when a query intentionally fans out (joins, retry history, audit rows, etc.)
+     * and the caller wants the top row by an [SelectLimitStep#orderBy] criterion.
+     * Differs from [atMostOneRecord] which enforces a "≤1" invariant and throws on more than
+     * one row. A `.limit(1)` is applied internally so callers don't have to remember it.
+     */
+    protected suspend fun <R : Record> firstRecord(select: SelectLimitStep<R>): R? {
+        return allRecords(select.limit(1)).firstOrNull()
+    }
+
     protected suspend fun <R : Record> allRecords(select: Select<R>): List<R> {
         return queryExecutor.executeSelect(
             dslContext = dslContext,
