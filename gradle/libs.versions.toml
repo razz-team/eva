@@ -19,7 +19,7 @@ kotlin-bom = { module = "org.jetbrains.kotlin:kotlin-bom", version.ref = "kotlin
 kotlinx-coroutines-bom = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-bom", version = "1.11.0" }
 kotlinx-serialization-bom = { module = "org.jetbrains.kotlinx:kotlinx-serialization-bom", version.ref = "kotlinx-serialization" }
 
-jooq-bom = { module = "org.jooq:jooq-bom", version = "3.21.5" }
+jooq-bom = { module = "org.jooq:jooq-bom", version = "3.21.6" }
 jackson-bom = { module = "com.fasterxml.jackson:jackson-bom", version = "2.22.0" }
 vertx-bom = { module = "io.vertx:vertx-stack-depchain", version = "5.0.12" }
 
