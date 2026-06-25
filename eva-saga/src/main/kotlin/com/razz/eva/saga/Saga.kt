@@ -63,6 +63,9 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
                 run(principal, params, trail + nextStep::class, nextStep)
             }
             is Terminal<*> -> sagaTerminalSpan(step::class.simpleName).use {
+                sagaExecutionContext.observers.forEach { sagaObserver ->
+                    sagaObserver.onTerminalStep(step, principal)
+                }
                 step as TS
             }
         }
