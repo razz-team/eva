@@ -28,9 +28,12 @@ interface QueryExecutor {
         jooqQuery: DMLQuery<R>,
     ): Int
 
-    fun extractConstraintName(ex: Exception): String?
+    fun extractConstraintName(ex: Exception): Constraint?
 
-    fun extractUniqueConstraintName(ex: Exception, table: Table<*>): String?
+    fun extractUniqueConstraintName(ex: Exception, table: Table<*>): Constraint?
 
     fun extractModelException(ex: Exception, table: Table<*>, modelId: ModelId<*>): PersistenceException?
+
+    @JvmInline
+    value class Constraint(val name: String?)
 }

@@ -9,6 +9,7 @@ import com.razz.eva.persistence.PersistenceException.StaleRecordException
 import com.razz.eva.persistence.PersistenceException.UniqueModelRecordViolationException
 import com.razz.eva.persistence.TransactionManager
 import com.razz.eva.persistence.executor.QueryExecutor
+import com.razz.eva.persistence.executor.QueryExecutor.Constraint
 import com.razz.eva.persistence.postgres.PgHelpers.PG_UNIQUE_VIOLATION
 import io.vertx.core.json.Json
 import io.vertx.kotlin.coroutines.coAwait
@@ -141,11 +142,21 @@ class VertxQueryExecutor(
         return record.into(table)
     }
 
-    override fun extractConstraintName(ex: Exception): String? = (ex as? PgException)?.constraint
+    override fun extractConstraintName(ex: Exception): Constraint? {
+        if (ex !is PgException) {
+            return null
+        }
 
-    override fun extractUniqueConstraintName(ex: Exception, table: Table<*>): String? {
-        return when ((ex as? PgException)?.sqlState) {
-            PG_UNIQUE_VIOLATION -> ex.constraint
+        return Constraint(ex.constraint)
+    }
+
+    override fun extractUniqueConstraintName(ex: Exception, table: Table<*>): Constraint? {
+        if (ex !is PgException) {
+            return null
+        }
+
+        return when (ex.sqlState) {
+            PG_UNIQUE_VIOLATION -> Constraint(ex.constraint)
             else -> null
         }
     }

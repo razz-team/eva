@@ -9,6 +9,7 @@ import com.razz.eva.persistence.PersistenceException.StaleRecordException
 import com.razz.eva.persistence.PersistenceException.UniqueModelRecordViolationException
 import com.razz.eva.persistence.TransactionManager
 import com.razz.eva.persistence.executor.QueryExecutor
+import com.razz.eva.persistence.executor.QueryExecutor.Constraint
 import com.razz.eva.persistence.postgres.PgHelpers.PG_UNIQUE_VIOLATION
 import com.razz.eva.tracing.QueryTracingListenerProvider
 import io.opentelemetry.api.OpenTelemetry
@@ -82,12 +83,13 @@ class JdbcQueryExecutor(
             .toTypedArray(),
     ).coerce(table).fetch()
 
-    override fun extractConstraintName(ex: Exception): String? {
+    override fun extractConstraintName(ex: Exception): Constraint? {
         val dataAccessException = ex as? DataAccessException ?: return null
-        return dataAccessException.getCause(PSQLException::class.java)?.serverErrorMessage?.constraint
+        val name = dataAccessException.getCause(PSQLException::class.java)?.serverErrorMessage?.constraint
+        return Constraint(name)
     }
 
-    override fun extractUniqueConstraintName(ex: Exception, table: Table<*>): String? {
+    override fun extractUniqueConstraintName(ex: Exception, table: Table<*>): Constraint? {
         if ((ex as? DataAccessException)?.sqlState() != PG_UNIQUE_VIOLATION) {
             return null
         }
@@ -96,8 +98,9 @@ class JdbcQueryExecutor(
         return if (table.comment == "PARTITIONED") {
             constraintName
         } else {
-            table.keys.firstOrNull { it.name == constraintName }?.name
-                ?: table.indexes.firstOrNull { it.unique && it.name == constraintName }?.name
+            val nonPartitionedConstraint = table.keys.firstOrNull { it.name == constraintName?.name }?.name
+                ?: table.indexes.firstOrNull { it.unique && it.name == constraintName?.name }?.name
+            Constraint(nonPartitionedConstraint)
         }
     }
 
@@ -107,13 +110,13 @@ class JdbcQueryExecutor(
             dae.sqlState() == PG_UNIQUE_VIOLATION -> UniqueModelRecordViolationException(
                 modelId = modelId,
                 tableName = table.name,
-                constraintName = extractUniqueConstraintName(dae, table),
+                constraintName = extractUniqueConstraintName(dae, table)?.name,
             )
 
             dae.sqlStateClass() == C23_INTEGRITY_CONSTRAINT_VIOLATION -> ModelRecordConstraintViolationException(
                 modelId = modelId,
                 tableName = table.name,
-                constraintName = extractConstraintName(dae),
+                constraintName = extractConstraintName(dae)?.name,
             )
 
             // https://www.postgresql.org/message-id/flat/CANbGkDhq9gZnEouo2PZHP3HGMAJKk7fZf3eU3Q8g46Y-1uGZ-w%40mail.gmail.com#e5de345d77abe0184e394f0701bb8bc5
