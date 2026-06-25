@@ -104,7 +104,7 @@ class JooqEventRepository(
                 uowId = uowEvent.id.uuidValue(),
                 uowName = uowEvent.uowName.stringValue(),
                 idempotencyKey = uowEvent.idempotencyKey,
-                constraintName = uniqueConstraintName,
+                constraintName = uniqueConstraintName.name,
             )
         }
 

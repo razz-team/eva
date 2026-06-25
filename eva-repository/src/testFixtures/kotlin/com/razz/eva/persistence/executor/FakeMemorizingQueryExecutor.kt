@@ -5,6 +5,7 @@ import com.razz.eva.persistence.PersistenceException
 import com.razz.eva.persistence.executor.FakeMemorizingQueryExecutor.ExecutionStep.QueryExecuted
 import com.razz.eva.persistence.executor.FakeMemorizingQueryExecutor.ExecutionStep.SelectExecuted
 import com.razz.eva.persistence.executor.FakeMemorizingQueryExecutor.ExecutionStep.StoreExecuted
+import com.razz.eva.persistence.executor.QueryExecutor.Constraint
 import org.jooq.DMLQuery
 import org.jooq.DSLContext
 import org.jooq.Record
@@ -68,9 +69,9 @@ class FakeMemorizingQueryExecutor(
             .execute(jooqQuery.getSQL(INLINED))
     }
 
-    override fun extractConstraintName(ex: Exception): String? = null
+    override fun extractConstraintName(ex: Exception): Constraint? = null
 
-    override fun extractUniqueConstraintName(ex: Exception, table: Table<*>): String? = null
+    override fun extractUniqueConstraintName(ex: Exception, table: Table<*>): Constraint? = null
 
     override fun extractModelException(ex: Exception, table: Table<*>, modelId: ModelId<*>): PersistenceException? = null
 
