@@ -104,7 +104,7 @@ class StaleRecordSpec : PersistenceBaseSpec({
                     departmentRepo.find(department.id())?.headcount shouldBe 5
                     avengers.size shouldBe 3
                     avengers.forEach { sp ->
-                        val persisted = employeeRepo.find(sp.id())!!
+                        val persisted = requireNotNull(employeeRepo.find(sp.id()))
                         persisted.departmentId shouldBe department.id()
                         persisted.version() shouldBe sp.version()
                         sp.isPersisted() shouldBe true

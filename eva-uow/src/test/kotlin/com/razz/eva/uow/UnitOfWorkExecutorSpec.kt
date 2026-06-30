@@ -122,7 +122,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
 
         var tick = ofEpochMilli(0)
         val crawlingInstant = InstantSource {
-            var tock = tick.plusMillis(1)
+            val tock = tick.plusMillis(1)
             tick = tock.plusMillis(1)
             tock
         }
