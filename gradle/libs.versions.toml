@@ -8,7 +8,7 @@ kotlinx-serialization = "1.11.0"
 # not managed by BOMs
 flyway = { module = "org.flywaydb:flyway-core", version.ref = "flywaydb" }
 flyway-postgres = { module = "org.flywaydb:flyway-database-postgresql", version.ref = "flywaydb" }
-hikari = { module = "com.zaxxer:HikariCP", version = "7.0.2" }
+hikari = { module = "com.zaxxer:HikariCP", version = "7.1.0" }
 kotlin-logging = { module = "io.github.microutils:kotlin-logging", version = "3.0.5" }
 logback = { module = "ch.qos.logback:logback-classic", version = "1.5.35" }
 mockk = { module = "io.mockk:mockk", version = "1.14.11" }
