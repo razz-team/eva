@@ -10,9 +10,9 @@ flyway = { module = "org.flywaydb:flyway-core", version.ref = "flywaydb" }
 flyway-postgres = { module = "org.flywaydb:flyway-database-postgresql", version.ref = "flywaydb" }
 hikari = { module = "com.zaxxer:HikariCP", version = "7.0.2" }
 kotlin-logging = { module = "io.github.microutils:kotlin-logging", version = "3.0.5" }
-logback = { module = "ch.qos.logback:logback-classic", version = "1.5.35" }
+logback = { module = "ch.qos.logback:logback-classic", version = "1.5.37" }
 mockk = { module = "io.mockk:mockk", version = "1.14.11" }
-postgres = { module = "org.postgresql:postgresql", version = "42.7.11" }
+postgres = { module = "org.postgresql:postgresql", version = "42.7.12" }
 
 # BOMs
 kotlin-bom = { module = "org.jetbrains.kotlin:kotlin-bom", version.ref = "kotlin" }
