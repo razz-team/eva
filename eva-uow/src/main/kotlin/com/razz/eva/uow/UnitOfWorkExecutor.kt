@@ -249,7 +249,7 @@ class UnitOfWorkExecutor(
             true
         } ?: false
 
-    @Suppress("UNCHECKED_CAST")
+    @Suppress("UNCHECKED_CAST", "UnreachableCode")
     private fun <PRINCIPAL, PARAMS, RESULT, UOW> create(
         executionContext: ExecutionContext,
         target: KClass<UOW>,

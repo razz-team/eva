@@ -22,9 +22,9 @@ class ModelParamSpec : FunSpec({
         modelParam.model().id() shouldBe model.id()
     }
 
-    test("Model param returns model obtained from queries when constructed second time from model") {
-        val oldModel = TestModel.createdTestModel("lel", 1337)
-        val newModel = oldModel.changeParam1("pek").changeParam2(100500)
+    test("Model param re-queries a persisted model when constructed second time from model") {
+        val oldModel = TestModel.existingCreatedTestModel(param1 = "lel", param2 = 1337)
+        val newModel = TestModel.existingCreatedTestModel(id = oldModel.id(), param1 = "pek", param2 = 100500)
         var queryCount = 0
         val modelParam = InstantiationContext(1).modelParam(oldModel) { id ->
             queryCount++
@@ -35,6 +35,19 @@ class ModelParamSpec : FunSpec({
         modelParam.model().param2 shouldBe newModel.param2
         modelParam.model().id() shouldBe oldModel.id()
         queryCount shouldBe 1
+    }
+
+    test("Model param holds a New model on retry instead of re-querying a never-committed id") {
+        val newModel = TestModel.createdTestModel("lel", 1337)
+        val modelParam = InstantiationContext(1).modelParam(newModel) { error("must not re-query a New model") }
+        modelParam.model().id() shouldBe newModel.id()
+        modelParam.model().param1 shouldBe newModel.param1
+    }
+
+    test("Model param holds a Dirty model on retry instead of dropping its uncommitted events") {
+        val dirtyModel = TestModel.existingCreatedTestModel(param1 = "lel", param2 = 1337).changeParam1("pek")
+        val modelParam = InstantiationContext(1).modelParam(dirtyModel) { error("must not re-query a Dirty model") }
+        modelParam.model().param1 shouldBe "pek"
     }
 
     test("Model param re-queries when the held model is older than staleAfter") {

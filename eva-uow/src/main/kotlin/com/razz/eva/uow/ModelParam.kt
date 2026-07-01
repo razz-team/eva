@@ -65,7 +65,8 @@ class ModelParam<MID : ModelId<out Comparable<*>>, M : Model<MID, *>> private co
             staleAfter: Duration?,
             modelQueries: suspend (MID) -> M,
         ): ModelParam<MID, M> {
-            return if (attempt == 0) {
+            // On retry re-query only a persisted model; New/Dirty lack a committed identity, so hold them.
+            return if (attempt == 0 || !model.isPersisted()) {
                 ModelParam(model, staleAfter, modelQueries)
             } else {
                 ModelParam(model.id(), modelQueries)
