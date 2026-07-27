@@ -29,7 +29,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import mu.KotlinLogging
 import java.time.InstantSource
-import kotlin.collections.flatMap
 import kotlin.reflect.KClass
 
 infix fun <PRINCIPAL, PARAMS, RESULT, UOW> KClass<UOW>.withFactory(
@@ -120,6 +119,11 @@ class UnitOfWorkExecutor(
                     principal.id.toString(),
                 )
                 incrementEventsMetric(changes.modelChangesToPersist, name)
+                if (changes is Abstained) {
+                    // Get-or-create "get" path: nothing changed, so skip the persistence
+                    // transaction and the uow_event write entirely, returning the result as-is.
+                    return changes.result
+                }
                 val (uowId, persisted) = try {
                     withContext(uowSpan.asContextElement()) {
                         persistingSpan(name).use {

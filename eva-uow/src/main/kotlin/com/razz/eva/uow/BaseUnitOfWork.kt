@@ -23,9 +23,34 @@ abstract class BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, C>(
 
     private val NO_CHANGES: Changes<Unit> = RealisedChanges(Unit, listOf(), listOf())
 
+    /**
+     * Signals that this UoW mutated no models: the executor persists no model/entity changes but still
+     * writes a uow_event, recording the invocation in the audit trail (and honoring any idempotency key).
+     * Use [abstain] instead when even that empty event is unwanted.
+     */
     protected fun noChanges() = NO_CHANGES
 
+    /**
+     * Same as [noChanges] but carries a [result] to return to the caller. The empty uow_event is still
+     * written; use [abstain] with the same [result] to skip it entirely.
+     */
     protected fun <R> noChanges(result: R): Changes<R> = RealisedChanges(result, listOf(), listOf())
+
+    private val ABSTAINED: Changes<Unit> = Abstained(Unit)
+
+    /**
+     * Like [noChanges] but additionally skips writing the uow_event: the executor returns without opening
+     * a persistence transaction at all. Use on the "get" branch of a get-or-create UoW, where the model
+     * already existed and no side effect was performed, to avoid an empty uow_event per call. Because no
+     * event is written, no idempotency key is recorded for the invocation.
+     */
+    protected fun abstain() = ABSTAINED
+
+    /**
+     * Same as [abstain] but carries a [result] to return to the caller. No uow_event is written and no
+     * persistence transaction is opened, so no idempotency key is recorded for the invocation.
+     */
+    protected fun <R> abstain(result: R): Changes<R> = Abstained(result)
 
     protected abstract suspend fun changes(init: suspend C.() -> RESULT): Changes<RESULT>
 

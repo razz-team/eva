@@ -5,9 +5,9 @@ import com.razz.eva.domain.CreatableEntity
 import com.razz.eva.domain.DeletableEntity
 import com.razz.eva.domain.EntityKey
 import com.razz.eva.domain.Model
-import com.razz.eva.domain.UpdatableEntity
 import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
+import com.razz.eva.domain.UpdatableEntity
 import kotlin.reflect.KClass
 
 private fun existingChangeExceptionMessage(modelId: ModelId<*>) =
@@ -152,3 +152,16 @@ internal class RealisedChanges<R>(
     override val entityChangesToPersist: List<EntityChange>,
     override val resultBuilder: ((PersistedLookup) -> Any?)? = null,
 ) : Changes<R>()
+
+/**
+ * Signals that nothing changed AND no uow_event should be written: the executor returns [result]
+ * without opening a persistence transaction. Contrast with [RealisedChanges] carrying empty changes
+ * (produced by `noChanges(...)`), which still records an empty uow_event as an audit trail of the
+ * invocation. Intended for get-or-create style UoWs whose "get" branch performed no side effect.
+ */
+internal class Abstained<R>(
+    override val result: R,
+) : Changes<R>() {
+    override val modelChangesToPersist: List<ModelChange> get() = emptyList()
+    override val entityChangesToPersist: List<EntityChange> get() = emptyList()
+}
