@@ -7,12 +7,12 @@ import com.razz.eva.domain.EmployeeId
 import com.razz.eva.domain.ModelState.NewState.Companion.newState
 import com.razz.eva.domain.Ration
 import com.razz.eva.repository.DepartmentRepository
-import com.razz.eva.uow.CreateDepartmentUow.Params
+import com.razz.eva.uow.GetOrCreateDepartmentUow.Params
 import com.razz.eva.uow.params.kotlinx.UowParams
 import kotlinx.serialization.Serializable
-import java.util.*
+import java.util.UUID
 
-class CreateDepartmentUow(
+class GetOrCreateDepartmentUow(
     executionContext: ExecutionContext,
     private val departmentRepo: DepartmentRepository
 ) : UnitOfWork<TestPrincipal, Params, OwnedDepartment>(executionContext) {
@@ -26,17 +26,15 @@ class CreateDepartmentUow(
         override fun serialization() = serializer()
     }
 
-    override suspend fun tryPerform(principal: TestPrincipal, params: Params): Changes<OwnedDepartment> =
-        changes {
-            addDepartment(params.boss, params.departmentName, params.ration)
-        }
-
-    private suspend fun ChangesDsl.addDepartment(boss: EmployeeId, name: String, ration: Ration): OwnedDepartment {
-        val existingDep = departmentRepo.findByBoss(boss)
+    override suspend fun tryPerform(principal: TestPrincipal, params: Params): Changes<OwnedDepartment> {
+        val existingDep = departmentRepo.findByBoss(params.boss)
         return if (existingDep != null) {
-            throw IllegalStateException("Department already exists")
+            // Get path: the department already exists, so return it without recording a uow_event.
+            abstain(existingDep)
         } else {
-            add(createDep(boss, name, ration))
+            changes {
+                add(createDep(params.boss, params.departmentName, params.ration))
+            }
         }
     }
 
