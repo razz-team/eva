@@ -32,7 +32,7 @@ abstract class PagingStrategy<ID, M, S, P, R>
     internal fun select(
         step: SelectOrderByStep<R>,
         page: Page<P>,
-    ): Select<R> = step.orderBy(tableOrdering().sort(order()), tableId())
+    ): Select<R> = step.orderBy(tableOrdering().sort(order()), tableId().sort(order()))
         .apply {
             if (page is Page.Next<P>) {
                 seek(page.maxOrdering, tableOffset(page.offset))
