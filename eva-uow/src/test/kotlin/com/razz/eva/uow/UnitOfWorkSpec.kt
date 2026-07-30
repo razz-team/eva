@@ -1,18 +1,22 @@
 package com.razz.eva.uow
 
 import com.razz.eva.domain.Department.OwnedDepartment
+import com.razz.eva.domain.DepartmentId
 import com.razz.eva.domain.EmployeeId
 import com.razz.eva.domain.Model
 import com.razz.eva.domain.ModelId
+import com.razz.eva.domain.ModelState.PersistentState.Companion.persistentState
 import com.razz.eva.domain.Ration.BUBALEH
 import com.razz.eva.domain.Ration.SHAKSHOUKA
+import com.razz.eva.domain.Version.Companion.V1
 import com.razz.eva.repository.DepartmentRepository
 import com.razz.eva.test.uow.UowBehaviorSpec
-import com.razz.eva.uow.CreateDepartmentUow.Params
+import com.razz.eva.uow.GetOrCreateDepartmentUow.Params
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import io.mockk.coEvery
 import io.mockk.mockk
 import java.util.UUID.randomUUID
@@ -21,7 +25,7 @@ class UnitOfWorkSpec : UowBehaviorSpec({
 
     Given("A simple UnitOfWork with repository") {
         val departmentRepo = mockk<DepartmentRepository>()
-        val uow = CreateDepartmentUow(executionContext, departmentRepo)
+        val uow = GetOrCreateDepartmentUow(executionContext, departmentRepo)
             as UnitOfWork<TestPrincipal, Params, OwnedDepartment>
 
         And("Department is not found") {
@@ -57,6 +61,33 @@ class UnitOfWorkSpec : UowBehaviorSpec({
                             }
                         })
                     }
+                }
+            }
+        }
+
+        And("Department is found") {
+            val empId = EmployeeId(randomUUID())
+            val existing = OwnedDepartment(
+                id = DepartmentId(randomUUID()),
+                name = "Skunk works",
+                boss = empId,
+                headcount = 1,
+                ration = SHAKSHOUKA,
+                modelState = persistentState(V1, null),
+            )
+            coEvery { departmentRepo.findByBoss(empId) } answers { existing }
+
+            When("Principal executes unit of work") {
+                val changes = uow.tryPerform(TestPrincipal, Params(empId, "Skunk works", SHAKSHOUKA))
+
+                Then("The existing Department is returned as-is") {
+                    changes.result shouldBe existing
+                }
+
+                And("Changes abstain, so nothing is persisted and no uow_event is written") {
+                    changes.shouldBeInstanceOf<Abstained<OwnedDepartment>>()
+                    changes.modelChangesToPersist shouldBe emptyList()
+                    changes.entityChangesToPersist shouldBe emptyList()
                 }
             }
         }
