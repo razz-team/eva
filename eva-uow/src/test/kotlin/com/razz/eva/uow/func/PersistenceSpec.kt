@@ -147,6 +147,16 @@ class PersistenceSpec : PersistenceBaseSpec({
                 pointsForUow.size shouldBe 1
             }
 
+            And("the uow perform and persist phase timer metrics are incremented") {
+                listOf("uow.perform.timer", "uow.persist.timer").forEach { timerName ->
+                    val metric = metrics.find { it.name == timerName }
+                    val pointsForUow = metric!!.histogramData.points.filter {
+                        it.attributes.asMap().containsValue("CreateSoloDepartmentUow")
+                    }
+                    pointsForUow.size shouldBe 1
+                }
+            }
+
             And("the model event counter metric is incremented") {
                 val metric = metrics.find { it.name == "model.event" }
                 val pointsForDepartmentEvent = metric!!.longSumData.points.filter { point ->

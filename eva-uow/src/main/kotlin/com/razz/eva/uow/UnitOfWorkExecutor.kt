@@ -24,6 +24,7 @@ import com.razz.eva.uow.UnitOfWorkExecutor.ClassToUow
 import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
+import io.opentelemetry.api.metrics.LongHistogram
 import io.opentelemetry.extension.kotlin.asContextElement
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -89,7 +90,6 @@ class UnitOfWorkExecutor(
           RESULT : Any,
           UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *> {
         val startTime = System.nanoTime()
-        val timer = createTimer()
         val uowSpan = uowSpan().apply {
             updateName(uowName)
             setAttribute(UOW_NAME, uowName)
@@ -106,9 +106,11 @@ class UnitOfWorkExecutor(
                     uowSpan.setAttribute(UOW_NAME, name)
                 }
                 val constructedParams = params(InstantiationContext.External(currentAttempt))
-                val changes = withContext(PrimaryConnectionRequiredFlag + uowSpan.asContextElement()) {
-                    performingSpan(name).use {
-                        uow.tryPerform(principal, constructedParams)
+                val changes = timed(performTimer, name) {
+                    withContext(PrimaryConnectionRequiredFlag + uowSpan.asContextElement()) {
+                        performingSpan(name).use {
+                            uow.tryPerform(principal, constructedParams)
+                        }
                     }
                 }
                 uowSpan.setAttribute(
@@ -121,17 +123,20 @@ class UnitOfWorkExecutor(
                 )
                 incrementEventsMetric(changes.modelChangesToPersist, name)
                 val (uowId, persisted) = try {
-                    withContext(uowSpan.asContextElement()) {
-                        persistingSpan(name).use {
-                            persisting.persist(
-                                uowName = uow.name(),
-                                params = constructedParams,
-                                principal = principal,
-                                modelChanges = changes.modelChangesToPersist,
-                                entityChanges = changes.entityChangesToPersist,
-                                now = now,
-                                uowSupportsOutOfOrderPersisting = uow.configuration().supportsOutOfOrderPersisting,
-                            )
+                    timed(persistTimer, name) {
+                        withContext(uowSpan.asContextElement()) {
+                            persistingSpan(name).use {
+                                persisting.persist(
+                                    uowName = uow.name(),
+                                    params = constructedParams,
+                                    principal = principal,
+                                    modelChanges = changes.modelChangesToPersist,
+                                    entityChanges = changes.entityChangesToPersist,
+                                    now = now,
+                                    uowSupportsOutOfOrderPersisting = uow.configuration()
+                                        .supportsOutOfOrderPersisting,
+                                )
+                            }
                         }
                     }
                 } catch (ex: PersistenceException) {
@@ -264,7 +269,7 @@ class UnitOfWorkExecutor(
     private fun incrementEventsMetric(modelChanges: List<ModelChange>, uowName: String) {
         modelChanges.flatMap { it.modelEvents }
             .forEach { modelEvent ->
-                eventsMetric().add(
+                eventsMetric.add(
                     1,
                     Attributes.of(
                         AttributeKey.stringKey(MODEL_NAME), modelEvent.modelName,
@@ -275,7 +280,7 @@ class UnitOfWorkExecutor(
             }
     }
 
-    private fun eventsMetric() = openTelemetry.getEvaMeter()
+    private val eventsMetric = openTelemetry.getEvaMeter()
         .counterBuilder("model.event")
         .setDescription("Number of model events emitted")
         .setUnit("count")
@@ -288,7 +293,7 @@ class UnitOfWorkExecutor(
         willRetry: Boolean,
     ) {
         runCatching {
-            persistenceExceptionMetric().add(
+            persistenceExceptionMetric.add(
                 1,
                 Attributes.of(
                     AttributeKey.stringKey(UOW_NAME), uowName,
@@ -304,7 +309,7 @@ class UnitOfWorkExecutor(
     private fun tableName(ex: PersistenceException): String =
         (ex as? PersistenceException.TableAware)?.tableName ?: "unknown"
 
-    private fun persistenceExceptionMetric() = openTelemetry.getEvaMeter()
+    private val persistenceExceptionMetric = openTelemetry.getEvaMeter()
         .counterBuilder("uow.persistence_exception")
         .setDescription("Number of persistence exceptions caught during UnitOfWork execution")
         .setUnit("count")
@@ -326,16 +331,56 @@ class UnitOfWorkExecutor(
         .setAttribute(UOW_NAME, name)
         .startSpan()
 
-    private fun createTimer() = openTelemetry.getEvaMeter()
-        .histogramBuilder("uow.timer")
-        .setDescription("Unit of work execution time")
+    private val timer = createTimer("uow.timer", "Unit of work execution time")
+
+    private val performTimer = createTimer("uow.perform.timer", "Unit of work perform phase execution time")
+
+    private val persistTimer = createTimer("uow.persist.timer", "Unit of work persist phase execution time")
+
+    private fun createTimer(name: String, description: String) = openTelemetry.getEvaMeter()
+        .histogramBuilder(name)
+        .setDescription(description)
         .setUnit("ns")
         .ofLongs()
+        // otel default boundaries are millisecond-oriented (5 .. 10000), so every nanosecond-scale
+        // observation lands in +Inf and quantiles saturate; advise boundaries covering 0.5ms .. 60s
+        .setExplicitBucketBoundariesAdvice(TIMER_BUCKET_BOUNDARIES_NANOS)
         .build()
+
+    private inline fun <T> timed(timer: LongHistogram, uowName: String, block: () -> T): T {
+        val start = System.nanoTime()
+        return try {
+            block()
+        } finally {
+            timer.record(System.nanoTime() - start, Attributes.of(AttributeKey.stringKey(UOW_NAME), uowName))
+        }
+    }
 
     private object SpanAttributes {
 
         val peristenceException = AttributeKey.stringKey("com.razz.eva.persistence.PersistenceException")
         val modelIds = AttributeKey.stringArrayKey("com.razz.eva.domain.ModelId")
+    }
+
+    companion object {
+        private val TIMER_BUCKET_BOUNDARIES_NANOS = listOf(
+            500_000L, // 0.5ms
+            1_000_000L, // 1ms
+            2_500_000L,
+            5_000_000L,
+            10_000_000L, // 10ms
+            25_000_000L,
+            50_000_000L,
+            75_000_000L,
+            100_000_000L, // 100ms
+            250_000_000L,
+            500_000_000L,
+            1_000_000_000L, // 1s
+            2_500_000_000L,
+            5_000_000_000L,
+            10_000_000_000L, // 10s
+            30_000_000_000L,
+            60_000_000_000L, // 60s
+        )
     }
 }
