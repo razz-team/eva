@@ -18,7 +18,6 @@ import org.jooq.SortField
 import org.jooq.Table
 import org.jooq.TableField
 import org.jooq.impl.DSL
-import org.jooq.impl.SQLDataType
 import java.time.Instant
 
 abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
@@ -220,7 +219,18 @@ abstract class JooqBaseModelRepository<ID, MID, M, ME, R>(
         )?.value1() ?: 0
     }
 
-    private companion object {
-        private val LONG_COUNT = DSL.field("count(*)", SQLDataType.BIGINT)
+    /**
+     * Counts rows matching [condition] per distinct value of [groupField].
+     * Keys with no matching rows are absent from the result, as with any `GROUP BY`,
+     * so callers should treat a missing key as zero.
+     */
+    protected suspend fun <K> countByGroup(groupField: TableField<R, K>, condition: Condition): Map<K, Long> {
+        return executeCountByGroup(
+            queryExecutor = queryExecutor,
+            dslContext = dslContext,
+            table = table,
+            groupField = groupField,
+            condition = condition,
+        )
     }
 }
