@@ -24,6 +24,7 @@ import com.razz.eva.uow.UnitOfWorkExecutor.ClassToUow
 import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
+import io.opentelemetry.api.metrics.LongHistogram
 import io.opentelemetry.extension.kotlin.asContextElement
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -90,6 +91,8 @@ class UnitOfWorkExecutor(
           UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *> {
         val startTime = System.nanoTime()
         val timer = createTimer()
+        val performTimer = createPerformTimer()
+        val persistTimer = createPersistTimer()
         val uowSpan = uowSpan().apply {
             updateName(uowName)
             setAttribute(UOW_NAME, uowName)
@@ -106,9 +109,11 @@ class UnitOfWorkExecutor(
                     uowSpan.setAttribute(UOW_NAME, name)
                 }
                 val constructedParams = params(InstantiationContext.External(currentAttempt))
-                val changes = withContext(PrimaryConnectionRequiredFlag + uowSpan.asContextElement()) {
-                    performingSpan(name).use {
-                        uow.tryPerform(principal, constructedParams)
+                val changes = timed(performTimer, name) {
+                    withContext(PrimaryConnectionRequiredFlag + uowSpan.asContextElement()) {
+                        performingSpan(name).use {
+                            uow.tryPerform(principal, constructedParams)
+                        }
                     }
                 }
                 uowSpan.setAttribute(
@@ -121,17 +126,20 @@ class UnitOfWorkExecutor(
                 )
                 incrementEventsMetric(changes.modelChangesToPersist, name)
                 val (uowId, persisted) = try {
-                    withContext(uowSpan.asContextElement()) {
-                        persistingSpan(name).use {
-                            persisting.persist(
-                                uowName = uow.name(),
-                                params = constructedParams,
-                                principal = principal,
-                                modelChanges = changes.modelChangesToPersist,
-                                entityChanges = changes.entityChangesToPersist,
-                                now = now,
-                                uowSupportsOutOfOrderPersisting = uow.configuration().supportsOutOfOrderPersisting,
-                            )
+                    timed(persistTimer, name) {
+                        withContext(uowSpan.asContextElement()) {
+                            persistingSpan(name).use {
+                                persisting.persist(
+                                    uowName = uow.name(),
+                                    params = constructedParams,
+                                    principal = principal,
+                                    modelChanges = changes.modelChangesToPersist,
+                                    entityChanges = changes.entityChangesToPersist,
+                                    now = now,
+                                    uowSupportsOutOfOrderPersisting = uow.configuration()
+                                        .supportsOutOfOrderPersisting,
+                                )
+                            }
                         }
                     }
                 } catch (ex: PersistenceException) {
@@ -326,12 +334,27 @@ class UnitOfWorkExecutor(
         .setAttribute(UOW_NAME, name)
         .startSpan()
 
-    private fun createTimer() = openTelemetry.getEvaMeter()
-        .histogramBuilder("uow.timer")
-        .setDescription("Unit of work execution time")
+    private fun createTimer() = createTimer("uow.timer", "Unit of work execution time")
+
+    private fun createPerformTimer() = createTimer("uow.perform.timer", "Unit of work perform phase execution time")
+
+    private fun createPersistTimer() = createTimer("uow.persist.timer", "Unit of work persist phase execution time")
+
+    private fun createTimer(name: String, description: String) = openTelemetry.getEvaMeter()
+        .histogramBuilder(name)
+        .setDescription(description)
         .setUnit("ns")
         .ofLongs()
         .build()
+
+    private suspend fun <T> timed(timer: LongHistogram, uowName: String, block: suspend () -> T): T {
+        val start = System.nanoTime()
+        return try {
+            block()
+        } finally {
+            timer.record(System.nanoTime() - start, Attributes.of(AttributeKey.stringKey(UOW_NAME), uowName))
+        }
+    }
 
     private object SpanAttributes {
 

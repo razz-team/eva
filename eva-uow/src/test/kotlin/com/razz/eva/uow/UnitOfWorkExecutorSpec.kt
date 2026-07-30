@@ -852,6 +852,12 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                             ExcPoint(uowName, "StaleRecordException", "departments", 0L, true, 1L),
                         )
                     }
+
+                    Then("Phase timers record each attempt while the uow timer records once") {
+                        metricReader.timerCount("uow.perform.timer", uowName) shouldBe 2
+                        metricReader.timerCount("uow.persist.timer", uowName) shouldBe 2
+                        metricReader.timerCount("uow.timer", uowName) shouldBe 1
+                    }
                 }
             }
 
@@ -967,6 +973,13 @@ private data class ExcPoint(
     val willRetry: Boolean?,
     val value: Long,
 )
+
+private fun InMemoryMetricReader.timerCount(timerName: String, uowName: String): Long =
+    collectAllMetrics()
+        .filter { it.name == timerName }
+        .flatMap { metric -> metric.histogramData.points }
+        .filter { it.attributes.get(AttributeKey.stringKey("uow.name")) == uowName }
+        .sumOf { it.count }
 
 private fun InMemoryMetricReader.persistenceExceptionPoints(): List<ExcPoint> =
     collectAllMetrics()
