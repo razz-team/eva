@@ -51,6 +51,9 @@ class TagRepository(
     suspend fun existsForSubject(subjectId: UUID): Boolean =
         existsWhere(TagTable.TAG.SUBJECT_ID.eq(subjectId))
 
+    suspend fun countBySubjects(subjectIds: List<UUID>): Map<UUID, Long> =
+        countByGroup(TagTable.TAG.SUBJECT_ID, TagTable.TAG.SUBJECT_ID.`in`(subjectIds))
+
     suspend fun deleteBySubject(
         @Suppress("UNUSED_PARAMETER") context: TransactionalContext,
         subjectId: UUID,

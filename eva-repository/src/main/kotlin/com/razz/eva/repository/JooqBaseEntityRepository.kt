@@ -11,6 +11,7 @@ import org.jooq.Record
 import org.jooq.Select
 import org.jooq.SelectLimitStep
 import org.jooq.Table
+import org.jooq.TableField
 
 abstract class JooqBaseEntityRepository<E : CreatableEntity, R : BaseEntityRecord>(
     private val queryExecutor: QueryExecutor,
@@ -106,6 +107,21 @@ abstract class JooqBaseEntityRepository<E : CreatableEntity, R : BaseEntityRecor
     protected suspend fun existsWhere(condition: Condition): Boolean {
         val select = dslContext.selectOne().from(table).where(condition)
         return atMostOneRecord(dslContext.selectOne().whereExists(select)) != null
+    }
+
+    /**
+     * Counts rows matching [condition] per distinct value of [groupField].
+     * Keys with no matching rows are absent from the result, as with any `GROUP BY`,
+     * so callers should treat a missing key as zero.
+     */
+    protected suspend fun <K> countByGroup(groupField: TableField<R, K>, condition: Condition): Map<K, Long> {
+        return executeCountByGroup(
+            queryExecutor = queryExecutor,
+            dslContext = dslContext,
+            table = table,
+            groupField = groupField,
+            condition = condition,
+        )
     }
 
     protected suspend fun <R : Record> atMostOneRecord(select: SelectLimitStep<R>): R? {

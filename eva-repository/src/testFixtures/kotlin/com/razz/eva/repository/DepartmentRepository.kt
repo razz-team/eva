@@ -86,4 +86,11 @@ class DepartmentRepository(
     suspend fun findByName(departmentName: String): Department<*>? {
         return findOneWhere(DEPARTMENTS.NAME.eq(departmentName))
     }
+
+    suspend fun countByRation(ids: Collection<DepartmentId>): Map<Ration, Long> {
+        return countByGroup(
+            DEPARTMENTS.RATION,
+            DEPARTMENTS.ID.`in`(ids.map { it.id })
+        ).mapKeys { Ration.valueOf(it.key) }
+    }
 }

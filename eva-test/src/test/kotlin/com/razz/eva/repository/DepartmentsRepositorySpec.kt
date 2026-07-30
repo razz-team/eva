@@ -168,6 +168,14 @@ class DepartmentsRepositorySpec : RepositorySpec(TestEvaRepositoryHelper, {
                     }
                 }
             }
+
+            When("Principal counts departments by ration") {
+                val counts = repo.countByRation(departments.map { it.id() })
+
+                Then("Each ration maps to number of departments stored with it") {
+                    counts shouldBe mapOf(BUBALEH to 6L, SHAKSHOUKA to 5L)
+                }
+            }
         }
     }
 })
