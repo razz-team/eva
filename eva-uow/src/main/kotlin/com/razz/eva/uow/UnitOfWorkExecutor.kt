@@ -350,7 +350,7 @@ class UnitOfWorkExecutor(
         .setExplicitBucketBoundariesAdvice(TIMER_BUCKET_BOUNDARIES_NANOS)
         .build()
 
-    private suspend fun <T> timed(timer: LongHistogram, uowName: String, block: suspend () -> T): T {
+    private inline fun <T> timed(timer: LongHistogram, uowName: String, block: () -> T): T {
         val start = System.nanoTime()
         return try {
             block()
