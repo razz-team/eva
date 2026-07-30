@@ -90,9 +90,6 @@ class UnitOfWorkExecutor(
           RESULT : Any,
           UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *> {
         val startTime = System.nanoTime()
-        val timer = createTimer()
-        val performTimer = createPerformTimer()
-        val persistTimer = createPersistTimer()
         val uowSpan = uowSpan().apply {
             updateName(uowName)
             setAttribute(UOW_NAME, uowName)
@@ -272,7 +269,7 @@ class UnitOfWorkExecutor(
     private fun incrementEventsMetric(modelChanges: List<ModelChange>, uowName: String) {
         modelChanges.flatMap { it.modelEvents }
             .forEach { modelEvent ->
-                eventsMetric().add(
+                eventsMetric.add(
                     1,
                     Attributes.of(
                         AttributeKey.stringKey(MODEL_NAME), modelEvent.modelName,
@@ -283,7 +280,7 @@ class UnitOfWorkExecutor(
             }
     }
 
-    private fun eventsMetric() = openTelemetry.getEvaMeter()
+    private val eventsMetric = openTelemetry.getEvaMeter()
         .counterBuilder("model.event")
         .setDescription("Number of model events emitted")
         .setUnit("count")
@@ -296,7 +293,7 @@ class UnitOfWorkExecutor(
         willRetry: Boolean,
     ) {
         runCatching {
-            persistenceExceptionMetric().add(
+            persistenceExceptionMetric.add(
                 1,
                 Attributes.of(
                     AttributeKey.stringKey(UOW_NAME), uowName,
@@ -312,7 +309,7 @@ class UnitOfWorkExecutor(
     private fun tableName(ex: PersistenceException): String =
         (ex as? PersistenceException.TableAware)?.tableName ?: "unknown"
 
-    private fun persistenceExceptionMetric() = openTelemetry.getEvaMeter()
+    private val persistenceExceptionMetric = openTelemetry.getEvaMeter()
         .counterBuilder("uow.persistence_exception")
         .setDescription("Number of persistence exceptions caught during UnitOfWork execution")
         .setUnit("count")
@@ -334,11 +331,11 @@ class UnitOfWorkExecutor(
         .setAttribute(UOW_NAME, name)
         .startSpan()
 
-    private fun createTimer() = createTimer("uow.timer", "Unit of work execution time")
+    private val timer = createTimer("uow.timer", "Unit of work execution time")
 
-    private fun createPerformTimer() = createTimer("uow.perform.timer", "Unit of work perform phase execution time")
+    private val performTimer = createTimer("uow.perform.timer", "Unit of work perform phase execution time")
 
-    private fun createPersistTimer() = createTimer("uow.persist.timer", "Unit of work persist phase execution time")
+    private val persistTimer = createTimer("uow.persist.timer", "Unit of work persist phase execution time")
 
     private fun createTimer(name: String, description: String) = openTelemetry.getEvaMeter()
         .histogramBuilder(name)
