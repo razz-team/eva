@@ -204,7 +204,7 @@ class PersistingSpec : BehaviorSpec({
             supporstPipelining = pipelining
             history.clear()
             val persister: suspend (Boolean) -> Unit = { outOfOrder ->
-                persisting.persist(
+                val (uowEvent1, _) = persisting.persist(
                     uowName = "Hoba",
                     params = params,
                     principal = TestPrincipal,
@@ -228,7 +228,9 @@ class PersistingSpec : BehaviorSpec({
                     ),
                     now = clock.instant(),
                     uowSupportsOutOfOrderPersisting = outOfOrder,
+                    connectionMode = REQUIRE_NEW,
                 )
+                persisting.publish(uowEvent1)
             }
 
             When(
@@ -396,7 +398,7 @@ class PersistingSpec : BehaviorSpec({
                     "Principal persists noop changes with${if (supporstPipelining) "" else " no"} pipelining support" +
                         " and with${if (outOfOrder) "" else " no"} out of order persisting support",
                 ) {
-                    persisting.persist(
+                    val (uowEvent2, _) = persisting.persist(
                         uowName = "Hoba",
                         params = params,
                         principal = TestPrincipal,
@@ -425,7 +427,9 @@ class PersistingSpec : BehaviorSpec({
                         entityChanges = listOf(),
                         now = clock.instant(),
                         uowSupportsOutOfOrderPersisting = outOfOrder,
+                        connectionMode = REQUIRE_NEW,
                     )
+                    persisting.publish(uowEvent2)
 
                     And(
                         "Persisting history matching models and events from changes" +
@@ -460,7 +464,7 @@ class PersistingSpec : BehaviorSpec({
 
         history.clear()
         When("Principal persists single key deletion with out of order support") {
-            persisting.persist(
+            val (uowEvent3, _) = persisting.persist(
                 uowName = "DeleteByKey",
                 params = params,
                 principal = TestPrincipal,
@@ -470,7 +474,9 @@ class PersistingSpec : BehaviorSpec({
                 ),
                 now = clock.instant(),
                 uowSupportsOutOfOrderPersisting = true,
+                connectionMode = REQUIRE_NEW,
             )
+            persisting.publish(uowEvent3)
 
             Then("Persisting history contains key deletion step") {
                 history should {
@@ -492,7 +498,7 @@ class PersistingSpec : BehaviorSpec({
 
         history.clear()
         When("Principal persists multiple key deletions with out of order support") {
-            persisting.persist(
+            val (uowEvent4, _) = persisting.persist(
                 uowName = "BatchDeleteByKey",
                 params = params,
                 principal = TestPrincipal,
@@ -504,7 +510,9 @@ class PersistingSpec : BehaviorSpec({
                 ),
                 now = clock.instant(),
                 uowSupportsOutOfOrderPersisting = true,
+                connectionMode = REQUIRE_NEW,
             )
+            persisting.publish(uowEvent4)
 
             Then("Persisting history contains batched key deletion step") {
                 history should {
@@ -527,7 +535,7 @@ class PersistingSpec : BehaviorSpec({
         history.clear()
         When("Principal persists mixed entity add and key deletion") {
             val newTag = Tag.tag(keySubjectId, "new-tag", "value")
-            persisting.persist(
+            val (uowEvent5, _) = persisting.persist(
                 uowName = "MixedOperations",
                 params = params,
                 principal = TestPrincipal,
@@ -539,7 +547,9 @@ class PersistingSpec : BehaviorSpec({
                 ),
                 now = clock.instant(),
                 uowSupportsOutOfOrderPersisting = true,
+                connectionMode = REQUIRE_NEW,
             )
+            persisting.publish(uowEvent5)
 
             Then("Persisting history contains both add and key deletion steps") {
                 history should {
@@ -562,7 +572,7 @@ class PersistingSpec : BehaviorSpec({
 
         history.clear()
         When("Principal persists key deletion without out of order support") {
-            persisting.persist(
+            val (uowEvent6, _) = persisting.persist(
                 uowName = "SequentialDeleteByKey",
                 params = params,
                 principal = TestPrincipal,
@@ -573,7 +583,9 @@ class PersistingSpec : BehaviorSpec({
                 ),
                 now = clock.instant(),
                 uowSupportsOutOfOrderPersisting = false,
+                connectionMode = REQUIRE_NEW,
             )
+            persisting.publish(uowEvent6)
 
             Then("Persisting history contains individual key deletion steps") {
                 history should {

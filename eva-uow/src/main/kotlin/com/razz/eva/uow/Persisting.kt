@@ -4,6 +4,7 @@ import com.razz.eva.domain.Model
 import com.razz.eva.domain.Principal
 import com.razz.eva.events.EventPublisher
 import com.razz.eva.events.UowEvent
+import com.razz.eva.persistence.ConnectionMode
 import com.razz.eva.persistence.ConnectionMode.REQUIRE_NEW
 import com.razz.eva.persistence.TransactionManager
 import com.razz.eva.repository.EntityRepos
@@ -58,8 +59,10 @@ class Persisting(
         entityChanges: Collection<EntityChange>,
         now: Instant,
         uowSupportsOutOfOrderPersisting: Boolean,
-    ): Pair<UowEvent.Id, List<Model<*, *>>> {
-        val (uowEvent, flushed) = inTransaction(now, uowSupportsOutOfOrderPersisting) { persisting, startedAt ->
+        connectionMode: ConnectionMode,
+    ): Pair<UowEvent, List<Model<*, *>>> {
+        val (uowEvent, flushed) = inTransaction(now, uowSupportsOutOfOrderPersisting, connectionMode) {
+                persisting, startedAt ->
             val events = modelChanges.flatMap(ModelChange::modelEvents)
             modelChanges.forEach { change ->
                 change.persist(persisting)
@@ -77,13 +80,27 @@ class Persisting(
                 occurredAt = startedAt,
             )
         }
+        return uowEvent to flushed
+    }
+
+    internal suspend fun publish(uowEvent: UowEvent) {
         eventPublisher.publish(uowEvent)
-        return uowEvent.id to flushed
+    }
+
+    /**
+     * Opens the write transaction the executor scopes a whole [WriteTxScope.FULL_UOW] attempt in;
+     * [persist] then joins it with [ConnectionMode.REQUIRE_EXISTING].
+     */
+    internal suspend fun <R> transactionally(block: suspend () -> R): R {
+        return transactionManager.inTransaction(REQUIRE_NEW) { _ ->
+            block()
+        }
     }
 
     private suspend fun inTransaction(
         now: Instant,
         uowSupportsOutOfOrderPersisting: Boolean,
+        connectionMode: ConnectionMode,
         block: (PersistingAccumulator, Instant) -> UowEvent,
     ): Pair<UowEvent, List<Model<*, *>>> {
         val persistingMode = if (transactionManager.supportsPipelining() && uowSupportsOutOfOrderPersisting) {
@@ -93,7 +110,7 @@ class Persisting(
         }
         val persisting = newPersistingAccumulator(uowSupportsOutOfOrderPersisting, modelRepos, entityRepos)
         val uowEvent = block(persisting, now)
-        val flushed = transactionManager.inTransaction(REQUIRE_NEW) { _ ->
+        val flushed = transactionManager.inTransaction(connectionMode) { _ ->
             flush(persisting, uowEvent, transactionalContext(now), persistingMode)
         }
         return uowEvent to flushed

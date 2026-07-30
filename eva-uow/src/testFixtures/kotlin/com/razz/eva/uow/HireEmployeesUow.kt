@@ -21,9 +21,13 @@ class HireEmployeesUow(
     private val employeeRepo: EmployeeRepository,
     retries: Int,
     private val forceAdd: Boolean,
+    writeTxScope: WriteTxScope,
 ) : UnitOfWork<TestPrincipal, Params, List<Employee>>(
     executionContext,
-    Configuration(retry = StaleRecordFixedRetry(retries, Duration.ofMillis(100)))
+    Configuration(
+        retry = StaleRecordFixedRetry(retries, Duration.ofMillis(100)),
+        writeTxScope = writeTxScope,
+    )
 ) {
 
     @Serializable
