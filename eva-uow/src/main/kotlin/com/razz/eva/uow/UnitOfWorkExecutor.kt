@@ -345,6 +345,9 @@ class UnitOfWorkExecutor(
         .setDescription(description)
         .setUnit("ns")
         .ofLongs()
+        // otel default boundaries are millisecond-oriented (5 .. 10000), so every nanosecond-scale
+        // observation lands in +Inf and quantiles saturate; advise boundaries covering 0.5ms .. 60s
+        .setExplicitBucketBoundariesAdvice(TIMER_BUCKET_BOUNDARIES_NANOS)
         .build()
 
     private suspend fun <T> timed(timer: LongHistogram, uowName: String, block: suspend () -> T): T {
@@ -360,5 +363,26 @@ class UnitOfWorkExecutor(
 
         val peristenceException = AttributeKey.stringKey("com.razz.eva.persistence.PersistenceException")
         val modelIds = AttributeKey.stringArrayKey("com.razz.eva.domain.ModelId")
+    }
+
+    companion object {
+        private val TIMER_BUCKET_BOUNDARIES_NANOS = listOf(
+            500_000L, // 0.5ms
+            1_000_000L, // 1ms
+            2_500_000L,
+            5_000_000L,
+            10_000_000L, // 10ms
+            25_000_000L,
+            50_000_000L,
+            100_000_000L, // 100ms
+            250_000_000L,
+            500_000_000L,
+            1_000_000_000L, // 1s
+            2_500_000_000L,
+            5_000_000_000L,
+            10_000_000_000L, // 10s
+            30_000_000_000L,
+            60_000_000_000L, // 60s
+        )
     }
 }
