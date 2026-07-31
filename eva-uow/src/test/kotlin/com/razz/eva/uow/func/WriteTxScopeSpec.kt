@@ -7,10 +7,18 @@ import com.razz.eva.domain.Name
 import com.razz.eva.domain.Ration.SHAKSHOUKA
 import com.razz.eva.events.UowEvent.UowName
 import com.razz.eva.persistence.PersistenceException.StaleRecordException
+import com.razz.eva.domain.DepartmentId
+import com.razz.eva.test.schema.Tables
 import com.razz.eva.uow.HireEmployeesUow
 import com.razz.eva.uow.TestPrincipal
+import com.razz.eva.uow.UnitOfWorkExecutor
+import com.razz.eva.uow.WriteTxScope
+import com.razz.eva.uow.withFactory
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
+import org.jooq.impl.DSL
+import org.jooq.impl.SQLDataType
 import kotlin.random.Random.Default.nextInt
 import java.util.UUID.randomUUID
 
@@ -19,6 +27,53 @@ class WriteTxScopeSpec : PersistenceBaseSpec({
     val departmentRepo = module.departmentRepo
     val employeeRepo = module.employeeRepo
     val writableRepository = module.writableRepository
+
+    fun txIdObservingUowx(scope: WriteTxScope) = UnitOfWorkExecutor(
+        factories = listOf(
+            TxIdObservingUow::class withFactory {
+                TxIdObservingUow(module.executionContext, module.queryExecutor, module.dslContext, scope)
+            },
+        ),
+        persisting = module.persisting,
+        clock = module.clock,
+        openTelemetry = module.openTelemetry,
+    )
+
+    // xmin holds the 32 bit id of the inserting transaction; txid_current() is epoch-extended
+    val xidMask = 4_294_967_296L
+    val xminOf: suspend (DepartmentId) -> Long = { departmentId ->
+        val query = module.dslContext
+            .select(DSL.field("xmin::text::bigint", SQLDataType.BIGINT))
+            .from(Tables.DEPARTMENTS)
+            .where(Tables.DEPARTMENTS.ID.eq(departmentId.id))
+        module.queryExecutor.executeSelect(module.dslContext, query, DSL.table(query)).single().value1()
+    }
+
+    Given("A uow observing the transaction id of its perform reads and its flush write") {
+
+        When("Principal performs it FULL_UOW scoped") {
+            val observed = txIdObservingUowx(WriteTxScope.FULL_UOW).execute(TxIdObservingUow::class, TestPrincipal) {
+                TxIdObservingUow.Params("fulluow_txid_dep${nextInt(100000)}")
+            }
+
+            Then("Both perform reads and the flush write share one transaction") {
+                observed.firstReadTxId shouldBe observed.secondReadTxId
+                xminOf(observed.departmentId) shouldBe observed.firstReadTxId % xidMask
+            }
+        }
+
+        When("Principal performs it FLUSH scoped") {
+            val observed = txIdObservingUowx(WriteTxScope.FLUSH).execute(TxIdObservingUow::class, TestPrincipal) {
+                TxIdObservingUow.Params("flush_txid_dep${nextInt(100000)}")
+            }
+
+            Then("Each perform read and the flush write run in transactions of their own") {
+                observed.firstReadTxId shouldNotBe observed.secondReadTxId
+                xminOf(observed.departmentId) shouldNotBe observed.firstReadTxId % xidMask
+                xminOf(observed.departmentId) shouldNotBe observed.secondReadTxId % xidMask
+            }
+        }
+    }
 
     Given("A department exists") {
         val department = writableRepository.add(
