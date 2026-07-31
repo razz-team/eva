@@ -121,6 +121,45 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
             }
         }
 
+        And("Factory which acquires connections during perform") {
+            val txnManager = WithCtxConnectionTransactionManager()
+            @Suppress("UNCHECKED_CAST") val factories = listOf(
+                (DummyUow::class as KClass<DummyUow<String>>) withFactory {
+                    object : DummyUow<String>(it) {
+                        override suspend fun tryPerform(
+                            principal: TestPrincipal,
+                            params: Params,
+                        ): Changes<String> {
+                            txnManager.withConnection { }
+                            txnManager.withConnection { }
+                            return noChanges("acquired")
+                        }
+                    }
+                },
+            )
+            val metricReader = InMemoryMetricReader.create()
+            val uowx = UnitOfWorkExecutor(
+                factories,
+                Persisting(
+                    transactionManager = txnManager,
+                    modelRepos = ModelRepos(),
+                    entityRepos = EntityRepos(),
+                    eventRepository = DummyEventRepository(),
+                    paramsSerializer = KotlinxParamsSerializer(),
+                ),
+                clock,
+                OpenTelemetryTestConfiguration.create(metricReader = metricReader),
+            )
+
+            When("UnitOfWorkExecutor executes Uow") {
+                uowx.execute((DummyUow::class as KClass<DummyUow<String>>), TestPrincipal) { DummyUow.Params }
+
+                Then("Both perform reads are counted, the flush acquisition outside perform is not") {
+                    metricReader.acquisitionsSum() shouldBe 2
+                }
+            }
+        }
+
         var tick = ofEpochMilli(0)
         val crawlingInstant = InstantSource {
             val tock = tick.plusMillis(1)
@@ -980,6 +1019,13 @@ private data class ExcPoint(
     val willRetry: Boolean?,
     val value: Long,
 )
+
+private fun InMemoryMetricReader.acquisitionsSum(): Long =
+    collectAllMetrics()
+        .filter { it.name == "uow.perform.connection.acquisitions" }
+        .flatMap { metric -> metric.histogramData.points }
+        .sumOf { it.sum }
+        .toLong()
 
 private fun InMemoryMetricReader.timerBoundaries(timerName: String): List<Double> =
     collectAllMetrics()
