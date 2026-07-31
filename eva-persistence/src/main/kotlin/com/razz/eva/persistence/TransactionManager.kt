@@ -17,6 +17,7 @@ abstract class TransactionManager<C>(
                 var newConn: C? = null
                 try {
                     newConn = connectionProvider(currentCoroutineContext()).acquire()
+                    currentCoroutineContext()[ConnectionAcquisitionCounter]?.increment()
                     block(newConn)
                 } finally {
                     newConn?.let { connectionProvider(currentCoroutineContext()).release(it) }
@@ -36,6 +37,7 @@ abstract class TransactionManager<C>(
                 var newConn: C? = null
                 try {
                     newConn = primaryProvider.acquire()
+                    currentCoroutineContext()[ConnectionAcquisitionCounter]?.increment()
                     val ctx = wrapConnection(newConn)
                     withContext(ctx) {
                         try {
