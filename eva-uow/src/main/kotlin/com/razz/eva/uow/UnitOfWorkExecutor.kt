@@ -112,56 +112,7 @@ class UnitOfWorkExecutor(
                     uowSpan.setAttribute(UOW_NAME, name)
                 }
                 val constructedParams = params(InstantiationContext.External(currentAttempt))
-                val attempted = when (uow.configuration().writeTxScope) {
-                    WriteTxScope.FLUSH -> {
-                        // tryPerform stays outside the conflict handling: its persistence exceptions
-                        // propagate raw instead of routing to retry/onFailure
-                        val changes = performAttempt(
-                            uow = uow,
-                            principal = principal,
-                            params = constructedParams,
-                            name = name,
-                            uowSpan = uowSpan,
-                        )
-                        try {
-                            persistAttempt(
-                                uow = uow,
-                                principal = principal,
-                                params = constructedParams,
-                                changes = changes,
-                                now = now,
-                                name = name,
-                                uowSpan = uowSpan,
-                                connectionMode = REQUIRE_NEW,
-                            )
-                        } catch (ex: PersistenceException) {
-                            Attempted.Conflict(ex)
-                        }
-                    }
-                    WriteTxScope.FULL_UOW -> try {
-                        persisting.transactionally {
-                            val changes = performAttempt(
-                                uow = uow,
-                                principal = principal,
-                                params = constructedParams,
-                                name = name,
-                                uowSpan = uowSpan,
-                            )
-                            persistAttempt(
-                                uow = uow,
-                                principal = principal,
-                                params = constructedParams,
-                                changes = changes,
-                                now = now,
-                                name = name,
-                                uowSpan = uowSpan,
-                                connectionMode = REQUIRE_EXISTING,
-                            )
-                        }
-                    } catch (ex: PersistenceException) {
-                        Attempted.Conflict(ex)
-                    }
-                }
+                val attempted = attempt(uow, principal, constructedParams, now, name, uowSpan)
                 val committed = when (attempted) {
                     is Attempted.Conflict -> {
                         val ex = attempted.ex
@@ -220,6 +171,69 @@ class UnitOfWorkExecutor(
         ) : Attempted<RESULT>
 
         class Conflict(val ex: PersistenceException) : Attempted<Nothing>
+    }
+
+    private suspend fun <PRINCIPAL, PARAMS, RESULT, UOW> attempt(
+        uow: UOW,
+        principal: PRINCIPAL,
+        params: PARAMS,
+        now: Instant,
+        name: String,
+        uowSpan: Span,
+    ): Attempted<RESULT> where PRINCIPAL : Principal<*>,
+          PARAMS : UowParams<PARAMS>,
+          RESULT : Any,
+          UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *> {
+        return when (uow.configuration().writeTxScope) {
+            WriteTxScope.FLUSH -> {
+                // tryPerform stays outside the conflict handling: its persistence exceptions
+                // propagate raw instead of routing to retry/onFailure
+                val changes = performAttempt(
+                    uow = uow,
+                    principal = principal,
+                    params = params,
+                    name = name,
+                    uowSpan = uowSpan,
+                )
+                try {
+                    persistAttempt(
+                        uow = uow,
+                        principal = principal,
+                        params = params,
+                        changes = changes,
+                        now = now,
+                        name = name,
+                        uowSpan = uowSpan,
+                        connectionMode = REQUIRE_NEW,
+                    )
+                } catch (ex: PersistenceException) {
+                    Attempted.Conflict(ex)
+                }
+            }
+            WriteTxScope.FULL_UOW -> try {
+                persisting.transactionally {
+                    val changes = performAttempt(
+                        uow = uow,
+                        principal = principal,
+                        params = params,
+                        name = name,
+                        uowSpan = uowSpan,
+                    )
+                    persistAttempt(
+                        uow = uow,
+                        principal = principal,
+                        params = params,
+                        changes = changes,
+                        now = now,
+                        name = name,
+                        uowSpan = uowSpan,
+                        connectionMode = REQUIRE_EXISTING,
+                    )
+                }
+            } catch (ex: PersistenceException) {
+                Attempted.Conflict(ex)
+            }
+        }
     }
 
     private suspend fun <PRINCIPAL, PARAMS, RESULT, UOW> performAttempt(
