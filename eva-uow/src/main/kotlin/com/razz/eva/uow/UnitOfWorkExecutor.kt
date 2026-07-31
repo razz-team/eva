@@ -116,11 +116,23 @@ class UnitOfWorkExecutor(
                     WriteTxScope.FLUSH -> {
                         // tryPerform stays outside the conflict handling: its persistence exceptions
                         // propagate raw instead of routing to retry/onFailure
-                        val changes = performAttempt(uow, principal, constructedParams, name, uowSpan)
+                        val changes = performAttempt(
+                            uow = uow,
+                            principal = principal,
+                            params = constructedParams,
+                            name = name,
+                            uowSpan = uowSpan,
+                        )
                         try {
                             persistAttempt(
-                                uow, principal, constructedParams, changes, now,
-                                name, uowSpan, REQUIRE_NEW,
+                                uow = uow,
+                                principal = principal,
+                                params = constructedParams,
+                                changes = changes,
+                                now = now,
+                                name = name,
+                                uowSpan = uowSpan,
+                                connectionMode = REQUIRE_NEW,
                             )
                         } catch (ex: PersistenceException) {
                             Attempted.Conflict(ex)
@@ -128,11 +140,22 @@ class UnitOfWorkExecutor(
                     }
                     WriteTxScope.FULL_UOW -> try {
                         persisting.transactionally {
-                            val changes =
-                                performAttempt(uow, principal, constructedParams, name, uowSpan)
+                            val changes = performAttempt(
+                                uow = uow,
+                                principal = principal,
+                                params = constructedParams,
+                                name = name,
+                                uowSpan = uowSpan,
+                            )
                             persistAttempt(
-                                uow, principal, constructedParams, changes, now,
-                                name, uowSpan, REQUIRE_EXISTING,
+                                uow = uow,
+                                principal = principal,
+                                params = constructedParams,
+                                changes = changes,
+                                now = now,
+                                name = name,
+                                uowSpan = uowSpan,
+                                connectionMode = REQUIRE_EXISTING,
                             )
                         }
                     } catch (ex: PersistenceException) {
