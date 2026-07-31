@@ -10,6 +10,7 @@ import com.razz.eva.uow.ExecutionContext
 import com.razz.eva.uow.TestPrincipal
 import com.razz.eva.uow.UnitOfWork
 import com.razz.eva.uow.WriteTxScope
+import com.razz.eva.uow.composable.UnitOfWork as ComposableUnitOfWork
 import com.razz.eva.uow.func.TxIdObservingUow.Params
 import com.razz.eva.uow.params.kotlinx.UowParams
 import kotlinx.serialization.Serializable
@@ -45,8 +46,8 @@ class TxIdObservingUow(
     )
 
     override suspend fun tryPerform(principal: TestPrincipal, params: Params): Changes<ObservedTxIds> = changes {
-        val firstReadTxId = currentTxId()
-        val secondReadTxId = currentTxId()
+        val firstReadTxId = currentTxId(queryExecutor, dslContext)
+        val secondReadTxId = currentTxId(queryExecutor, dslContext)
         val department = newDepartment(
             name = params.departmentName,
             boss = EmployeeId(randomUUID()),
@@ -56,9 +57,69 @@ class TxIdObservingUow(
         add(department)
         ObservedTxIds(firstReadTxId, secondReadTxId, department.id())
     }
+}
 
-    private suspend fun currentTxId(): Long {
-        val query = dslContext.select(DSL.field("txid_current()", SQLDataType.BIGINT))
-        return queryExecutor.executeSelect(dslContext, query, DSL.table(query)).single().value1()
+/**
+ * Composable counterpart of [TxIdObservingUow]: the parent reads `txid_current()`, composes
+ * [TxIdObservingChildUow] (whose only job is to read `txid_current()` too) and adds one department.
+ * Lets a spec prove that a composed child's reads join the parent's FULL_UOW transaction.
+ */
+class ComposedTxIdObservingUow(
+    executionContext: ExecutionContext,
+    private val queryExecutor: QueryExecutor,
+    private val dslContext: DSLContext,
+    writeTxScope: WriteTxScope,
+) : ComposableUnitOfWork<TestPrincipal, ComposedTxIdObservingUow.Params, ComposedTxIdObservingUow.ObservedTxIds>(
+    executionContext,
+    Configuration(writeTxScope = writeTxScope),
+) {
+
+    @Serializable
+    data class Params(val departmentName: String) : UowParams<Params> {
+        override fun serialization() = serializer()
     }
+
+    data class ObservedTxIds(
+        val parentReadTxId: Long,
+        val childReadTxId: Long,
+        val departmentId: DepartmentId,
+    )
+
+    override suspend fun tryPerform(principal: TestPrincipal, params: Params): Changes<ObservedTxIds> = changes {
+        val parentReadTxId = currentTxId(queryExecutor, dslContext)
+        val childReadTxId = execute(
+            { ctx -> TxIdObservingChildUow(ctx, queryExecutor, dslContext) },
+            principal,
+        ) {
+            TxIdObservingChildUow.Params(params.departmentName)
+        }
+        val department = newDepartment(
+            name = params.departmentName,
+            boss = EmployeeId(randomUUID()),
+            headcount = 1,
+            ration = SHAKSHOUKA,
+        )
+        add(department)
+        ObservedTxIds(parentReadTxId, childReadTxId, department.id())
+    }
+}
+
+class TxIdObservingChildUow(
+    executionContext: ExecutionContext,
+    private val queryExecutor: QueryExecutor,
+    private val dslContext: DSLContext,
+) : ComposableUnitOfWork<TestPrincipal, TxIdObservingChildUow.Params, Long>(executionContext) {
+
+    @Serializable
+    data class Params(val marker: String) : UowParams<Params> {
+        override fun serialization() = serializer()
+    }
+
+    override suspend fun tryPerform(principal: TestPrincipal, params: Params): Changes<Long> =
+        noChanges(currentTxId(queryExecutor, dslContext))
+}
+
+private suspend fun currentTxId(queryExecutor: QueryExecutor, dslContext: DSLContext): Long {
+    val query = dslContext.select(DSL.field("txid_current()", SQLDataType.BIGINT))
+    return queryExecutor.executeSelect(dslContext, query, DSL.table(query)).single().value1()
 }

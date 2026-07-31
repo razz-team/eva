@@ -75,6 +75,44 @@ class WriteTxScopeSpec : PersistenceBaseSpec({
         }
     }
 
+    Given("A composing uow observing the transaction id of its own read, a composed child read and its flush") {
+        fun composedTxIdObservingUowx(scope: WriteTxScope) = UnitOfWorkExecutor(
+            factories = listOf(
+                ComposedTxIdObservingUow::class withFactory {
+                    ComposedTxIdObservingUow(module.executionContext, module.queryExecutor, module.dslContext, scope)
+                },
+            ),
+            persisting = module.persisting,
+            clock = module.clock,
+            openTelemetry = module.openTelemetry,
+        )
+
+        When("Principal performs it FULL_UOW scoped") {
+            val observed = composedTxIdObservingUowx(WriteTxScope.FULL_UOW)
+                .execute(ComposedTxIdObservingUow::class, TestPrincipal) {
+                    ComposedTxIdObservingUow.Params("fulluow_composed_dep${nextInt(100000)}")
+                }
+
+            Then("Parent read, composed child read and the flush write share one transaction") {
+                observed.childReadTxId shouldBe observed.parentReadTxId
+                xminOf(observed.departmentId) shouldBe observed.parentReadTxId % xidMask
+            }
+        }
+
+        When("Principal performs it FLUSH scoped") {
+            val observed = composedTxIdObservingUowx(WriteTxScope.FLUSH)
+                .execute(ComposedTxIdObservingUow::class, TestPrincipal) {
+                    ComposedTxIdObservingUow.Params("flush_composed_dep${nextInt(100000)}")
+                }
+
+            Then("Parent read, composed child read and the flush write run in transactions of their own") {
+                observed.childReadTxId shouldNotBe observed.parentReadTxId
+                xminOf(observed.departmentId) shouldNotBe observed.parentReadTxId % xidMask
+                xminOf(observed.departmentId) shouldNotBe observed.childReadTxId % xidMask
+            }
+        }
+    }
+
     Given("A department exists") {
         val department = writableRepository.add(
             newDepartment(
