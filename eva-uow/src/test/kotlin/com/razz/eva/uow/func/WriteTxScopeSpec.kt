@@ -49,6 +49,16 @@ class WriteTxScopeSpec : PersistenceBaseSpec({
         module.queryExecutor.executeSelect(module.dslContext, query, DSL.table(query)).single().value1()
     }
 
+    // cumulative across the shared metric reader, so assertions rely on container declaration order
+    val performAcquisitionsOf: (String) -> Long = { uowName ->
+        module.metricReader.collectAllMetrics()
+            .filter { it.name == "uow.perform.connection.acquisitions" }
+            .flatMap { metric -> metric.histogramData.points }
+            .filter { it.attributes.asMap().containsValue(uowName) }
+            .sumOf { it.sum }
+            .toLong()
+    }
+
     Given("A uow observing the transaction id of its perform reads and its flush write") {
 
         When("Principal performs it FULL_UOW scoped") {
@@ -59,6 +69,10 @@ class WriteTxScopeSpec : PersistenceBaseSpec({
             Then("Both perform reads and the flush write share one transaction") {
                 observed.firstReadTxId shouldBe observed.secondReadTxId
                 xminOf(observed.departmentId) shouldBe observed.firstReadTxId % xidMask
+            }
+
+            Then("Perform acquired no pooled connections") {
+                performAcquisitionsOf("TxIdObservingUow") shouldBe 0
             }
         }
 
@@ -71,6 +85,10 @@ class WriteTxScopeSpec : PersistenceBaseSpec({
                 observed.firstReadTxId shouldNotBe observed.secondReadTxId
                 xminOf(observed.departmentId) shouldNotBe observed.firstReadTxId % xidMask
                 xminOf(observed.departmentId) shouldNotBe observed.secondReadTxId % xidMask
+            }
+
+            Then("Each perform read acquired a pooled connection of its own") {
+                performAcquisitionsOf("TxIdObservingUow") shouldBe 2
             }
         }
     }
@@ -97,6 +115,10 @@ class WriteTxScopeSpec : PersistenceBaseSpec({
                 observed.childReadTxId shouldBe observed.parentReadTxId
                 xminOf(observed.departmentId) shouldBe observed.parentReadTxId % xidMask
             }
+
+            Then("Neither parent nor composed child perform reads acquired pooled connections") {
+                performAcquisitionsOf("ComposedTxIdObservingUow") shouldBe 0
+            }
         }
 
         When("Principal performs it FLUSH scoped") {
@@ -109,6 +131,10 @@ class WriteTxScopeSpec : PersistenceBaseSpec({
                 observed.childReadTxId shouldNotBe observed.parentReadTxId
                 xminOf(observed.departmentId) shouldNotBe observed.parentReadTxId % xidMask
                 xminOf(observed.departmentId) shouldNotBe observed.childReadTxId % xidMask
+            }
+
+            Then("Parent and composed child perform reads acquired a pooled connection each") {
+                performAcquisitionsOf("ComposedTxIdObservingUow") shouldBe 2
             }
         }
     }

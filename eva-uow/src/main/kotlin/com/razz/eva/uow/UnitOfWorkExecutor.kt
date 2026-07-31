@@ -3,6 +3,7 @@ package com.razz.eva.uow
 import com.razz.eva.domain.Model
 import com.razz.eva.domain.Principal
 import com.razz.eva.events.UowEvent
+import com.razz.eva.persistence.ConnectionAcquisitionCounter
 import com.razz.eva.persistence.ConnectionMode
 import com.razz.eva.persistence.ConnectionMode.REQUIRE_EXISTING
 import com.razz.eva.persistence.ConnectionMode.REQUIRE_NEW
@@ -246,8 +247,8 @@ class UnitOfWorkExecutor(
           PARAMS : UowParams<PARAMS>,
           RESULT : Any,
           UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *> {
-        val changes = timed(performTimer, name) {
-            withContext(PrimaryConnectionRequiredFlag + uowSpan.asContextElement()) {
+        val changes = instrumentedPerform(name) { acquisitions ->
+            withContext(PrimaryConnectionRequiredFlag + acquisitions + uowSpan.asContextElement()) {
                 performingSpan(name).use {
                     uow.tryPerform(principal, params)
                 }
@@ -456,6 +457,15 @@ class UnitOfWorkExecutor(
 
     private val persistTimer = createTimer("uow.persist.timer", "Unit of work persist phase execution time")
 
+    // unit stays a curly-brace annotation so the prometheus exporter does not suffix the metric name
+    private val performAcquisitionsMetric = openTelemetry.getEvaMeter()
+        .histogramBuilder("uow.perform.connection.acquisitions")
+        .setDescription("Pooled connection acquisitions during unit of work perform phase")
+        .setUnit("{acquisition}")
+        .ofLongs()
+        .setExplicitBucketBoundariesAdvice(ACQUISITION_BUCKET_BOUNDARIES)
+        .build()
+
     private fun createTimer(name: String, description: String) = openTelemetry.getEvaMeter()
         .histogramBuilder(name)
         .setDescription(description)
@@ -465,6 +475,18 @@ class UnitOfWorkExecutor(
         // observation lands in +Inf and quantiles saturate; advise boundaries covering 0.5ms .. 60s
         .setExplicitBucketBoundariesAdvice(TIMER_BUCKET_BOUNDARIES_NANOS)
         .build()
+
+    private inline fun <T> instrumentedPerform(uowName: String, block: (ConnectionAcquisitionCounter) -> T): T {
+        val acquisitions = ConnectionAcquisitionCounter()
+        val start = System.nanoTime()
+        return try {
+            block(acquisitions)
+        } finally {
+            val attributes = Attributes.of(AttributeKey.stringKey(UOW_NAME), uowName)
+            performTimer.record(System.nanoTime() - start, attributes)
+            performAcquisitionsMetric.record(acquisitions.count(), attributes)
+        }
+    }
 
     private inline fun <T> timed(timer: LongHistogram, uowName: String, block: () -> T): T {
         val start = System.nanoTime()
@@ -501,5 +523,6 @@ class UnitOfWorkExecutor(
             30_000_000_000L,
             60_000_000_000L, // 60s
         )
+        private val ACQUISITION_BUCKET_BOUNDARIES = listOf(0L, 1L, 2L, 3L, 5L, 8L, 13L, 21L, 50L)
     }
 }
