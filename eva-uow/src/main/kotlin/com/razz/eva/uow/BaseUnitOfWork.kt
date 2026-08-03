@@ -35,6 +35,7 @@ abstract class BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, C>(
         val retry: Retry? = DEFAULT,
         val supportsOutOfOrderPersisting: Boolean = false,
         val returnRoundtrippedModels: Boolean = true,
+        val writeTxScope: WriteTxScope = WriteTxScope.FLUSH,
     ) {
         companion object {
             fun default() = Configuration()

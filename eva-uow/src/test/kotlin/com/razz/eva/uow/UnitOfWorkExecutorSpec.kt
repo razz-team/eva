@@ -10,6 +10,8 @@ import com.razz.eva.domain.Ration
 import com.razz.eva.domain.RationAllocation
 import com.razz.eva.domain.Tag
 import com.razz.eva.events.UowEvent
+import com.razz.eva.persistence.ConnectionMode.REQUIRE_EXISTING
+import com.razz.eva.persistence.ConnectionMode.REQUIRE_NEW
 import com.razz.eva.persistence.PersistenceException.ModelRecordConstraintViolationException
 import com.razz.eva.persistence.PersistenceException.StaleRecordException
 import com.razz.eva.persistence.PersistenceException.UniqueModelRecordViolationException
@@ -37,6 +39,7 @@ import io.kotest.matchers.shouldBe
 import io.mockk.Called
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -558,6 +561,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
 
             every { unitOfWork.name() } returns "MockOfCreateDepartmentUow"
             every { rawUnitOfWork.configuration().supportsOutOfOrderPersisting } returns true
+            every { rawUnitOfWork.configuration().writeTxScope } returns WriteTxScope.FLUSH
 
             val uowx = UnitOfWorkExecutor(
                 persisting = persisting,
@@ -578,8 +582,9 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                         entityChanges = listOf(),
                         now = clock.instant(),
                         uowSupportsOutOfOrderPersisting = true,
+                        connectionMode = REQUIRE_NEW,
                     )
-                } returns Pair(UowEvent.Id.random(), listOf(anotherModel, department))
+                } returns Pair(uowEvent(), listOf(anotherModel, department))
                 every { rawUnitOfWork.configuration() } returns
                     Configuration(StaleRecordFixedRetry(1, ofMillis(100)), true)
                 val changes = RealisedChanges(department, listOf(), listOf())
@@ -604,6 +609,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                                 entityChanges = changes.entityChangesToPersist,
                                 now = clock.instant(),
                                 uowSupportsOutOfOrderPersisting = true,
+                                connectionMode = REQUIRE_NEW,
                             )
                         }
                     }
@@ -648,8 +654,9 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                         entityChanges = listOf(),
                         now = clock.instant(),
                         uowSupportsOutOfOrderPersisting = true,
+                        connectionMode = REQUIRE_NEW,
                     )
-                } throws ex andThen Pair(UowEvent.Id.random(), listOf(department))
+                } throws ex andThen Pair(uowEvent(), listOf(department))
                 coEvery { rawUnitOfWork.onFailure(eq(params), eq(ex)) } throws ex
 
                 When("Principal executes UnitOfWork") {
@@ -680,6 +687,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                         listOf(),
                         ofEpochMilli(0),
                         true,
+                        REQUIRE_NEW,
                     )
                 } throws ex andThenThrows ex
                 coEvery { rawUnitOfWork.onFailure(eq(params), eq(ex)) } returns department
@@ -710,6 +718,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                         listOf(),
                         ofEpochMilli(0),
                         false,
+                        REQUIRE_NEW,
                     )
                 } throws ex
                 coEvery { rawUnitOfWork.onFailure(eq(params), eq(ex)) } throws StaleRecordException(depId, "department")
@@ -743,6 +752,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                         listOf(),
                         ofEpochMilli(0),
                         false,
+                        REQUIRE_NEW,
                     )
                 } throws ex
                 coEvery {
@@ -776,6 +786,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                         listOf(),
                         ofEpochMilli(0),
                         false,
+                        REQUIRE_NEW,
                     )
                 } throws ex
                 coEvery { rawUnitOfWork.onFailure(eq(params), eq(ex)) } throws ex
@@ -806,6 +817,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                         listOf(),
                         ofEpochMilli(0),
                         false,
+                        REQUIRE_NEW,
                     )
                 } throws ex
                 coEvery { rawUnitOfWork.onFailure(eq(params), eq(ex)) } throws ex
@@ -837,6 +849,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                         listOf(),
                         ofEpochMilli(0),
                         false,
+                        REQUIRE_NEW,
                     )
                 } throws ex
                 coEvery { rawUnitOfWork.onFailure(eq(params), eq(ex)) } returns resultModel
@@ -881,8 +894,9 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                         entityChanges = listOf(),
                         now = clock.instant(),
                         uowSupportsOutOfOrderPersisting = true,
+                        connectionMode = REQUIRE_NEW,
                     )
-                } throws ex andThen Pair(UowEvent.Id.random(), listOf(department))
+                } throws ex andThen Pair(uowEvent(), listOf(department))
 
                 When("Principal executes UnitOfWork") {
                     uowx.execute(CreateDepartmentUow::class, TestPrincipal) { params }
@@ -918,6 +932,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                         entityChanges = listOf(),
                         now = clock.instant(),
                         uowSupportsOutOfOrderPersisting = true,
+                        connectionMode = REQUIRE_NEW,
                     )
                 } throws ex
                 coEvery { rawUnitOfWork.onFailure(eq(params), eq(ex)) } returns department
@@ -944,8 +959,9 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                         entityChanges = listOf(),
                         now = clock.instant(),
                         uowSupportsOutOfOrderPersisting = true,
+                        connectionMode = REQUIRE_NEW,
                     )
-                } returns Pair(UowEvent.Id.random(), listOf(department))
+                } returns Pair(uowEvent(), listOf(department))
 
                 When("Principal executes UnitOfWork") {
                     uowx.execute(CreateDepartmentUow::class, TestPrincipal) { params }
@@ -967,6 +983,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                         entityChanges = listOf(),
                         now = clock.instant(),
                         uowSupportsOutOfOrderPersisting = true,
+                        connectionMode = REQUIRE_NEW,
                     )
                 } throws ex
                 coEvery { rawUnitOfWork.onFailure(eq(params), eq(ex)) } returns department
@@ -993,6 +1010,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                         entityChanges = listOf(),
                         now = clock.instant(),
                         uowSupportsOutOfOrderPersisting = true,
+                        connectionMode = REQUIRE_NEW,
                     )
                 } throws ex
                 coEvery { rawUnitOfWork.onFailure(eq(params), eq(ex)) } returns department
@@ -1008,8 +1026,105 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                 }
             }
         }
+
+        And("UnitOfWork with FULL_UOW write tx scope") {
+            val uowName = "MockOfCreateDepartmentUow"
+            val unitOfWork = mockk<CreateDepartmentUow>()
+            val rawUnitOfWork = unitOfWork as UnitOfWork<TestPrincipal, Params, OwnedDepartment>
+            val persisting = mockk<Persisting>(relaxed = true)
+            every { unitOfWork.name() } returns uowName
+            every { rawUnitOfWork.configuration() } returns Configuration(
+                retry = StaleRecordFixedRetry(1, ofMillis(0)),
+                writeTxScope = WriteTxScope.FULL_UOW,
+            )
+            coEvery {
+                rawUnitOfWork.tryPerform(TestPrincipal, eq(params))
+            } returns RealisedChanges(department, listOf(), listOf())
+            coEvery { persisting.transactionally(any<suspend () -> Any?>()) } coAnswers {
+                firstArg<suspend () -> Any?>().invoke()
+            }
+            val uowx = UnitOfWorkExecutor(
+                persisting = persisting,
+                factories = listOf(CreateDepartmentUow::class withFactory { unitOfWork }),
+                clock = clock,
+                openTelemetry = OpenTelemetry.noop(),
+            )
+
+            And("Persisting succeeds") {
+                coEvery {
+                    persisting.persist(
+                        uowName = uowName,
+                        params = params,
+                        principal = TestPrincipal,
+                        modelChanges = listOf(),
+                        entityChanges = listOf(),
+                        now = clock.instant(),
+                        uowSupportsOutOfOrderPersisting = false,
+                        connectionMode = REQUIRE_EXISTING,
+                    )
+                } returns Pair(uowEvent(), listOf(department))
+
+                When("Principal executes UnitOfWork") {
+                    val result = uowx.execute(CreateDepartmentUow::class, TestPrincipal) { params }
+
+                    Then("Perform and persist run inside one transaction and publish follows the commit") {
+                        result shouldBe department
+                        coVerifyOrder {
+                            persisting.transactionally(any<suspend () -> Any?>())
+                            persisting.persist(
+                                uowName = uowName,
+                                params = params,
+                                principal = TestPrincipal,
+                                modelChanges = listOf(),
+                                entityChanges = listOf(),
+                                now = clock.instant(),
+                                uowSupportsOutOfOrderPersisting = false,
+                                connectionMode = REQUIRE_EXISTING,
+                            )
+                            persisting.publish(any())
+                        }
+                    }
+                }
+            }
+
+            And("Persisting throws StaleRecordException until retries are exhausted") {
+                val ex = StaleRecordException(depId, "departments")
+                coEvery {
+                    persisting.persist(
+                        uowName = uowName,
+                        params = params,
+                        principal = TestPrincipal,
+                        modelChanges = listOf(),
+                        entityChanges = listOf(),
+                        now = clock.instant(),
+                        uowSupportsOutOfOrderPersisting = false,
+                        connectionMode = REQUIRE_EXISTING,
+                    )
+                } throws ex
+                coEvery { rawUnitOfWork.onFailure(eq(params), eq(ex)) } returns department
+
+                When("Principal executes UnitOfWork") {
+                    uowx.execute(CreateDepartmentUow::class, TestPrincipal) { params }
+
+                    Then("A transaction is opened per attempt and nothing is published") {
+                        coVerify(exactly = 2) { persisting.transactionally(any<suspend () -> Any?>()) }
+                        coVerify(exactly = 0) { persisting.publish(any()) }
+                    }
+                }
+            }
+        }
     }
 })
+
+private fun uowEvent() = UowEvent(
+    id = UowEvent.Id.random(),
+    uowName = UowEvent.UowName("MockOfCreateDepartmentUow"),
+    principal = TestPrincipal,
+    modelEvents = listOf(),
+    idempotencyKey = null,
+    params = "{}",
+    occurredAt = ofEpochMilli(0),
+)
 
 private data class ExcPoint(
     val uowName: String?,

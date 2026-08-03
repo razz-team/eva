@@ -826,6 +826,20 @@ override suspend fun onFailure(params: Params, ex: PersistenceException): Wallet
 }
 ```
 
+### Write transaction scope
+By default a unit of work runs `tryPerform` reads on the primary outside of a transaction, each on its own pooled connection,
+and opens the write transaction only for the flush (`WriteTxScope.FLUSH`).
+A fast, database-bound unit of work can opt into `WriteTxScope.FULL_UOW`: one transaction on a single pooled connection
+spans `tryPerform` and the flush, and reads join it through the connection in the coroutine context,
+cutting pool acquisitions from one per read plus one for the flush down to one per attempt.
+```kotlin
+val configuration = UnitOfWork.Configuration(
+    writeTxScope = WriteTxScope.FULL_UOW,
+)
+```
+The connection and the open transaction are held for the whole attempt, so do not use `FULL_UOW` for units of work
+that call external services, do heavy CPU work or run parallel reads inside `tryPerform`.
+
 ### Tracing and Monitoring
 If you care about your system's performance, you want to collect metrics so you can create alerts and investigate issues.
 We allow you to collect some metrics via [Micrometer framework](https://micrometer.io/) and do instrumentation with [Opentracing](https://opentracing.io/).

@@ -4,6 +4,8 @@ import com.razz.eva.domain.Bubaleh
 import com.razz.eva.domain.Department
 import com.razz.eva.domain.DepartmentId
 import com.razz.eva.domain.Employee
+import com.razz.eva.events.EventPublisher
+import com.razz.eva.events.UowEvent
 import com.razz.eva.persistence.ConnectionMode.REQUIRE_EXISTING
 import com.razz.eva.persistence.config.DatabaseConfig
 import com.razz.eva.persistence.executor.QueryExecutor
@@ -26,6 +28,7 @@ import com.razz.eva.uow.ExecutionContext
 import com.razz.eva.uow.HireEmployeesUow
 import com.razz.eva.uow.Persisting
 import com.razz.eva.uow.UnitOfWorkExecutor
+import com.razz.eva.uow.WriteTxScope
 import com.razz.eva.uow.params.kotlinx.KotlinxParamsSerializer
 import com.razz.eva.uow.withFactory
 import io.opentelemetry.api.OpenTelemetry
@@ -104,7 +107,7 @@ class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
             CreateSoloDepartmentUow(executionContext, employeeRepo, departmentRepo)
         },
         HireEmployeesUow::class withFactory {
-            HireEmployeesUow(executionContext, departmentRepo, employeeRepo, 0, true)
+            HireEmployeesUow(executionContext, departmentRepo, employeeRepo, 0, true, WriteTxScope.FLUSH)
         },
     )
 
@@ -173,7 +176,7 @@ class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
     val uowxRetries = UnitOfWorkExecutor(
         factories = listOf(
             HireEmployeesUow::class withFactory {
-                HireEmployeesUow(executionContext, departmentRepo, employeeRepo, 1, false)
+                HireEmployeesUow(executionContext, departmentRepo, employeeRepo, 1, false, WriteTxScope.FLUSH)
             },
         ),
         persisting = persisting,
@@ -181,10 +184,49 @@ class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
         openTelemetry = openTelemetry,
     )
 
+    val publishedUowEvents = Collections.synchronizedList(mutableListOf<UowEvent>())
+
+    private val recordingEventPublisher = object : EventPublisher {
+        override suspend fun publish(uowEvent: UowEvent) {
+            publishedUowEvents += uowEvent
+        }
+    }
+
+    private val publishingPersisting = Persisting(
+        transactionManager = transactionManager,
+        modelRepos = modelRepos,
+        entityRepos = entityRepos,
+        eventRepository = eventRepository,
+        eventPublisher = recordingEventPublisher,
+        paramsSerializer = KotlinxParamsSerializer(),
+    )
+
+    val uowxFullUowScope = UnitOfWorkExecutor(
+        factories = listOf(
+            HireEmployeesUow::class withFactory {
+                HireEmployeesUow(executionContext, departmentRepo, employeeRepo, 1, true, WriteTxScope.FULL_UOW)
+            },
+        ),
+        persisting = publishingPersisting,
+        clock = clock,
+        openTelemetry = openTelemetry,
+    )
+
+    val uowxFullUowScopeNoRetries = UnitOfWorkExecutor(
+        factories = listOf(
+            HireEmployeesUow::class withFactory {
+                HireEmployeesUow(executionContext, departmentRepo, employeeRepo, 0, true, WriteTxScope.FULL_UOW)
+            },
+        ),
+        persisting = publishingPersisting,
+        clock = clock,
+        openTelemetry = openTelemetry,
+    )
+
     val uowxRollingBack = UnitOfWorkExecutor(
         factories = listOf(
             HireEmployeesUow::class withFactory {
-                HireEmployeesUow(executionContext, departmentRepo, employeeRepo, 0, false)
+                HireEmployeesUow(executionContext, departmentRepo, employeeRepo, 0, false, WriteTxScope.FLUSH)
             },
         ),
         persisting = Persisting(

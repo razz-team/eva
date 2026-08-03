@@ -2,7 +2,11 @@ package com.razz.eva.uow
 
 import com.razz.eva.domain.Model
 import com.razz.eva.domain.Principal
+import com.razz.eva.events.UowEvent
 import com.razz.eva.persistence.ConnectionAcquisitionCounter
+import com.razz.eva.persistence.ConnectionMode
+import com.razz.eva.persistence.ConnectionMode.REQUIRE_EXISTING
+import com.razz.eva.persistence.ConnectionMode.REQUIRE_NEW
 import com.razz.eva.persistence.PersistenceException
 import com.razz.eva.persistence.PrimaryConnectionRequiredFlag
 import com.razz.eva.tracing.getEvaMeter
@@ -26,10 +30,12 @@ import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.metrics.LongHistogram
+import io.opentelemetry.api.trace.Span
 import io.opentelemetry.extension.kotlin.asContextElement
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import mu.KotlinLogging
+import java.time.Instant
 import java.time.InstantSource
 import kotlin.collections.flatMap
 import kotlin.reflect.KClass
@@ -107,66 +113,44 @@ class UnitOfWorkExecutor(
                     uowSpan.setAttribute(UOW_NAME, name)
                 }
                 val constructedParams = params(InstantiationContext.External(currentAttempt))
-                val changes = instrumentedPerform(name) { acquisitions ->
-                    withContext(PrimaryConnectionRequiredFlag + acquisitions + uowSpan.asContextElement()) {
-                        performingSpan(name).use {
-                            uow.tryPerform(principal, constructedParams)
-                        }
-                    }
-                }
-                uowSpan.setAttribute(
-                    MODEL_ID,
-                    changes.modelChangesToPersist.map { it.id.stringValue() },
-                )
-                uowSpan.setAttribute(
-                    PRINCIPAL_ID,
-                    principal.id.toString(),
-                )
-                incrementEventsMetric(changes.modelChangesToPersist, name)
-                val (uowId, persisted) = try {
-                    timed(persistTimer, name) {
-                        withContext(uowSpan.asContextElement()) {
-                            persistingSpan(name).use {
-                                persisting.persist(
-                                    uowName = uow.name(),
-                                    params = constructedParams,
-                                    principal = principal,
-                                    modelChanges = changes.modelChangesToPersist,
-                                    entityChanges = changes.entityChangesToPersist,
-                                    now = now,
-                                    uowSupportsOutOfOrderPersisting = uow.configuration()
-                                        .supportsOutOfOrderPersisting,
-                                )
+                val attempted = attempt(uow, principal, constructedParams, now, name, uowSpan)
+                val committed = when (attempted) {
+                    is Attempted.Conflict -> {
+                        val ex = attempted.ex
+                        uowSpan.addEvent(
+                            "persistence.exception",
+                            Attributes.of(
+                                SpanAttributes.peristenceException,
+                                ex::class.simpleName ?: "Unknown",
+                                SpanAttributes.modelIds,
+                                (ex as? PersistenceException.ModelAware)?.modelIds?.map { it.stringValue() }
+                                    ?: listOf(),
+                            ),
+                        )
+                        val config = uow.configuration()
+                        val willRetry = config.retry.shouldRetry(currentAttempt, ex)
+                        incrementPersistenceExceptionMetric(ex, name, currentAttempt, willRetry)
+                        if (willRetry) {
+                            currentAttempt += 1
+                            logger.warn(ex) {
+                                "Retrying UnitOfWork: ${uow.name()}. Attempt: $currentAttempt"
                             }
+                            continue
                         }
+                        return uow.onFailure(constructedParams, ex)
                     }
-                } catch (ex: PersistenceException) {
-                    uowSpan.addEvent(
-                        "persistence.exception",
-                        Attributes.of(
-                            SpanAttributes.peristenceException,
-                            ex::class.simpleName ?: "Unknown",
-                            SpanAttributes.modelIds,
-                            (ex as? PersistenceException.ModelAware)?.modelIds?.map { it.stringValue() } ?: listOf(),
-                        ),
-                    )
-                    val config = uow.configuration()
-                    val willRetry = config.retry.shouldRetry(currentAttempt, ex)
-                    incrementPersistenceExceptionMetric(ex, name, currentAttempt, willRetry)
-                    if (willRetry) {
-                        currentAttempt += 1
-                        logger.warn(ex) {
-                            "Retrying UnitOfWork: ${uow.name()}. Attempt: $currentAttempt"
-                        }
-                        continue
-                    }
-                    return uow.onFailure(constructedParams, ex)
+                    is Attempted.Committed -> attempted
                 }
+                persisting.publish(committed.uowEvent)
                 uowSpan.setAttribute(
                     UOW_ID,
-                    uowId.toString(),
+                    committed.uowEvent.id.toString(),
                 )
-                return if (uow.configuration().returnRoundtrippedModels) result(changes, persisted) else changes.result
+                return if (uow.configuration().returnRoundtrippedModels) {
+                    result(committed.changes, committed.persisted)
+                } else {
+                    committed.changes.result
+                }
             }
         } catch (ex: Exception) {
             uowSpan.recordException(ex)
@@ -177,6 +161,141 @@ class UnitOfWorkExecutor(
             timer.record(elapsedTime, Attributes.of(AttributeKey.stringKey("uow.name"), name))
             uowSpan.end()
         }
+    }
+
+    private sealed interface Attempted<out RESULT : Any> {
+
+        class Committed<RESULT : Any>(
+            val changes: Changes<RESULT>,
+            val uowEvent: UowEvent,
+            val persisted: List<Model<*, *>>,
+        ) : Attempted<RESULT>
+
+        class Conflict(val ex: PersistenceException) : Attempted<Nothing>
+    }
+
+    private suspend fun <PRINCIPAL, PARAMS, RESULT, UOW> attempt(
+        uow: UOW,
+        principal: PRINCIPAL,
+        params: PARAMS,
+        now: Instant,
+        name: String,
+        uowSpan: Span,
+    ): Attempted<RESULT> where PRINCIPAL : Principal<*>,
+          PARAMS : UowParams<PARAMS>,
+          RESULT : Any,
+          UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *> {
+        return when (uow.configuration().writeTxScope) {
+            WriteTxScope.FLUSH -> {
+                // tryPerform stays outside the conflict handling: its persistence exceptions
+                // propagate raw instead of routing to retry/onFailure
+                val changes = performAttempt(
+                    uow = uow,
+                    principal = principal,
+                    params = params,
+                    name = name,
+                    uowSpan = uowSpan,
+                )
+                try {
+                    persistAttempt(
+                        uow = uow,
+                        principal = principal,
+                        params = params,
+                        changes = changes,
+                        now = now,
+                        name = name,
+                        uowSpan = uowSpan,
+                        connectionMode = REQUIRE_NEW,
+                    )
+                } catch (ex: PersistenceException) {
+                    Attempted.Conflict(ex)
+                }
+            }
+            WriteTxScope.FULL_UOW -> try {
+                persisting.transactionally {
+                    val changes = performAttempt(
+                        uow = uow,
+                        principal = principal,
+                        params = params,
+                        name = name,
+                        uowSpan = uowSpan,
+                    )
+                    persistAttempt(
+                        uow = uow,
+                        principal = principal,
+                        params = params,
+                        changes = changes,
+                        now = now,
+                        name = name,
+                        uowSpan = uowSpan,
+                        connectionMode = REQUIRE_EXISTING,
+                    )
+                }
+            } catch (ex: PersistenceException) {
+                Attempted.Conflict(ex)
+            }
+        }
+    }
+
+    private suspend fun <PRINCIPAL, PARAMS, RESULT, UOW> performAttempt(
+        uow: UOW,
+        principal: PRINCIPAL,
+        params: PARAMS,
+        name: String,
+        uowSpan: Span,
+    ): Changes<RESULT> where PRINCIPAL : Principal<*>,
+          PARAMS : UowParams<PARAMS>,
+          RESULT : Any,
+          UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *> {
+        val changes = instrumentedPerform(name) { acquisitions ->
+            withContext(PrimaryConnectionRequiredFlag + acquisitions + uowSpan.asContextElement()) {
+                performingSpan(name).use {
+                    uow.tryPerform(principal, params)
+                }
+            }
+        }
+        uowSpan.setAttribute(
+            MODEL_ID,
+            changes.modelChangesToPersist.map { it.id.stringValue() },
+        )
+        uowSpan.setAttribute(
+            PRINCIPAL_ID,
+            principal.id.toString(),
+        )
+        incrementEventsMetric(changes.modelChangesToPersist, name)
+        return changes
+    }
+
+    private suspend fun <PRINCIPAL, PARAMS, RESULT, UOW> persistAttempt(
+        uow: UOW,
+        principal: PRINCIPAL,
+        params: PARAMS,
+        changes: Changes<RESULT>,
+        now: Instant,
+        name: String,
+        uowSpan: Span,
+        connectionMode: ConnectionMode,
+    ): Attempted.Committed<RESULT> where PRINCIPAL : Principal<*>,
+          PARAMS : UowParams<PARAMS>,
+          RESULT : Any,
+          UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *> {
+        val (uowEvent, persisted) = timed(persistTimer, name) {
+            withContext(uowSpan.asContextElement()) {
+                persistingSpan(name).use {
+                    persisting.persist(
+                        uowName = uow.name(),
+                        params = params,
+                        principal = principal,
+                        modelChanges = changes.modelChangesToPersist,
+                        entityChanges = changes.entityChangesToPersist,
+                        now = now,
+                        uowSupportsOutOfOrderPersisting = uow.configuration().supportsOutOfOrderPersisting,
+                        connectionMode = connectionMode,
+                    )
+                }
+            }
+        }
+        return Attempted.Committed(changes, uowEvent, persisted)
     }
 
     private fun <RESULT> result(
