@@ -14,4 +14,6 @@ dependencies {
 
     implementation(libs.postgres)
     implementation(libs.jooq)
+
+    testImplementation(libs.opentelemetry.sdk.testing)
 }
