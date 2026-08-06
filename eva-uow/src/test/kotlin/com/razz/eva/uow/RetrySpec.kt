@@ -1,9 +1,11 @@
 package com.razz.eva.uow
 
 import com.razz.eva.domain.ModelId
+import com.razz.eva.persistence.PersistenceException.ConnectionException
 import com.razz.eva.persistence.PersistenceException.ModelRecordConstraintViolationException
 import com.razz.eva.persistence.PersistenceException.StaleRecordException
 import com.razz.eva.persistence.PersistenceException.UniqueModelRecordViolationException
+import com.razz.eva.uow.Retry.ConnectionFixedRetry
 import com.razz.eva.uow.Retry.StaleRecordFixedRetry
 import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.matchers.shouldBe
@@ -54,6 +56,34 @@ class RetrySpec : BehaviorSpec({
                 .getNextDelay(0, UniqueModelRecordViolationException(whateverModelId, "puk", "puk_idx"))
 
             Then("Next delay should be 0 millis") {
+                nextDelay shouldBe null
+            }
+        }
+    }
+
+    Given("ConnectionFixedRetry with 1 attempt") {
+        val retry = ConnectionFixedRetry(1, ofMillis(50))
+
+        When("Retry is polled for next delay for zeroth attempt and ConnectionException") {
+            val nextDelay = retry.getNextDelay(0, ConnectionException(RuntimeException("pool exhausted")))
+
+            Then("Next delay should be 50 millis") {
+                nextDelay shouldBe ofMillis(50)
+            }
+        }
+
+        When("Retry is polled for next delay for first attempt and ConnectionException") {
+            val nextDelay = retry.getNextDelay(1, ConnectionException(RuntimeException("pool exhausted")))
+
+            Then("Next delay should be null") {
+                nextDelay shouldBe null
+            }
+        }
+
+        When("Retry is polled for next delay for zeroth attempt and StaleRecordException") {
+            val nextDelay = retry.getNextDelay(0, StaleRecordException(whateverModelId, "cool_table"))
+
+            Then("Next delay should be null") {
                 nextDelay shouldBe null
             }
         }
