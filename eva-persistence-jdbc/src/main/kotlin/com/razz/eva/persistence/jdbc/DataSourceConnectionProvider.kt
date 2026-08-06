@@ -53,7 +53,6 @@ class DataSourceConnectionProvider(
         }) {
             semaphore.acquire()
         }
-
         // here are 2 issues to solve:
         // 1. if the current coroutine is cancelled and we don't have NonCancellable at all,
         //    the resulting connection will be discarded even if there is really nothing to cancel in this function
