@@ -34,6 +34,8 @@ interface QueryExecutor {
 
     fun extractModelException(ex: Exception, table: Table<*>, modelId: ModelId<*>): PersistenceException?
 
+    fun extractConnectionException(ex: Exception): PersistenceException.ConnectionException?
+
     @JvmInline
     value class Constraint(val name: String?)
 }

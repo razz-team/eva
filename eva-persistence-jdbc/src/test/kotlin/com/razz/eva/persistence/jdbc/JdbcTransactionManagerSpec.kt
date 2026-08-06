@@ -2,12 +2,14 @@ package com.razz.eva.persistence.jdbc
 
 import com.razz.eva.persistence.ConnectionMode.REQUIRE_EXISTING
 import com.razz.eva.persistence.ConnectionMode.REQUIRE_NEW
+import com.razz.eva.persistence.PersistenceException.ConnectionException
 import com.razz.eva.persistence.PrimaryConnectionRequiredFlag
 import com.zaxxer.hikari.HikariDataSource
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeTypeOf
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.sdk.OpenTelemetrySdk
 import io.opentelemetry.sdk.metrics.SdkMeterProvider
@@ -18,12 +20,14 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import io.mockk.verifyOrder
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.sql.Connection
+import java.sql.SQLTransientConnectionException
 
 class JdbcTransactionManagerSpec : BehaviorSpec({
 
@@ -521,6 +525,44 @@ class JdbcTransactionManagerSpec : BehaviorSpec({
                     setOf("with_connection", "in_transaction")
                 points.forEach { point -> point.count shouldBe 1 }
                 points.first().boundaries shouldContain 1_000_000.0
+            }
+        }
+    }
+
+    Given("Jdbc transaction manager with a pool failing to provide connections") {
+        val failingPool = mockk<HikariDataSource>()
+        val failingProvider = HikariPoolConnectionProvider(failingPool)
+        val txManager = JdbcTransactionManager(failingProvider, failingProvider)
+
+        When("Principal calls withConnection and connection acquisition fails") {
+            every { failingPool.connection } throws SQLTransientConnectionException("pool exhausted")
+
+            Then("ConnectionException with the original cause is thrown") {
+                val ex = shouldThrow<ConnectionException> {
+                    txManager.withConnection { TODO("NEVER HAPPENS") }
+                }
+                ex.cause.shouldBeTypeOf<SQLTransientConnectionException>()
+            }
+        }
+
+        When("Principal starts new transaction and connection acquisition fails") {
+            every { failingPool.connection } throws SQLTransientConnectionException("pool exhausted")
+
+            Then("ConnectionException with the original cause is thrown") {
+                val ex = shouldThrow<ConnectionException> {
+                    txManager.inTransaction(REQUIRE_NEW) { _ -> TODO("NEVER HAPPENS") }
+                }
+                ex.cause.shouldBeTypeOf<SQLTransientConnectionException>()
+            }
+        }
+
+        When("Connection acquisition is cancelled") {
+            every { failingPool.connection } throws CancellationException("cancelled on acquire")
+
+            Then("CancellationException propagates unwrapped") {
+                shouldThrow<CancellationException> {
+                    txManager.withConnection { TODO("NEVER HAPPENS") }
+                }
             }
         }
     }

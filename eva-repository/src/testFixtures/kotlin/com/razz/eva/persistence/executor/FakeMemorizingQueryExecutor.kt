@@ -75,6 +75,8 @@ class FakeMemorizingQueryExecutor(
 
     override fun extractModelException(ex: Exception, table: Table<*>, modelId: ModelId<*>): PersistenceException? = null
 
+    override fun extractConnectionException(ex: Exception): PersistenceException.ConnectionException? = null
+
     sealed class ExecutionStep {
 
         data class StoreExecuted(

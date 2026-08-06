@@ -1,11 +1,13 @@
 package com.razz.eva.persistence.jdbc.executor
 
+import com.razz.eva.persistence.PersistenceException.ConnectionException
 import com.razz.eva.persistence.jdbc.JdbcConnectionElement
 import com.razz.eva.persistence.jdbc.JdbcConnectionProvider
 import com.razz.eva.persistence.jdbc.JdbcTransactionManager
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeTypeOf
 import io.mockk.clearMocks
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -13,9 +15,11 @@ import io.mockk.mockk
 import io.mockk.spyk
 import io.opentelemetry.api.OpenTelemetry.noop
 import java.sql.Connection
+import java.sql.SQLException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.jooq.SQLDialect.POSTGRES
+import org.jooq.exception.DataAccessException
 import org.jooq.impl.DSL
 
 class JdbcQueryExecutorSpec : BehaviorSpec({
@@ -178,6 +182,34 @@ class JdbcQueryExecutorSpec : BehaviorSpec({
                         connectionProvider.release(connection)
                     }
                 }
+            }
+        }
+    }
+
+    Given("Jdbc query executor extracting connection exceptions") {
+        val executor = JdbcQueryExecutor(mockk(relaxed = true))
+
+        When("DataAccessException of connection class is extracted") {
+            val connectionLoss = DataAccessException("read failed", SQLException("connection reset", "08006"))
+            val extracted = executor.extractConnectionException(connectionLoss)
+
+            Then("ConnectionException with the original cause is returned") {
+                extracted.shouldBeTypeOf<ConnectionException>()
+                extracted.cause shouldBe connectionLoss
+            }
+        }
+
+        When("DataAccessException of constraint class is extracted") {
+            val uniqueViolation = DataAccessException("duplicate", SQLException("duplicate key", "23505"))
+
+            Then("Nothing is extracted") {
+                executor.extractConnectionException(uniqueViolation) shouldBe null
+            }
+        }
+
+        When("Exception which is not a DataAccessException is extracted") {
+            Then("Nothing is extracted") {
+                executor.extractConnectionException(IllegalStateException("not jooq")) shouldBe null
             }
         }
     }

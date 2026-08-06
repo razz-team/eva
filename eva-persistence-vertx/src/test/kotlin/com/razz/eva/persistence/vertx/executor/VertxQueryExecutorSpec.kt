@@ -1,11 +1,13 @@
 package com.razz.eva.persistence.vertx.executor
 
+import com.razz.eva.persistence.PersistenceException
 import com.razz.eva.persistence.vertx.PgPoolConnectionProvider
 import com.razz.eva.persistence.vertx.VertxConnectionElement
 import com.razz.eva.persistence.vertx.VertxTransactionManager
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeTypeOf
 import io.mockk.clearMocks
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -14,6 +16,7 @@ import io.mockk.mockk
 import io.mockk.spyk
 import io.vertx.core.Future.succeededFuture
 import io.vertx.pgclient.PgConnection
+import io.vertx.pgclient.PgException
 import io.vertx.sqlclient.PreparedQuery
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
@@ -215,6 +218,28 @@ class VertxQueryExecutorSpec : BehaviorSpec({
                         connectionProvider.acquire()
                     }
                 }
+            }
+        }
+    }
+
+    Given("Vertx query executor extracting connection exceptions") {
+        val executor = VertxQueryExecutor(mockk(relaxed = true))
+
+        When("PgException of connection class is extracted") {
+            val connectionLoss = PgException("connection failure", "FATAL", "08006", null)
+            val extracted = executor.extractConnectionException(connectionLoss)
+
+            Then("ConnectionException with the original cause is returned") {
+                extracted.shouldBeTypeOf<PersistenceException.ConnectionException>()
+                extracted.cause shouldBe connectionLoss
+            }
+        }
+
+        When("PgException of constraint class is extracted") {
+            val uniqueViolation = PgException("duplicate key", "ERROR", "23505", null)
+
+            Then("Nothing is extracted") {
+                executor.extractConnectionException(uniqueViolation) shouldBe null
             }
         }
     }

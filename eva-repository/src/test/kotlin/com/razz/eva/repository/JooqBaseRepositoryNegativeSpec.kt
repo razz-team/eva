@@ -13,6 +13,8 @@ import com.razz.eva.domain.ModelState.PersistentState
 import com.razz.eva.domain.Ration
 import com.razz.eva.domain.Ration.BUBALEH
 import com.razz.eva.domain.Version.Companion.V1
+import com.razz.eva.domain.ModelId
+import com.razz.eva.persistence.PersistenceException
 import com.razz.eva.persistence.executor.FakeMemorizingQueryExecutor
 import com.razz.eva.persistence.executor.FakeMemorizingQueryExecutor.ExecutionStep.StoreExecuted
 import com.razz.eva.persistence.executor.QueryExecutor
@@ -21,13 +23,21 @@ import com.razz.eva.test.schema.Tables.DEPARTMENTS
 import com.razz.eva.test.schema.enums.DepartmentsState
 import com.razz.eva.test.schema.tables.records.DepartmentsRecord
 import com.razz.jooq.converter.InstantConverter
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeTypeOf
+import org.jooq.DMLQuery
 import org.jooq.DSLContext
+import org.jooq.Record
 import org.jooq.SQLDialect.POSTGRES
+import org.jooq.Select
+import org.jooq.StoreQuery
+import org.jooq.Table
 import org.jooq.conf.ParamType.INLINED
+import org.jooq.exception.DataAccessException
 import org.jooq.impl.DSL
+import java.sql.SQLException
 import java.time.Instant.MAX
 import java.time.Instant.MIN
 import java.time.Instant.now
@@ -149,6 +159,53 @@ class JooqBaseRepositoryNegativeSpec : BehaviorSpec({
                         """.trim().replace(Regex("\\s+"), " ")
                     }
                 }
+            }
+        }
+    }
+
+    Given("JooqBaseRepository with queryExecutor failing selects with a connection error") {
+        val dslContext = DSL.using(POSTGRES)
+        val connectionLoss = DataAccessException("select failed", SQLException("connection reset", "08006"))
+        val queryExecutor = object : QueryExecutor {
+            override suspend fun <R : Record> executeSelect(
+                dslContext: DSLContext,
+                jooqQuery: Select<R>,
+                table: Table<R>,
+            ): List<R> = throw connectionLoss
+
+            override suspend fun <RIN : Record, ROUT : Record> executeStore(
+                dslContext: DSLContext,
+                jooqQuery: StoreQuery<RIN>,
+                table: Table<ROUT>,
+            ): List<ROUT> = TODO("NEVER HAPPENS")
+
+            override suspend fun <R : Record> executeQuery(
+                dslContext: DSLContext,
+                jooqQuery: DMLQuery<R>,
+            ): Int = TODO("NEVER HAPPENS")
+
+            override fun extractConstraintName(ex: Exception): QueryExecutor.Constraint? = null
+
+            override fun extractUniqueConstraintName(ex: Exception, table: Table<*>): QueryExecutor.Constraint? =
+                null
+
+            override fun extractModelException(
+                ex: Exception,
+                table: Table<*>,
+                modelId: ModelId<*>,
+            ): PersistenceException? = null
+
+            override fun extractConnectionException(ex: Exception): PersistenceException.ConnectionException? =
+                (ex as? DataAccessException)?.let { PersistenceException.ConnectionException(it) }
+        }
+        val repo = BadDepartmentRepository(queryExecutor, dslContext)
+
+        When("Principal finds department by id") {
+            Then("ConnectionException with the original cause is thrown") {
+                val ex = shouldThrow<PersistenceException.ConnectionException> {
+                    repo.find(randomDepartmentId())
+                }
+                ex.cause shouldBe connectionLoss
             }
         }
     }

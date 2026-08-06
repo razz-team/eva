@@ -78,6 +78,10 @@ sealed class PersistenceException(message: String) : RuntimeException(message) {
         override val cause: Throwable,
     ) : PersistenceException("Persisting failed")
 
+    class ConnectionException(
+        override val cause: Throwable,
+    ) : PersistenceException("Database connection failed")
+
     class EventPayloadTooLargeException(
         val modelId: ModelId<*>,
         val modelEventId: UUID,

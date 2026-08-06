@@ -3,6 +3,7 @@ package com.razz.eva.persistence.jdbc.executor
 import com.razz.eva.domain.ModelId
 import com.razz.eva.persistence.ConnectionMode.REQUIRE_EXISTING
 import com.razz.eva.persistence.PersistenceException
+import com.razz.eva.persistence.PersistenceException.ConnectionException
 import com.razz.eva.persistence.PersistenceException.ModelPersistingGenericException
 import com.razz.eva.persistence.PersistenceException.ModelRecordConstraintViolationException
 import com.razz.eva.persistence.PersistenceException.StaleRecordException
@@ -23,6 +24,7 @@ import org.jooq.Select
 import org.jooq.StoreQuery
 import org.jooq.Table
 import org.jooq.exception.DataAccessException
+import org.jooq.exception.SQLStateClass.C08_CONNECTION_EXCEPTION
 import org.jooq.exception.SQLStateClass.C23_INTEGRITY_CONSTRAINT_VIOLATION
 import org.jooq.exception.SQLStateClass.C40_TRANSACTION_ROLLBACK
 import org.jooq.impl.DSL
@@ -128,8 +130,15 @@ class JdbcQueryExecutor(
             //  rather we should fail due to version mismatch (stale record).
             dae.sqlStateClass() == C40_TRANSACTION_ROLLBACK -> StaleRecordException(modelId, table.name)
 
+            dae.sqlStateClass() == C08_CONNECTION_EXCEPTION -> ConnectionException(ex)
+
             else -> ModelPersistingGenericException(modelId, ex)
         }
+    }
+
+    override fun extractConnectionException(ex: Exception): ConnectionException? {
+        val dae = ex as? DataAccessException ?: return null
+        return if (dae.sqlStateClass() == C08_CONNECTION_EXCEPTION) ConnectionException(ex) else null
     }
 
     private fun DSLContext.using(connection: Connection): DSLContext {
