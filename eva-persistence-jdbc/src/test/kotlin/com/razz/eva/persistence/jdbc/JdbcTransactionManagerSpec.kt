@@ -6,7 +6,12 @@ import com.razz.eva.persistence.PrimaryConnectionRequiredFlag
 import com.zaxxer.hikari.HikariDataSource
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.BehaviorSpec
+import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
+import io.opentelemetry.api.common.AttributeKey
+import io.opentelemetry.sdk.OpenTelemetrySdk
+import io.opentelemetry.sdk.metrics.SdkMeterProvider
+import io.opentelemetry.sdk.testing.exporter.InMemoryMetricReader
 import io.mockk.clearMocks
 import io.mockk.confirmVerified
 import io.mockk.every
@@ -488,6 +493,34 @@ class JdbcTransactionManagerSpec : BehaviorSpec({
                     confirmVerified(replicaPool)
                     confirmVerified(connection)
                 }
+            }
+        }
+    }
+
+    Given("Jdbc transaction manager with otel metrics") {
+        val metricReader = InMemoryMetricReader.create()
+        val openTelemetry = OpenTelemetrySdk.builder()
+            .setMeterProvider(SdkMeterProvider.builder().registerMetricReader(metricReader).build())
+            .build()
+        val pool = mockk<HikariDataSource>()
+        val provider = HikariPoolConnectionProvider(pool)
+        val transactionManager = JdbcTransactionManager(provider, provider, Dispatchers.IO, openTelemetry)
+        val connection = mockk<Connection>(relaxed = true)
+        every { connection.autoCommit } returns true
+        every { pool.connection } returns connection
+
+        When("Principal runs withConnection and inTransaction") {
+            transactionManager.withConnection { }
+            transactionManager.inTransaction(REQUIRE_NEW) { }
+
+            Then("Dispatch wait is recorded per op with nanosecond bucket boundaries") {
+                val points = metricReader.collectAllMetrics()
+                    .filter { it.name == "jdbc.dispatch.wait" }
+                    .flatMap { metric -> metric.histogramData.points }
+                points.map { it.attributes.get(AttributeKey.stringKey("op")) }.toSet() shouldBe
+                    setOf("with_connection", "in_transaction")
+                points.forEach { point -> point.count shouldBe 1 }
+                points.first().boundaries shouldContain 1_000_000.0
             }
         }
     }
