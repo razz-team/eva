@@ -11,6 +11,7 @@ import com.razz.eva.persistence.PersistenceException.UniqueModelRecordViolationE
 import com.razz.eva.persistence.TransactionManager
 import com.razz.eva.persistence.executor.QueryExecutor
 import com.razz.eva.persistence.executor.QueryExecutor.Constraint
+import com.razz.eva.persistence.postgres.PgHelpers.PG_CONNECTION_UNAVAILABLE
 import com.razz.eva.persistence.postgres.PgHelpers.PG_UNIQUE_VIOLATION
 import io.vertx.core.json.Json
 import io.vertx.kotlin.coroutines.coAwait
@@ -184,15 +185,18 @@ class VertxQueryExecutor(
             //  This should not cause transaction rollback in T0 due to serialisation error,
             //  rather we should fail due to version mismatch (stale record).
             pge.sqlStateClass == C40_TRANSACTION_ROLLBACK -> StaleRecordException(modelId, table.name)
-            pge.sqlStateClass == C08_CONNECTION_EXCEPTION -> ConnectionException(ex)
+            pge.connectionUnavailable() -> ConnectionException(ex)
             else -> ModelPersistingGenericException(modelId, ex)
         }
     }
 
     override fun extractConnectionException(ex: Exception): ConnectionException? {
         val pge = ex as? PgException ?: return null
-        return if (pge.sqlStateClass == C08_CONNECTION_EXCEPTION) ConnectionException(ex) else null
+        return if (pge.connectionUnavailable()) ConnectionException(ex) else null
     }
+
+    private fun PgException.connectionUnavailable(): Boolean =
+        sqlStateClass == C08_CONNECTION_EXCEPTION || sqlState in PG_CONNECTION_UNAVAILABLE
 }
 
 private val PgException.sqlStateClass get() = SQLStateClass.fromCode(sqlState)

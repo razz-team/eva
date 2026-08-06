@@ -235,6 +235,32 @@ class VertxQueryExecutorSpec : BehaviorSpec({
             }
         }
 
+        When("PgException of admin shutdown is extracted") {
+            val adminShutdown = PgException("terminating connection", "FATAL", "57P01", null)
+
+            Then("ConnectionException is returned") {
+                executor.extractConnectionException(adminShutdown)
+                    .shouldBeTypeOf<PersistenceException.ConnectionException>()
+            }
+        }
+
+        When("PgException of too many connections is extracted") {
+            val tooManyConnections = PgException("too many clients", "FATAL", "53300", null)
+
+            Then("ConnectionException is returned") {
+                executor.extractConnectionException(tooManyConnections)
+                    .shouldBeTypeOf<PersistenceException.ConnectionException>()
+            }
+        }
+
+        When("PgException of query cancel is extracted") {
+            val queryCanceled = PgException("canceling statement", "ERROR", "57014", null)
+
+            Then("Nothing is extracted because the connection survives a statement timeout") {
+                executor.extractConnectionException(queryCanceled) shouldBe null
+            }
+        }
+
         When("PgException of constraint class is extracted") {
             val uniqueViolation = PgException("duplicate key", "ERROR", "23505", null)
 

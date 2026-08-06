@@ -199,6 +199,32 @@ class JdbcQueryExecutorSpec : BehaviorSpec({
             }
         }
 
+        When("DataAccessException of admin shutdown is extracted") {
+            val adminShutdown = DataAccessException("terminating", SQLException("shutting down", "57P01"))
+            val extracted = executor.extractConnectionException(adminShutdown)
+
+            Then("ConnectionException with the original cause is returned") {
+                extracted.shouldBeTypeOf<ConnectionException>()
+                extracted.cause shouldBe adminShutdown
+            }
+        }
+
+        When("DataAccessException of too many connections is extracted") {
+            val tooManyConnections = DataAccessException("refused", SQLException("too many clients", "53300"))
+
+            Then("ConnectionException is returned") {
+                executor.extractConnectionException(tooManyConnections).shouldBeTypeOf<ConnectionException>()
+            }
+        }
+
+        When("DataAccessException of query cancel is extracted") {
+            val queryCanceled = DataAccessException("canceled", SQLException("statement timeout", "57014"))
+
+            Then("Nothing is extracted because the connection survives a statement timeout") {
+                executor.extractConnectionException(queryCanceled) shouldBe null
+            }
+        }
+
         When("DataAccessException of constraint class is extracted") {
             val uniqueViolation = DataAccessException("duplicate", SQLException("duplicate key", "23505"))
 

@@ -11,6 +11,7 @@ import com.razz.eva.persistence.PersistenceException.UniqueModelRecordViolationE
 import com.razz.eva.persistence.TransactionManager
 import com.razz.eva.persistence.executor.QueryExecutor
 import com.razz.eva.persistence.executor.QueryExecutor.Constraint
+import com.razz.eva.persistence.postgres.PgHelpers.PG_CONNECTION_UNAVAILABLE
 import com.razz.eva.persistence.postgres.PgHelpers.PG_UNIQUE_VIOLATION
 import com.razz.eva.tracing.QueryTracingListenerProvider
 import io.opentelemetry.api.OpenTelemetry
@@ -127,15 +128,18 @@ class JdbcQueryExecutor(
             //  This should not cause transaction rollback in T0 due to serialisation error,
             //  rather we should fail due to version mismatch (stale record).
             dae.sqlStateClass() == C40_TRANSACTION_ROLLBACK -> StaleRecordException(modelId, table.name)
-            dae.sqlStateClass() == C08_CONNECTION_EXCEPTION -> ConnectionException(ex)
+            dae.connectionUnavailable() -> ConnectionException(ex)
             else -> ModelPersistingGenericException(modelId, ex)
         }
     }
 
     override fun extractConnectionException(ex: Exception): ConnectionException? {
         val dae = ex as? DataAccessException ?: return null
-        return if (dae.sqlStateClass() == C08_CONNECTION_EXCEPTION) ConnectionException(ex) else null
+        return if (dae.connectionUnavailable()) ConnectionException(ex) else null
     }
+
+    private fun DataAccessException.connectionUnavailable(): Boolean =
+        sqlStateClass() == C08_CONNECTION_EXCEPTION || sqlState() in PG_CONNECTION_UNAVAILABLE
 
     private fun DSLContext.using(connection: Connection): DSLContext {
         val configWithConnection = configuration()
