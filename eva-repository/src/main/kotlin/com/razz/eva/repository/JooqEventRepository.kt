@@ -16,6 +16,9 @@ import com.razz.eva.repository.Fake.FakeModelEvent
 import com.razz.eva.serialization.json.JsonFormat.json
 import com.razz.eva.tracing.contextMap
 import io.opentelemetry.api.OpenTelemetry
+import io.opentelemetry.api.common.AttributeKey
+import io.opentelemetry.api.common.Attributes
+import io.opentelemetry.api.trace.Span
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
@@ -29,6 +32,7 @@ class JooqEventRepository(
     private val dslContext: DSLContext,
     private val openTelemetry: OpenTelemetry = OpenTelemetry.noop(),
     private val maxEventPayloadSize: Int = 1024 * 1024,
+    private val maxParamsSize: Int = 1024 * 1024,
 ) : EventRepository {
 
     override suspend fun warmup() {
@@ -87,7 +91,26 @@ class JooqEventRepository(
             modelEvents = uowEvent.modelEvents
                 .map { (id, _) -> id.uuidValue() }
                 .toTypedArray()
-            params = uowEvent.params
+            params = boundedParams(uowEvent)
+        }
+    }
+
+    private fun boundedParams(uowEvent: UowEvent): String {
+        val paramsSize = uowEvent.params.utf8SizeInBytes()
+        return if (paramsSize > maxParamsSize) {
+            // params is an audit aid: unlike a model event payload, an oversized value must not
+            // fail the unit of work, so the audit row keeps a self-describing marker instead
+            Span.current().addEvent(
+                "uow_events.params elided",
+                Attributes.of(
+                    AttributeKey.stringKey("uow.name"), uowEvent.uowName.toString(),
+                    AttributeKey.longKey("params.bytes"), paramsSize.toLong(),
+                    AttributeKey.longKey("params.max"), maxParamsSize.toLong(),
+                ),
+            )
+            """{"_params_elided":{"bytes":$paramsSize,"max":$maxParamsSize}}"""
+        } else {
+            uowEvent.params
         }
     }
 
