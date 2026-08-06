@@ -48,7 +48,12 @@ class ModelParam<MID : ModelId<out Comparable<*>>, M : Model<MID, *>> private co
         override val descriptor: SerialDescriptor = idSerializer.descriptor
         override fun serialize(encoder: Encoder, value: ModelParam<MID, *>) =
             idSerializer.serialize(encoder, value.id)
-        override fun deserialize(decoder: Decoder) = ModelParam(idSerializer.deserialize(decoder)) { TODO("lel") }
+        override fun deserialize(decoder: Decoder): ModelParam<MID, *> {
+            val id = idSerializer.deserialize(decoder)
+            return ModelParam(id) {
+                error("ModelParam [${id.stringValue()}] was deserialized and can not load its model")
+            }
+        }
     }
 
     companion object Factory {

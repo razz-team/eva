@@ -1,10 +1,21 @@
 package com.razz.eva.uow
 
 import com.razz.eva.domain.TestModel
+import com.razz.eva.domain.TestModelId
+import com.razz.eva.domain.TestModelId.Companion.randomTestModelId
 import com.razz.eva.uow.ModelParam.Factory.modelParam
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.builtins.NothingSerializer
+import kotlinx.serialization.builtins.serializer
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.json.Json
 import java.time.Duration
+import java.util.UUID
 
 class ModelParamSpec : FunSpec({
 
@@ -78,6 +89,20 @@ class ModelParamSpec : FunSpec({
         val modelParam = InstantiationContext(0).modelParam(heldModel) { error("not used") }
         Thread.sleep(STALENESS_SLEEP_MILLIS)
         modelParam.model().param1 shouldBe heldModel.param1
+    }
+
+    test("Deserialized model param returns its id but refuses to load a model") {
+        val idSerializer = object : KSerializer<TestModelId> {
+            override val descriptor = String.serializer().descriptor
+            override fun serialize(encoder: Encoder, value: TestModelId) = encoder.encodeString(value.stringValue())
+            override fun deserialize(decoder: Decoder) = TestModelId(UUID.fromString(decoder.decodeString()))
+        }
+        val id = randomTestModelId()
+        val serializer = ModelParam.Serializer(idSerializer, NothingSerializer())
+        val modelParam = Json.decodeFromString(serializer, "\"${id.stringValue()}\"")
+        modelParam.id() shouldBe id
+        val ex = shouldThrow<IllegalStateException> { modelParam.model() }
+        ex.message shouldContain "was deserialized and can not load its model"
     }
 })
 
