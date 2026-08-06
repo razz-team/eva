@@ -114,13 +114,11 @@ class JdbcQueryExecutor(
                 tableName = table.name,
                 constraintName = extractUniqueConstraintName(dae, table)?.name,
             )
-
             dae.sqlStateClass() == C23_INTEGRITY_CONSTRAINT_VIOLATION -> ModelRecordConstraintViolationException(
                 modelId = modelId,
                 tableName = table.name,
                 constraintName = extractConstraintName(dae)?.name,
             )
-
             // https://www.postgresql.org/message-id/flat/CANbGkDhq9gZnEouo2PZHP3HGMAJKk7fZf3eU3Q8g46Y-1uGZ-w%40mail.gmail.com#e5de345d77abe0184e394f0701bb8bc5
             //  According to the thread above, transaction error with message message
             //  "tuple to be locked was already moved to another partition due to concurrent update"
@@ -129,9 +127,7 @@ class JdbcQueryExecutor(
             //  This should not cause transaction rollback in T0 due to serialisation error,
             //  rather we should fail due to version mismatch (stale record).
             dae.sqlStateClass() == C40_TRANSACTION_ROLLBACK -> StaleRecordException(modelId, table.name)
-
             dae.sqlStateClass() == C08_CONNECTION_EXCEPTION -> ConnectionException(ex)
-
             else -> ModelPersistingGenericException(modelId, ex)
         }
     }

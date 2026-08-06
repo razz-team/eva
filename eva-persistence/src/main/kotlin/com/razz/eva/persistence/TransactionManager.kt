@@ -69,10 +69,10 @@ abstract class TransactionManager<C>(
 
     private suspend fun acquire(provider: ConnectionProvider<C>): C = try {
         provider.acquire()
-    } catch (e: CancellationException) {
-        throw e
-    } catch (e: Exception) {
-        throw ConnectionException(e)
+    } catch (ex: CancellationException) {
+        throw ex
+    } catch (ex: Exception) {
+        throw ConnectionException(ex)
     }
 
     private fun connectionProvider(coroutineContext: CoroutineContext) =

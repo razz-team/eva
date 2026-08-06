@@ -165,14 +165,12 @@ class VertxQueryExecutor(
 
     override fun extractModelException(ex: Exception, table: Table<*>, modelId: ModelId<*>): PersistenceException? {
         val pge = ex as? PgException ?: return null
-
         return when {
             pge.sqlState == PG_UNIQUE_VIOLATION -> UniqueModelRecordViolationException(
                 modelId = modelId,
                 tableName = table.name,
                 constraintName = pge.constraint,
             )
-
             pge.sqlStateClass == C23_INTEGRITY_CONSTRAINT_VIOLATION -> ModelRecordConstraintViolationException(
                 modelId = modelId,
                 tableName = table.name,
@@ -186,9 +184,7 @@ class VertxQueryExecutor(
             //  This should not cause transaction rollback in T0 due to serialisation error,
             //  rather we should fail due to version mismatch (stale record).
             pge.sqlStateClass == C40_TRANSACTION_ROLLBACK -> StaleRecordException(modelId, table.name)
-
             pge.sqlStateClass == C08_CONNECTION_EXCEPTION -> ConnectionException(ex)
-
             else -> ModelPersistingGenericException(modelId, ex)
         }
     }
