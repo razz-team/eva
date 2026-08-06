@@ -1,5 +1,6 @@
 package com.razz.eva.persistence.jdbc
 
+import com.razz.eva.tracing.getEvaMeter
 import com.razz.eva.tracing.withSpan
 import io.opentelemetry.api.OpenTelemetry
 import kotlinx.coroutines.CoroutineDispatcher
@@ -23,9 +24,28 @@ class DataSourceConnectionProvider(
 
     private val semaphore = Semaphore(poolMaxSize)
 
+    // otel default boundaries are millisecond-oriented; pool waits sit in the micro to
+    // millisecond range, so advise boundaries covering 10us .. 1s
+    private val poolWaitMetric = openTelemetry?.getEvaMeter()
+        ?.histogramBuilder("jdbc.pool.wait")
+        ?.setDescription("Wait between requesting a pooled connection and holding it, semaphore included")
+        ?.setUnit("ns")
+        ?.ofLongs()
+        ?.setExplicitBucketBoundariesAdvice(POOL_WAIT_BUCKET_BOUNDARIES_NANOS)
+        ?.build()
+
     override suspend fun acquire(): Connection {
         coroutineContext.ensureActive() // fail-fast if current coroutine was cancelled before acquiring a connection
+        val requestedAt = System.nanoTime()
+        try {
+            return acquireThrottled()
+        } finally {
+            // recorded on failure paths too: a timed-out acquire is the most interesting wait
+            poolWaitMetric?.record(System.nanoTime() - requestedAt)
+        }
+    }
 
+    private suspend fun acquireThrottled(): Connection {
         // acquire a permit before acquiring a connection from the pool,
         // so we can be sure that won't just reserve a thread and wait for a connection to be available
         openTelemetry.withSpan(spanName = "semaphore-acquire", parameters = {
@@ -73,4 +93,20 @@ class DataSourceConnectionProvider(
         } finally {
             semaphore.release() // release the permit after closing the connection
         }
+
+    companion object {
+        private val POOL_WAIT_BUCKET_BOUNDARIES_NANOS = listOf(
+            10_000L, // 10us
+            50_000L,
+            100_000L,
+            500_000L,
+            1_000_000L, // 1ms
+            5_000_000L,
+            10_000_000L, // 10ms
+            50_000_000L,
+            100_000_000L, // 100ms
+            500_000_000L,
+            1_000_000_000L, // 1s
+        )
+    }
 }
