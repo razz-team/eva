@@ -7,6 +7,7 @@ import com.razz.eva.persistence.PersistenceException.StaleRecordException
 import com.razz.eva.persistence.PersistenceException.UniqueModelRecordViolationException
 import java.time.Duration
 import java.time.Duration.ofMillis
+import kotlin.random.Random
 
 abstract class Retry {
 
@@ -73,6 +74,42 @@ abstract class Retry {
                     else -> null
                 }
             }
+        }
+    }
+
+    /**
+     * Retries [ConnectionException] with capped exponential backoff and full jitter: attempt n
+     * sleeps a uniform random duration in [0, min(maxDelay, baseDelay * 2^n)]. Randomised delays
+     * spread a reconnect stampede which a fixed beat would re-synchronise, for example after
+     * `53300 too_many_connections`. Opt-in only and deliberately without a DEFAULT, same replay
+     * contract as [ConnectionFixedRetry].
+     */
+    data class ConnectionBackoffRetry(
+        val attempts: Int,
+        val baseDelay: Duration,
+        val maxDelay: Duration,
+    ) : Retry() {
+
+        override fun getNextDelay(currentAttempt: Int, ex: PersistenceException): Duration? {
+            return when {
+                attempts <= currentAttempt -> null
+                else -> when (ex) {
+                    is ConnectionException -> jittered(ceiling(currentAttempt))
+                    else -> null
+                }
+            }
+        }
+
+        internal fun ceiling(currentAttempt: Int): Duration {
+            val exponential = baseDelay.multipliedBy(1L shl currentAttempt.coerceAtMost(MAX_SHIFT))
+            return if (exponential < maxDelay) exponential else maxDelay
+        }
+
+        private fun jittered(ceiling: Duration): Duration =
+            Duration.ofNanos(Random.nextLong(0, ceiling.toNanos() + 1))
+
+        companion object {
+            private const val MAX_SHIFT = 30
         }
     }
 }
