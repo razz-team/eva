@@ -374,4 +374,89 @@ class JooqEventRepositorySpec : BehaviorSpec({
             }
         }
     }
+
+    Given("an sqlEventRepository with maxParamsSize set to 64 bytes") {
+        val dslContext = DSL.using(POSTGRES)
+        val queryExecutor = FakeMemorizingQueryExecutor()
+        val eventRepo = JooqEventRepository(queryExecutor, dslContext, maxParamsSize = 64)
+
+        When("inserting an uow event with params exceeding the maxParamsSize") {
+            val params = Params(1, "Nik".repeat(100), IdempotencyKey.random())
+            val serializedParams = json.encodeToString(params.serialization(), params)
+            val uowEvent = UowEvent(
+                id = UowEvent.Id(randomUUID()),
+                uowName = UowName("TestUow"),
+                principal = TestPrincipal,
+                modelEvents = listOf(),
+                idempotencyKey = params.idempotencyKey,
+                params = serializedParams,
+                occurredAt = now,
+            )
+            eventRepo.add(uowEvent)
+
+            Then("it should store a self-describing marker instead of the oversized params") {
+                val paramsSize = serializedParams.toByteArray(Charsets.UTF_8).size
+                queryExecutor.executionHistory shouldBe listOf(
+                    QueryExecuted(
+                        dslContext,
+                        dslContext.insertQuery(UOW_EVENTS)
+                            .also {
+                                it.setRecord(
+                                    UowEventsRecord().apply {
+                                        this.id = uowEvent.id.uuidValue()
+                                        this.name = uowEvent.uowName.toString()
+                                        this.idempotencyKey = uowEvent.idempotencyKey?.stringValue()
+                                        this.principalName = "TEST_PRINCIPAL"
+                                        this.principalId = "THIS_IS_SINGLETON"
+                                        this.occurredAt = now
+                                        this.modelEvents = arrayOf()
+                                        this.params = """{"_params_elided":{"bytes":$paramsSize,"max":64}}"""
+                                    },
+                                )
+                            },
+                    ),
+                )
+            }
+        }
+
+        When("inserting an uow event with params within the maxParamsSize") {
+            val queryExecutorUnderLimit = FakeMemorizingQueryExecutor()
+            val eventRepoUnderLimit = JooqEventRepository(queryExecutorUnderLimit, dslContext, maxParamsSize = 1024)
+            val params = Params(1, "Nik", IdempotencyKey.random())
+            val serializedParams = json.encodeToString(params.serialization(), params)
+            val uowEvent = UowEvent(
+                id = UowEvent.Id(randomUUID()),
+                uowName = UowName("TestUow"),
+                principal = TestPrincipal,
+                modelEvents = listOf(),
+                idempotencyKey = params.idempotencyKey,
+                params = serializedParams,
+                occurredAt = now,
+            )
+            eventRepoUnderLimit.add(uowEvent)
+
+            Then("it should store the params verbatim") {
+                queryExecutorUnderLimit.executionHistory shouldBe listOf(
+                    QueryExecuted(
+                        dslContext,
+                        dslContext.insertQuery(UOW_EVENTS)
+                            .also {
+                                it.setRecord(
+                                    UowEventsRecord().apply {
+                                        this.id = uowEvent.id.uuidValue()
+                                        this.name = uowEvent.uowName.toString()
+                                        this.idempotencyKey = uowEvent.idempotencyKey?.stringValue()
+                                        this.principalName = "TEST_PRINCIPAL"
+                                        this.principalId = "THIS_IS_SINGLETON"
+                                        this.occurredAt = now
+                                        this.modelEvents = arrayOf()
+                                        this.params = serializedParams
+                                    },
+                                )
+                            },
+                    ),
+                )
+            }
+        }
+    }
 })
