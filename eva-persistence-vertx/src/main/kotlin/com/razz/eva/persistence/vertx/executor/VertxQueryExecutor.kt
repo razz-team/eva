@@ -3,6 +3,7 @@ package com.razz.eva.persistence.vertx.executor
 import com.razz.eva.domain.ModelId
 import com.razz.eva.persistence.ConnectionMode.REQUIRE_EXISTING
 import com.razz.eva.persistence.PersistenceException
+import com.razz.eva.persistence.PersistenceException.ConnectionException
 import com.razz.eva.persistence.PersistenceException.ModelPersistingGenericException
 import com.razz.eva.persistence.PersistenceException.ModelRecordConstraintViolationException
 import com.razz.eva.persistence.PersistenceException.StaleRecordException
@@ -10,11 +11,13 @@ import com.razz.eva.persistence.PersistenceException.UniqueModelRecordViolationE
 import com.razz.eva.persistence.TransactionManager
 import com.razz.eva.persistence.executor.QueryExecutor
 import com.razz.eva.persistence.executor.QueryExecutor.Constraint
+import com.razz.eva.persistence.postgres.PgHelpers.PG_CONNECTION_UNAVAILABLE
 import com.razz.eva.persistence.postgres.PgHelpers.PG_UNIQUE_VIOLATION
 import io.vertx.core.json.Json
 import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.pgclient.PgConnection
 import io.vertx.pgclient.PgException
+import io.vertx.sqlclient.ClosedConnectionException
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
 import io.vertx.sqlclient.SqlResult
@@ -31,10 +34,12 @@ import org.jooq.Select
 import org.jooq.StoreQuery
 import org.jooq.Table
 import org.jooq.exception.SQLStateClass
+import org.jooq.exception.SQLStateClass.C08_CONNECTION_EXCEPTION
 import org.jooq.exception.SQLStateClass.C23_INTEGRITY_CONSTRAINT_VIOLATION
 import org.jooq.exception.SQLStateClass.C40_TRANSACTION_ROLLBACK
 import org.jooq.impl.SQLDataType
 import org.jooq.postgres.extensions.types.Inet
+import java.io.IOException
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -162,19 +167,18 @@ class VertxQueryExecutor(
     }
 
     override fun extractModelException(ex: Exception, table: Table<*>, modelId: ModelId<*>): PersistenceException? {
-        val pge = ex as? PgException ?: return null
-
         return when {
-            pge.sqlState == PG_UNIQUE_VIOLATION -> UniqueModelRecordViolationException(
+            ex.connectionDead() -> ConnectionException(ex)
+            ex !is PgException -> null
+            ex.sqlState == PG_UNIQUE_VIOLATION -> UniqueModelRecordViolationException(
                 modelId = modelId,
                 tableName = table.name,
-                constraintName = pge.constraint,
+                constraintName = ex.constraint,
             )
-
-            pge.sqlStateClass == C23_INTEGRITY_CONSTRAINT_VIOLATION -> ModelRecordConstraintViolationException(
+            ex.sqlStateClass == C23_INTEGRITY_CONSTRAINT_VIOLATION -> ModelRecordConstraintViolationException(
                 modelId = modelId,
                 tableName = table.name,
-                constraintName = pge.constraint,
+                constraintName = ex.constraint,
             )
             // https://www.postgresql.org/message-id/flat/CANbGkDhq9gZnEouo2PZHP3HGMAJKk7fZf3eU3Q8g46Y-1uGZ-w%40mail.gmail.com#e5de345d77abe0184e394f0701bb8bc5
             //  According to the thread above, transaction error with message message
@@ -183,11 +187,24 @@ class VertxQueryExecutor(
             //  and concurrent transaction T0 is trying to update the same record.
             //  This should not cause transaction rollback in T0 due to serialisation error,
             //  rather we should fail due to version mismatch (stale record).
-            pge.sqlStateClass == C40_TRANSACTION_ROLLBACK -> StaleRecordException(modelId, table.name)
-
+            ex.sqlStateClass == C40_TRANSACTION_ROLLBACK -> StaleRecordException(modelId, table.name)
+            ex.connectionUnavailable() -> ConnectionException(ex)
             else -> ModelPersistingGenericException(modelId, ex)
         }
     }
+
+    override fun extractConnectionException(ex: Exception): ConnectionException? = when {
+        ex.connectionDead() -> ConnectionException(ex)
+        ex is PgException && ex.connectionUnavailable() -> ConnectionException(ex)
+        else -> null
+    }
+
+    // the vertx client has no wrapping layer: a socket death surfaces either as its
+    // ClosedConnectionException or as a raw io exception, both without a sql state to match on
+    private fun Exception.connectionDead(): Boolean = this is ClosedConnectionException || this is IOException
+
+    private fun PgException.connectionUnavailable(): Boolean =
+        sqlStateClass == C08_CONNECTION_EXCEPTION || sqlState in PG_CONNECTION_UNAVAILABLE
 }
 
 private val PgException.sqlStateClass get() = SQLStateClass.fromCode(sqlState)

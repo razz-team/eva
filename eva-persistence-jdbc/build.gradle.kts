@@ -16,4 +16,5 @@ dependencies {
     implementation(libs.jooq)
 
     testImplementation(libs.opentelemetry.sdk.testing)
+    testImplementation(testFixtures(project(eva.eva_persistence)))
 }

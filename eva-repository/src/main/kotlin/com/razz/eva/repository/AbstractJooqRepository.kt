@@ -283,11 +283,15 @@ abstract class AbstractJooqRepository<ID, MID, M, ME, R>(
     }
 
     protected suspend fun <R : Record> allRecords(select: Select<R>): List<R> {
-        return queryExecutor.executeSelect(
-            dslContext = dslContext,
-            jooqQuery = select,
-            table = select.asTable(),
-        )
+        return try {
+            queryExecutor.executeSelect(
+                dslContext = dslContext,
+                jooqQuery = select,
+                table = select.asTable(),
+            )
+        } catch (ex: Exception) {
+            throw queryExecutor.extractConnectionException(ex) ?: ex
+        }
     }
 
     @Throws(JooqQueryException::class)

@@ -8,6 +8,10 @@ import kotlin.coroutines.CoroutineContext
  * The unit of work executor installs one around tryPerform, so the recorded value is the number of
  * connections the perform phase acquired: one per read in the default flush scope, zero in the
  * full unit of work scope where reads join the attempt's already-open transaction.
+ *
+ * The zero is structural, not an absence of work: the full-scope attempt's single connection is
+ * acquired before this element is installed, so it is deliberately never counted. Consumers rely on
+ * the drop to zero as the verification signal that a scope flip took effect.
  */
 class ConnectionAcquisitionCounter : CoroutineContext.Element {
 

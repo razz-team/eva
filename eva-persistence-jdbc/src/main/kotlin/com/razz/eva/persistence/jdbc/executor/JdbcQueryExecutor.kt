@@ -3,6 +3,7 @@ package com.razz.eva.persistence.jdbc.executor
 import com.razz.eva.domain.ModelId
 import com.razz.eva.persistence.ConnectionMode.REQUIRE_EXISTING
 import com.razz.eva.persistence.PersistenceException
+import com.razz.eva.persistence.PersistenceException.ConnectionException
 import com.razz.eva.persistence.PersistenceException.ModelPersistingGenericException
 import com.razz.eva.persistence.PersistenceException.ModelRecordConstraintViolationException
 import com.razz.eva.persistence.PersistenceException.StaleRecordException
@@ -10,6 +11,7 @@ import com.razz.eva.persistence.PersistenceException.UniqueModelRecordViolationE
 import com.razz.eva.persistence.TransactionManager
 import com.razz.eva.persistence.executor.QueryExecutor
 import com.razz.eva.persistence.executor.QueryExecutor.Constraint
+import com.razz.eva.persistence.postgres.PgHelpers.PG_CONNECTION_UNAVAILABLE
 import com.razz.eva.persistence.postgres.PgHelpers.PG_UNIQUE_VIOLATION
 import com.razz.eva.tracing.QueryTracingListenerProvider
 import io.opentelemetry.api.OpenTelemetry
@@ -23,6 +25,7 @@ import org.jooq.Select
 import org.jooq.StoreQuery
 import org.jooq.Table
 import org.jooq.exception.DataAccessException
+import org.jooq.exception.SQLStateClass.C08_CONNECTION_EXCEPTION
 import org.jooq.exception.SQLStateClass.C23_INTEGRITY_CONSTRAINT_VIOLATION
 import org.jooq.exception.SQLStateClass.C40_TRANSACTION_ROLLBACK
 import org.jooq.impl.DSL
@@ -112,13 +115,11 @@ class JdbcQueryExecutor(
                 tableName = table.name,
                 constraintName = extractUniqueConstraintName(dae, table)?.name,
             )
-
             dae.sqlStateClass() == C23_INTEGRITY_CONSTRAINT_VIOLATION -> ModelRecordConstraintViolationException(
                 modelId = modelId,
                 tableName = table.name,
                 constraintName = extractConstraintName(dae)?.name,
             )
-
             // https://www.postgresql.org/message-id/flat/CANbGkDhq9gZnEouo2PZHP3HGMAJKk7fZf3eU3Q8g46Y-1uGZ-w%40mail.gmail.com#e5de345d77abe0184e394f0701bb8bc5
             //  According to the thread above, transaction error with message message
             //  "tuple to be locked was already moved to another partition due to concurrent update"
@@ -127,10 +128,18 @@ class JdbcQueryExecutor(
             //  This should not cause transaction rollback in T0 due to serialisation error,
             //  rather we should fail due to version mismatch (stale record).
             dae.sqlStateClass() == C40_TRANSACTION_ROLLBACK -> StaleRecordException(modelId, table.name)
-
+            dae.connectionUnavailable() -> ConnectionException(ex)
             else -> ModelPersistingGenericException(modelId, ex)
         }
     }
+
+    override fun extractConnectionException(ex: Exception): ConnectionException? {
+        val dae = ex as? DataAccessException ?: return null
+        return if (dae.connectionUnavailable()) ConnectionException(ex) else null
+    }
+
+    private fun DataAccessException.connectionUnavailable(): Boolean =
+        sqlStateClass() == C08_CONNECTION_EXCEPTION || sqlState() in PG_CONNECTION_UNAVAILABLE
 
     private fun DSLContext.using(connection: Connection): DSLContext {
         val configWithConnection = configuration()

@@ -18,4 +18,6 @@ dependencies {
     implementation(libs.vertx.kotlin.coroutines)
     implementation(libs.jooq)
     implementation(libs.jooq.postgres)
+
+    testImplementation(testFixtures(project(eva.eva_persistence)))
 }

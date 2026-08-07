@@ -2,6 +2,8 @@ package com.razz.eva.persistence
 
 import com.razz.eva.persistence.ConnectionMode.REQUIRE_EXISTING
 import com.razz.eva.persistence.ConnectionMode.REQUIRE_NEW
+import com.razz.eva.persistence.PersistenceException.ConnectionException
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.currentCoroutineContext
@@ -16,7 +18,7 @@ abstract class TransactionManager<C>(
             null -> {
                 var newConn: C? = null
                 try {
-                    newConn = connectionProvider(currentCoroutineContext()).acquire()
+                    newConn = acquire(connectionProvider(currentCoroutineContext()))
                     currentCoroutineContext()[ConnectionAcquisitionCounter]?.increment()
                     block(newConn)
                 } finally {
@@ -36,7 +38,7 @@ abstract class TransactionManager<C>(
                 check(mode == REQUIRE_NEW) { "Required existing connection but no existing connection was found" }
                 var newConn: C? = null
                 try {
-                    newConn = primaryProvider.acquire()
+                    newConn = acquire(primaryProvider)
                     currentCoroutineContext()[ConnectionAcquisitionCounter]?.increment()
                     val ctx = wrapConnection(newConn)
                     withContext(ctx) {
@@ -63,6 +65,14 @@ abstract class TransactionManager<C>(
                 block(existingConn)
             }
         }
+    }
+
+    private suspend fun acquire(provider: ConnectionProvider<C>): C = try {
+        provider.acquire()
+    } catch (ex: CancellationException) {
+        throw ex
+    } catch (ex: Exception) {
+        throw ConnectionException(ex)
     }
 
     private fun connectionProvider(coroutineContext: CoroutineContext) =
