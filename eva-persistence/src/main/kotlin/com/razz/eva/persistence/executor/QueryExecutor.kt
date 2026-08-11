@@ -25,9 +25,14 @@ interface QueryExecutor {
      * With [returning] omitted or null, the clause expands to all columns of the query's own table
      * and the returned [ROUT] records are fully populated.
      * With explicit [returning] fields, the clause contains exactly those fields and only the ones
-     * belonging to [table] are populated on the returned records.
+     * belonging to [table] are populated on the returned records; fields of expressions or other
+     * tables are returned by the database but dropped from the records. Such partial records carry
+     * no values for the remaining columns and are not suitable for model hydration.
      *
      * Explicit [returning] must not be empty; use [executeQuery] for DML without `RETURNING`.
+     * Explicit [returning] fields render with their own qualification: for a query built on an
+     * aliased table pass fields of the aliased table, otherwise the rendered `RETURNING` references
+     * the table name that the alias hides and the statement fails.
      */
     suspend fun <RIN : Record, ROUT : Record> executeStore(
         dslContext: DSLContext,

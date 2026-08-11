@@ -22,6 +22,7 @@ import org.jooq.Field
 import org.jooq.Param
 import org.jooq.Query
 import org.jooq.Record
+import org.jooq.ResultQuery
 import org.jooq.Select
 import org.jooq.StoreQuery
 import org.jooq.Table
@@ -44,7 +45,7 @@ class JdbcQueryExecutor(
         table: Table<R>,
     ): List<R> {
         return transactionManager.withConnection { connection ->
-            dslContext.using(connection).preparedQuery(jooqQuery, table)
+            dslContext.using(connection).preparedQuery(jooqQuery).coerce(table).fetch()
         }
     }
 
@@ -57,13 +58,13 @@ class JdbcQueryExecutor(
         return if (returning == null) {
             jooqQuery.setReturning()
             transactionManager.inTransaction(REQUIRE_EXISTING) { connection ->
-                dslContext.using(connection).preparedQuery(jooqQuery, table)
+                dslContext.using(connection).preparedQuery(jooqQuery).coerce(table).fetch()
             }
         } else {
             require(returning.isNotEmpty()) { "Returning fields must not be empty, use executeQuery for a row count" }
             jooqQuery.setReturning(returning)
             transactionManager.inTransaction(REQUIRE_EXISTING) { connection ->
-                dslContext.using(connection).preparedQuery(jooqQuery, returning).map { it.into(table) }
+                dslContext.using(connection).preparedQuery(jooqQuery).coerce(returning).fetch().map { it.into(table) }
             }
         }
     }
@@ -85,27 +86,15 @@ class JdbcQueryExecutor(
         }
     }
 
-    private fun <R : Record> DSLContext.preparedQuery(
-        jooqQuery: Query,
-        table: Table<R>,
-    ): List<R> = resultQuery(
-        render(jooqQuery),
-        *extractParams(jooqQuery)
-            .values
-            .filterNot(Param<*>::isInline)
-            .toTypedArray(),
-    ).coerce(table).fetch()
-
     private fun DSLContext.preparedQuery(
         jooqQuery: Query,
-        returning: Collection<Field<*>>,
-    ): List<Record> = resultQuery(
+    ): ResultQuery<Record> = resultQuery(
         render(jooqQuery),
         *extractParams(jooqQuery)
             .values
             .filterNot(Param<*>::isInline)
             .toTypedArray(),
-    ).coerce(returning).fetch()
+    )
 
     override fun extractConstraintName(ex: Exception): Constraint? {
         val dataAccessException = ex as? DataAccessException ?: return null

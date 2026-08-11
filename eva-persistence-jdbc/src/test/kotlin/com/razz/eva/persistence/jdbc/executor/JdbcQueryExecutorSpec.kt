@@ -236,6 +236,34 @@ class JdbcQueryExecutorSpec : BehaviorSpec({
             }
         }
 
+        And("Mock connection returning requested fields for two rows") {
+            val secondId = UUID.fromString("06c04353-c8e4-4ea9-a973-c688a6779b04")
+            val connection = MockConnection {
+                val result = DSL.using(POSTGRES).newResult(storeTable.ID)
+                result.add(DSL.using(POSTGRES).newRecord(storeTable.ID).values(id))
+                result.add(DSL.using(POSTGRES).newRecord(storeTable.ID).values(secondId))
+                arrayOf(MockResult(2, result))
+            }
+
+            When("Principal calls execute store for two rows with explicit returning fields") {
+                val insert = dslContext.insertQuery(storeTable).apply {
+                    addValue(storeTable.ID, id)
+                    addValue(storeTable.NAME, "razz")
+                    newRecord()
+                    addValue(storeTable.ID, secondId)
+                    addValue(storeTable.NAME, "team")
+                }
+                val stored = withContext(Dispatchers.IO + JdbcConnectionElement(connection)) {
+                    executor.executeStore(dslContext, insert, storeTable, listOf(storeTable.ID))
+                }
+
+                Then("Each returned record has only the requested fields populated") {
+                    stored.map { it.get(storeTable.ID) } shouldBe listOf(id, secondId)
+                    stored.map { it.get(storeTable.NAME) } shouldBe listOf(null, null)
+                }
+            }
+        }
+
         And("Mock connection returning full rows") {
             val capturedSql = mutableListOf<String>()
             val connection = MockConnection { ctx ->
