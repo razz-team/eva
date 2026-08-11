@@ -18,6 +18,7 @@ import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.api.OpenTelemetry.noop
 import org.jooq.DMLQuery
 import org.jooq.DSLContext
+import org.jooq.Field
 import org.jooq.Param
 import org.jooq.Query
 import org.jooq.Record
@@ -58,6 +59,19 @@ class JdbcQueryExecutor(
         }
     }
 
+    override suspend fun <RIN : Record, ROUT : Record> executeStore(
+        dslContext: DSLContext,
+        jooqQuery: StoreQuery<RIN>,
+        table: Table<ROUT>,
+        returning: Collection<Field<*>>,
+    ): List<ROUT> {
+        require(returning.isNotEmpty()) { "Returning fields must not be empty, use executeQuery for a row count" }
+        jooqQuery.setReturning(returning)
+        return transactionManager.inTransaction(REQUIRE_EXISTING) { connection ->
+            dslContext.using(connection).preparedQuery(jooqQuery, returning).map { it.into(table) }
+        }
+    }
+
     override suspend fun <R : Record> executeQuery(
         dslContext: DSLContext,
         jooqQuery: DMLQuery<R>,
@@ -85,6 +99,17 @@ class JdbcQueryExecutor(
             .filterNot(Param<*>::isInline)
             .toTypedArray(),
     ).coerce(table).fetch()
+
+    private fun DSLContext.preparedQuery(
+        jooqQuery: Query,
+        returning: Collection<Field<*>>,
+    ): List<Record> = resultQuery(
+        render(jooqQuery),
+        *extractParams(jooqQuery)
+            .values
+            .filterNot(Param<*>::isInline)
+            .toTypedArray(),
+    ).coerce(returning).fetch()
 
     override fun extractConstraintName(ex: Exception): Constraint? {
         val dataAccessException = ex as? DataAccessException ?: return null

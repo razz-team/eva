@@ -7,6 +7,8 @@ import com.razz.eva.persistence.jdbc.JdbcTransactionManager
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.string.shouldNotContain
 import io.kotest.matchers.types.shouldBeTypeOf
 import io.mockk.clearMocks
 import io.mockk.coEvery
@@ -16,11 +18,22 @@ import io.mockk.spyk
 import io.opentelemetry.api.OpenTelemetry.noop
 import java.sql.Connection
 import java.sql.SQLException
+import java.util.UUID
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.jooq.Record
 import org.jooq.SQLDialect.POSTGRES
 import org.jooq.exception.DataAccessException
 import org.jooq.impl.DSL
+import org.jooq.impl.SQLDataType
+import org.jooq.impl.TableImpl
+import org.jooq.tools.jdbc.MockConnection
+import org.jooq.tools.jdbc.MockResult
+
+private val storeTable = object : TableImpl<Record>(DSL.name("store_test")) {
+    val ID = createField(DSL.name("id"), SQLDataType.UUID)
+    val NAME = createField(DSL.name("name"), SQLDataType.VARCHAR)
+}
 
 class JdbcQueryExecutorSpec : BehaviorSpec({
 
@@ -182,6 +195,80 @@ class JdbcQueryExecutorSpec : BehaviorSpec({
                         connectionProvider.release(connection)
                     }
                 }
+            }
+        }
+    }
+
+    Given("Jdbc query executor over a jooq mock connection") {
+        val connectionProvider = mockk<JdbcConnectionProvider>(relaxed = true)
+        val executor = JdbcQueryExecutor(JdbcTransactionManager(connectionProvider, connectionProvider), noop())
+        val id = UUID.fromString("b1e9a6a4-3c56-4864-9d9a-4ba33b0480e5")
+
+        fun insertQuery() = dslContext.insertQuery(storeTable).apply {
+            addValue(storeTable.ID, id)
+            addValue(storeTable.NAME, "razz")
+        }
+
+        And("Mock connection returning requested fields") {
+            val capturedSql = mutableListOf<String>()
+            val connection = MockConnection { ctx ->
+                capturedSql += ctx.sql()
+                val result = DSL.using(POSTGRES).newResult(storeTable.ID)
+                result.add(DSL.using(POSTGRES).newRecord(storeTable.ID).values(id))
+                arrayOf(MockResult(1, result))
+            }
+
+            When("Principal calls execute store with explicit returning fields") {
+                val stored = withContext(Dispatchers.IO + JdbcConnectionElement(connection)) {
+                    executor.executeStore(dslContext, insertQuery(), storeTable, listOf(storeTable.ID))
+                }
+
+                Then("Returning clause contains only the requested fields") {
+                    val returning = capturedSql.single().substringAfter("returning")
+                    returning shouldContain "\"id\""
+                    returning shouldNotContain "\"name\""
+                }
+                And("Only the requested fields are populated") {
+                    val record = stored.single()
+                    record.get(storeTable.ID) shouldBe id
+                    record.get(storeTable.NAME) shouldBe null
+                }
+            }
+        }
+
+        And("Mock connection returning full rows") {
+            val capturedSql = mutableListOf<String>()
+            val connection = MockConnection { ctx ->
+                capturedSql += ctx.sql()
+                val result = DSL.using(POSTGRES).newResult(storeTable.ID, storeTable.NAME)
+                result.add(DSL.using(POSTGRES).newRecord(storeTable.ID, storeTable.NAME).values(id, "razz"))
+                arrayOf(MockResult(1, result))
+            }
+
+            When("Principal calls execute store without explicit returning fields") {
+                val stored = withContext(Dispatchers.IO + JdbcConnectionElement(connection)) {
+                    executor.executeStore(dslContext, insertQuery(), storeTable)
+                }
+
+                Then("Returning clause contains all table columns") {
+                    val returning = capturedSql.single().substringAfter("returning")
+                    returning shouldContain "\"id\""
+                    returning shouldContain "\"name\""
+                }
+                And("All fields are populated") {
+                    val record = stored.single()
+                    record.get(storeTable.ID) shouldBe id
+                    record.get(storeTable.NAME) shouldBe "razz"
+                }
+            }
+        }
+
+        When("Principal calls execute store with empty returning fields") {
+            Then("Exception thrown saying returning fields must not be empty") {
+                val ex = shouldThrow<IllegalArgumentException> {
+                    executor.executeStore(dslContext, insertQuery(), storeTable, listOf())
+                }
+                ex.message shouldBe "Returning fields must not be empty, use executeQuery for a row count"
             }
         }
     }

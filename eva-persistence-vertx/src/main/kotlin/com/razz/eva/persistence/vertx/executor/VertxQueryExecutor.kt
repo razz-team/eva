@@ -26,6 +26,7 @@ import io.vertx.sqlclient.impl.ListTuple
 import org.jooq.Converter
 import org.jooq.DMLQuery
 import org.jooq.DSLContext
+import org.jooq.Field
 import org.jooq.JSON
 import org.jooq.JSONB
 import org.jooq.Query
@@ -55,7 +56,7 @@ class VertxQueryExecutor(
         table: Table<R>,
     ): List<R> {
         return transactionManager.withConnection { connection ->
-            val rows = executeQuery(connection, dslContext, jooqQuery, table)
+            val rows = executeQuery(connection, dslContext, jooqQuery, table.fields(), table)
             rows.toList()
         }
     }
@@ -67,7 +68,21 @@ class VertxQueryExecutor(
     ): List<ROUT> {
         return transactionManager.inTransaction(REQUIRE_EXISTING) { connection ->
             jooqQuery.setReturning()
-            val rows = executeQuery(connection, dslContext, jooqQuery, table)
+            val rows = executeQuery(connection, dslContext, jooqQuery, table.fields(), table)
+            rows.toList()
+        }
+    }
+
+    override suspend fun <RIN : Record, ROUT : Record> executeStore(
+        dslContext: DSLContext,
+        jooqQuery: StoreQuery<RIN>,
+        table: Table<ROUT>,
+        returning: Collection<Field<*>>,
+    ): List<ROUT> {
+        require(returning.isNotEmpty()) { "Returning fields must not be empty, use executeQuery for a row count" }
+        return transactionManager.inTransaction(REQUIRE_EXISTING) { connection ->
+            jooqQuery.setReturning(returning)
+            val rows = executeQuery(connection, dslContext, jooqQuery, returning.toTypedArray(), table)
             rows.toList()
         }
     }
@@ -86,9 +101,10 @@ class VertxQueryExecutor(
         connection: PgConnection,
         dslContext: DSLContext,
         jooqQuery: Query,
+        fields: Array<out Field<*>>,
         table: Table<R>,
     ): RowSet<R> = connection.preparedQuery(dslContext.renderNamedParams(jooqQuery)).mapping { row ->
-        convertRowToRecord(dslContext, row, table)
+        convertRowToRecord(dslContext, row, fields, table)
     }.execute(bindParams(dslContext, jooqQuery)).coAwait()
 
     private fun bindParams(
@@ -114,9 +130,9 @@ class VertxQueryExecutor(
     private fun <R : Record> convertRowToRecord(
         dslContext: DSLContext,
         row: Row,
+        fields: Array<out Field<*>>,
         table: Table<R>,
     ): R {
-        val fields = table.fields()
         val values = arrayOfNulls<Any>(fields.size)
         for (i in fields.indices) {
             val field = fields[i]
@@ -141,7 +157,7 @@ class VertxQueryExecutor(
             }
         }
 
-        val record = dslContext.newRecord(table)
+        val record = dslContext.newRecord(*fields)
         record.fromArray(*values)
         record.touched(false)
         return record.into(table)
