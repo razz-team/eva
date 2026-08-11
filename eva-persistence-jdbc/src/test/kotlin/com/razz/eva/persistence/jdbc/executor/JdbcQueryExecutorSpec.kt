@@ -224,14 +224,40 @@ class JdbcQueryExecutorSpec : BehaviorSpec({
                 }
 
                 Then("Returning clause contains only the requested fields") {
-                    val returning = capturedSql.single().substringAfter("returning")
-                    returning shouldContain "\"id\""
-                    returning shouldNotContain "\"name\""
+                    capturedSql.single() shouldContain "returning \"store_test\".\"id\""
+                    capturedSql.single().substringAfter("returning") shouldNotContain "\"name\""
                 }
                 And("Only the requested fields are populated") {
                     val record = stored.single()
                     record.get(storeTable.ID) shouldBe id
                     record.get(storeTable.NAME) shouldBe null
+                }
+            }
+        }
+
+        And("Mock connection returning requested fields for an aliased update") {
+            val capturedSql = mutableListOf<String>()
+            val connection = MockConnection { ctx ->
+                capturedSql += ctx.sql()
+                val result = DSL.using(POSTGRES).newResult(storeTable.ID)
+                result.add(DSL.using(POSTGRES).newRecord(storeTable.ID).values(id))
+                arrayOf(MockResult(1, result))
+            }
+
+            When("Principal calls execute store with fields of the unaliased table") {
+                val aliased = storeTable.`as`("t")
+                val update = dslContext.updateQuery(aliased).apply {
+                    addValue(DSL.field(DSL.name("t", "name"), String::class.java), "razz")
+                }
+                val stored = withContext(Dispatchers.IO + JdbcConnectionElement(connection)) {
+                    executor.executeStore(dslContext, update, storeTable, listOf(storeTable.ID))
+                }
+
+                Then("Returning clause is requalified with the alias") {
+                    capturedSql.single() shouldContain "returning \"t\".\"id\""
+                }
+                And("Requested fields are populated") {
+                    stored.single().get(storeTable.ID) shouldBe id
                 }
             }
         }
@@ -279,9 +305,7 @@ class JdbcQueryExecutorSpec : BehaviorSpec({
                 }
 
                 Then("Returning clause contains all table columns") {
-                    val returning = capturedSql.single().substringAfter("returning")
-                    returning shouldContain "\"id\""
-                    returning shouldContain "\"name\""
+                    capturedSql.single() shouldContain "returning \"store_test\".\"id\", \"store_test\".\"name\""
                 }
                 And("All fields are populated") {
                     val record = stored.single()

@@ -9,6 +9,8 @@ import org.jooq.Record
 import org.jooq.Select
 import org.jooq.StoreQuery
 import org.jooq.Table
+import org.jooq.TableField
+import org.jooq.impl.QOM
 
 interface QueryExecutor {
 
@@ -24,15 +26,16 @@ interface QueryExecutor {
      *
      * With [returning] omitted or null, the clause expands to all columns of the query's own table
      * and the returned [ROUT] records are fully populated.
-     * With explicit [returning] fields, the clause contains exactly those fields and only the ones
-     * belonging to [table] are populated on the returned records; fields of expressions or other
-     * tables are returned by the database but dropped from the records. Such partial records carry
-     * no values for the remaining columns and are not suitable for model hydration.
+     * With explicit [returning] fields, the clause contains exactly those fields. Returned values
+     * map onto the [table] record by field name: a returned field whose name matches a [table]
+     * column populates that column whatever its origin, and returned names without a match are
+     * dropped. Columns outside [returning] stay null, so such partial records are not suitable
+     * for model hydration.
      *
      * Explicit [returning] must not be empty; use [executeQuery] for DML without `RETURNING`.
-     * Explicit [returning] fields render with their own qualification: for a query built on an
-     * aliased table pass fields of the aliased table, otherwise the rendered `RETURNING` references
-     * the table name that the alias hides and the statement fails.
+     * Explicit [returning] columns are requalified against the query's target table, so for a query
+     * built on an aliased table the `RETURNING` clause renders alias-qualified columns.
+     * Non-column expressions render as passed.
      */
     suspend fun <RIN : Record, ROUT : Record> executeStore(
         dslContext: DSLContext,
@@ -56,4 +59,29 @@ interface QueryExecutor {
 
     @JvmInline
     value class Constraint(val name: String?)
+
+    companion object {
+
+        /**
+         * Requalifies [returning] columns against the target table of [jooqQuery]: a [TableField]
+         * whose name the target table knows resolves to the target's own field, so fields of an
+         * aliased table render with the alias. Non-column expressions and unknown fields are kept
+         * as passed.
+         */
+        fun matchReturning(jooqQuery: StoreQuery<*>, returning: Collection<Field<*>>): List<Field<*>> {
+            require(returning.isNotEmpty()) { "Returning fields must not be empty, use executeQuery for a row count" }
+            val target = when (jooqQuery) {
+                is QOM.Insert<*> -> jooqQuery.`$into`()
+                is QOM.Update<*> -> jooqQuery.`$table`()
+                else -> null
+            }
+            return if (target == null) {
+                returning.toList()
+            } else {
+                returning.map { field ->
+                    if (field is TableField<*, *>) target.field(field) ?: field else field
+                }
+            }
+        }
+    }
 }

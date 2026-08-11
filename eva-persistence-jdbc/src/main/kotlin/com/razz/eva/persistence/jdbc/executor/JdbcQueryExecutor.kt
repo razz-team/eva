@@ -10,6 +10,7 @@ import com.razz.eva.persistence.PersistenceException.StaleRecordException
 import com.razz.eva.persistence.PersistenceException.UniqueModelRecordViolationException
 import com.razz.eva.persistence.TransactionManager
 import com.razz.eva.persistence.executor.QueryExecutor
+import com.razz.eva.persistence.executor.QueryExecutor.Companion.matchReturning
 import com.razz.eva.persistence.executor.QueryExecutor.Constraint
 import com.razz.eva.persistence.postgres.PgHelpers.PG_CONNECTION_UNAVAILABLE
 import com.razz.eva.persistence.postgres.PgHelpers.PG_UNIQUE_VIOLATION
@@ -61,10 +62,10 @@ class JdbcQueryExecutor(
                 dslContext.using(connection).preparedQuery(jooqQuery).coerce(table).fetch()
             }
         } else {
-            require(returning.isNotEmpty()) { "Returning fields must not be empty, use executeQuery for a row count" }
-            jooqQuery.setReturning(returning)
+            val fields = matchReturning(jooqQuery, returning)
+            jooqQuery.setReturning(fields)
             transactionManager.inTransaction(REQUIRE_EXISTING) { connection ->
-                dslContext.using(connection).preparedQuery(jooqQuery).coerce(returning).fetch().map { it.into(table) }
+                dslContext.using(connection).preparedQuery(jooqQuery).coerce(fields).fetch().map { it.into(table) }
             }
         }
     }

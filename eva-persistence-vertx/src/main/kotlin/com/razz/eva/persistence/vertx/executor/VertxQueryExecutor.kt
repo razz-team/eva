@@ -10,6 +10,7 @@ import com.razz.eva.persistence.PersistenceException.StaleRecordException
 import com.razz.eva.persistence.PersistenceException.UniqueModelRecordViolationException
 import com.razz.eva.persistence.TransactionManager
 import com.razz.eva.persistence.executor.QueryExecutor
+import com.razz.eva.persistence.executor.QueryExecutor.Companion.matchReturning
 import com.razz.eva.persistence.executor.QueryExecutor.Constraint
 import com.razz.eva.persistence.postgres.PgHelpers.PG_CONNECTION_UNAVAILABLE
 import com.razz.eva.persistence.postgres.PgHelpers.PG_UNIQUE_VIOLATION
@@ -67,16 +68,14 @@ class VertxQueryExecutor(
         table: Table<ROUT>,
         returning: Collection<Field<*>>?,
     ): List<ROUT> {
-        require(returning == null || returning.isNotEmpty()) {
-            "Returning fields must not be empty, use executeQuery for a row count"
-        }
+        val matched = returning?.let { matchReturning(jooqQuery, it) }
         return transactionManager.inTransaction(REQUIRE_EXISTING) { connection ->
-            val fields = if (returning == null) {
+            val fields = if (matched == null) {
                 jooqQuery.setReturning()
                 table.fields()
             } else {
-                jooqQuery.setReturning(returning)
-                returning.toTypedArray()
+                jooqQuery.setReturning(matched)
+                matched.toTypedArray()
             }
             val rows = executeQuery(connection, dslContext, jooqQuery, fields, table)
             rows.toList()

@@ -5,6 +5,7 @@ import com.razz.eva.persistence.PersistenceException
 import com.razz.eva.persistence.executor.FakeMemorizingQueryExecutor.ExecutionStep.QueryExecuted
 import com.razz.eva.persistence.executor.FakeMemorizingQueryExecutor.ExecutionStep.SelectExecuted
 import com.razz.eva.persistence.executor.FakeMemorizingQueryExecutor.ExecutionStep.StoreExecuted
+import com.razz.eva.persistence.executor.QueryExecutor.Companion.matchReturning
 import com.razz.eva.persistence.executor.QueryExecutor.Constraint
 import org.jooq.DMLQuery
 import org.jooq.DSLContext
@@ -56,14 +57,18 @@ class FakeMemorizingQueryExecutor(
         table: Table<ROUT>,
         returning: Collection<Field<*>>?,
     ): List<ROUT> {
-        if (returning != null) {
-            require(returning.isNotEmpty()) { "Returning fields must not be empty, use executeQuery for a row count" }
-            jooqQuery.setReturning(returning)
+        val fields = returning?.let { matchReturning(jooqQuery, it).toTypedArray() }
+        if (fields != null) {
+            jooqQuery.setReturning(*fields)
         }
         executions += StoreExecuted(dslContext, jooqQuery, table)
-        return DSL.using(MockConnection(MockProvider(queries)), POSTGRES, dslContext.settings())
+        val fetched = DSL.using(MockConnection(MockProvider(queries)), POSTGRES, dslContext.settings())
             .fetch(jooqQuery.getSQL(INLINED))
-            .into(table)
+        return if (fields == null) {
+            fetched.into(table)
+        } else {
+            fetched.map { it.into(*fields).into(table) }
+        }
     }
 
     override suspend fun <R : Record> executeQuery(

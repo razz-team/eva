@@ -43,12 +43,11 @@ class VertxQueryExecutorReturningSpec : ShouldSpec({
 
     val sqlSlot = slot<String>()
     val mappingSlot = slot<Function<Row, Record>>()
-    val paramsSlot = slot<ListTuple>()
 
     val preparedQueryMock = mockk<PreparedQuery<RowSet<Row>>> {
         every { mapping(capture(mappingSlot)) } answers {
             mockk {
-                every { execute(capture(paramsSlot)) } returns succeededFuture(
+                every { execute(any<ListTuple>()) } returns succeededFuture(
                     mockk {
                         every { iterator() } answers {
                             mockk { every { hasNext() } returns false }
@@ -80,9 +79,8 @@ class VertxQueryExecutorReturningSpec : ShouldSpec({
             executor.executeStore(dslContext, insertQuery(), storeTable, listOf(storeTable.ID))
         }
 
-        val returning = sqlSlot.captured.substringAfter("returning")
-        returning shouldContain "\"id\""
-        returning shouldNotContain "\"name\""
+        sqlSlot.captured shouldContain "returning \"store_test\".\"id\""
+        sqlSlot.captured.substringAfter("returning") shouldNotContain "\"name\""
     }
 
     should("populate only caller-provided returning fields") {
@@ -104,9 +102,7 @@ class VertxQueryExecutorReturningSpec : ShouldSpec({
             executor.executeStore(dslContext, insertQuery(), storeTable)
         }
 
-        val returning = sqlSlot.captured.substringAfter("returning")
-        returning shouldContain "\"id\""
-        returning shouldContain "\"name\""
+        sqlSlot.captured shouldContain "returning \"store_test\".\"id\", \"store_test\".\"name\""
     }
 
     should("reject empty returning fields") {
