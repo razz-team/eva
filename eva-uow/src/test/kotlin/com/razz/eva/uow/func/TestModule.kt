@@ -6,7 +6,6 @@ import com.razz.eva.domain.DepartmentId
 import com.razz.eva.domain.Employee
 import com.razz.eva.events.EventPublisher
 import com.razz.eva.events.UowEvent
-import com.razz.eva.persistence.ConnectionMode.REQUIRE_EXISTING
 import com.razz.eva.persistence.config.DatabaseConfig
 import com.razz.eva.persistence.executor.QueryExecutor
 import com.razz.eva.repository.BubalehRepository
@@ -138,22 +137,10 @@ class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
             table: Table<ROUT>,
             returning: Collection<Field<*>>?,
         ): List<ROUT> {
-            transactionManager.inTransaction(REQUIRE_EXISTING) { connection ->
-                DSL.using(
-                    dslContext.configuration()
-                        .derive(connection as java.sql.Connection)
-                        .derive(dslContext.settings()),
-                ).run {
-                    execute(
-                        """
-                        DO $$ 
-                        BEGIN 
-                          RAISE SQLSTATE '40001' USING MESSAGE = 'Simulated serialization failure'; 
-                        END $$;
-                        """.trimIndent(),
-                    )
-                }
+            val rollingBack = dslContext.deleteQuery(DSL.table("departments")).apply {
+                addConditions(DSL.condition("raise_serialization_failure()"))
             }
+            queryExecutor.executeQuery(dslContext, rollingBack)
             return queryExecutor.executeStore(dslContext, jooqQuery, table, returning)
         }
     }
