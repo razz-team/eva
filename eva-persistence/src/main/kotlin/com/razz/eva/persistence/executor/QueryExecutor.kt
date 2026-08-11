@@ -19,31 +19,21 @@ interface QueryExecutor {
     ): List<R>
 
     /**
-     * Executes [jooqQuery] with a `RETURNING` clause of all [table] columns,
-     * replacing any `RETURNING` clause already set on the query.
-     * Returns fully populated [ROUT] records.
+     * Executes [jooqQuery] with a `RETURNING` clause, replacing any `RETURNING` clause
+     * already set on the query.
      *
-     * Use the overload with explicit [Field]s to control which columns come back,
-     * or [executeQuery] to skip `RETURNING` and get an affected row count.
+     * With [returning] omitted or null, the clause expands to all columns of the query's own table
+     * and the returned [ROUT] records are fully populated.
+     * With explicit [returning] fields, the clause contains exactly those fields and only the ones
+     * belonging to [table] are populated on the returned records.
+     *
+     * Explicit [returning] must not be empty; use [executeQuery] for DML without `RETURNING`.
      */
     suspend fun <RIN : Record, ROUT : Record> executeStore(
         dslContext: DSLContext,
         jooqQuery: StoreQuery<RIN>,
         table: Table<ROUT>,
-    ): List<ROUT>
-
-    /**
-     * Executes [jooqQuery] with a `RETURNING` clause of exactly [returning] fields,
-     * replacing any `RETURNING` clause already set on the query.
-     * Returns [ROUT] records where only the [returning] fields belonging to [table] are populated.
-     *
-     * [returning] must not be empty; use [executeQuery] for DML without `RETURNING`.
-     */
-    suspend fun <RIN : Record, ROUT : Record> executeStore(
-        dslContext: DSLContext,
-        jooqQuery: StoreQuery<RIN>,
-        table: Table<ROUT>,
-        returning: Collection<Field<*>>,
+        returning: Collection<Field<*>>? = null,
     ): List<ROUT>
 
     suspend fun <R : Record> executeQuery(

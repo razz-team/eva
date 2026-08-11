@@ -136,6 +136,7 @@ class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
             dslContext: DSLContext,
             jooqQuery: StoreQuery<RIN>,
             table: Table<ROUT>,
+            returning: Collection<Field<*>>?,
         ): List<ROUT> {
             transactionManager.inTransaction(REQUIRE_EXISTING) { connection ->
                 DSL.using(
@@ -153,7 +154,7 @@ class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
                     )
                 }
             }
-            return queryExecutor.executeStore(dslContext, jooqQuery, table)
+            return queryExecutor.executeStore(dslContext, jooqQuery, table, returning)
         }
     }
 

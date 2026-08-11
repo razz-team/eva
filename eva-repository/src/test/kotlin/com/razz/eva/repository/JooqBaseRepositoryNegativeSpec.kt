@@ -178,13 +178,7 @@ class JooqBaseRepositoryNegativeSpec : BehaviorSpec({
                 dslContext: DSLContext,
                 jooqQuery: StoreQuery<RIN>,
                 table: Table<ROUT>,
-            ): List<ROUT> = TODO("NEVER HAPPENS")
-
-            override suspend fun <RIN : Record, ROUT : Record> executeStore(
-                dslContext: DSLContext,
-                jooqQuery: StoreQuery<RIN>,
-                table: Table<ROUT>,
-                returning: Collection<Field<*>>,
+                returning: Collection<Field<*>>?,
             ): List<ROUT> = TODO("NEVER HAPPENS")
 
             override suspend fun <R : Record> executeQuery(

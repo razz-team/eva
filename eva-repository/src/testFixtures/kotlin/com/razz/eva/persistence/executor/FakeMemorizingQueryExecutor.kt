@@ -54,21 +54,12 @@ class FakeMemorizingQueryExecutor(
         dslContext: DSLContext,
         jooqQuery: StoreQuery<RIN>,
         table: Table<ROUT>,
+        returning: Collection<Field<*>>?,
     ): List<ROUT> {
-        executions += StoreExecuted(dslContext, jooqQuery, table)
-        return DSL.using(MockConnection(MockProvider(queries)), POSTGRES, dslContext.settings())
-            .fetch(jooqQuery.getSQL(INLINED))
-            .into(table)
-    }
-
-    override suspend fun <RIN : Record, ROUT : Record> executeStore(
-        dslContext: DSLContext,
-        jooqQuery: StoreQuery<RIN>,
-        table: Table<ROUT>,
-        returning: Collection<Field<*>>,
-    ): List<ROUT> {
-        require(returning.isNotEmpty()) { "Returning fields must not be empty, use executeQuery for a row count" }
-        jooqQuery.setReturning(returning)
+        if (returning != null) {
+            require(returning.isNotEmpty()) { "Returning fields must not be empty, use executeQuery for a row count" }
+            jooqQuery.setReturning(returning)
+        }
         executions += StoreExecuted(dslContext, jooqQuery, table)
         return DSL.using(MockConnection(MockProvider(queries)), POSTGRES, dslContext.settings())
             .fetch(jooqQuery.getSQL(INLINED))

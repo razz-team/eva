@@ -52,23 +52,19 @@ class JdbcQueryExecutor(
         dslContext: DSLContext,
         jooqQuery: StoreQuery<RIN>,
         table: Table<ROUT>,
+        returning: Collection<Field<*>>?,
     ): List<ROUT> {
-        jooqQuery.setReturning()
-        return transactionManager.inTransaction(REQUIRE_EXISTING) { connection ->
-            dslContext.using(connection).preparedQuery(jooqQuery, table)
-        }
-    }
-
-    override suspend fun <RIN : Record, ROUT : Record> executeStore(
-        dslContext: DSLContext,
-        jooqQuery: StoreQuery<RIN>,
-        table: Table<ROUT>,
-        returning: Collection<Field<*>>,
-    ): List<ROUT> {
-        require(returning.isNotEmpty()) { "Returning fields must not be empty, use executeQuery for a row count" }
-        jooqQuery.setReturning(returning)
-        return transactionManager.inTransaction(REQUIRE_EXISTING) { connection ->
-            dslContext.using(connection).preparedQuery(jooqQuery, returning).map { it.into(table) }
+        return if (returning == null) {
+            jooqQuery.setReturning()
+            transactionManager.inTransaction(REQUIRE_EXISTING) { connection ->
+                dslContext.using(connection).preparedQuery(jooqQuery, table)
+            }
+        } else {
+            require(returning.isNotEmpty()) { "Returning fields must not be empty, use executeQuery for a row count" }
+            jooqQuery.setReturning(returning)
+            transactionManager.inTransaction(REQUIRE_EXISTING) { connection ->
+                dslContext.using(connection).preparedQuery(jooqQuery, returning).map { it.into(table) }
+            }
         }
     }
 

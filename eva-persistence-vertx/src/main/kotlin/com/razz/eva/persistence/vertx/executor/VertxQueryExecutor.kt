@@ -65,24 +65,20 @@ class VertxQueryExecutor(
         dslContext: DSLContext,
         jooqQuery: StoreQuery<RIN>,
         table: Table<ROUT>,
+        returning: Collection<Field<*>>?,
     ): List<ROUT> {
-        return transactionManager.inTransaction(REQUIRE_EXISTING) { connection ->
-            jooqQuery.setReturning()
-            val rows = executeQuery(connection, dslContext, jooqQuery, table.fields(), table)
-            rows.toList()
+        require(returning == null || returning.isNotEmpty()) {
+            "Returning fields must not be empty, use executeQuery for a row count"
         }
-    }
-
-    override suspend fun <RIN : Record, ROUT : Record> executeStore(
-        dslContext: DSLContext,
-        jooqQuery: StoreQuery<RIN>,
-        table: Table<ROUT>,
-        returning: Collection<Field<*>>,
-    ): List<ROUT> {
-        require(returning.isNotEmpty()) { "Returning fields must not be empty, use executeQuery for a row count" }
         return transactionManager.inTransaction(REQUIRE_EXISTING) { connection ->
-            jooqQuery.setReturning(returning)
-            val rows = executeQuery(connection, dslContext, jooqQuery, returning.toTypedArray(), table)
+            val fields = if (returning == null) {
+                jooqQuery.setReturning()
+                table.fields()
+            } else {
+                jooqQuery.setReturning(returning)
+                returning.toTypedArray()
+            }
+            val rows = executeQuery(connection, dslContext, jooqQuery, fields, table)
             rows.toList()
         }
     }
