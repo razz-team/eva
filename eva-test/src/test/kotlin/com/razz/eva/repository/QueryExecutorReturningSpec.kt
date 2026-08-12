@@ -178,5 +178,23 @@ class QueryExecutorReturningSpec : RepositorySpec(TestEvaRepositoryHelper, {
                 stored.single().get(DEPARTMENTS.NAME) shouldBe "dep-$id".uppercase()
             }
         }
+
+        When("Principal inserts with a column aliased to a name outside the table") {
+            val id = UUID.randomUUID()
+            val stored = inTransaction {
+                executor.executeStore(
+                    dslContext,
+                    insertQuery(id),
+                    DEPARTMENTS,
+                    listOf(DEPARTMENTS.ID, DEPARTMENTS.NAME.`as`("title")),
+                )
+            }
+
+            Then("The database returns the aliased column but no record column matches it") {
+                val record = stored.single()
+                record.get(DEPARTMENTS.ID) shouldBe id
+                record.get(DEPARTMENTS.NAME) shouldBe null
+            }
+        }
     }
 })
