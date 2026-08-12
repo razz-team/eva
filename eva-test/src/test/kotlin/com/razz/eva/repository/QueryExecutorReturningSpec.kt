@@ -39,23 +39,30 @@ class QueryExecutorReturningSpec : RepositorySpec(TestEvaRepositoryHelper, {
             }
         }
 
-        When("Principal inserts with explicit returning fields") {
+        When("Principal inserts returning plain columns, an expression and a column aliased outside the table") {
             val id = UUID.randomUUID()
             val stored = inTransaction {
                 executor.executeStore(
                     dslContext,
                     insertQuery(id),
                     DEPARTMENTS,
-                    listOf(DEPARTMENTS.ID, DEPARTMENTS.STATE, DEPARTMENTS.RECORD_UPDATED_AT),
+                    listOf(
+                        DEPARTMENTS.ID,
+                        DEPARTMENTS.STATE,
+                        DEPARTMENTS.RECORD_UPDATED_AT,
+                        DSL.upper(DEPARTMENTS.NAME).`as`("name"),
+                        DEPARTMENTS.RATION.`as`("meal"),
+                    ),
                 )
             }
 
-            Then("Only the requested fields are populated") {
+            Then("Plain columns and the name-matched expression are populated, the rest stays null") {
                 val record = stored.single()
                 record.get(DEPARTMENTS.ID) shouldBe id
                 record.get(DEPARTMENTS.STATE) shouldBe OWNED
                 record.get(DEPARTMENTS.RECORD_UPDATED_AT) shouldBe now
-                record.get(DEPARTMENTS.NAME) shouldBe null
+                record.get(DEPARTMENTS.NAME) shouldBe "dep-$id".uppercase()
+                record.get(DEPARTMENTS.RATION) shouldBe null
                 record.get(DEPARTMENTS.VERSION) shouldBe null
             }
         }
@@ -85,7 +92,7 @@ class QueryExecutorReturningSpec : RepositorySpec(TestEvaRepositoryHelper, {
             }
         }
 
-        When("Principal updates an aliased table passing fields of the unaliased table") {
+        When("Principal updates an aliased table") {
             val id = UUID.randomUUID()
             inTransaction {
                 executor.executeStore(dslContext, insertQuery(id), DEPARTMENTS)
@@ -93,106 +100,42 @@ class QueryExecutorReturningSpec : RepositorySpec(TestEvaRepositoryHelper, {
             val aliased = DEPARTMENTS.`as`("t")
             val aliasedId = requireNotNull(aliased.field(DEPARTMENTS.ID))
             val aliasedHeadcount = requireNotNull(aliased.field(DEPARTMENTS.HEADCOUNT))
-            val update = dslContext.updateQuery(aliased).apply {
-                addValue(aliasedHeadcount, 42)
+            fun updateQuery(headcount: Int) = dslContext.updateQuery(aliased).apply {
+                addValue(aliasedHeadcount, headcount)
                 addConditions(aliasedId.eq(id))
             }
-            val stored = inTransaction {
+            val unaliasedFields = inTransaction {
                 executor.executeStore(
                     dslContext,
-                    update,
+                    updateQuery(42),
                     DEPARTMENTS,
                     listOf(DEPARTMENTS.ID, DEPARTMENTS.HEADCOUNT),
                 )
             }
+            val fullRow = inTransaction {
+                executor.executeStore(dslContext, updateQuery(7), DEPARTMENTS)
+            }
+            val aliasedFields = inTransaction {
+                executor.executeStore(dslContext, updateQuery(13), DEPARTMENTS, listOf(aliasedId, aliasedHeadcount))
+            }
 
-            Then("Returning fields are requalified with the alias and the statement executes") {
-                val record = stored.single()
+            Then("Fields of the unaliased table are requalified with the alias and the statement executes") {
+                val record = unaliasedFields.single()
                 record.get(DEPARTMENTS.ID) shouldBe id
                 record.get(DEPARTMENTS.HEADCOUNT) shouldBe 42
                 record.get(DEPARTMENTS.NAME) shouldBe null
             }
-        }
-
-        When("Principal updates an aliased table without explicit returning fields") {
-            val id = UUID.randomUUID()
-            inTransaction {
-                executor.executeStore(dslContext, insertQuery(id), DEPARTMENTS)
-            }
-            val aliased = DEPARTMENTS.`as`("t")
-            val aliasedId = requireNotNull(aliased.field(DEPARTMENTS.ID))
-            val aliasedHeadcount = requireNotNull(aliased.field(DEPARTMENTS.HEADCOUNT))
-            val update = dslContext.updateQuery(aliased).apply {
-                addValue(aliasedHeadcount, 7)
-                addConditions(aliasedId.eq(id))
-            }
-            val stored = inTransaction {
-                executor.executeStore(dslContext, update, DEPARTMENTS)
-            }
-
-            Then("Full row comes back through the alias-qualified returning") {
-                val record = stored.single()
+            And("Without explicit fields the full row comes back through the alias-qualified returning") {
+                val record = fullRow.single()
                 record.get(DEPARTMENTS.ID) shouldBe id
                 record.get(DEPARTMENTS.HEADCOUNT) shouldBe 7
                 record.get(DEPARTMENTS.NAME) shouldBe "dep-$id"
                 record.get(DEPARTMENTS.VERSION) shouldBe 1L
             }
-        }
-
-        When("Principal updates an aliased table passing fields of the aliased table") {
-            val id = UUID.randomUUID()
-            inTransaction {
-                executor.executeStore(dslContext, insertQuery(id), DEPARTMENTS)
-            }
-            val aliased = DEPARTMENTS.`as`("t")
-            val aliasedId = requireNotNull(aliased.field(DEPARTMENTS.ID))
-            val aliasedHeadcount = requireNotNull(aliased.field(DEPARTMENTS.HEADCOUNT))
-            val update = dslContext.updateQuery(aliased).apply {
-                addValue(aliasedHeadcount, 13)
-                addConditions(aliasedId.eq(id))
-            }
-            val stored = inTransaction {
-                executor.executeStore(dslContext, update, DEPARTMENTS, listOf(aliasedId, aliasedHeadcount))
-            }
-
-            Then("Requested fields are populated on the unaliased table record") {
-                val record = stored.single()
+            And("Fields of the aliased table are populated on the unaliased table record") {
+                val record = aliasedFields.single()
                 record.get(DEPARTMENTS.ID) shouldBe id
                 record.get(DEPARTMENTS.HEADCOUNT) shouldBe 13
-                record.get(DEPARTMENTS.NAME) shouldBe null
-            }
-        }
-
-        When("Principal inserts with an expression aliased to a column name") {
-            val id = UUID.randomUUID()
-            val stored = inTransaction {
-                executor.executeStore(
-                    dslContext,
-                    insertQuery(id),
-                    DEPARTMENTS,
-                    listOf(DEPARTMENTS.ID, DSL.upper(DEPARTMENTS.NAME).`as`("name")),
-                )
-            }
-
-            Then("Expression value populates the column matched by name") {
-                stored.single().get(DEPARTMENTS.NAME) shouldBe "dep-$id".uppercase()
-            }
-        }
-
-        When("Principal inserts with a column aliased to a name outside the table") {
-            val id = UUID.randomUUID()
-            val stored = inTransaction {
-                executor.executeStore(
-                    dslContext,
-                    insertQuery(id),
-                    DEPARTMENTS,
-                    listOf(DEPARTMENTS.ID, DEPARTMENTS.NAME.`as`("title")),
-                )
-            }
-
-            Then("The database returns the aliased column but no record column matches it") {
-                val record = stored.single()
-                record.get(DEPARTMENTS.ID) shouldBe id
                 record.get(DEPARTMENTS.NAME) shouldBe null
             }
         }
