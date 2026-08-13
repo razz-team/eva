@@ -58,6 +58,21 @@ object JsonDSL {
     fun jsonbStringIn(field: Field<JSONB>, name: String, values: Collection<String>): Condition =
         jsonbField(field, name).eqAny(values)
 
+    /**
+     * The jsonb array at `field->'name'` as a text list, empty when the key is absent or the array is
+     * empty. Callers holding a typed element convert in Kotlin rather than casting in SQL.
+     *
+     * The key is inlined, see [jsonbField]. This is a correlated subquery per row, so it belongs in a
+     * projection rather than in a predicate. PostgreSQL raises an error if the value is not a jsonb array.
+     */
+    fun jsonbTextArray(field: Field<JSONB>, name: String): Field<List<String>> =
+        DSL.field(
+            "coalesce((select array_agg(elem) from jsonb_array_elements_text({0}->{1}) as t(elem)), '{}')",
+            Array<String>::class.java,
+            field,
+            DSL.inline(name),
+        ).convertFrom { it?.toList() ?: listOf() }
+
     fun jsonbContains(field: Field<JSONB>, value: JSONB): Condition =
         DSL.condition("{0} @> {1}", field, value)
 

@@ -48,6 +48,12 @@ class JsonDSLTest : FunSpec({
             """"refs"->>'clientFlow' = any (cast(? as varchar[]))"""
     }
 
+    test("jsonbTextArray inlines the key") {
+        ctx.render(JsonDSL.jsonbTextArray(refs, "approvers")) shouldBe
+            "coalesce((select array_agg(elem) from jsonb_array_elements_text(\"refs\"->'approvers') " +
+            "as t(elem)), '{}')"
+    }
+
     test("jsonbContainsKeys binds a flat key array") {
         ctx.render(JsonDSL.jsonbContainsKeys(refs, "a", "b")) shouldBe
             """(jsonb_exists_all("refs", array[?, ?]::text[]))"""
