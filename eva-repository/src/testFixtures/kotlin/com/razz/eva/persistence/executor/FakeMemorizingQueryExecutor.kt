@@ -5,9 +5,11 @@ import com.razz.eva.persistence.PersistenceException
 import com.razz.eva.persistence.executor.FakeMemorizingQueryExecutor.ExecutionStep.QueryExecuted
 import com.razz.eva.persistence.executor.FakeMemorizingQueryExecutor.ExecutionStep.SelectExecuted
 import com.razz.eva.persistence.executor.FakeMemorizingQueryExecutor.ExecutionStep.StoreExecuted
+import com.razz.eva.persistence.executor.QueryExecutor.Companion.matchReturning
 import com.razz.eva.persistence.executor.QueryExecutor.Constraint
 import org.jooq.DMLQuery
 import org.jooq.DSLContext
+import org.jooq.Field
 import org.jooq.Record
 import org.jooq.SQLDialect.POSTGRES
 import org.jooq.Select
@@ -53,11 +55,20 @@ class FakeMemorizingQueryExecutor(
         dslContext: DSLContext,
         jooqQuery: StoreQuery<RIN>,
         table: Table<ROUT>,
+        returning: Collection<Field<*>>?,
     ): List<ROUT> {
+        val fields = returning?.let { matchReturning(jooqQuery, it).toTypedArray() }
+        if (fields != null) {
+            jooqQuery.setReturning(*fields)
+        }
         executions += StoreExecuted(dslContext, jooqQuery, table)
-        return DSL.using(MockConnection(MockProvider(queries)), POSTGRES, dslContext.settings())
+        val fetched = DSL.using(MockConnection(MockProvider(queries)), POSTGRES, dslContext.settings())
             .fetch(jooqQuery.getSQL(INLINED))
-            .into(table)
+        return if (fields == null) {
+            fetched.into(table)
+        } else {
+            fetched.map { it.into(*fields).into(table) }
+        }
     }
 
     override suspend fun <R : Record> executeQuery(

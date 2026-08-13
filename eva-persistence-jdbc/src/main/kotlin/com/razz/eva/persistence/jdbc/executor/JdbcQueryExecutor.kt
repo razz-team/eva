@@ -10,6 +10,7 @@ import com.razz.eva.persistence.PersistenceException.StaleRecordException
 import com.razz.eva.persistence.PersistenceException.UniqueModelRecordViolationException
 import com.razz.eva.persistence.TransactionManager
 import com.razz.eva.persistence.executor.QueryExecutor
+import com.razz.eva.persistence.executor.QueryExecutor.Companion.matchReturning
 import com.razz.eva.persistence.executor.QueryExecutor.Constraint
 import com.razz.eva.persistence.postgres.PgHelpers.PG_CONNECTION_UNAVAILABLE
 import com.razz.eva.persistence.postgres.PgHelpers.PG_UNIQUE_VIOLATION
@@ -18,9 +19,11 @@ import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.api.OpenTelemetry.noop
 import org.jooq.DMLQuery
 import org.jooq.DSLContext
+import org.jooq.Field
 import org.jooq.Param
 import org.jooq.Query
 import org.jooq.Record
+import org.jooq.ResultQuery
 import org.jooq.Select
 import org.jooq.StoreQuery
 import org.jooq.Table
@@ -43,7 +46,7 @@ class JdbcQueryExecutor(
         table: Table<R>,
     ): List<R> {
         return transactionManager.withConnection { connection ->
-            dslContext.using(connection).preparedQuery(jooqQuery, table)
+            dslContext.using(connection).preparedQuery(jooqQuery).coerce(table).fetch()
         }
     }
 
@@ -51,10 +54,19 @@ class JdbcQueryExecutor(
         dslContext: DSLContext,
         jooqQuery: StoreQuery<RIN>,
         table: Table<ROUT>,
+        returning: Collection<Field<*>>?,
     ): List<ROUT> {
-        jooqQuery.setReturning()
-        return transactionManager.inTransaction(REQUIRE_EXISTING) { connection ->
-            dslContext.using(connection).preparedQuery(jooqQuery, table)
+        return if (returning == null) {
+            jooqQuery.setReturning()
+            transactionManager.inTransaction(REQUIRE_EXISTING) { connection ->
+                dslContext.using(connection).preparedQuery(jooqQuery).coerce(table).fetch()
+            }
+        } else {
+            val fields = matchReturning(jooqQuery, returning)
+            jooqQuery.setReturning(fields)
+            transactionManager.inTransaction(REQUIRE_EXISTING) { connection ->
+                dslContext.using(connection).preparedQuery(jooqQuery).coerce(fields).fetch().map { it.into(table) }
+            }
         }
     }
 
@@ -75,16 +87,15 @@ class JdbcQueryExecutor(
         }
     }
 
-    private fun <R : Record> DSLContext.preparedQuery(
+    private fun DSLContext.preparedQuery(
         jooqQuery: Query,
-        table: Table<R>,
-    ): List<R> = resultQuery(
+    ): ResultQuery<Record> = resultQuery(
         render(jooqQuery),
         *extractParams(jooqQuery)
             .values
             .filterNot(Param<*>::isInline)
             .toTypedArray(),
-    ).coerce(table).fetch()
+    )
 
     override fun extractConstraintName(ex: Exception): Constraint? {
         val dataAccessException = ex as? DataAccessException ?: return null

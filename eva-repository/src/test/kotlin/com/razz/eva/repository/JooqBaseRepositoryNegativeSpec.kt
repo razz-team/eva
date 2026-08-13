@@ -29,6 +29,7 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeTypeOf
 import org.jooq.DMLQuery
 import org.jooq.DSLContext
+import org.jooq.Field
 import org.jooq.Record
 import org.jooq.SQLDialect.POSTGRES
 import org.jooq.Select
@@ -177,6 +178,7 @@ class JooqBaseRepositoryNegativeSpec : BehaviorSpec({
                 dslContext: DSLContext,
                 jooqQuery: StoreQuery<RIN>,
                 table: Table<ROUT>,
+                returning: Collection<Field<*>>?,
             ): List<ROUT> = TODO("NEVER HAPPENS")
 
             override suspend fun <R : Record> executeQuery(
