@@ -153,10 +153,8 @@ class VertxQueryExecutor(
                 try {
                     block()
                 } finally {
-                    val endpoint = acquired.endpoint
-                    val role = acquired.role
-                    if (endpoint != null && role != null) {
-                        span.setServer(endpoint.address, endpoint.port, endpoint.database, role.name)
+                    acquired.endpoint?.let { endpoint ->
+                        span.setServer(endpoint.address, endpoint.port, endpoint.database, acquired.role?.name)
                     }
                 }
             }

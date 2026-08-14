@@ -85,9 +85,9 @@ abstract class TransactionManager<C>(
     protected suspend fun recordPool(provider: ConnectionProvider<C>) {
         // Nothing asked, so the provider is not even consulted for its endpoint.
         val slot = currentCoroutineContext()[AcquiredEndpoint] ?: return
-        val role = when (provider) {
-            primaryProvider -> PoolRole.PRIMARY
-            replicaProvider -> PoolRole.REPLICA
+        val role = when {
+            provider === primaryProvider -> PoolRole.PRIMARY
+            provider === replicaProvider -> PoolRole.REPLICA
             // A subclass may wrap its providers or hold a third. Reporting no role beats reporting the
             // wrong one, and the address still says where the call went.
             else -> null

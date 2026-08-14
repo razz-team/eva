@@ -47,12 +47,15 @@ object DatabaseSpans {
 
     /**
      * The pool that served the call, recorded once it is known rather than predicted at span start. Left
-     * unset when nothing was acquired, since an absent address is honest where a guessed one is not.
+     * unset when no pool was reached, since an absent address is honest where a guessed one is not. A pool
+     * the manager cannot name keeps its address and omits the role only.
      */
-    fun Span.setServer(address: String, port: Int, database: String, role: String) {
+    fun Span.setServer(address: String, port: Int, database: String, role: String?) {
         setAttribute("server.address", address)
         setAttribute("server.port", port.toLong())
         setAttribute("db.namespace", database)
-        setAttribute("db.pool.role", role)
+        if (role != null) {
+            setAttribute("db.pool.role", role)
+        }
     }
 }
