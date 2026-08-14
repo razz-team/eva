@@ -16,16 +16,24 @@ abstract class TransactionManager<C>(
     open suspend fun <R> withConnection(block: suspend (C) -> R): R {
         return when (val existingConn = ctxConnection()) {
             null -> {
+                val provider = connectionProvider(currentCoroutineContext())
                 var newConn: C? = null
                 try {
-                    newConn = acquire(connectionProvider(currentCoroutineContext()))
+                    newConn = acquire(provider)
                     currentCoroutineContext()[ConnectionAcquisitionCounter]?.increment()
+                    currentCoroutineContext()[AcquiredEndpoint]?.record(provider.endpoint)
                     block(newConn)
                 } finally {
-                    newConn?.let { connectionProvider(currentCoroutineContext()).release(it) }
+                    newConn?.let { provider.release(it) }
                 }
             }
-            else -> block(existingConn)
+            else -> {
+                // A context connection can only have been opened by inTransaction, which always acquires
+                // from the primary, so this is an invariant rather than a guess. Without it every statement
+                // after the first in a transaction would report no pool at all.
+                currentCoroutineContext()[AcquiredEndpoint]?.record(primaryProvider.endpoint)
+                block(existingConn)
+            }
         }
     }
 
@@ -40,6 +48,7 @@ abstract class TransactionManager<C>(
                 try {
                     newConn = acquire(primaryProvider)
                     currentCoroutineContext()[ConnectionAcquisitionCounter]?.increment()
+                    currentCoroutineContext()[AcquiredEndpoint]?.record(primaryProvider.endpoint)
                     val ctx = wrapConnection(newConn)
                     withContext(ctx) {
                         try {
@@ -62,6 +71,7 @@ abstract class TransactionManager<C>(
             // and will be handled there
             else -> {
                 check(mode == REQUIRE_EXISTING) { "Required new connection but existing connection was found" }
+                currentCoroutineContext()[AcquiredEndpoint]?.record(primaryProvider.endpoint)
                 block(existingConn)
             }
         }
@@ -81,20 +91,6 @@ abstract class TransactionManager<C>(
         } else {
             replicaProvider
         }
-
-    /**
-     * The endpoint the next [withConnection] would use, so a caller can attribute a span before the
-     * connection is acquired. This mirrors the selection [withConnection] and [inTransaction] make: an
-     * existing context connection was opened by [inTransaction] and is therefore the primary, and a fresh
-     * one follows [PrimaryConnectionRequiredFlag].
-     *
-     * Internal, and reached from the executor modules through friend paths. It exists to attribute spans,
-     * not as a way for a caller to learn which pool it is about to use and route on that.
-     */
-    internal suspend fun currentEndpoint(): DbEndpoint = when (ctxConnection()) {
-        null -> connectionProvider(currentCoroutineContext()).endpoint
-        else -> primaryProvider.endpoint
-    }
 
     abstract fun supportsPipelining(): Boolean
 

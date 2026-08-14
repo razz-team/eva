@@ -18,35 +18,41 @@ object DatabaseSpans {
     private const val TRACER = "eva-persistence"
 
     /**
-     * Whether anything is being traced right now. Callers check this before doing the work a span needs,
+     * Whether anything is being recorded right now. Callers check this before doing the work a span needs,
      * which keeps queries outside a request, job or consumer (module initialisation and migrations, for
-     * instance) both untraced and free of the cost of rendering SQL for an attribute.
+     * instance) untraced. `isRecording` rather than mere presence, so a sampled out trace does not pay for
+     * attributes nobody will read.
      */
-    fun tracing(): Boolean = Span.fromContextOrNull(Context.current()) != null
+    fun tracing(): Boolean = Span.fromContextOrNull(Context.current())?.isRecording ?: false
 
     fun querySpan(
         openTelemetry: OpenTelemetry,
         operation: String,
         target: String?,
         sql: String,
-        address: String,
-        port: Int,
-        database: String,
     ): Span {
         val builder = openTelemetry.getTracer(TRACER)
             .spanBuilder(if (target == null) operation else "$operation $target")
             .setSpanKind(CLIENT)
             .setAttribute("db.system", "postgresql")
-            .setAttribute("db.namespace", database)
             .setAttribute("db.operation.name", operation)
             // Kept as db.statement, the name already in use, rather than renamed to the newer
             // db.query.text, so existing trace queries keep working.
             .setAttribute("db.statement", sql)
-            .setAttribute("server.address", address)
-            .setAttribute("server.port", port.toLong())
         if (target != null) {
             builder.setAttribute("db.collection.name", target)
         }
         return builder.startSpan()
+    }
+
+    /**
+     * The pool that served the call, recorded once it is known rather than predicted at span start. Left
+     * unset when nothing was acquired, since an absent address is honest where a guessed one is not.
+     */
+    fun Span.setServer(address: String, port: Int, database: String, role: String) {
+        setAttribute("server.address", address)
+        setAttribute("server.port", port.toLong())
+        setAttribute("db.namespace", database)
+        setAttribute("db.pool.role", role)
     }
 }

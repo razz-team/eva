@@ -11,9 +11,13 @@ import com.razz.eva.persistence.PersistenceException.UniqueModelRecordViolationE
 import com.razz.eva.persistence.TransactionManager
 import com.razz.eva.persistence.executor.QueryExecutor
 import com.razz.eva.persistence.executor.QueryExecutor.Companion.matchReturning
+import com.razz.eva.persistence.AcquiredEndpoint
 import com.razz.eva.persistence.executor.QueryExecutor.Companion.operationName
+import com.razz.eva.persistence.executor.QueryExecutor.Companion.queryTarget
 import com.razz.eva.persistence.executor.QueryExecutor.Constraint
 import com.razz.eva.tracing.DatabaseSpans
+import com.razz.eva.tracing.DatabaseSpans.setServer
+import com.razz.eva.tracing.use
 import com.razz.eva.persistence.postgres.PgHelpers.PG_CONNECTION_UNAVAILABLE
 import com.razz.eva.persistence.postgres.PgHelpers.PG_UNIQUE_VIOLATION
 import io.opentelemetry.api.OpenTelemetry
@@ -28,6 +32,7 @@ import io.vertx.sqlclient.RowSet
 import io.vertx.sqlclient.SqlResult
 import io.vertx.sqlclient.Tuple
 import io.vertx.sqlclient.impl.ListTuple
+import kotlinx.coroutines.withContext
 import org.jooq.Converter
 import org.jooq.DMLQuery
 import org.jooq.DSLContext
@@ -132,23 +137,24 @@ class VertxQueryExecutor(
         if (!DatabaseSpans.tracing()) {
             return block()
         }
-        val endpoint = transactionManager.currentEndpoint()
         val span = DatabaseSpans.querySpan(
             openTelemetry = openTelemetry,
             operation = operationName(jooqQuery),
-            target = table?.name,
+            target = table?.name ?: queryTarget(jooqQuery),
             sql = sql,
-            address = endpoint.address,
-            port = endpoint.port,
-            database = endpoint.database,
         )
-        return try {
-            block()
-        } catch (ex: Throwable) {
-            span.recordException(ex)
-            throw ex
-        } finally {
-            span.end()
+        val acquired = AcquiredEndpoint()
+        // The transaction manager fills the slot at acquisition, so the address describes the pool that
+        // served this call rather than one predicted for it. span.use makes the span current, which is what
+        // nests the connection acquisition spans underneath it, and records failure on it.
+        return withContext(acquired) {
+            span.use {
+                try {
+                    block()
+                } finally {
+                    acquired.endpoint?.let { span.setServer(it.address, it.port, it.database, it.role.name) }
+                }
+            }
         }
     }
 
@@ -163,6 +169,15 @@ class VertxQueryExecutor(
                 is Instant -> LocalDateTime.ofInstant(value, UTC)
                 is LocalDate -> value
                 is Inet -> io.vertx.pgclient.data.Inet().setAddress(value.address()).setNetmask(value.prefix())
+                // Arrays of the types handled above bypass the converter too. Going through it and mapping
+                // back would agree with the scalar branches only for a converter that round trips a wall
+                // clock, as com.razz.jooq.converter.InstantConverter does; one built on Timestamp.from would
+                // disagree by the JVM offset.
+                is Array<*> -> value.nativeArray() ?: run {
+                    @Suppress("UNCHECKED_CAST")
+                    val converter = bound.converter as Converter<Any, Any>
+                    javaTimeValue(converter.to(value))
+                }
                 else -> {
                     @Suppress("UNCHECKED_CAST")
                     val converter = bound.converter as Converter<Any, Any>
@@ -175,6 +190,15 @@ class VertxQueryExecutor(
             }
         },
     )
+
+    // Elements mapped by the same rule the scalar branches use, or null when the component type is not one
+    // of those and the jOOQ converter has to run instead.
+    private fun Array<*>.nativeArray(): Any? = when (this::class.java.componentType) {
+        Instant::class.java -> Array(size) { LocalDateTime.ofInstant(this[it] as Instant, UTC) }
+        LocalDate::class.java -> this
+        LocalDateTime::class.java -> this
+        else -> null
+    }
 
     private fun javaTimeValue(value: Any?): Any? = when (value) {
         is Timestamp -> value.toLocalDateTime()

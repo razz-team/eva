@@ -19,14 +19,16 @@ import io.vertx.sqlclient.Pool
 import io.vertx.sqlclient.Transaction
 import kotlinx.coroutines.withContext
 
+private val testEndpoint = DbEndpoint("localhost", 5432, "test", DbEndpoint.Role.PRIMARY)
+
 class VertxTransactionManagerSpec : BehaviorSpec({
 
     val primaryPool = mockk<Pool>()
     val replicaPool = mockk<Pool>()
 
     Given("Vertx transaction manager with pooled connection provider") {
-        val primaryProvider = PgPoolConnectionProvider(primaryPool, DbEndpoint("localhost", 5432, "test"))
-        val replicaProvider = PgPoolConnectionProvider(replicaPool, DbEndpoint("localhost", 5432, "test"))
+        val primaryProvider = PgPoolConnectionProvider(primaryPool, testEndpoint)
+        val replicaProvider = PgPoolConnectionProvider(replicaPool, testEndpoint)
         val vetxTransactionManager = VertxTransactionManager(primaryProvider, replicaProvider)
 
         When("Principal asks pipelining support") {

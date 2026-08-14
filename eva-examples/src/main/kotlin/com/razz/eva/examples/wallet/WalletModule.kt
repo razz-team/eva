@@ -40,13 +40,13 @@ class WalletModule(databaseConfig: DatabaseConfig) {
     val transactionManager = JdbcTransactionManager(
         primaryProvider = DataSourceConnectionProvider(
             pool = dataSource(databaseConfig, isPrimary = true),
-            endpoint = DbEndpoint.of(databaseConfig),
+            endpoint = DbEndpoint.of(databaseConfig, DbEndpoint.Role.PRIMARY),
             blockingJdbcContext = dispatcher,
             poolMaxSize = primaryMaxPoolSize,
         ),
         replicaProvider = DataSourceConnectionProvider(
             pool = dataSource(databaseConfig, isPrimary = false),
-            endpoint = DbEndpoint.of(databaseConfig),
+            endpoint = DbEndpoint.of(databaseConfig, DbEndpoint.Role.REPLICA),
             blockingJdbcContext = dispatcher,
             poolMaxSize = replicaMaxPoolSize,
         ),

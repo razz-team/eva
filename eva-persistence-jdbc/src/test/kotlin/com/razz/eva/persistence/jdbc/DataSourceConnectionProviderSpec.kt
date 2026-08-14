@@ -30,6 +30,8 @@ import javax.sql.DataSource
 import kotlin.concurrent.thread
 import kotlin.concurrent.withLock
 
+private val testEndpoint = DbEndpoint("localhost", 5432, "test", DbEndpoint.Role.PRIMARY)
+
 @OptIn(DelicateCoroutinesApi::class)
 class DataSourceConnectionProviderSpec : ShouldSpec({
 
@@ -48,7 +50,7 @@ class DataSourceConnectionProviderSpec : ShouldSpec({
 
         val provider = DataSourceConnectionProvider(
             dataSource,
-            DbEndpoint("localhost", 5432, "test"),
+            testEndpoint,
             blockingDispatcher,
         )
 
@@ -95,7 +97,7 @@ class DataSourceConnectionProviderSpec : ShouldSpec({
         // i.e. even if there is a spare thread, we won't try to acquire it
         val provider = DataSourceConnectionProvider(
             pool = dataSource,
-            endpoint = DbEndpoint("localhost", 5432, "test"),
+            endpoint = testEndpoint,
             blockingJdbcContext = dispatcher,
             poolMaxSize = 1,
         )
@@ -157,7 +159,7 @@ class DataSourceConnectionProviderSpec : ShouldSpec({
         // we set the poolMaxSize to 2, which is more than the actual connection pool size
         val provider = DataSourceConnectionProvider(
             pool = dataSource,
-            endpoint = DbEndpoint("localhost", 5432, "test"),
+            endpoint = testEndpoint,
             blockingJdbcContext = dispatcher,
             poolMaxSize = 2,
         )
@@ -208,7 +210,7 @@ class DataSourceConnectionProviderSpec : ShouldSpec({
         val message = UUID.randomUUID().toString()
         every { dataSource.connection } throws RuntimeException(message)
 
-        val provider = DataSourceConnectionProvider(dataSource, DbEndpoint("localhost", 5432, "test"), poolMaxSize = 1)
+        val provider = DataSourceConnectionProvider(dataSource, testEndpoint, poolMaxSize = 1)
 
         // try to acquire a connection, which will fail
         runCatching { provider.acquire() }.exceptionOrNull()?.message shouldBe message

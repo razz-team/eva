@@ -18,10 +18,12 @@ class VertxPersistenceModule(
     replicaConfig: DatabaseConfig,
 ) : PersistenceModule() {
 
+    private val primaryEndpoint = DbEndpoint.of(primaryConfig, DbEndpoint.Role.PRIMARY)
+    private val replicaEndpoint = DbEndpoint.of(replicaConfig, DbEndpoint.Role.REPLICA)
     private val primaryPool = poolProvider(primaryConfig, true)
     private val replicaPool = poolProvider(replicaConfig, false)
-    private val primaryProvider = PgPoolConnectionProvider(primaryPool, DbEndpoint.of(primaryConfig))
-    private val replicaProvider = PgPoolConnectionProvider(replicaPool, DbEndpoint.of(replicaConfig))
+    private val primaryProvider = PgPoolConnectionProvider(primaryPool, primaryEndpoint)
+    private val replicaProvider = PgPoolConnectionProvider(replicaPool, replicaEndpoint)
 
     override val transactionManager = VertxTransactionManager(primaryProvider, replicaProvider)
     override val queryExecutor = VertxQueryExecutor(transactionManager)

@@ -87,14 +87,16 @@ open class RepositoryHelper(
 
     private fun jdbcEngine(): Pair<TransactionManager<*>, QueryExecutor> {
         val pool = databaseContainer.localPool(db.dbName(), hikariPoolSize)
-        val provider = HikariPoolConnectionProvider(pool, DbEndpoint(db.dbHost(), db.dbPort(), db.dbName()))
+        val endpoint = DbEndpoint(db.dbHost(), db.dbPort(), db.dbName(), DbEndpoint.Role.PRIMARY)
+        val provider = HikariPoolConnectionProvider(pool, endpoint)
         val jdbcManager = JdbcTransactionManager(provider, provider)
         return jdbcManager to JdbcQueryExecutor(jdbcManager, noop())
     }
 
     private fun vertxEngine(dbName: String): Pair<TransactionManager<*>, QueryExecutor> {
         val pool = vertxPool(db, dbName)
-        val provider = PgPoolConnectionProvider(pool, DbEndpoint(db.dbHost(), db.dbPort(), dbName))
+        val endpoint = DbEndpoint(db.dbHost(), db.dbPort(), dbName, DbEndpoint.Role.PRIMARY)
+        val provider = PgPoolConnectionProvider(pool, endpoint)
         val vertxManager = VertxTransactionManager(provider, provider)
         return vertxManager to VertxQueryExecutor(vertxManager)
     }

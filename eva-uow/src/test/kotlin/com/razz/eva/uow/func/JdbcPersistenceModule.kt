@@ -16,13 +16,15 @@ class JdbcPersistenceModule(
     replicaConfig: DatabaseConfig,
 ) : PersistenceModule() {
 
+    private val primaryEndpoint = DbEndpoint.of(primaryConfig, DbEndpoint.Role.PRIMARY)
+    private val replicaEndpoint = DbEndpoint.of(replicaConfig, DbEndpoint.Role.REPLICA)
     private val primaryPool = poolProvider(primaryConfig, true)
     private val replicaPool = poolProvider(replicaConfig, false)
     private val blockingJdbcContext = newFixedThreadPool(primaryConfig.maxPoolSize.value()).asCoroutineDispatcher()
     private val primaryProvider =
-        HikariPoolConnectionProvider(primaryPool, DbEndpoint.of(primaryConfig), blockingJdbcContext)
+        HikariPoolConnectionProvider(primaryPool, primaryEndpoint, blockingJdbcContext)
     private val replicaProvider =
-        HikariPoolConnectionProvider(replicaPool, DbEndpoint.of(replicaConfig), blockingJdbcContext)
+        HikariPoolConnectionProvider(replicaPool, replicaEndpoint, blockingJdbcContext)
 
     override val transactionManager = JdbcTransactionManager(primaryProvider, replicaProvider, blockingJdbcContext)
     override val queryExecutor = JdbcQueryExecutor(transactionManager)
