@@ -12,6 +12,9 @@ class WithCtxConnectionTransactionManager(
 
     override suspend fun <R> inTransaction(mode: ConnectionMode, block: suspend (DummyConnection) -> R): R {
         beforeTxn(mode)
+        // This override never calls super, so the base class cannot record for it. Without this line every
+        // store through the fixture exports a span with no pool at all.
+        recordPool(connectionProvider)
         try {
             val res = wrapped?.let {
                 it.inTransaction(mode) { _ -> block(connectionProvider.acquire()) }

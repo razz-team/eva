@@ -1,5 +1,6 @@
 package com.razz.eva.persistence.vertx
 
+import com.razz.eva.persistence.DbEndpoint
 import com.razz.eva.persistence.ConnectionMode.REQUIRE_EXISTING
 import com.razz.eva.persistence.ConnectionMode.REQUIRE_NEW
 import com.razz.eva.persistence.PrimaryConnectionRequiredFlag
@@ -18,14 +19,16 @@ import io.vertx.sqlclient.Pool
 import io.vertx.sqlclient.Transaction
 import kotlinx.coroutines.withContext
 
+private val testEndpoint = DbEndpoint("localhost", 5432, "test")
+
 class VertxTransactionManagerSpec : BehaviorSpec({
 
     val primaryPool = mockk<Pool>()
     val replicaPool = mockk<Pool>()
 
     Given("Vertx transaction manager with pooled connection provider") {
-        val primaryProvider = PgPoolConnectionProvider(primaryPool)
-        val replicaProvider = PgPoolConnectionProvider(replicaPool)
+        val primaryProvider = PgPoolConnectionProvider(primaryPool, testEndpoint)
+        val replicaProvider = PgPoolConnectionProvider(replicaPool, testEndpoint)
         val vetxTransactionManager = VertxTransactionManager(primaryProvider, replicaProvider)
 
         When("Principal asks pipelining support") {

@@ -1,5 +1,6 @@
 package com.razz.eva.persistence.jdbc
 
+import com.razz.eva.persistence.DbEndpoint
 import io.kotest.assertions.withClue
 import io.kotest.core.spec.style.ShouldSpec
 import io.kotest.matchers.collections.shouldHaveSize
@@ -29,6 +30,8 @@ import javax.sql.DataSource
 import kotlin.concurrent.thread
 import kotlin.concurrent.withLock
 
+private val testEndpoint = DbEndpoint("localhost", 5432, "test")
+
 @OptIn(DelicateCoroutinesApi::class)
 class DataSourceConnectionProviderSpec : ShouldSpec({
 
@@ -45,7 +48,11 @@ class DataSourceConnectionProviderSpec : ShouldSpec({
         val blockingDispatcher = Dispatchers.IO
         val outerDispatcher = Dispatchers.Default
 
-        val provider = DataSourceConnectionProvider(dataSource, blockingDispatcher)
+        val provider = DataSourceConnectionProvider(
+            dataSource,
+            testEndpoint,
+            blockingDispatcher,
+        )
 
         // try to acquire a connection in a separate coroutine and cancel it before the connection is actually acquired
         val actual = AtomicReference<Connection>()
@@ -90,6 +97,7 @@ class DataSourceConnectionProviderSpec : ShouldSpec({
         // i.e. even if there is a spare thread, we won't try to acquire it
         val provider = DataSourceConnectionProvider(
             pool = dataSource,
+            endpoint = testEndpoint,
             blockingJdbcContext = dispatcher,
             poolMaxSize = 1,
         )
@@ -151,6 +159,7 @@ class DataSourceConnectionProviderSpec : ShouldSpec({
         // we set the poolMaxSize to 2, which is more than the actual connection pool size
         val provider = DataSourceConnectionProvider(
             pool = dataSource,
+            endpoint = testEndpoint,
             blockingJdbcContext = dispatcher,
             poolMaxSize = 2,
         )
@@ -201,7 +210,7 @@ class DataSourceConnectionProviderSpec : ShouldSpec({
         val message = UUID.randomUUID().toString()
         every { dataSource.connection } throws RuntimeException(message)
 
-        val provider = DataSourceConnectionProvider(dataSource, poolMaxSize = 1)
+        val provider = DataSourceConnectionProvider(dataSource, testEndpoint, poolMaxSize = 1)
 
         // try to acquire a connection, which will fail
         runCatching { provider.acquire() }.exceptionOrNull()?.message shouldBe message

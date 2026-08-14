@@ -1,5 +1,6 @@
 package com.razz.eva.examples.jackson
 
+import com.razz.eva.persistence.DbEndpoint
 import com.razz.eva.examples.wallet.Wallet
 import com.razz.eva.examples.wallet.WalletRepository
 import com.razz.eva.persistence.config.DatabaseConfig
@@ -28,8 +29,14 @@ import org.jooq.impl.DSL
 class JacksonWalletModule(databaseConfig: DatabaseConfig) {
 
     val transactionManager = JdbcTransactionManager(
-        primaryProvider = HikariPoolConnectionProvider(dataSource(databaseConfig, isPrimary = true)),
-        replicaProvider = HikariPoolConnectionProvider(dataSource(databaseConfig, isPrimary = false)),
+        primaryProvider = HikariPoolConnectionProvider(
+            dataSource(databaseConfig, isPrimary = true),
+            DbEndpoint.of(databaseConfig),
+        ),
+        replicaProvider = HikariPoolConnectionProvider(
+            dataSource(databaseConfig, isPrimary = false),
+            DbEndpoint.of(databaseConfig),
+        ),
         blockingJdbcContext = newFixedThreadPool(databaseConfig.maxPoolSize.value()).asCoroutineDispatcher(),
     )
     val queryExecutor = JdbcQueryExecutor(transactionManager, noop())

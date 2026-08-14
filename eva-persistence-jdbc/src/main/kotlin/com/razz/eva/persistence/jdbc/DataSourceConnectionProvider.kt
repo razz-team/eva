@@ -1,5 +1,6 @@
 package com.razz.eva.persistence.jdbc
 
+import com.razz.eva.persistence.DbEndpoint
 import com.razz.eva.tracing.withSpan
 import io.opentelemetry.api.OpenTelemetry
 import kotlinx.coroutines.CoroutineDispatcher
@@ -16,6 +17,7 @@ typealias HikariPoolConnectionProvider = DataSourceConnectionProvider
 
 class DataSourceConnectionProvider(
     private val pool: DataSource,
+    override val endpoint: DbEndpoint,
     private val blockingJdbcContext: CoroutineDispatcher = Dispatchers.IO,
     private val openTelemetry: OpenTelemetry? = null,
     poolMaxSize: Int = Int.MAX_VALUE,

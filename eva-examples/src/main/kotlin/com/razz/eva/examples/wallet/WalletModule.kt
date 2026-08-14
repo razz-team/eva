@@ -1,5 +1,6 @@
 package com.razz.eva.examples.wallet
 
+import com.razz.eva.persistence.DbEndpoint
 import com.razz.eva.persistence.config.DatabaseConfig
 import com.razz.eva.persistence.jdbc.DataSourceConnectionProvider
 import com.razz.eva.persistence.jdbc.JdbcTransactionManager
@@ -39,11 +40,13 @@ class WalletModule(databaseConfig: DatabaseConfig) {
     val transactionManager = JdbcTransactionManager(
         primaryProvider = DataSourceConnectionProvider(
             pool = dataSource(databaseConfig, isPrimary = true),
+            endpoint = DbEndpoint.of(databaseConfig),
             blockingJdbcContext = dispatcher,
             poolMaxSize = primaryMaxPoolSize,
         ),
         replicaProvider = DataSourceConnectionProvider(
             pool = dataSource(databaseConfig, isPrimary = false),
+            endpoint = DbEndpoint.of(databaseConfig),
             blockingJdbcContext = dispatcher,
             poolMaxSize = replicaMaxPoolSize,
         ),
