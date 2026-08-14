@@ -4,16 +4,18 @@ import com.razz.eva.domain.ModelId
 import com.razz.eva.persistence.PersistenceException
 import org.jooq.DMLQuery
 import org.jooq.DSLContext
+import org.jooq.Delete
 import org.jooq.DeleteQuery
 import org.jooq.Field
-import org.jooq.InsertQuery
+import org.jooq.Insert
+import org.jooq.Merge
 import org.jooq.Query
 import org.jooq.Record
 import org.jooq.Select
 import org.jooq.StoreQuery
 import org.jooq.Table
 import org.jooq.TableField
-import org.jooq.UpdateQuery
+import org.jooq.Update
 import org.jooq.impl.QOM
 
 interface QueryExecutor {
@@ -72,11 +74,25 @@ interface QueryExecutor {
          */
         fun operationName(jooqQuery: Query): String = when (jooqQuery) {
             is Select<*> -> "SELECT"
-            is InsertQuery<*> -> "INSERT"
-            is UpdateQuery<*> -> "UPDATE"
-            is DeleteQuery<*> -> "DELETE"
-            is StoreQuery<*> -> "STORE"
+            is Insert<*> -> "INSERT"
+            is Update<*> -> "UPDATE"
+            is Delete<*> -> "DELETE"
+            is Merge<*> -> "MERGE"
             else -> "QUERY"
+        }
+
+        /**
+         * The table a DML statement targets, for `db.collection.name` and the span name, when the caller
+         * did not hand one over. Matches the DSL forms as well as the query objects: `deleteFrom(t)` is a
+         * [QOM.Delete] and not a [DeleteQuery], so matching only the latter would name every such span
+         * after nothing at all.
+         */
+        fun queryTarget(jooqQuery: Query): String? = when (jooqQuery) {
+            is QOM.Insert<*> -> jooqQuery.`$into`()?.name
+            is QOM.Update<*> -> jooqQuery.`$table`()?.name
+            is QOM.Delete<*> -> jooqQuery.`$from`()?.name
+            is QOM.Merge<*> -> jooqQuery.`$into`()?.name
+            else -> null
         }
 
         /**
