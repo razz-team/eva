@@ -87,8 +87,11 @@ abstract class TransactionManager<C>(
      * connection is acquired. This mirrors the selection [withConnection] and [inTransaction] make: an
      * existing context connection was opened by [inTransaction] and is therefore the primary, and a fresh
      * one follows [PrimaryConnectionRequiredFlag].
+     *
+     * Internal, and reached from the executor modules through friend paths. It exists to attribute spans,
+     * not as a way for a caller to learn which pool it is about to use and route on that.
      */
-    suspend fun currentEndpoint(): DbEndpoint = when (ctxConnection()) {
+    internal suspend fun currentEndpoint(): DbEndpoint = when (ctxConnection()) {
         null -> connectionProvider(currentCoroutineContext()).endpoint
         else -> primaryProvider.endpoint
     }
