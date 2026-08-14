@@ -42,9 +42,13 @@ import org.jooq.exception.SQLStateClass.C40_TRANSACTION_ROLLBACK
 import org.jooq.impl.SQLDataType
 import org.jooq.postgres.extensions.types.Inet
 import java.io.IOException
+import java.sql.Date
+import java.sql.Time
+import java.sql.Timestamp
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.LocalTime
 import java.time.ZoneOffset.UTC
 
 class VertxQueryExecutor(
@@ -116,11 +120,37 @@ class VertxQueryExecutor(
                 else -> {
                     @Suppress("UNCHECKED_CAST")
                     val converter = bound.converter as Converter<Any, Any>
-                    converter.to(value)
+                    // A forced type such as com.razz.jooq.converter.InstantConverter targets JDBC, so it
+                    // hands back a java.sql temporal that the vertx pg client cannot encode. The branches
+                    // above cover the same types arriving without a converter; everything converted has to
+                    // be mapped across here instead. Arrays land here too.
+                    javaTimeValue(converter.to(value))
                 }
             }
         },
     )
+
+    private fun javaTimeValue(value: Any?): Any? = when (value) {
+        is Timestamp -> value.toLocalDateTime()
+        is Date -> value.toLocalDate()
+        is Time -> value.toLocalTime()
+        is Array<*> -> value.javaTimeArray()
+        else -> value
+    }
+
+    private fun Array<*>.javaTimeArray(): Any {
+        // Vertx resolves an array encoder by the array's own class, not by its elements, so the result
+        // has to carry the java.time component type and not merely hold remapped elements.
+        val component = when (this::class.java.componentType) {
+            Timestamp::class.java -> LocalDateTime::class.java
+            Date::class.java -> LocalDate::class.java
+            Time::class.java -> LocalTime::class.java
+            else -> return this
+        }
+        val remapped = java.lang.reflect.Array.newInstance(component, size)
+        forEachIndexed { index, element -> java.lang.reflect.Array.set(remapped, index, javaTimeValue(element)) }
+        return remapped
+    }
 
     private fun <R : Record> convertRowToRecord(
         dslContext: DSLContext,
