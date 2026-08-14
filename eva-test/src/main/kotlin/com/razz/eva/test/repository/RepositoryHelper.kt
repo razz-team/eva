@@ -1,5 +1,6 @@
 package com.razz.eva.test.repository
 
+import com.razz.eva.persistence.DbEndpoint
 import com.razz.eva.migrations.DbSchema
 import com.razz.eva.migrations.Migration
 import com.razz.eva.migrations.Migrations
@@ -86,14 +87,14 @@ open class RepositoryHelper(
 
     private fun jdbcEngine(): Pair<TransactionManager<*>, QueryExecutor> {
         val pool = databaseContainer.localPool(db.dbName(), hikariPoolSize)
-        val provider = HikariPoolConnectionProvider(pool)
+        val provider = HikariPoolConnectionProvider(pool, DbEndpoint(db.dbHost(), db.dbPort(), db.dbName()))
         val jdbcManager = JdbcTransactionManager(provider, provider)
         return jdbcManager to JdbcQueryExecutor(jdbcManager, noop())
     }
 
     private fun vertxEngine(dbName: String): Pair<TransactionManager<*>, QueryExecutor> {
         val pool = vertxPool(db, dbName)
-        val provider = PgPoolConnectionProvider(pool)
+        val provider = PgPoolConnectionProvider(pool, DbEndpoint(db.dbHost(), db.dbPort(), dbName))
         val vertxManager = VertxTransactionManager(provider, provider)
         return vertxManager to VertxQueryExecutor(vertxManager)
     }

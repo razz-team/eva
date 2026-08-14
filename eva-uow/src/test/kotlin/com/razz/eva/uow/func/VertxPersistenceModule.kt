@@ -1,5 +1,6 @@
 package com.razz.eva.uow.func
 
+import com.razz.eva.persistence.DbEndpoint
 import com.razz.eva.persistence.config.DatabaseConfig
 import com.razz.eva.persistence.vertx.PgPoolConnectionProvider
 import com.razz.eva.persistence.vertx.VertxTransactionManager
@@ -19,8 +20,8 @@ class VertxPersistenceModule(
 
     private val primaryPool = poolProvider(primaryConfig, true)
     private val replicaPool = poolProvider(replicaConfig, false)
-    private val primaryProvider = PgPoolConnectionProvider(primaryPool)
-    private val replicaProvider = PgPoolConnectionProvider(replicaPool)
+    private val primaryProvider = PgPoolConnectionProvider(primaryPool, DbEndpoint.of(primaryConfig))
+    private val replicaProvider = PgPoolConnectionProvider(replicaPool, DbEndpoint.of(replicaConfig))
 
     override val transactionManager = VertxTransactionManager(primaryProvider, replicaProvider)
     override val queryExecutor = VertxQueryExecutor(transactionManager)

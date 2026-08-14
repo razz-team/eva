@@ -1,5 +1,6 @@
 package com.razz.eva.persistence.vertx
 
+import com.razz.eva.persistence.DbEndpoint
 import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.pgclient.PgConnection
 import io.vertx.sqlclient.Pool
@@ -8,6 +9,7 @@ import kotlinx.coroutines.withContext
 
 class PgPoolConnectionProvider(
     private val pool: Pool,
+    override val endpoint: DbEndpoint,
 ) : PgConnectionProvider {
 
     override suspend fun acquire(): PgConnection {

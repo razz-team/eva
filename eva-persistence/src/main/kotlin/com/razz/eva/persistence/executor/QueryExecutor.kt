@@ -4,12 +4,16 @@ import com.razz.eva.domain.ModelId
 import com.razz.eva.persistence.PersistenceException
 import org.jooq.DMLQuery
 import org.jooq.DSLContext
+import org.jooq.DeleteQuery
 import org.jooq.Field
+import org.jooq.InsertQuery
+import org.jooq.Query
 import org.jooq.Record
 import org.jooq.Select
 import org.jooq.StoreQuery
 import org.jooq.Table
 import org.jooq.TableField
+import org.jooq.UpdateQuery
 import org.jooq.impl.QOM
 
 interface QueryExecutor {
@@ -61,6 +65,19 @@ interface QueryExecutor {
     value class Constraint(val name: String?)
 
     companion object {
+
+        /**
+         * The `db.operation.name` for a query, taken from its jOOQ type rather than by parsing rendered
+         * SQL. Falls back to the dialect neutral verb when the query is none of the concrete DML types.
+         */
+        fun operationName(jooqQuery: Query): String = when (jooqQuery) {
+            is Select<*> -> "SELECT"
+            is InsertQuery<*> -> "INSERT"
+            is UpdateQuery<*> -> "UPDATE"
+            is DeleteQuery<*> -> "DELETE"
+            is StoreQuery<*> -> "STORE"
+            else -> "QUERY"
+        }
 
         /**
          * Requalifies [returning] columns against the target table of [jooqQuery]: a [TableField]

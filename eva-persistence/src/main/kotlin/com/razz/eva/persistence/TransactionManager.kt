@@ -82,6 +82,17 @@ abstract class TransactionManager<C>(
             replicaProvider
         }
 
+    /**
+     * The endpoint the next [withConnection] would use, so a caller can attribute a span before the
+     * connection is acquired. This mirrors the selection [withConnection] and [inTransaction] make: an
+     * existing context connection was opened by [inTransaction] and is therefore the primary, and a fresh
+     * one follows [PrimaryConnectionRequiredFlag].
+     */
+    suspend fun currentEndpoint(): DbEndpoint = when (ctxConnection()) {
+        null -> connectionProvider(currentCoroutineContext()).endpoint
+        else -> primaryProvider.endpoint
+    }
+
     abstract fun supportsPipelining(): Boolean
 
     protected abstract fun wrapConnection(newConn: C): ConnectionWrapper<C>

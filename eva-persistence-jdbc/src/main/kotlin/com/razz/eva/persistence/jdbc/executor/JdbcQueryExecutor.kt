@@ -14,7 +14,8 @@ import com.razz.eva.persistence.executor.QueryExecutor.Companion.matchReturning
 import com.razz.eva.persistence.executor.QueryExecutor.Constraint
 import com.razz.eva.persistence.postgres.PgHelpers.PG_CONNECTION_UNAVAILABLE
 import com.razz.eva.persistence.postgres.PgHelpers.PG_UNIQUE_VIOLATION
-import com.razz.eva.tracing.QueryTracingListenerProvider
+import com.razz.eva.persistence.executor.QueryExecutor.Companion.operationName
+import com.razz.eva.tracing.DatabaseSpans
 import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.api.OpenTelemetry.noop
 import org.jooq.DMLQuery
@@ -45,8 +46,10 @@ class JdbcQueryExecutor(
         jooqQuery: Select<R>,
         table: Table<R>,
     ): List<R> {
-        return transactionManager.withConnection { connection ->
-            dslContext.using(connection).preparedQuery(jooqQuery).coerce(table).fetch()
+        return traced(jooqQuery, table, dslContext) {
+            transactionManager.withConnection { connection ->
+                dslContext.using(connection).preparedQuery(jooqQuery).coerce(table).fetch()
+            }
         }
     }
 
@@ -56,16 +59,18 @@ class JdbcQueryExecutor(
         table: Table<ROUT>,
         returning: Collection<Field<*>>?,
     ): List<ROUT> {
-        return if (returning == null) {
-            jooqQuery.setReturning()
-            transactionManager.inTransaction(REQUIRE_EXISTING) { connection ->
-                dslContext.using(connection).preparedQuery(jooqQuery).coerce(table).fetch()
-            }
-        } else {
-            val fields = matchReturning(jooqQuery, returning)
-            jooqQuery.setReturning(fields)
-            transactionManager.inTransaction(REQUIRE_EXISTING) { connection ->
-                dslContext.using(connection).preparedQuery(jooqQuery).coerce(fields).fetch().map { it.into(table) }
+        return traced(jooqQuery, table, dslContext) {
+            if (returning == null) {
+                jooqQuery.setReturning()
+                transactionManager.inTransaction(REQUIRE_EXISTING) { connection ->
+                    dslContext.using(connection).preparedQuery(jooqQuery).coerce(table).fetch()
+                }
+            } else {
+                val fields = matchReturning(jooqQuery, returning)
+                jooqQuery.setReturning(fields)
+                transactionManager.inTransaction(REQUIRE_EXISTING) { connection ->
+                    dslContext.using(connection).preparedQuery(jooqQuery).coerce(fields).fetch().map { it.into(table) }
+                }
             }
         }
     }
@@ -74,15 +79,17 @@ class JdbcQueryExecutor(
         dslContext: DSLContext,
         jooqQuery: DMLQuery<R>,
     ): Int {
-        return transactionManager.inTransaction(REQUIRE_EXISTING) { connection ->
-            dslContext.using(connection).run {
-                execute(
-                    render(jooqQuery),
-                    *extractParams(jooqQuery)
-                        .values
-                        .filterNot(Param<*>::isInline)
-                        .toTypedArray(),
-                )
+        return traced(jooqQuery, null, dslContext) {
+            transactionManager.inTransaction(REQUIRE_EXISTING) { connection ->
+                dslContext.using(connection).run {
+                    execute(
+                        render(jooqQuery),
+                        *extractParams(jooqQuery)
+                            .values
+                            .filterNot(Param<*>::isInline)
+                            .toTypedArray(),
+                    )
+                }
             }
         }
     }
@@ -156,8 +163,36 @@ class JdbcQueryExecutor(
         val configWithConnection = configuration()
             .derive(connection)
             .derive(settings())
-            .derive(QueryTracingListenerProvider(openTelemetry))
 
         return DSL.using(configWithConnection)
+    }
+
+    private suspend fun <T> traced(
+        jooqQuery: Query,
+        table: Table<*>?,
+        dslContext: DSLContext,
+        block: suspend () -> T,
+    ): T {
+        if (!DatabaseSpans.tracing()) {
+            return block()
+        }
+        val endpoint = transactionManager.currentEndpoint()
+        val span = DatabaseSpans.querySpan(
+            openTelemetry = openTelemetry,
+            operation = operationName(jooqQuery),
+            target = table?.name,
+            sql = dslContext.render(jooqQuery),
+            address = endpoint.address,
+            port = endpoint.port,
+            database = endpoint.database,
+        )
+        return try {
+            block()
+        } catch (ex: Throwable) {
+            span.recordException(ex)
+            throw ex
+        } finally {
+            span.end()
+        }
     }
 }

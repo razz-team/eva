@@ -10,6 +10,7 @@ dependencies {
     api(libs.vertx.pg)
 
     api(project(eva.eva_persistence))
+    api(project(eva.eva_tracing))
 
     implementation(libs.kotlin.stdlib)
     implementation(libs.kotlin.coroutines)

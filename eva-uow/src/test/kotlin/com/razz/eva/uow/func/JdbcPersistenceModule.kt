@@ -1,5 +1,6 @@
 package com.razz.eva.uow.func
 
+import com.razz.eva.persistence.DbEndpoint
 import com.razz.eva.persistence.config.DatabaseConfig
 import com.razz.eva.persistence.jdbc.HikariPoolConnectionProvider
 import com.razz.eva.persistence.jdbc.JdbcTransactionManager
@@ -18,8 +19,10 @@ class JdbcPersistenceModule(
     private val primaryPool = poolProvider(primaryConfig, true)
     private val replicaPool = poolProvider(replicaConfig, false)
     private val blockingJdbcContext = newFixedThreadPool(primaryConfig.maxPoolSize.value()).asCoroutineDispatcher()
-    private val primaryProvider = HikariPoolConnectionProvider(primaryPool, blockingJdbcContext)
-    private val replicaProvider = HikariPoolConnectionProvider(replicaPool, blockingJdbcContext)
+    private val primaryProvider =
+        HikariPoolConnectionProvider(primaryPool, DbEndpoint.of(primaryConfig), blockingJdbcContext)
+    private val replicaProvider =
+        HikariPoolConnectionProvider(replicaPool, DbEndpoint.of(replicaConfig), blockingJdbcContext)
 
     override val transactionManager = JdbcTransactionManager(primaryProvider, replicaProvider, blockingJdbcContext)
     override val queryExecutor = JdbcQueryExecutor(transactionManager)

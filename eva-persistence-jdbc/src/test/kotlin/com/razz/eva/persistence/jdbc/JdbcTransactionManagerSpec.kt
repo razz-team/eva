@@ -1,5 +1,6 @@
 package com.razz.eva.persistence.jdbc
 
+import com.razz.eva.persistence.DbEndpoint
 import com.razz.eva.persistence.ConnectionMode.REQUIRE_EXISTING
 import com.razz.eva.persistence.ConnectionMode.REQUIRE_NEW
 import com.razz.eva.persistence.PersistenceException.ConnectionException
@@ -35,8 +36,8 @@ class JdbcTransactionManagerSpec : BehaviorSpec({
     val replicaPool = mockk<HikariDataSource>()
 
     Given("Jdbc transaction manager with pooled connection provider") {
-        val primaryProvider = HikariPoolConnectionProvider(primaryPool)
-        val replicaProvider = HikariPoolConnectionProvider(replicaPool)
+        val primaryProvider = HikariPoolConnectionProvider(primaryPool, DbEndpoint("localhost", 5432, "test"))
+        val replicaProvider = HikariPoolConnectionProvider(replicaPool, DbEndpoint("localhost", 5432, "test"))
         val jdbcTransactionManager = JdbcTransactionManager(primaryProvider, replicaProvider)
 
         When("Principal asks pipelining support") {
@@ -507,7 +508,7 @@ class JdbcTransactionManagerSpec : BehaviorSpec({
             .setMeterProvider(SdkMeterProvider.builder().registerMetricReader(metricReader).build())
             .build()
         val pool = mockk<HikariDataSource>()
-        val provider = HikariPoolConnectionProvider(pool)
+        val provider = HikariPoolConnectionProvider(pool, DbEndpoint("localhost", 5432, "test"))
         val transactionManager = JdbcTransactionManager(provider, provider, Dispatchers.IO, openTelemetry)
         val connection = mockk<Connection>(relaxed = true)
         every { connection.autoCommit } returns true
@@ -531,7 +532,7 @@ class JdbcTransactionManagerSpec : BehaviorSpec({
 
     Given("Jdbc transaction manager with a pool failing to provide connections") {
         val failingPool = mockk<HikariDataSource>()
-        val failingProvider = HikariPoolConnectionProvider(failingPool)
+        val failingProvider = HikariPoolConnectionProvider(failingPool, DbEndpoint("localhost", 5432, "test"))
         val txManager = JdbcTransactionManager(failingProvider, failingProvider)
 
         When("Principal calls withConnection and connection acquisition fails") {
