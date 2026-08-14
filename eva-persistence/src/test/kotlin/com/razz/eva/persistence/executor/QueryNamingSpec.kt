@@ -52,6 +52,15 @@ class QueryNamingSpec : FunSpec({
         queryTarget(query) shouldBe "model_events"
     }
 
+    test("a merge upsert names the operation but has no target") {
+        // org.jooq.impl.MergeUpsert implements org.jooq.Merge but not QOM.Merge, so the two functions
+        // match on independent hierarchies here. Pinned rather than papered over: the span is named
+        // MERGE with no db.collection.name, and eva itself builds no merges.
+        val query = ctx.mergeInto(events, events.ID).values(DSL.inline(null, SQLDataType.UUID))
+        operationName(query) shouldBe "MERGE"
+        queryTarget(query) shouldBe null
+    }
+
     test("names a select") {
         operationName(ctx.selectFrom(events)) shouldBe "SELECT"
     }

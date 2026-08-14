@@ -80,11 +80,19 @@ abstract class TransactionManager<C>(
     /**
      * The role comes from which constructor argument the provider was passed as, so a provider mislabelling
      * itself cannot mislabel a span. Where both pools are the same instance the answer is PRIMARY, which is
-     * honest: there is one pool.
+     * honest: there is one pool. A provider that is neither gets no role rather than a guessed one.
      */
     protected suspend fun recordPool(provider: ConnectionProvider<C>) {
-        val role = if (provider === primaryProvider) PoolRole.PRIMARY else PoolRole.REPLICA
-        currentCoroutineContext()[AcquiredEndpoint]?.record(provider.endpoint, role)
+        // Nothing asked, so the provider is not even consulted for its endpoint.
+        val slot = currentCoroutineContext()[AcquiredEndpoint] ?: return
+        val role = when (provider) {
+            primaryProvider -> PoolRole.PRIMARY
+            replicaProvider -> PoolRole.REPLICA
+            // A subclass may wrap its providers or hold a third. Reporting no role beats reporting the
+            // wrong one, and the address still says where the call went.
+            else -> null
+        }
+        slot.record(provider.endpoint, role)
     }
 
     private suspend fun acquire(provider: ConnectionProvider<C>): C = try {

@@ -28,7 +28,7 @@ class AcquiredEndpoint : CoroutineContext.Element {
     var role: PoolRole? = null
         private set
 
-    internal fun record(acquired: DbEndpoint, acquiredRole: PoolRole) {
+    internal fun record(acquired: DbEndpoint, acquiredRole: PoolRole?) {
         endpoint = acquired
         role = acquiredRole
     }

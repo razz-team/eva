@@ -214,20 +214,28 @@ class VertxQueryExecutor(
     }
 
     private fun Array<*>.javaTimeArray(): Any {
-        // An exact component match, so a java.sql subclass would fall through unmapped. Vertx cannot encode
-        // those, and failing here names the type instead of surfacing as an opaque driver error.
-        require(this.none { it is Date || it is Time }) { "Unmapped java.sql array: ${this::class.java.name}" }
-        // Vertx resolves an array encoder by the array's own class, not by its elements, so the result
-        // has to carry the java.time component type and not merely hold remapped elements.
-        val component = when (this::class.java.componentType) {
-            Timestamp::class.java -> LocalDateTime::class.java
-            Date::class.java -> LocalDate::class.java
-            Time::class.java -> LocalTime::class.java
-            else -> return this
-        }
+        // Vertx resolves an array encoder by the array's own class, not by its elements, so the result has to
+        // carry the java.time component type and not merely hold remapped elements. The component type is
+        // matched exactly, so an Object[] or a java.util.Date[] holding java.sql values falls back to the
+        // elements rather than reaching vertx unmapped.
+        val component = componentTarget() ?: elementTarget() ?: return this
         val remapped = java.lang.reflect.Array.newInstance(component, size)
         forEachIndexed { index, element -> java.lang.reflect.Array.set(remapped, index, javaTimeValue(element)) }
         return remapped
+    }
+
+    private fun Array<*>.componentTarget(): Class<*>? = when (this::class.java.componentType) {
+        Timestamp::class.java -> LocalDateTime::class.java
+        Date::class.java -> LocalDate::class.java
+        Time::class.java -> LocalTime::class.java
+        else -> null
+    }
+
+    private fun Array<*>.elementTarget(): Class<*>? = when (firstOrNull { it != null }) {
+        is Timestamp -> LocalDateTime::class.java
+        is Date -> LocalDate::class.java
+        is Time -> LocalTime::class.java
+        else -> null
     }
 
     private fun <R : Record> convertRowToRecord(
