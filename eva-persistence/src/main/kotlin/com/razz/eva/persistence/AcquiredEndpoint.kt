@@ -8,15 +8,17 @@ import kotlin.coroutines.CoroutineContext
  * The transaction manager records into it as it goes to a pool, so the value describes the pool the call
  * went to rather than one a caller predicted. Recorded before acquisition rather than after, so a call that
  * fails to get a connection still says which pool it was starved on, which is the case the attribute exists
- * for. Nothing is recorded
- * when no slot is present, so a caller that does not ask pays a null check, in the same way as
- * [ConnectionAcquisitionCounter].
+ * for. Nothing is recorded when no slot is present, and the provider is not even consulted for its
+ * endpoint. Unlike [ConnectionAcquisitionCounter], which counts after a connection comes back, this is
+ * written before the attempt, so the two do not agree on a failed acquire.
  *
  * An absent [endpoint] means no pool was reached under this slot. Callers reporting it should omit the
  * value rather than guess, since a confidently wrong pool is worse than none.
  *
- * One slot serves one call. Fields are volatile because a manager may record on a different thread from the
- * one that reads them, but a slot shared between concurrent calls would report whichever wrote last.
+ * One slot serves one call, and a query executor allocates its own rather than reading a caller's, so
+ * placing a slot at request scope observes nothing. Fields are volatile because a manager may record on a
+ * different thread from the one that reads them; a slot shared between concurrent calls would report
+ * whichever wrote last.
  */
 class AcquiredEndpoint : CoroutineContext.Element {
 
