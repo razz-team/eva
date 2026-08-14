@@ -10,7 +10,7 @@ flyway = { module = "org.flywaydb:flyway-core", version.ref = "flywaydb" }
 flyway-postgres = { module = "org.flywaydb:flyway-database-postgresql", version.ref = "flywaydb" }
 hikari = { module = "com.zaxxer:HikariCP", version = "7.1.0" }
 kotlin-logging = { module = "io.github.microutils:kotlin-logging", version = "3.0.5" }
-logback = { module = "ch.qos.logback:logback-classic", version = "1.6.1" }
+logback = { module = "ch.qos.logback:logback-classic", version = "1.6.2" }
 mockk = { module = "io.mockk:mockk", version = "1.14.11" }
 postgres = { module = "org.postgresql:postgresql", version = "42.7.13" }
 
@@ -28,7 +28,7 @@ opentelemetry-instrumentation-bom = { module = "io.opentelemetry.instrumentation
 opentelemetry-instrumentation-alpha-bom = { module = "io.opentelemetry.instrumentation:opentelemetry-instrumentation-bom-alpha", version = "2.30.0-alpha" }
 
 testcontainers-bom = { module = "org.testcontainers:testcontainers-bom", version = "2.0.5" }
-kotest-bom = { module = "io.kotest:kotest-bom", version = "6.2.3" }
+kotest-bom = { module = "io.kotest:kotest-bom", version = "6.2.4" }
 
 # managed by BOMs
 kotlin-stdlib = { module = "org.jetbrains.kotlin:kotlin-stdlib" }
