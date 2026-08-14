@@ -140,7 +140,7 @@ class VertxQueryExecutorTemporalSpec : ShouldSpec({
     }
 
     should("bind a time array through the converter route") {
-        // The converter hands back java.sql.Time[], which has to be mapped rather than thrown on or
+        // The converter hands back java.sql.Time[], which has to be mapped. Throwing on it or
         // passed through: vertx cannot encode it.
         val times = listOf(LocalTime.parse("10:15:30"), LocalTime.parse("11:15:30"))
         val bound = boundValue(temporalTable.AT_TIME.eq(DSL.any(*times.toTypedArray())))

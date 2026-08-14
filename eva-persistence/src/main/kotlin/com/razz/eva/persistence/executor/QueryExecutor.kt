@@ -69,7 +69,7 @@ interface QueryExecutor {
     companion object {
 
         /**
-         * The `db.operation.name` for a query, taken from its jOOQ type rather than by parsing rendered
+         * The `db.operation.name` for a query, taken from its jOOQ type. It does not parse rendered
          * SQL. Falls back to the dialect neutral verb when the query is none of the concrete DML types.
          */
         fun operationName(jooqQuery: Query): String = when (jooqQuery) {

@@ -215,7 +215,7 @@ class VertxQueryExecutor(
         // Vertx resolves an array encoder by the array's own class, not by its elements, so the result has to
         // carry the java.time component type and not merely hold remapped elements. The component type is
         // matched exactly, so an Object[] or a java.util.Date[] holding java.sql values falls back to the
-        // elements rather than reaching vertx unmapped.
+        // elements. Nothing reaches vertx unmapped.
         val component = componentTarget() ?: elementTarget() ?: return this
         val remapped = java.lang.reflect.Array.newInstance(component, size)
         forEachIndexed { index, element -> java.lang.reflect.Array.set(remapped, index, javaTimeValue(element)) }

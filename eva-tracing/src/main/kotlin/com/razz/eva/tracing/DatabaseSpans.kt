@@ -11,7 +11,7 @@ import io.opentelemetry.context.Context
  * and carrying the address of the pool that served the call.
  *
  * A span covers the whole call the caller waited on, connection acquisition and row fetching included,
- * rather than statement execution alone, so a service starved of connections shows slow spans here.
+ * and not statement execution alone, so a service starved of connections shows slow spans here.
  */
 object DatabaseSpans {
 
@@ -20,7 +20,7 @@ object DatabaseSpans {
     /**
      * Whether anything is being recorded right now. Callers check this before doing the work a span needs,
      * which keeps queries outside a request, job or consumer (module initialisation and migrations, for
-     * instance) untraced. `isRecording` rather than mere presence, so a sampled out trace does not pay for
+     * instance) untraced. The guard reads `isRecording` and not mere presence, so a sampled out trace does not pay for
      * attributes nobody will read.
      */
     fun tracing(): Boolean = Span.fromContextOrNull(Context.current())?.isRecording ?: false
@@ -36,8 +36,8 @@ object DatabaseSpans {
             .setSpanKind(CLIENT)
             .setAttribute("db.system", "postgresql")
             .setAttribute("db.operation.name", operation)
-            // Kept as db.statement, the name already in use, rather than renamed to the newer
-            // db.query.text, so existing trace queries keep working.
+            // Kept as db.statement, the name already in use. A rename to the newer
+            // db.query.text would break existing trace queries.
             .setAttribute("db.statement", sql)
         if (target != null) {
             builder.setAttribute("db.collection.name", target)
@@ -46,7 +46,7 @@ object DatabaseSpans {
     }
 
     /**
-     * The pool that served the call, recorded once it is known rather than predicted at span start. Left
+     * The pool that served the call, recorded once it is known. Nothing predicts it at span start. Left
      * unset when no pool was reached, since an absent address is honest where a guessed one is not. A pool
      * the manager cannot name keeps its address and omits the role only.
      */

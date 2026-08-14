@@ -29,7 +29,7 @@ abstract class TransactionManager<C>(
             }
             else -> {
                 // A context connection can only have been opened by inTransaction, which always acquires
-                // from the primary, so this is an invariant rather than a guess. Without it every statement
+                // from the primary, so this holds by construction. Without it every statement
                 // after the first in a transaction would report no pool at all.
                 recordPool(primaryProvider)
                 block(existingConn)
@@ -80,7 +80,7 @@ abstract class TransactionManager<C>(
     /**
      * The role comes from which constructor argument the provider was passed as, so a provider mislabelling
      * itself cannot mislabel a span. Where both pools are the same instance the answer is PRIMARY, which is
-     * honest: there is one pool. A provider that is neither gets no role rather than a guessed one.
+     * honest: there is one pool. A provider that is neither gets no role. Its address remains.
      */
     protected suspend fun recordPool(provider: ConnectionProvider<C>) {
         // Nothing asked, so the provider is not even consulted for its endpoint.

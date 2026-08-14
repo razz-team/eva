@@ -32,7 +32,7 @@ object JsonDSL {
      * literal, so the constraint is plan cache size, not injection safety.
      *
      * This accessor is the only place a key gets inlined. Build conditions from it with the jOOQ operators
-     * rather than writing another `{0}->>{1}` template, which is how the bound key kept coming back.
+     * and do not write another `{0}->>{1}` template. That is how the bound key kept coming back.
      */
     fun jsonbField(field: Field<JSONB>, name: String): Field<String> =
         DSL.field("{0}->>{1}", String::class.java, field, DSL.inline(name))
@@ -60,10 +60,10 @@ object JsonDSL {
 
     /**
      * The jsonb array at `field->'name'` as a text list, empty when the key is absent or the array is
-     * empty. Callers holding a typed element convert in Kotlin rather than casting in SQL.
+     * empty. Callers holding a typed element convert in Kotlin. The SQL does no cast.
      *
      * The key is inlined, see [jsonbField]. This is a correlated subquery per row, so it belongs in a
-     * projection rather than in a predicate. PostgreSQL raises an error if the value is not a jsonb array.
+     * projection, not in a predicate. PostgreSQL raises an error if the value is not a jsonb array.
      */
     fun jsonbTextArray(field: Field<JSONB>, name: String): Field<List<String>> =
         DSL.field(
@@ -87,7 +87,7 @@ object JsonDSL {
      * True when the jsonb array at `field->'name'` holds any of [values] as a top level string element.
      *
      * The key is inlined, see [jsonbField]. The values are bound as a text array, so a value containing a
-     * quote or a backslash is handled by the driver rather than by JSON string building.
+     * quote or a backslash is handled by the driver. Nothing builds a JSON string here.
      *
      * An empty [values] matches nothing, which is what "contains any of none" means. Callers that want an
      * absent filter to drop out of the condition have to say so themselves.

@@ -15,7 +15,7 @@ private val events = object : TableImpl<Record>(DSL.name("model_events")) {
 }
 
 /**
- * The DSL forms matter as much as the query objects: `deleteFrom(t)` is a `QOM.Delete` rather than a
+ * The DSL forms matter as much as the query objects: `deleteFrom(t)` is a `QOM.Delete` and not a
  * `DeleteQuery`, so matching only the query-object types named every such span after nothing at all.
  */
 class QueryNamingSpec : FunSpec({
@@ -54,7 +54,7 @@ class QueryNamingSpec : FunSpec({
 
     test("a merge upsert names the operation but has no target") {
         // org.jooq.impl.MergeUpsert implements org.jooq.Merge but not QOM.Merge, so the two functions
-        // match on independent hierarchies here. Pinned rather than papered over: the span is named
+        // match on independent hierarchies here. Pinned here: the span is named
         // MERGE with no db.collection.name, and eva itself builds no merges.
         val query = ctx.mergeInto(events, events.ID).values(DSL.inline(null, SQLDataType.UUID))
         operationName(query) shouldBe "MERGE"
