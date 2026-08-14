@@ -46,9 +46,10 @@ class JdbcQueryExecutor(
         jooqQuery: Select<R>,
         table: Table<R>,
     ): List<R> {
-        return traced(jooqQuery, table, dslContext) {
+        val sql = dslContext.render(jooqQuery)
+        return traced(jooqQuery, table, sql) {
             transactionManager.withConnection { connection ->
-                dslContext.using(connection).preparedQuery(jooqQuery).coerce(table).fetch()
+                dslContext.using(connection).preparedQuery(sql, jooqQuery).coerce(table).fetch()
             }
         }
     }
@@ -59,17 +60,18 @@ class JdbcQueryExecutor(
         table: Table<ROUT>,
         returning: Collection<Field<*>>?,
     ): List<ROUT> {
-        return traced(jooqQuery, table, dslContext) {
-            if (returning == null) {
-                jooqQuery.setReturning()
-                transactionManager.inTransaction(REQUIRE_EXISTING) { connection ->
-                    dslContext.using(connection).preparedQuery(jooqQuery).coerce(table).fetch()
-                }
-            } else {
-                val fields = matchReturning(jooqQuery, returning)
-                jooqQuery.setReturning(fields)
-                transactionManager.inTransaction(REQUIRE_EXISTING) { connection ->
-                    dslContext.using(connection).preparedQuery(jooqQuery).coerce(fields).fetch().map { it.into(table) }
+        val fields = returning?.let { matchReturning(jooqQuery, it) }
+        // The returning clause is part of the statement, so it has to be set before the SQL is rendered
+        // for both the span attribute and the execution.
+        if (fields == null) jooqQuery.setReturning() else jooqQuery.setReturning(fields)
+        val sql = dslContext.render(jooqQuery)
+        return traced(jooqQuery, table, sql) {
+            transactionManager.inTransaction(REQUIRE_EXISTING) { connection ->
+                val prepared = dslContext.using(connection).preparedQuery(sql, jooqQuery)
+                if (fields == null) {
+                    prepared.coerce(table).fetch()
+                } else {
+                    prepared.coerce(fields).fetch().map { it.into(table) }
                 }
             }
         }
@@ -79,30 +81,25 @@ class JdbcQueryExecutor(
         dslContext: DSLContext,
         jooqQuery: DMLQuery<R>,
     ): Int {
-        return traced(jooqQuery, null, dslContext) {
+        val sql = dslContext.render(jooqQuery)
+        return traced(jooqQuery, null, sql) {
             transactionManager.inTransaction(REQUIRE_EXISTING) { connection ->
                 dslContext.using(connection).run {
-                    execute(
-                        render(jooqQuery),
-                        *extractParams(jooqQuery)
-                            .values
-                            .filterNot(Param<*>::isInline)
-                            .toTypedArray(),
-                    )
+                    execute(sql, *bindValues(jooqQuery))
                 }
             }
         }
     }
 
     private fun DSLContext.preparedQuery(
+        sql: String,
         jooqQuery: Query,
-    ): ResultQuery<Record> = resultQuery(
-        render(jooqQuery),
-        *extractParams(jooqQuery)
-            .values
-            .filterNot(Param<*>::isInline)
-            .toTypedArray(),
-    )
+    ): ResultQuery<Record> = resultQuery(sql, *bindValues(jooqQuery))
+
+    private fun DSLContext.bindValues(jooqQuery: Query): Array<Any?> = extractParams(jooqQuery)
+        .values
+        .filterNot(Param<*>::isInline)
+        .toTypedArray()
 
     override fun extractConstraintName(ex: Exception): Constraint? {
         val dataAccessException = ex as? DataAccessException ?: return null
@@ -170,7 +167,7 @@ class JdbcQueryExecutor(
     private suspend fun <T> traced(
         jooqQuery: Query,
         table: Table<*>?,
-        dslContext: DSLContext,
+        sql: String,
         block: suspend () -> T,
     ): T {
         if (!DatabaseSpans.tracing()) {
@@ -181,7 +178,7 @@ class JdbcQueryExecutor(
             openTelemetry = openTelemetry,
             operation = operationName(jooqQuery),
             target = table?.name,
-            sql = dslContext.render(jooqQuery),
+            sql = sql,
             address = endpoint.address,
             port = endpoint.port,
             database = endpoint.database,

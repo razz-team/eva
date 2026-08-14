@@ -65,9 +65,10 @@ class VertxQueryExecutor(
         jooqQuery: Select<R>,
         table: Table<R>,
     ): List<R> {
-        return traced(jooqQuery, table, dslContext) {
+        val sql = dslContext.renderNamedParams(jooqQuery)
+        return traced(jooqQuery, table, sql) {
             transactionManager.withConnection { connection ->
-                val rows = executeQuery(connection, dslContext, jooqQuery, table.fields(), table)
+                val rows = executeQuery(connection, dslContext, jooqQuery, sql, table.fields(), table)
                 rows.toList()
             }
         }
@@ -80,16 +81,19 @@ class VertxQueryExecutor(
         returning: Collection<Field<*>>?,
     ): List<ROUT> {
         val matched = returning?.let { matchReturning(jooqQuery, it) }
-        return traced(jooqQuery, table, dslContext) {
+        // The returning clause is part of the statement, so it has to be set before the SQL is rendered
+        // for both the span attribute and the execution.
+        val fields = if (matched == null) {
+            jooqQuery.setReturning()
+            table.fields()
+        } else {
+            jooqQuery.setReturning(matched)
+            matched.toTypedArray()
+        }
+        val sql = dslContext.renderNamedParams(jooqQuery)
+        return traced(jooqQuery, table, sql) {
             transactionManager.inTransaction(REQUIRE_EXISTING) { connection ->
-                val fields = if (matched == null) {
-                    jooqQuery.setReturning()
-                    table.fields()
-                } else {
-                    jooqQuery.setReturning(matched)
-                    matched.toTypedArray()
-                }
-                val rows = executeQuery(connection, dslContext, jooqQuery, fields, table)
+                val rows = executeQuery(connection, dslContext, jooqQuery, sql, fields, table)
                 rows.toList()
             }
         }
@@ -99,9 +103,10 @@ class VertxQueryExecutor(
         dslContext: DSLContext,
         jooqQuery: DMLQuery<R>,
     ): Int {
-        return traced(jooqQuery, null, dslContext) {
+        val sql = dslContext.renderNamedParams(jooqQuery)
+        return traced(jooqQuery, null, sql) {
             transactionManager.inTransaction(REQUIRE_EXISTING) { connection ->
-                connection.preparedQuery(dslContext.renderNamedParams(jooqQuery))
+                connection.preparedQuery(sql)
                     .execute(bindParams(dslContext, jooqQuery)).map(SqlResult<*>::rowCount).coAwait()
             }
         }
@@ -111,16 +116,17 @@ class VertxQueryExecutor(
         connection: PgConnection,
         dslContext: DSLContext,
         jooqQuery: Query,
+        sql: String,
         fields: Array<out Field<*>>,
         table: Table<R>,
-    ): RowSet<R> = connection.preparedQuery(dslContext.renderNamedParams(jooqQuery)).mapping { row ->
+    ): RowSet<R> = connection.preparedQuery(sql).mapping { row ->
         convertRowToRecord(dslContext, row, fields, table)
     }.execute(bindParams(dslContext, jooqQuery)).coAwait()
 
     private suspend fun <T> traced(
         jooqQuery: Query,
         table: Table<*>?,
-        dslContext: DSLContext,
+        sql: String,
         block: suspend () -> T,
     ): T {
         if (!DatabaseSpans.tracing()) {
@@ -131,7 +137,7 @@ class VertxQueryExecutor(
             openTelemetry = openTelemetry,
             operation = operationName(jooqQuery),
             target = table?.name,
-            sql = dslContext.render(jooqQuery),
+            sql = sql,
             address = endpoint.address,
             port = endpoint.port,
             database = endpoint.database,
