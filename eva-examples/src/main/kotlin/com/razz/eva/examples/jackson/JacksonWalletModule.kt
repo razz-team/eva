@@ -31,11 +31,11 @@ class JacksonWalletModule(databaseConfig: DatabaseConfig) {
     val transactionManager = JdbcTransactionManager(
         primaryProvider = HikariPoolConnectionProvider(
             dataSource(databaseConfig, isPrimary = true),
-            DbEndpoint.of(databaseConfig, DbEndpoint.Role.PRIMARY),
+            DbEndpoint.of(databaseConfig),
         ),
         replicaProvider = HikariPoolConnectionProvider(
             dataSource(databaseConfig, isPrimary = false),
-            DbEndpoint.of(databaseConfig, DbEndpoint.Role.REPLICA),
+            DbEndpoint.of(databaseConfig),
         ),
         blockingJdbcContext = newFixedThreadPool(databaseConfig.maxPoolSize.value()).asCoroutineDispatcher(),
     )

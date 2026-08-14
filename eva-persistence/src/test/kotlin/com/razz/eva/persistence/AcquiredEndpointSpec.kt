@@ -8,8 +8,8 @@ import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.CoroutineContext
 
-private val primary = DbEndpoint("primary.db", 5432, "eva", DbEndpoint.Role.PRIMARY)
-private val replica = DbEndpoint("replica.db", 5432, "eva", DbEndpoint.Role.REPLICA)
+private val primaryEndpoint = DbEndpoint("primary.db", 5432, "eva")
+private val replicaEndpoint = DbEndpoint("replica.db", 5432, "eva")
 
 private object NoopWrapper : ConnectionWrapper<DummyConnection> {
     override val key: CoroutineContext.Key<*> get() = Key
@@ -24,17 +24,31 @@ private object NoopWrapper : ConnectionWrapper<DummyConnection> {
  * overrides them, so these cover the choice the shipped manager actually makes.
  */
 private class CtxConnectionManager : TransactionManager<DummyConnection>(
-    DummyConnectionProvider(primary),
-    DummyConnectionProvider(replica),
+    DummyConnectionProvider(primaryEndpoint),
+    DummyConnectionProvider(replicaEndpoint),
 ) {
     override fun wrapConnection(newConn: DummyConnection) = NoopWrapper
     override suspend fun ctxConnection() = DummyConnection
     override fun supportsPipelining() = false
 }
 
+private class FailingProvider(override val endpoint: DbEndpoint) : ConnectionProvider<DummyConnection> {
+    override suspend fun acquire(): DummyConnection = throw IllegalStateException("pool exhausted")
+    override suspend fun release(connection: DummyConnection) = Unit
+}
+
+private class FailingPoolManager : TransactionManager<DummyConnection>(
+    FailingProvider(primaryEndpoint),
+    FailingProvider(replicaEndpoint),
+) {
+    override fun wrapConnection(newConn: DummyConnection) = NoopWrapper
+    override suspend fun ctxConnection(): DummyConnection? = null
+    override fun supportsPipelining() = false
+}
+
 private class TwoPoolManager : TransactionManager<DummyConnection>(
-    DummyConnectionProvider(primary),
-    DummyConnectionProvider(replica),
+    DummyConnectionProvider(primaryEndpoint),
+    DummyConnectionProvider(replicaEndpoint),
 ) {
     override fun wrapConnection(newConn: DummyConnection) = NoopWrapper
     override suspend fun ctxConnection(): DummyConnection? = null
@@ -50,19 +64,22 @@ class AcquiredEndpointSpec : FunSpec({
     test("withConnection records the replica by default") {
         val slot = AcquiredEndpoint()
         withContext(slot) { TwoPoolManager().withConnection { } }
-        slot.endpoint shouldBe replica
+        slot.endpoint shouldBe replicaEndpoint
+        slot.role shouldBe PoolRole.REPLICA
     }
 
     test("withConnection records the primary when the flag demands it") {
         val slot = AcquiredEndpoint()
         withContext(slot + PrimaryConnectionRequiredFlag) { TwoPoolManager().withConnection { } }
-        slot.endpoint shouldBe primary
+        slot.endpoint shouldBe primaryEndpoint
+        slot.role shouldBe PoolRole.PRIMARY
     }
 
     test("inTransaction records the primary even where a read would have taken the replica") {
         val slot = AcquiredEndpoint()
         withContext(slot) { TwoPoolManager().inTransaction(REQUIRE_NEW) { } }
-        slot.endpoint shouldBe primary
+        slot.endpoint shouldBe primaryEndpoint
+        slot.role shouldBe PoolRole.PRIMARY
     }
 
     test("nothing is recorded when no connection is acquired") {
@@ -76,17 +93,23 @@ class AcquiredEndpointSpec : FunSpec({
     test("reusing a context connection records the primary that opened it") {
         val slot = AcquiredEndpoint()
         withContext(slot) { CtxConnectionManager().withConnection { } }
-        slot.endpoint shouldBe primary
+        slot.endpoint shouldBe primaryEndpoint
+        slot.role shouldBe PoolRole.PRIMARY
     }
 
     test("a statement inside a transaction records the primary") {
         val slot = AcquiredEndpoint()
         withContext(slot) { CtxConnectionManager().inTransaction(REQUIRE_EXISTING) { } }
-        slot.endpoint shouldBe primary
+        slot.endpoint shouldBe primaryEndpoint
+        slot.role shouldBe PoolRole.PRIMARY
     }
 
-    test("a caller that does not ask pays nothing") {
-        TwoPoolManager().withConnection { }
-        AcquiredEndpoint().endpoint shouldBe null
+    test("the pool is named even when the connection is never obtained") {
+        val slot = AcquiredEndpoint()
+        shouldThrow<PersistenceException.ConnectionException> {
+            withContext(slot) { FailingPoolManager().withConnection { } }
+        }
+        slot.endpoint shouldBe replicaEndpoint
+        slot.role shouldBe PoolRole.REPLICA
     }
 })

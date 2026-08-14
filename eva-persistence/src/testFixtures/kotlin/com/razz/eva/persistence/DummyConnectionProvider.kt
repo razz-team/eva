@@ -1,7 +1,7 @@
 package com.razz.eva.persistence
 
 class DummyConnectionProvider(
-    override val endpoint: DbEndpoint = DbEndpoint("dummy", 5432, "dummy", DbEndpoint.Role.PRIMARY),
+    override val endpoint: DbEndpoint = DbEndpoint("dummy", 5432, "dummy"),
 ) : ConnectionProvider<DummyConnection> {
 
     override suspend fun acquire(): DummyConnection {

@@ -19,9 +19,9 @@ abstract class TransactionManager<C>(
                 val provider = connectionProvider(currentCoroutineContext())
                 var newConn: C? = null
                 try {
+                    recordPool(provider)
                     newConn = acquire(provider)
                     currentCoroutineContext()[ConnectionAcquisitionCounter]?.increment()
-                    currentCoroutineContext()[AcquiredEndpoint]?.record(provider.endpoint)
                     block(newConn)
                 } finally {
                     newConn?.let { provider.release(it) }
@@ -31,7 +31,7 @@ abstract class TransactionManager<C>(
                 // A context connection can only have been opened by inTransaction, which always acquires
                 // from the primary, so this is an invariant rather than a guess. Without it every statement
                 // after the first in a transaction would report no pool at all.
-                currentCoroutineContext()[AcquiredEndpoint]?.record(primaryProvider.endpoint)
+                recordPool(primaryProvider)
                 block(existingConn)
             }
         }
@@ -46,9 +46,9 @@ abstract class TransactionManager<C>(
                 check(mode == REQUIRE_NEW) { "Required existing connection but no existing connection was found" }
                 var newConn: C? = null
                 try {
+                    recordPool(primaryProvider)
                     newConn = acquire(primaryProvider)
                     currentCoroutineContext()[ConnectionAcquisitionCounter]?.increment()
-                    currentCoroutineContext()[AcquiredEndpoint]?.record(primaryProvider.endpoint)
                     val ctx = wrapConnection(newConn)
                     withContext(ctx) {
                         try {
@@ -71,10 +71,20 @@ abstract class TransactionManager<C>(
             // and will be handled there
             else -> {
                 check(mode == REQUIRE_EXISTING) { "Required new connection but existing connection was found" }
-                currentCoroutineContext()[AcquiredEndpoint]?.record(primaryProvider.endpoint)
+                recordPool(primaryProvider)
                 block(existingConn)
             }
         }
+    }
+
+    /**
+     * The role comes from which constructor argument the provider was passed as, so a provider mislabelling
+     * itself cannot mislabel a span. Where both pools are the same instance the answer is PRIMARY, which is
+     * honest: there is one pool.
+     */
+    protected suspend fun recordPool(provider: ConnectionProvider<C>) {
+        val role = if (provider === primaryProvider) PoolRole.PRIMARY else PoolRole.REPLICA
+        currentCoroutineContext()[AcquiredEndpoint]?.record(provider.endpoint, role)
     }
 
     private suspend fun acquire(provider: ConnectionProvider<C>): C = try {

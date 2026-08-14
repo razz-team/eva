@@ -16,8 +16,8 @@ class JdbcPersistenceModule(
     replicaConfig: DatabaseConfig,
 ) : PersistenceModule() {
 
-    private val primaryEndpoint = DbEndpoint.of(primaryConfig, DbEndpoint.Role.PRIMARY)
-    private val replicaEndpoint = DbEndpoint.of(replicaConfig, DbEndpoint.Role.REPLICA)
+    private val primaryEndpoint = DbEndpoint.of(primaryConfig)
+    private val replicaEndpoint = DbEndpoint.of(replicaConfig)
     private val primaryPool = poolProvider(primaryConfig, true)
     private val replicaPool = poolProvider(replicaConfig, false)
     private val blockingJdbcContext = newFixedThreadPool(primaryConfig.maxPoolSize.value()).asCoroutineDispatcher()
