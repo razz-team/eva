@@ -178,22 +178,27 @@ class JdbcQueryExecutor(
         if (!DatabaseSpans.tracing()) {
             return block()
         }
-        val span = DatabaseSpans.querySpan(
-            openTelemetry = openTelemetry,
-            operation = operationName(jooqQuery),
-            target = table?.name ?: queryTarget(jooqQuery),
-            sql = sql,
-        )
         val acquired = AcquiredEndpoint()
-        // The transaction manager fills the slot at acquisition, so the address describes the pool that
-        // served this call rather than one predicted for it. span.use makes the span current, which is what
-        // nests the connection acquisition spans underneath it, and records failure on it.
+        // The span is built inside withContext, not before it: withContext runs ensureActive first, so a
+        // span created outside would never be ended for a call cancelled before it starts. The manager fills
+        // the slot as it goes to a pool, and span.use makes the span current, which is what nests the
+        // connection acquisition spans underneath it and records failure on it.
         return withContext(acquired) {
+            val span = DatabaseSpans.querySpan(
+                openTelemetry = openTelemetry,
+                operation = operationName(jooqQuery),
+                target = table?.name ?: queryTarget(jooqQuery),
+                sql = sql,
+            )
             span.use {
                 try {
                     block()
                 } finally {
-                    acquired.endpoint?.let { span.setServer(it.address, it.port, it.database, it.role.name) }
+                    val endpoint = acquired.endpoint
+                    val role = acquired.role
+                    if (endpoint != null && role != null) {
+                        span.setServer(endpoint.address, endpoint.port, endpoint.database, role.name)
+                    }
                 }
             }
         }

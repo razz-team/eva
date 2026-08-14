@@ -118,6 +118,17 @@ class VertxQueryExecutorTemporalSpec : ShouldSpec({
         (bound as Array<*>).toList() shouldBe moments.map { LocalDateTime.ofInstant(it, UTC) }
     }
 
+    should("bind a timestamp array holding a null") {
+        val moments = arrayOf(Instant.parse("2026-08-10T10:15:30Z"), null, Instant.parse("2026-08-12T10:15:30Z"))
+        val bound = boundValue(temporalTable.AT.eq(DSL.any(*moments)))
+        bound!!::class.java shouldBe Array<LocalDateTime>::class.java
+        (bound as Array<*>).toList() shouldBe listOf(
+            LocalDateTime.parse("2026-08-10T10:15:30"),
+            null,
+            LocalDateTime.parse("2026-08-12T10:15:30"),
+        )
+    }
+
     should("keep binding a single date as a LocalDate") {
         val day = LocalDate.parse("2026-08-13")
         boundValue(temporalTable.DAY.eq(day)) shouldBe day

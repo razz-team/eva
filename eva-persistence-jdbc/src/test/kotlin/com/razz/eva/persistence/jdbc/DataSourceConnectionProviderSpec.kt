@@ -30,7 +30,7 @@ import javax.sql.DataSource
 import kotlin.concurrent.thread
 import kotlin.concurrent.withLock
 
-private val testEndpoint = DbEndpoint("localhost", 5432, "test", DbEndpoint.Role.PRIMARY)
+private val testEndpoint = DbEndpoint("localhost", 5432, "test")
 
 @OptIn(DelicateCoroutinesApi::class)
 class DataSourceConnectionProviderSpec : ShouldSpec({

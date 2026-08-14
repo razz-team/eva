@@ -19,7 +19,7 @@ import io.vertx.sqlclient.Pool
 import io.vertx.sqlclient.Transaction
 import kotlinx.coroutines.withContext
 
-private val testEndpoint = DbEndpoint("localhost", 5432, "test", DbEndpoint.Role.PRIMARY)
+private val testEndpoint = DbEndpoint("localhost", 5432, "test")
 
 class VertxTransactionManagerSpec : BehaviorSpec({
 

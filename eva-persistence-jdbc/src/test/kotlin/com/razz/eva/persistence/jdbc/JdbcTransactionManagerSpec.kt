@@ -30,7 +30,7 @@ import kotlinx.coroutines.withContext
 import java.sql.Connection
 import java.sql.SQLTransientConnectionException
 
-private val testEndpoint = DbEndpoint("localhost", 5432, "test", DbEndpoint.Role.PRIMARY)
+private val testEndpoint = DbEndpoint("localhost", 5432, "test")
 
 class JdbcTransactionManagerSpec : BehaviorSpec({
 

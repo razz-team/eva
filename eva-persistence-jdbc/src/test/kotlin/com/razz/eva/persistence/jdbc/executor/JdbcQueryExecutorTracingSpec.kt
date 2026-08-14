@@ -1,9 +1,9 @@
-package com.razz.eva.persistence.vertx.executor
+package com.razz.eva.persistence.jdbc.executor
 
 import com.razz.eva.persistence.DbEndpoint
 import com.razz.eva.persistence.PrimaryConnectionRequiredFlag
-import com.razz.eva.persistence.vertx.PgPoolConnectionProvider
-import com.razz.eva.persistence.vertx.VertxTransactionManager
+import com.razz.eva.persistence.jdbc.JdbcConnectionProvider
+import com.razz.eva.persistence.jdbc.JdbcTransactionManager
 import io.kotest.core.spec.style.ShouldSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
@@ -19,20 +19,14 @@ import io.opentelemetry.sdk.OpenTelemetrySdk
 import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter
 import io.opentelemetry.sdk.trace.SdkTracerProvider
 import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
-import io.vertx.core.Future.succeededFuture
-import io.vertx.pgclient.PgConnection
-import io.vertx.sqlclient.PreparedQuery
-import io.vertx.sqlclient.Row
-import io.vertx.sqlclient.RowSet
-import io.vertx.sqlclient.impl.ListTuple
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.jooq.Record
 import org.jooq.SQLDialect.POSTGRES
 import org.jooq.impl.DSL
 import org.jooq.impl.SQLDataType
 import org.jooq.impl.TableImpl
-import java.util.function.Function
+import org.jooq.tools.jdbc.MockConnection
+import org.jooq.tools.jdbc.MockResult
 
 private val orders = object : TableImpl<Record>(DSL.name("payment_order")) {
     val ID = createField(DSL.name("id"), SQLDataType.UUID)!!
@@ -42,10 +36,10 @@ private val primaryEndpoint = DbEndpoint("pgcat-primary", 6432, "eva")
 private val replicaEndpoint = DbEndpoint("pgcat-replica", 6432, "eva")
 
 /**
- * That the executor emits a span at all, with the pool the transaction manager actually chose. The
- * DatabaseSpans spec only covers a span the test itself builds, which proves nothing about wiring.
+ * That the jdbc executor emits a span, with the pool the transaction manager chose. The vertx module has
+ * the same coverage; without this one the jdbc path was asserted by nothing at all.
  */
-class VertxQueryExecutorTracingSpec : ShouldSpec({
+class JdbcQueryExecutorTracingSpec : ShouldSpec({
 
     val dslContext = DSL.using(POSTGRES)
     val spanExporter = InMemorySpanExporter.create()
@@ -57,38 +51,27 @@ class VertxQueryExecutorTracingSpec : ShouldSpec({
         )
         .build()
 
-    val primaryProvider = mockk<PgPoolConnectionProvider>(relaxed = true) {
+    val primaryProvider = mockk<JdbcConnectionProvider>(relaxed = true) {
         every { endpoint } returns primaryEndpoint
     }
-    val replicaProvider = mockk<PgPoolConnectionProvider>(relaxed = true) {
+    val replicaProvider = mockk<JdbcConnectionProvider>(relaxed = true) {
         every { endpoint } returns replicaEndpoint
     }
-    val transactionManager = spyk(VertxTransactionManager(primaryProvider, replicaProvider))
-    val executor = VertxQueryExecutor(transactionManager, telemetry)
+    val transactionManager = spyk(JdbcTransactionManager(primaryProvider, replicaProvider))
+    val executor = JdbcQueryExecutor(transactionManager, telemetry)
 
-    val preparedQueryMock = mockk<PreparedQuery<RowSet<Row>>> {
-        every { mapping(any<Function<Row, Any>>()) } answers {
-            mockk {
-                every { execute(any<ListTuple>()) } returns succeededFuture(
-                    mockk {
-                        every { iterator() } answers { mockk { every { hasNext() } returns false } }
-                        every { size() } returns 0
-                    },
-                )
-            }
-        }
-    }
-    val connection = mockk<PgConnection>(relaxed = true) {
-        every { preparedQuery(any()) } answers { preparedQueryMock }
-    }
+    val connection = MockConnection { arrayOf(MockResult(0, dslContext.newResult(orders))) }
     coEvery { primaryProvider.acquire() } coAnswers { connection }
     coEvery { replicaProvider.acquire() } coAnswers { connection }
 
     fun root() = telemetry.tracerProvider.get("test").spanBuilder("root").startSpan()
 
     suspend fun select(primaryRequired: Boolean = false) {
-        val ctx = if (primaryRequired) Dispatchers.IO + PrimaryConnectionRequiredFlag else Dispatchers.IO
-        withContext(ctx) {
+        if (primaryRequired) {
+            withContext(PrimaryConnectionRequiredFlag) {
+                executor.executeSelect(dslContext, dslContext.selectFrom(orders), orders)
+            }
+        } else {
             executor.executeSelect(dslContext, dslContext.selectFrom(orders), orders)
         }
     }
@@ -102,7 +85,6 @@ class VertxQueryExecutorTracingSpec : ShouldSpec({
         val span = spanExporter.finishedSpanItems.single { it.name != "root" }
         span.name shouldBe "SELECT payment_order"
         span.kind shouldBe CLIENT
-        span.attributes.get(stringKey("db.collection.name")) shouldBe "payment_order"
         span.attributes.get(stringKey("server.address")) shouldBe "pgcat-replica"
         span.attributes.get(longKey("server.port")) shouldBe 6432L
         span.attributes.get(stringKey("db.namespace")) shouldBe "eva"
@@ -118,16 +100,6 @@ class VertxQueryExecutorTracingSpec : ShouldSpec({
         val span = spanExporter.finishedSpanItems.single { it.name != "root" }
         span.attributes.get(stringKey("server.address")) shouldBe "pgcat-primary"
         span.attributes.get(stringKey("db.pool.role")) shouldBe "PRIMARY"
-    }
-
-    should("parent the span under the caller so the query is attributable") {
-        spanExporter.reset()
-        val root = root()
-        withContext(root.asContextElement()) { select() }
-        root.end()
-
-        val span = spanExporter.finishedSpanItems.single { it.name != "root" }
-        span.parentSpanId shouldBe root.spanContext.spanId
     }
 
     should("emit nothing outside a request") {

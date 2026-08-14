@@ -137,22 +137,27 @@ class VertxQueryExecutor(
         if (!DatabaseSpans.tracing()) {
             return block()
         }
-        val span = DatabaseSpans.querySpan(
-            openTelemetry = openTelemetry,
-            operation = operationName(jooqQuery),
-            target = table?.name ?: queryTarget(jooqQuery),
-            sql = sql,
-        )
         val acquired = AcquiredEndpoint()
-        // The transaction manager fills the slot at acquisition, so the address describes the pool that
-        // served this call rather than one predicted for it. span.use makes the span current, which is what
-        // nests the connection acquisition spans underneath it, and records failure on it.
+        // The span is built inside withContext, not before it: withContext runs ensureActive first, so a
+        // span created outside would never be ended for a call cancelled before it starts. The manager fills
+        // the slot as it goes to a pool, and span.use makes the span current, which is what nests the
+        // connection acquisition spans underneath it and records failure on it.
         return withContext(acquired) {
+            val span = DatabaseSpans.querySpan(
+                openTelemetry = openTelemetry,
+                operation = operationName(jooqQuery),
+                target = table?.name ?: queryTarget(jooqQuery),
+                sql = sql,
+            )
             span.use {
                 try {
                     block()
                 } finally {
-                    acquired.endpoint?.let { span.setServer(it.address, it.port, it.database, it.role.name) }
+                    val endpoint = acquired.endpoint
+                    val role = acquired.role
+                    if (endpoint != null && role != null) {
+                        span.setServer(endpoint.address, endpoint.port, endpoint.database, role.name)
+                    }
                 }
             }
         }
@@ -194,7 +199,7 @@ class VertxQueryExecutor(
     // Elements mapped by the same rule the scalar branches use, or null when the component type is not one
     // of those and the jOOQ converter has to run instead.
     private fun Array<*>.nativeArray(): Any? = when (this::class.java.componentType) {
-        Instant::class.java -> Array(size) { LocalDateTime.ofInstant(this[it] as Instant, UTC) }
+        Instant::class.java -> Array(size) { i -> (this[i] as Instant?)?.let { LocalDateTime.ofInstant(it, UTC) } }
         LocalDate::class.java -> this
         LocalDateTime::class.java -> this
         else -> null
@@ -209,6 +214,9 @@ class VertxQueryExecutor(
     }
 
     private fun Array<*>.javaTimeArray(): Any {
+        // An exact component match, so a java.sql subclass would fall through unmapped. Vertx cannot encode
+        // those, and failing here names the type instead of surfacing as an opaque driver error.
+        require(this.none { it is Date || it is Time }) { "Unmapped java.sql array: ${this::class.java.name}" }
         // Vertx resolves an array encoder by the array's own class, not by its elements, so the result
         // has to carry the java.time component type and not merely hold remapped elements.
         val component = when (this::class.java.componentType) {
