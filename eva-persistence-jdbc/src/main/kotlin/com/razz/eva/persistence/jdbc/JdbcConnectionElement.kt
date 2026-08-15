@@ -1,12 +1,15 @@
 package com.razz.eva.persistence.jdbc
 
+import com.razz.eva.persistence.Connected
 import com.razz.eva.persistence.ConnectionWrapper
 import java.sql.Connection
 import kotlin.coroutines.CoroutineContext
 
 internal class JdbcConnectionElement(
-    internal val connection: Connection,
+    internal val connected: Connected<Connection>,
 ) : ConnectionWrapper<Connection> {
+
+    private val connection: Connection get() = connected.value
 
     private val initialAutoCommit = connection.autoCommit
 

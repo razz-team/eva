@@ -1,5 +1,6 @@
 package com.razz.eva.persistence.vertx
 
+import com.razz.eva.persistence.Connected
 import com.razz.eva.persistence.ConnectionWrapper
 import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.pgclient.PgConnection
@@ -7,8 +8,10 @@ import io.vertx.sqlclient.Transaction
 import kotlin.coroutines.CoroutineContext
 
 internal class VertxConnectionElement(
-    internal val connection: PgConnection,
+    internal val connected: Connected<PgConnection>,
 ) : ConnectionWrapper<PgConnection> {
+
+    private val connection: PgConnection get() = connected.value
 
     private var transaction: Transaction? = null
 

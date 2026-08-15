@@ -11,7 +11,6 @@ import com.razz.eva.persistence.PersistenceException.UniqueModelRecordViolationE
 import com.razz.eva.persistence.TransactionManager
 import com.razz.eva.persistence.executor.QueryExecutor
 import com.razz.eva.persistence.executor.QueryExecutor.Companion.matchReturning
-import com.razz.eva.persistence.AcquiredEndpoint
 import com.razz.eva.persistence.executor.QueryExecutor.Companion.operationName
 import com.razz.eva.persistence.executor.QueryExecutor.Companion.queryTarget
 import com.razz.eva.persistence.executor.QueryExecutor.Constraint
@@ -21,6 +20,7 @@ import com.razz.eva.tracing.use
 import com.razz.eva.persistence.postgres.PgHelpers.PG_CONNECTION_UNAVAILABLE
 import com.razz.eva.persistence.postgres.PgHelpers.PG_UNIQUE_VIOLATION
 import io.opentelemetry.api.OpenTelemetry
+import io.opentelemetry.api.trace.Span
 import io.opentelemetry.api.OpenTelemetry.noop
 import io.vertx.core.json.Json
 import io.vertx.kotlin.coroutines.coAwait
@@ -59,6 +59,7 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneOffset.UTC
+import kotlin.coroutines.EmptyCoroutineContext
 
 class VertxQueryExecutor(
     private val transactionManager: TransactionManager<PgConnection>,
@@ -71,8 +72,10 @@ class VertxQueryExecutor(
         table: Table<R>,
     ): List<R> {
         val sql = dslContext.renderNamedParams(jooqQuery)
-        return traced(jooqQuery, table, sql) {
-            transactionManager.withConnection { connection ->
+        return traced(jooqQuery, table, sql) { span ->
+            transactionManager.withConnection { connected ->
+                span?.setServer(connected.endpoint.address, connected.endpoint.port, connected.endpoint.database, connected.role?.name)
+                val connection = connected.value
                 val rows = executeQuery(connection, dslContext, jooqQuery, sql, table.fields(), table)
                 rows.toList()
             }
@@ -96,8 +99,10 @@ class VertxQueryExecutor(
             matched.toTypedArray()
         }
         val sql = dslContext.renderNamedParams(jooqQuery)
-        return traced(jooqQuery, table, sql) {
-            transactionManager.inTransaction(REQUIRE_EXISTING) { connection ->
+        return traced(jooqQuery, table, sql) { span ->
+            transactionManager.inTransaction(REQUIRE_EXISTING) { connected ->
+                span?.setServer(connected.endpoint.address, connected.endpoint.port, connected.endpoint.database, connected.role?.name)
+                val connection = connected.value
                 val rows = executeQuery(connection, dslContext, jooqQuery, sql, fields, table)
                 rows.toList()
             }
@@ -109,8 +114,10 @@ class VertxQueryExecutor(
         jooqQuery: DMLQuery<R>,
     ): Int {
         val sql = dslContext.renderNamedParams(jooqQuery)
-        return traced(jooqQuery, null, sql) {
-            transactionManager.inTransaction(REQUIRE_EXISTING) { connection ->
+        return traced(jooqQuery, null, sql) { span ->
+            transactionManager.inTransaction(REQUIRE_EXISTING) { connected ->
+                span?.setServer(connected.endpoint.address, connected.endpoint.port, connected.endpoint.database, connected.role?.name)
+                val connection = connected.value
                 connection.preparedQuery(sql)
                     .execute(bindParams(dslContext, jooqQuery)).map(SqlResult<*>::rowCount).coAwait()
             }
@@ -132,17 +139,14 @@ class VertxQueryExecutor(
         jooqQuery: Query,
         table: Table<*>?,
         sql: String,
-        block: suspend () -> T,
+        block: suspend (Span?) -> T,
     ): T {
         if (!DatabaseSpans.tracing()) {
-            return block()
+            return block(null)
         }
-        val acquired = AcquiredEndpoint()
-        // The span is built inside withContext, not before it: withContext runs ensureActive first, so a
-        // span created outside would never be ended for a call cancelled before it starts. The manager fills
-        // the slot as it goes to a pool, and span.use makes the span current, which is what nests the
-        // connection acquisition spans underneath it and records failure on it.
-        return withContext(acquired) {
+        // The span is built inside withContext, because withContext runs ensureActive first and a span
+        // built outside it would never end for a call cancelled before it starts.
+        return withContext(EmptyCoroutineContext) {
             val span = DatabaseSpans.querySpan(
                 openTelemetry = openTelemetry,
                 operation = operationName(jooqQuery),
@@ -150,13 +154,7 @@ class VertxQueryExecutor(
                 sql = sql,
             )
             span.use {
-                try {
-                    block()
-                } finally {
-                    acquired.endpoint?.let { endpoint ->
-                        span.setServer(endpoint.address, endpoint.port, endpoint.database, acquired.role?.name)
-                    }
-                }
+                block(span)
             }
         }
     }

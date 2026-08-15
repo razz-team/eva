@@ -13,47 +13,41 @@ abstract class TransactionManager<C>(
     private val replicaProvider: ConnectionProvider<C>,
 ) {
 
-    open suspend fun <R> withConnection(block: suspend (C) -> R): R {
+    open suspend fun <R> withConnection(block: suspend (Connected<C>) -> R): R {
         return when (val existingConn = ctxConnection()) {
             null -> {
                 val provider = connectionProvider(currentCoroutineContext())
                 var newConn: C? = null
                 try {
-                    recordPool(provider)
                     newConn = acquire(provider)
                     currentCoroutineContext()[ConnectionAcquisitionCounter]?.increment()
-                    block(newConn)
+                    block(connected(newConn, provider))
                 } finally {
                     newConn?.let { provider.release(it) }
                 }
             }
-            else -> {
-                // A context connection can only have been opened by inTransaction, which always acquires
-                // from the primary, so this holds by construction. Without it every statement
-                // after the first in a transaction would report no pool at all.
-                recordPool(primaryProvider)
-                block(existingConn)
-            }
+            // The reused connection carries the pool that opened it, so a statement inside a
+            // transaction reports the truth and not an assumption about which pool that was.
+            else -> block(existingConn)
         }
     }
 
     open suspend fun <R> inTransaction(
         mode: ConnectionMode,
-        block: suspend (C) -> R,
+        block: suspend (Connected<C>) -> R,
     ): R {
         return when (val existingConn = ctxConnection()) {
             null -> {
                 check(mode == REQUIRE_NEW) { "Required existing connection but no existing connection was found" }
                 var newConn: C? = null
                 try {
-                    recordPool(primaryProvider)
                     newConn = acquire(primaryProvider)
                     currentCoroutineContext()[ConnectionAcquisitionCounter]?.increment()
-                    val ctx = wrapConnection(newConn)
+                    val ctx = wrapConnection(connected(newConn, primaryProvider))
                     withContext(ctx) {
                         try {
                             ctx.begin()
-                            val result = block(newConn)
+                            val result = block(connected(newConn, primaryProvider))
                             ctx.commit()
                             result
                         } catch (ex: Exception) {
@@ -71,29 +65,24 @@ abstract class TransactionManager<C>(
             // and will be handled there
             else -> {
                 check(mode == REQUIRE_EXISTING) { "Required new connection but existing connection was found" }
-                recordPool(primaryProvider)
                 block(existingConn)
             }
         }
     }
 
     /**
-     * The role comes from which constructor argument the provider was passed as, so a provider mislabelling
-     * itself cannot mislabel a span. Where both pools are the same instance the answer is PRIMARY, which is
-     * honest: there is one pool. A provider that is neither gets no role. Its address remains.
+     * The role comes from which constructor argument the provider was passed as, so a provider mislabeling
+     * itself cannot mislabel a span. A provider that is neither pool gets no role. Its address remains.
      */
-    protected suspend fun recordPool(provider: ConnectionProvider<C>) {
-        // Nothing asked, so the provider is not even consulted for its endpoint.
-        val slot = currentCoroutineContext()[AcquiredEndpoint] ?: return
-        val role = when {
+    private fun connected(conn: C, provider: ConnectionProvider<C>) = Connected(
+        value = conn,
+        endpoint = provider.endpoint,
+        role = when {
             provider === primaryProvider -> PoolRole.PRIMARY
             provider === replicaProvider -> PoolRole.REPLICA
-            // A subclass may wrap its providers or hold a third. Reporting no role beats reporting the
-            // wrong one, and the address still says where the call went.
             else -> null
-        }
-        slot.record(provider.endpoint, role)
-    }
+        },
+    )
 
     private suspend fun acquire(provider: ConnectionProvider<C>): C = try {
         provider.acquire()
@@ -112,7 +101,7 @@ abstract class TransactionManager<C>(
 
     abstract fun supportsPipelining(): Boolean
 
-    protected abstract fun wrapConnection(newConn: C): ConnectionWrapper<C>
+    protected abstract fun wrapConnection(connected: Connected<C>): ConnectionWrapper<C>
 
-    protected abstract suspend fun ctxConnection(): C?
+    protected abstract suspend fun ctxConnection(): Connected<C>?
 }
