@@ -50,6 +50,16 @@ object DatabaseSpans {
      * unset when no pool was reached, since an absent address is honest where a guessed one is not. A pool
      * the manager cannot name keeps its address and omits the role only.
      */
+    fun Span.setServer(server: DbServer) = setServer(server.address, server.port, server.database, server.role)
+
+    /** What a span reports about the pool that served a call. */
+    interface DbServer {
+        val address: String
+        val port: Int
+        val database: String
+        val role: String?
+    }
+
     fun Span.setServer(address: String, port: Int, database: String, role: String?) {
         setAttribute("server.address", address)
         setAttribute("server.port", port.toLong())

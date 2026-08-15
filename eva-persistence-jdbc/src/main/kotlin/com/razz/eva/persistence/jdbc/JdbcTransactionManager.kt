@@ -2,6 +2,7 @@ package com.razz.eva.persistence.jdbc
 
 import com.razz.eva.persistence.ConnectionMode
 import com.razz.eva.persistence.ConnectionProvider
+import com.razz.eva.persistence.Connected
 import com.razz.eva.persistence.ConnectionWrapper
 import com.razz.eva.persistence.TransactionManager
 import com.razz.eva.tracing.getEvaMeter
@@ -31,7 +32,7 @@ class JdbcTransactionManager(
         ?.setExplicitBucketBoundariesAdvice(DISPATCH_WAIT_BUCKET_BOUNDARIES_NANOS)
         ?.build()
 
-    override suspend fun <R> withConnection(block: suspend (Connection) -> R): R {
+    override suspend fun <R> withConnection(block: suspend (Connected<Connection>) -> R): R {
         val scheduledAt = System.nanoTime()
         return withContext(blockingJdbcContext) {
             recordDispatchWait(scheduledAt, WITH_CONNECTION)
@@ -39,7 +40,7 @@ class JdbcTransactionManager(
         }
     }
 
-    override suspend fun <R> inTransaction(mode: ConnectionMode, block: suspend (Connection) -> R): R {
+    override suspend fun <R> inTransaction(mode: ConnectionMode, block: suspend (Connected<Connection>) -> R): R {
         val scheduledAt = System.nanoTime()
         return withContext(blockingJdbcContext) {
             recordDispatchWait(scheduledAt, IN_TRANSACTION)
@@ -54,11 +55,11 @@ class JdbcTransactionManager(
         )
     }
 
-    override fun wrapConnection(newConn: Connection): ConnectionWrapper<Connection> =
-        JdbcConnectionElement(newConn)
+    override fun wrapConnection(connected: Connected<Connection>): ConnectionWrapper<Connection> =
+        JdbcConnectionElement(connected)
 
-    override suspend fun ctxConnection(): Connection? =
-        coroutineContext[JdbcConnectionElement]?.connection
+    override suspend fun ctxConnection(): Connected<Connection>? =
+        coroutineContext[JdbcConnectionElement]?.connected
 
     override fun supportsPipelining(): Boolean = false
 
