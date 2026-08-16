@@ -1,6 +1,7 @@
 package com.razz.eva.persistence
 
 import com.razz.eva.persistence.ConnectionMode.REQUIRE_EXISTING
+import com.razz.eva.tracing.PoolAttribution
 import com.razz.eva.persistence.ConnectionMode.REQUIRE_NEW
 import com.razz.eva.persistence.PersistenceException.ConnectionException
 import kotlinx.coroutines.CancellationException
@@ -11,6 +12,7 @@ import kotlinx.coroutines.currentCoroutineContext
 abstract class TransactionManager<C>(
     private val primaryProvider: ConnectionProvider<C>,
     private val replicaProvider: ConnectionProvider<C>,
+    private val attribution: PoolAttribution = PoolAttribution.None,
 ) {
 
     open suspend fun <R> withConnection(block: suspend (C) -> R): R {
@@ -19,7 +21,7 @@ abstract class TransactionManager<C>(
                 val provider = connectionProvider(currentCoroutineContext())
                 var newConn: C? = null
                 try {
-                    recordPool(provider)
+                    report(provider)
                     newConn = acquire(provider)
                     currentCoroutineContext()[ConnectionAcquisitionCounter]?.increment()
                     block(newConn)
@@ -28,10 +30,7 @@ abstract class TransactionManager<C>(
                 }
             }
             else -> {
-                // A context connection can only have been opened by inTransaction, which always acquires
-                // from the primary, so this holds by construction. Without it every statement
-                // after the first in a transaction would report no pool at all.
-                recordPool(primaryProvider)
+                reportReused()
                 block(existingConn)
             }
         }
@@ -46,7 +45,7 @@ abstract class TransactionManager<C>(
                 check(mode == REQUIRE_NEW) { "Required existing connection but no existing connection was found" }
                 var newConn: C? = null
                 try {
-                    recordPool(primaryProvider)
+                    report(primaryProvider)
                     newConn = acquire(primaryProvider)
                     currentCoroutineContext()[ConnectionAcquisitionCounter]?.increment()
                     val ctx = wrapConnection(newConn)
@@ -71,29 +70,35 @@ abstract class TransactionManager<C>(
             // and will be handled there
             else -> {
                 check(mode == REQUIRE_EXISTING) { "Required new connection but existing connection was found" }
-                recordPool(primaryProvider)
+                reportReused()
                 block(existingConn)
             }
         }
     }
 
     /**
-     * The role comes from which constructor argument the provider was passed as, so a provider mislabelling
-     * itself cannot mislabel a span. Where both pools are the same instance the answer is PRIMARY, which is
-     * honest: there is one pool. A provider that is neither gets no role. Its address remains.
+     * Reports the pool this call goes to, before the acquire, so a call that never gets a connection still
+     * says which pool starved it. The role comes from which constructor argument the provider was passed
+     * as, so a provider that mislabels itself cannot mislabel the report.
      */
-    protected suspend fun recordPool(provider: ConnectionProvider<C>) {
-        // Nothing asked, so the provider is not even consulted for its endpoint.
-        val slot = currentCoroutineContext()[AcquiredEndpoint] ?: return
+    private fun report(provider: ConnectionProvider<C>) {
         val role = when {
             provider === primaryProvider -> PoolRole.PRIMARY
             provider === replicaProvider -> PoolRole.REPLICA
-            // A subclass may wrap its providers or hold a third. Reporting no role beats reporting the
-            // wrong one, and the address still says where the call went.
             else -> null
         }
-        slot.record(provider.endpoint, role)
+        val endpoint = provider.endpoint
+        attribution.record(endpoint.address, endpoint.port, endpoint.database, role?.name)
     }
+
+    /**
+     * Reports the pool that opened the connection this call reuses.
+     *
+     * Not implemented yet. The facts belong on [ConnectionWrapper], which is per transaction and lives in
+     * the coroutine context. A field on the manager would be shared by concurrent calls. Until the wrapper
+     * carries them, a statement that reuses a connection reports no pool.
+     */
+    private fun reportReused() = Unit
 
     private suspend fun acquire(provider: ConnectionProvider<C>): C = try {
         provider.acquire()
