@@ -117,6 +117,15 @@ class VertxQueryExecutor(
                 is Instant -> LocalDateTime.ofInstant(value, UTC)
                 is LocalDate -> value
                 is Inet -> io.vertx.pgclient.data.Inet().setAddress(value.address()).setNetmask(value.prefix())
+                // Arrays of the types handled above bypass the converter too. Going through it and mapping
+                // back would agree with the scalar branches only for a converter that round trips a wall
+                // clock, as com.razz.jooq.converter.InstantConverter does. One built on Timestamp.from
+                // would disagree by the JVM offset.
+                is Array<*> -> value.nativeArray() ?: run {
+                    @Suppress("UNCHECKED_CAST")
+                    val converter = bound.converter as Converter<Any, Any>
+                    javaTimeValue(converter.to(value))
+                }
                 else -> {
                     @Suppress("UNCHECKED_CAST")
                     val converter = bound.converter as Converter<Any, Any>
@@ -130,6 +139,15 @@ class VertxQueryExecutor(
         },
     )
 
+    // Elements mapped by the same rule the scalar branches use, or null when the component type is not one
+    // of those and the jOOQ converter has to run instead.
+    private fun Array<*>.nativeArray(): Any? = when (this::class.java.componentType) {
+        Instant::class.java -> Array(size) { i -> (this[i] as Instant?)?.let { LocalDateTime.ofInstant(it, UTC) } }
+        LocalDate::class.java -> this
+        LocalDateTime::class.java -> this
+        else -> null
+    }
+
     private fun javaTimeValue(value: Any?): Any? = when (value) {
         is Timestamp -> value.toLocalDateTime()
         is Date -> value.toLocalDate()
@@ -139,17 +157,27 @@ class VertxQueryExecutor(
     }
 
     private fun Array<*>.javaTimeArray(): Any {
-        // Vertx resolves an array encoder by the array's own class, not by its elements, so the result
-        // has to carry the java.time component type and not merely hold remapped elements.
-        val component = when (this::class.java.componentType) {
-            Timestamp::class.java -> LocalDateTime::class.java
-            Date::class.java -> LocalDate::class.java
-            Time::class.java -> LocalTime::class.java
-            else -> return this
-        }
+        // Vertx resolves an array encoder by the array's own class, not by its elements, so the result has to
+        // carry the java.time component type. The component type is matched exactly, so an Object[] or a
+        // java.util.Date[] holding java.sql values falls back to the elements.
+        val component = componentTarget() ?: elementTarget() ?: return this
         val remapped = java.lang.reflect.Array.newInstance(component, size)
         forEachIndexed { index, element -> java.lang.reflect.Array.set(remapped, index, javaTimeValue(element)) }
         return remapped
+    }
+
+    private fun Array<*>.componentTarget(): Class<*>? = when (this::class.java.componentType) {
+        Timestamp::class.java -> LocalDateTime::class.java
+        Date::class.java -> LocalDate::class.java
+        Time::class.java -> LocalTime::class.java
+        else -> null
+    }
+
+    private fun Array<*>.elementTarget(): Class<*>? = when (firstOrNull { it != null }) {
+        is Timestamp -> LocalDateTime::class.java
+        is Date -> LocalDate::class.java
+        is Time -> LocalTime::class.java
+        else -> null
     }
 
     private fun <R : Record> convertRowToRecord(
