@@ -1,13 +1,17 @@
 package com.razz.eva.persistence.vertx
 
 import com.razz.eva.persistence.ConnectionWrapper
+import com.razz.eva.persistence.DbEndpoint
+import com.razz.eva.persistence.PoolRole
 import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.pgclient.PgConnection
 import io.vertx.sqlclient.Transaction
 import kotlin.coroutines.CoroutineContext
 
 internal class VertxConnectionElement(
-    internal val connection: PgConnection,
+    override val connection: PgConnection,
+    override val endpoint: DbEndpoint,
+    override val role: PoolRole?,
 ) : ConnectionWrapper<PgConnection> {
 
     private var transaction: Transaction? = null

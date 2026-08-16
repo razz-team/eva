@@ -1,5 +1,7 @@
 package com.razz.eva.persistence.vertx.executor
 
+import com.razz.eva.persistence.PoolRole
+import com.razz.eva.persistence.DbEndpoint
 import com.razz.eva.persistence.vertx.PgPoolConnectionProvider
 import com.razz.eva.persistence.vertx.VertxConnectionElement
 import com.razz.eva.persistence.vertx.VertxTransactionManager
@@ -35,6 +37,8 @@ import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneOffset.UTC
 import java.util.function.Function
+
+private val testEndpoint = DbEndpoint("localhost", 5432, "test")
 
 /** Mirrors com.razz.jooq.converter.LocalDateConverter, which eva-persistence-vertx cannot depend on. */
 private class SqlDateConverter : Converter<Date, LocalDate> {
@@ -98,7 +102,7 @@ class VertxQueryExecutorTemporalSpec : ShouldSpec({
     suspend fun boundValue(condition: Condition): Any? {
         clearMocks(connection, answers = false)
         every { connection.preparedQuery(any()) } answers { preparedQueryMock }
-        withContext(Dispatchers.IO + VertxConnectionElement(connection)) {
+        withContext(Dispatchers.IO + VertxConnectionElement(connection, testEndpoint, PoolRole.PRIMARY)) {
             executor.executeSelect(dslContext, dslContext.selectFrom(temporalTable).where(condition), temporalTable)
         }
         return paramsSlot.captured.getValue(0)

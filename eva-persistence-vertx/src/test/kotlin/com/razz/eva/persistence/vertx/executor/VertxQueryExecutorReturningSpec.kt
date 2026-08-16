@@ -1,5 +1,7 @@
 package com.razz.eva.persistence.vertx.executor
 
+import com.razz.eva.persistence.PoolRole
+import com.razz.eva.persistence.DbEndpoint
 import com.razz.eva.persistence.vertx.PgPoolConnectionProvider
 import com.razz.eva.persistence.vertx.VertxConnectionElement
 import com.razz.eva.persistence.vertx.VertxTransactionManager
@@ -28,6 +30,8 @@ import org.jooq.SQLDialect.POSTGRES
 import org.jooq.impl.DSL
 import org.jooq.impl.SQLDataType
 import org.jooq.impl.TableImpl
+
+private val testEndpoint = DbEndpoint("localhost", 5432, "test")
 
 private val storeTable = object : TableImpl<Record>(DSL.name("store_test")) {
     val ID = createField(DSL.name("id"), SQLDataType.UUID)
@@ -75,7 +79,7 @@ class VertxQueryExecutorReturningSpec : ShouldSpec({
 
     should("render only caller-provided returning fields") {
         resetMocks()
-        withContext(Dispatchers.IO + VertxConnectionElement(connection)) {
+        withContext(Dispatchers.IO + VertxConnectionElement(connection, testEndpoint, PoolRole.PRIMARY)) {
             executor.executeStore(dslContext, insertQuery(), storeTable, listOf(storeTable.ID))
         }
 
@@ -85,7 +89,7 @@ class VertxQueryExecutorReturningSpec : ShouldSpec({
 
     should("populate only caller-provided returning fields") {
         resetMocks()
-        withContext(Dispatchers.IO + VertxConnectionElement(connection)) {
+        withContext(Dispatchers.IO + VertxConnectionElement(connection, testEndpoint, PoolRole.PRIMARY)) {
             executor.executeStore(dslContext, insertQuery(), storeTable, listOf(storeTable.ID))
         }
 
@@ -98,7 +102,7 @@ class VertxQueryExecutorReturningSpec : ShouldSpec({
 
     should("render all table columns when no returning fields provided") {
         resetMocks()
-        withContext(Dispatchers.IO + VertxConnectionElement(connection)) {
+        withContext(Dispatchers.IO + VertxConnectionElement(connection, testEndpoint, PoolRole.PRIMARY)) {
             executor.executeStore(dslContext, insertQuery(), storeTable)
         }
 

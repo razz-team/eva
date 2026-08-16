@@ -3,6 +3,7 @@ package com.razz.eva.persistence
 class WithCtxConnectionTransactionManager(
     private val connection: () -> DummyConnection? = { null },
     private val connectionProvider: DummyConnectionProvider = DummyConnectionProvider(),
+    private val endpoint: DbEndpoint = DbEndpoint("dummy", 5432, "dummy"),
     private val beforeTxn: (ConnectionMode) -> Unit = { },
     private val afterTxn: (ConnectionMode, Any) -> Unit = { _, _ -> },
     private val setPipelining: () -> Boolean = { true },
@@ -12,9 +13,6 @@ class WithCtxConnectionTransactionManager(
 
     override suspend fun <R> inTransaction(mode: ConnectionMode, block: suspend (DummyConnection) -> R): R {
         beforeTxn(mode)
-        // This override never calls super, so the base class cannot record for it. Without this line every
-        // store through the fixture exports a span with no pool at all.
-        recordPool(connectionProvider)
         try {
             val res = wrapped?.let {
                 it.inTransaction(mode) { _ -> block(connectionProvider.acquire()) }
@@ -27,13 +25,26 @@ class WithCtxConnectionTransactionManager(
         }
     }
 
-    override fun wrapConnection(newConn: DummyConnection): ConnectionWrapper<DummyConnection> {
-        TODO("NEVER CALLED")
-    }
+    override fun wrapConnection(
+        newConn: DummyConnection,
+        endpoint: DbEndpoint,
+        role: PoolRole?,
+    ): ConnectionWrapper<DummyConnection> = DummyConnectionWrapper(newConn, endpoint, role)
 
-    override suspend fun ctxConnection(): DummyConnection? {
-        return connection()
-    }
+    override suspend fun ctxConnection(): ConnectionWrapper<DummyConnection>? =
+        connection()?.let { DummyConnectionWrapper(it, endpoint, PoolRole.PRIMARY) }
 
     override fun supportsPipelining() = setPipelining()
+}
+
+private class DummyConnectionWrapper(
+    override val connection: DummyConnection,
+    override val endpoint: DbEndpoint,
+    override val role: PoolRole?,
+) : ConnectionWrapper<DummyConnection> {
+    override val key get() = Key
+    companion object Key : kotlin.coroutines.CoroutineContext.Key<DummyConnectionWrapper>
+    override suspend fun begin() = Unit
+    override suspend fun commit() = Unit
+    override suspend fun rollback() = Unit
 }

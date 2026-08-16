@@ -1,5 +1,6 @@
 package com.razz.eva.persistence.jdbc
 
+import com.razz.eva.persistence.PoolRole
 import com.razz.eva.persistence.DbEndpoint
 import com.razz.eva.persistence.ConnectionMode.REQUIRE_EXISTING
 import com.razz.eva.persistence.ConnectionMode.REQUIRE_NEW
@@ -198,7 +199,7 @@ class JdbcTransactionManagerSpec : BehaviorSpec({
                 every { connection.autoCommit } returns true
                 every { primaryPool.connection } returns connection
 
-                withContext(Dispatchers.IO + JdbcConnectionElement(connection)) {
+                withContext(Dispatchers.IO + JdbcConnectionElement(connection, testEndpoint, PoolRole.PRIMARY)) {
                     jdbcTransactionManager.inTransaction(REQUIRE_EXISTING) { _ ->
                         action(); action(); action()
                     }
@@ -412,7 +413,7 @@ class JdbcTransactionManagerSpec : BehaviorSpec({
                 every { primaryPool.connection } returns connection
 
                 val call = suspend {
-                    withContext(Dispatchers.IO + JdbcConnectionElement(connection)) {
+                    withContext(Dispatchers.IO + JdbcConnectionElement(connection, testEndpoint, PoolRole.PRIMARY)) {
                         jdbcTransactionManager.inTransaction(REQUIRE_EXISTING) { _ ->
                             bad()
                         }

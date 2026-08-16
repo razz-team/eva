@@ -3,23 +3,27 @@ package com.razz.eva.persistence.jdbc
 import com.razz.eva.persistence.ConnectionMode
 import com.razz.eva.persistence.ConnectionProvider
 import com.razz.eva.persistence.ConnectionWrapper
+import com.razz.eva.persistence.DbEndpoint
+import com.razz.eva.persistence.PoolRole
 import com.razz.eva.persistence.TransactionManager
+import com.razz.eva.tracing.PoolAttribution
 import com.razz.eva.tracing.getEvaMeter
 import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
+import java.sql.Connection
+import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.sql.Connection
-import kotlin.coroutines.coroutineContext
 
 class JdbcTransactionManager(
     primaryProvider: ConnectionProvider<Connection>,
     replicaProvider: ConnectionProvider<Connection>,
     private val blockingJdbcContext: CoroutineDispatcher = Dispatchers.IO,
     openTelemetry: OpenTelemetry? = null,
-) : TransactionManager<Connection>(primaryProvider, replicaProvider) {
+    attribution: PoolAttribution = PoolAttribution.None,
+) : TransactionManager<Connection>(primaryProvider, replicaProvider, attribution) {
 
     // otel default boundaries are millisecond-oriented; dispatch waits sit in the micro to
     // millisecond range, so advise boundaries covering 10us .. 1s
@@ -54,11 +58,15 @@ class JdbcTransactionManager(
         )
     }
 
-    override fun wrapConnection(newConn: Connection): ConnectionWrapper<Connection> =
-        JdbcConnectionElement(newConn)
+    override fun wrapConnection(
+        newConn: Connection,
+        endpoint: DbEndpoint,
+        role: PoolRole?,
+    ): ConnectionWrapper<Connection> =
+        JdbcConnectionElement(newConn, endpoint, role)
 
-    override suspend fun ctxConnection(): Connection? =
-        coroutineContext[JdbcConnectionElement]?.connection
+    override suspend fun ctxConnection(): ConnectionWrapper<Connection>? =
+        coroutineContext[JdbcConnectionElement]
 
     override fun supportsPipelining(): Boolean = false
 

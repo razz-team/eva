@@ -1,11 +1,15 @@
 package com.razz.eva.persistence.jdbc
 
 import com.razz.eva.persistence.ConnectionWrapper
+import com.razz.eva.persistence.DbEndpoint
+import com.razz.eva.persistence.PoolRole
 import java.sql.Connection
 import kotlin.coroutines.CoroutineContext
 
 internal class JdbcConnectionElement(
-    internal val connection: Connection,
+    override val connection: Connection,
+    override val endpoint: DbEndpoint,
+    override val role: PoolRole?,
 ) : ConnectionWrapper<Connection> {
 
     private val initialAutoCommit = connection.autoCommit

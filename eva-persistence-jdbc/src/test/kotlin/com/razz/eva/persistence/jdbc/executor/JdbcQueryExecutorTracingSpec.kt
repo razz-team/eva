@@ -4,6 +4,7 @@ import com.razz.eva.persistence.DbEndpoint
 import com.razz.eva.persistence.PrimaryConnectionRequiredFlag
 import com.razz.eva.persistence.jdbc.JdbcConnectionProvider
 import com.razz.eva.persistence.jdbc.JdbcTransactionManager
+import com.razz.eva.tracing.PoolAttribution
 import io.kotest.core.spec.style.ShouldSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
@@ -19,7 +20,6 @@ import io.opentelemetry.sdk.OpenTelemetrySdk
 import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter
 import io.opentelemetry.sdk.trace.SdkTracerProvider
 import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
-import kotlinx.coroutines.withContext
 import org.jooq.Record
 import org.jooq.SQLDialect.POSTGRES
 import org.jooq.impl.DSL
@@ -27,6 +27,7 @@ import org.jooq.impl.SQLDataType
 import org.jooq.impl.TableImpl
 import org.jooq.tools.jdbc.MockConnection
 import org.jooq.tools.jdbc.MockResult
+import kotlinx.coroutines.withContext
 
 private val orders = object : TableImpl<Record>(DSL.name("payment_order")) {
     val ID = createField(DSL.name("id"), SQLDataType.UUID)!!
@@ -57,7 +58,11 @@ class JdbcQueryExecutorTracingSpec : ShouldSpec({
     val replicaProvider = mockk<JdbcConnectionProvider>(relaxed = true) {
         every { endpoint } returns replicaEndpoint
     }
-    val transactionManager = spyk(JdbcTransactionManager(primaryProvider, replicaProvider))
+    val transactionManager = spyk(JdbcTransactionManager(
+        primaryProvider,
+        replicaProvider,
+        attribution = PoolAttribution.CurrentSpan,
+    ))
     val executor = JdbcQueryExecutor(transactionManager, telemetry)
 
     val connection = MockConnection { arrayOf(MockResult(0, dslContext.newResult(orders))) }

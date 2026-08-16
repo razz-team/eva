@@ -1,5 +1,7 @@
 package com.razz.eva.persistence.vertx.executor
 
+import com.razz.eva.persistence.PoolRole
+import com.razz.eva.persistence.DbEndpoint
 import com.razz.eva.persistence.PersistenceException
 import com.razz.eva.persistence.vertx.PgPoolConnectionProvider
 import com.razz.eva.persistence.vertx.VertxConnectionElement
@@ -26,6 +28,8 @@ import kotlinx.coroutines.withContext
 import org.jooq.SQLDialect.POSTGRES
 import org.jooq.impl.DSL
 import java.util.function.Function
+
+private val testEndpoint = DbEndpoint("localhost", 5432, "test")
 
 class VertxQueryExecutorSpec : BehaviorSpec({
 
@@ -157,7 +161,7 @@ class VertxQueryExecutorSpec : BehaviorSpec({
 
             When("Principal calls execute select with context") {
 
-                withContext(Dispatchers.IO + VertxConnectionElement(connection)) {
+                withContext(Dispatchers.IO + VertxConnectionElement(connection, testEndpoint, PoolRole.PRIMARY)) {
                     vertxExecutor.executeSelect(
                         dslContext,
                         select,
@@ -181,7 +185,7 @@ class VertxQueryExecutorSpec : BehaviorSpec({
 
             When("Principal calls execute store with context") {
 
-                withContext(Dispatchers.IO + VertxConnectionElement(connection)) {
+                withContext(Dispatchers.IO + VertxConnectionElement(connection, testEndpoint, PoolRole.PRIMARY)) {
                     vertxExecutor.executeStore(
                         dslContext,
                         store,
@@ -205,7 +209,7 @@ class VertxQueryExecutorSpec : BehaviorSpec({
 
             When("Principal calls execute delete with context") {
 
-                withContext(Dispatchers.IO + VertxConnectionElement(connection)) {
+                withContext(Dispatchers.IO + VertxConnectionElement(connection, testEndpoint, PoolRole.PRIMARY)) {
                     vertxExecutor.executeQuery(
                         dslContext,
                         delete,
