@@ -1,5 +1,6 @@
 package com.razz.eva.persistence.vertx
 
+import com.razz.eva.persistence.PoolRole
 import com.razz.eva.persistence.DbEndpoint
 import com.razz.eva.persistence.ConnectionMode.REQUIRE_EXISTING
 import com.razz.eva.persistence.ConnectionMode.REQUIRE_NEW
@@ -174,7 +175,7 @@ class VertxTransactionManagerSpec : BehaviorSpec({
                 val connection = mockk<PgConnection>(relaxed = true)
                 every { primaryPool.connection } returns succeededFuture(connection)
 
-                withContext(VertxConnectionElement(connection)) {
+                withContext(VertxConnectionElement(connection, testEndpoint, PoolRole.PRIMARY)) {
                     vetxTransactionManager.inTransaction(REQUIRE_EXISTING) { _ ->
                         action(); action(); action()
                     }
@@ -322,7 +323,7 @@ class VertxTransactionManagerSpec : BehaviorSpec({
                 every { primaryPool.connection } returns succeededFuture(connection)
 
                 val call = suspend {
-                    withContext(VertxConnectionElement(connection)) {
+                    withContext(VertxConnectionElement(connection, testEndpoint, PoolRole.PRIMARY)) {
                         vetxTransactionManager.inTransaction(REQUIRE_EXISTING) { _ ->
                             bad()
                         }

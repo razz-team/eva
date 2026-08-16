@@ -1,5 +1,7 @@
 package com.razz.eva.persistence.vertx.executor
 
+import com.razz.eva.persistence.PoolRole
+import com.razz.eva.persistence.DbEndpoint
 import com.razz.eva.persistence.vertx.PgPoolConnectionProvider
 import com.razz.eva.persistence.vertx.VertxConnectionElement
 import com.razz.eva.persistence.vertx.VertxTransactionManager
@@ -30,6 +32,8 @@ import org.jooq.impl.SQLDataType
 import org.jooq.impl.TableImpl
 import java.util.UUID
 import java.util.function.Function
+
+private val testEndpoint = DbEndpoint("localhost", 5432, "test")
 
 private val jsonTable = object : TableImpl<Record>(DSL.name("json_test")) {
     val ID = createField(DSL.name("id"), SQLDataType.UUID)!!
@@ -85,7 +89,7 @@ class VertxQueryExecutorJsonSpec : ShouldSpec({
             addValue(jsonTable.DATA, JSONB.jsonb("""{"key":"value"}"""))
         }
 
-        withContext(Dispatchers.IO + VertxConnectionElement(connection)) {
+        withContext(Dispatchers.IO + VertxConnectionElement(connection, testEndpoint, PoolRole.PRIMARY)) {
             executor.executeStore(dslContext, insert, jsonTable)
         }
 
@@ -103,7 +107,7 @@ class VertxQueryExecutorJsonSpec : ShouldSpec({
             addValue(jsonTable.DATA, JSONB.jsonb("null"))
         }
 
-        withContext(Dispatchers.IO + VertxConnectionElement(connection)) {
+        withContext(Dispatchers.IO + VertxConnectionElement(connection, testEndpoint, PoolRole.PRIMARY)) {
             executor.executeStore(dslContext, insert, jsonTable)
         }
 

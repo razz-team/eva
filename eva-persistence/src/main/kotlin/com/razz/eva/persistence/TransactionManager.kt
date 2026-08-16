@@ -21,7 +21,8 @@ abstract class TransactionManager<C>(
                 val provider = connectionProvider(currentCoroutineContext())
                 var newConn: C? = null
                 try {
-                    report(provider)
+                    val role = roleOf(provider)
+                    report({ provider.endpoint }, role)
                     newConn = acquire(provider)
                     currentCoroutineContext()[ConnectionAcquisitionCounter]?.increment()
                     block(newConn)
@@ -30,8 +31,8 @@ abstract class TransactionManager<C>(
                 }
             }
             else -> {
-                reportReused()
-                block(existingConn)
+                reportReused(existingConn)
+                block(existingConn.connection)
             }
         }
     }
@@ -45,10 +46,10 @@ abstract class TransactionManager<C>(
                 check(mode == REQUIRE_NEW) { "Required existing connection but no existing connection was found" }
                 var newConn: C? = null
                 try {
-                    report(primaryProvider)
+                    report({ primaryProvider.endpoint }, PoolRole.PRIMARY)
                     newConn = acquire(primaryProvider)
                     currentCoroutineContext()[ConnectionAcquisitionCounter]?.increment()
-                    val ctx = wrapConnection(newConn)
+                    val ctx = wrapConnection(newConn, primaryProvider.endpoint, PoolRole.PRIMARY)
                     withContext(ctx) {
                         try {
                             ctx.begin()
@@ -70,35 +71,30 @@ abstract class TransactionManager<C>(
             // and will be handled there
             else -> {
                 check(mode == REQUIRE_EXISTING) { "Required new connection but existing connection was found" }
-                reportReused()
-                block(existingConn)
+                reportReused(existingConn)
+                block(existingConn.connection)
             }
         }
     }
 
-    /**
-     * Reports the pool this call goes to, before the acquire, so a call that never gets a connection still
-     * says which pool starved it. The role comes from which constructor argument the provider was passed
-     * as, so a provider that mislabels itself cannot mislabel the report.
-     */
-    private fun report(provider: ConnectionProvider<C>) {
-        val role = when {
-            provider === primaryProvider -> PoolRole.PRIMARY
-            provider === replicaProvider -> PoolRole.REPLICA
-            else -> null
-        }
-        val endpoint = provider.endpoint
-        attribution.record(endpoint.address, endpoint.port, endpoint.database, role?.name)
+    // The role comes from which constructor argument the provider was passed as, so a provider that
+    // mislabels itself cannot mislabel the report. A provider that is neither pool gets no role.
+    private fun roleOf(provider: ConnectionProvider<C>) = when {
+        provider === primaryProvider -> PoolRole.PRIMARY
+        provider === replicaProvider -> PoolRole.REPLICA
+        else -> null
     }
 
-    /**
-     * Reports the pool that opened the connection this call reuses.
-     *
-     * Not implemented yet. The facts belong on [ConnectionWrapper], which is per transaction and lives in
-     * the coroutine context. A field on the manager would be shared by concurrent calls. Until the wrapper
-     * carries them, a statement that reuses a connection reports no pool.
-     */
-    private fun reportReused() = Unit
+    // Called before the acquire, so a call that never gets a connection still says which pool starved it.
+    // Nothing asked means the provider is not even read for its endpoint.
+    private fun report(endpoint: () -> DbEndpoint, role: PoolRole?) {
+        if (attribution === PoolAttribution.None) return
+        val e = endpoint()
+        attribution.record(e.address, e.port, e.database, role?.name)
+    }
+
+    // The pool that opened the connection this call reuses.
+    private fun reportReused(wrapper: ConnectionWrapper<C>) = report({ wrapper.endpoint }, wrapper.role)
 
     private suspend fun acquire(provider: ConnectionProvider<C>): C = try {
         provider.acquire()
@@ -117,7 +113,7 @@ abstract class TransactionManager<C>(
 
     abstract fun supportsPipelining(): Boolean
 
-    protected abstract fun wrapConnection(newConn: C): ConnectionWrapper<C>
+    protected abstract fun wrapConnection(newConn: C, endpoint: DbEndpoint, role: PoolRole?): ConnectionWrapper<C>
 
-    protected abstract suspend fun ctxConnection(): C?
+    protected abstract suspend fun ctxConnection(): ConnectionWrapper<C>?
 }

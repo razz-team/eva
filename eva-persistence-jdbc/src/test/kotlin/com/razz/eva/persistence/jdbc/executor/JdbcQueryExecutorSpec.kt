@@ -1,5 +1,7 @@
 package com.razz.eva.persistence.jdbc.executor
 
+import com.razz.eva.persistence.PoolRole
+import com.razz.eva.persistence.DbEndpoint
 import com.razz.eva.persistence.PersistenceException.ConnectionException
 import com.razz.eva.persistence.jdbc.JdbcConnectionElement
 import com.razz.eva.persistence.jdbc.JdbcConnectionProvider
@@ -29,6 +31,8 @@ import org.jooq.impl.SQLDataType
 import org.jooq.impl.TableImpl
 import org.jooq.tools.jdbc.MockConnection
 import org.jooq.tools.jdbc.MockResult
+
+private val testEndpoint = DbEndpoint("localhost", 5432, "test")
 
 private val storeTable = object : TableImpl<Record>(DSL.name("store_test")) {
     val ID = createField(DSL.name("id"), SQLDataType.UUID)
@@ -134,7 +138,7 @@ class JdbcQueryExecutorSpec : BehaviorSpec({
 
             When("Principal calls execute select with context") {
 
-                withContext(Dispatchers.IO + JdbcConnectionElement(connection)) {
+                withContext(Dispatchers.IO + JdbcConnectionElement(connection, testEndpoint, PoolRole.PRIMARY)) {
                     jdbcExecutor.executeSelect(
                         dslContext,
                         select,
@@ -158,7 +162,7 @@ class JdbcQueryExecutorSpec : BehaviorSpec({
 
             When("Principal calls execute store with context") {
 
-                withContext(Dispatchers.IO + JdbcConnectionElement(connection)) {
+                withContext(Dispatchers.IO + JdbcConnectionElement(connection, testEndpoint, PoolRole.PRIMARY)) {
                     jdbcExecutor.executeStore(
                         dslContext,
                         store,
@@ -182,7 +186,7 @@ class JdbcQueryExecutorSpec : BehaviorSpec({
 
             When("Principal calls execute delete with context") {
 
-                withContext(Dispatchers.IO + JdbcConnectionElement(connection)) {
+                withContext(Dispatchers.IO + JdbcConnectionElement(connection, testEndpoint, PoolRole.PRIMARY)) {
                     jdbcExecutor.executeQuery(
                         dslContext,
                         delete,
@@ -219,7 +223,11 @@ class JdbcQueryExecutorSpec : BehaviorSpec({
             }
 
             When("Principal calls execute store with explicit returning fields") {
-                val stored = withContext(Dispatchers.IO + JdbcConnectionElement(connection)) {
+                val stored = withContext(Dispatchers.IO + JdbcConnectionElement(
+                    connection,
+                    testEndpoint,
+                    PoolRole.PRIMARY,
+                )) {
                     executor.executeStore(dslContext, insertQuery(), storeTable, listOf(storeTable.ID))
                 }
 
@@ -249,7 +257,11 @@ class JdbcQueryExecutorSpec : BehaviorSpec({
                 val update = dslContext.updateQuery(aliased).apply {
                     addValue(DSL.field(DSL.name("t", "name"), String::class.java), "razz")
                 }
-                val stored = withContext(Dispatchers.IO + JdbcConnectionElement(connection)) {
+                val stored = withContext(Dispatchers.IO + JdbcConnectionElement(
+                    connection,
+                    testEndpoint,
+                    PoolRole.PRIMARY,
+                )) {
                     executor.executeStore(dslContext, update, storeTable, listOf(storeTable.ID))
                 }
 
@@ -279,7 +291,11 @@ class JdbcQueryExecutorSpec : BehaviorSpec({
                     addValue(storeTable.ID, secondId)
                     addValue(storeTable.NAME, "team")
                 }
-                val stored = withContext(Dispatchers.IO + JdbcConnectionElement(connection)) {
+                val stored = withContext(Dispatchers.IO + JdbcConnectionElement(
+                    connection,
+                    testEndpoint,
+                    PoolRole.PRIMARY,
+                )) {
                     executor.executeStore(dslContext, insert, storeTable, listOf(storeTable.ID))
                 }
 
@@ -300,7 +316,11 @@ class JdbcQueryExecutorSpec : BehaviorSpec({
             }
 
             When("Principal calls execute store without explicit returning fields") {
-                val stored = withContext(Dispatchers.IO + JdbcConnectionElement(connection)) {
+                val stored = withContext(Dispatchers.IO + JdbcConnectionElement(
+                    connection,
+                    testEndpoint,
+                    PoolRole.PRIMARY,
+                )) {
                     executor.executeStore(dslContext, insertQuery(), storeTable)
                 }
 

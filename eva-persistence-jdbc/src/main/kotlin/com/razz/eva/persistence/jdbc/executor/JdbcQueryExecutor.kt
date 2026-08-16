@@ -14,11 +14,9 @@ import com.razz.eva.persistence.executor.QueryExecutor.Companion.matchReturning
 import com.razz.eva.persistence.executor.QueryExecutor.Constraint
 import com.razz.eva.persistence.postgres.PgHelpers.PG_CONNECTION_UNAVAILABLE
 import com.razz.eva.persistence.postgres.PgHelpers.PG_UNIQUE_VIOLATION
-import com.razz.eva.persistence.AcquiredEndpoint
 import com.razz.eva.persistence.executor.QueryExecutor.Companion.operationName
 import com.razz.eva.persistence.executor.QueryExecutor.Companion.queryTarget
 import com.razz.eva.tracing.DatabaseSpans
-import com.razz.eva.tracing.DatabaseSpans.setServer
 import com.razz.eva.tracing.use
 import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.api.OpenTelemetry.noop
@@ -40,6 +38,7 @@ import org.jooq.exception.SQLStateClass.C40_TRANSACTION_ROLLBACK
 import org.jooq.impl.DSL
 import org.postgresql.util.PSQLException
 import java.sql.Connection
+import kotlin.coroutines.EmptyCoroutineContext
 
 class JdbcQueryExecutor(
     private val transactionManager: TransactionManager<Connection>,
@@ -178,12 +177,10 @@ class JdbcQueryExecutor(
         if (!DatabaseSpans.tracing()) {
             return block()
         }
-        val acquired = AcquiredEndpoint()
-        // The span is built inside withContext, not before it: withContext runs ensureActive first, so a
-        // span created outside would never be ended for a call cancelled before it starts. The manager fills
-        // the slot as it goes to a pool, and span.use makes the span current, which is what nests the
-        // connection acquisition spans underneath it and records failure on it.
-        return withContext(acquired) {
+        // The span is built inside withContext, because withContext runs ensureActive first and a span
+        // built outside it would never end for a call cancelled before it starts. The transaction manager
+        // writes the pool onto this span as it goes to a pool, through PoolAttribution.CurrentSpan.
+        return withContext(EmptyCoroutineContext) {
             val span = DatabaseSpans.querySpan(
                 openTelemetry = openTelemetry,
                 operation = operationName(jooqQuery),
@@ -191,13 +188,7 @@ class JdbcQueryExecutor(
                 sql = sql,
             )
             span.use {
-                try {
-                    block()
-                } finally {
-                    acquired.endpoint?.let { endpoint ->
-                        span.setServer(endpoint.address, endpoint.port, endpoint.database, acquired.role?.name)
-                    }
-                }
+                block()
             }
         }
     }

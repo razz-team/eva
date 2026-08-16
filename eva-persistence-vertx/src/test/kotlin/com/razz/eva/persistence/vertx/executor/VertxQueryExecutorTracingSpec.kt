@@ -4,6 +4,7 @@ import com.razz.eva.persistence.DbEndpoint
 import com.razz.eva.persistence.PrimaryConnectionRequiredFlag
 import com.razz.eva.persistence.vertx.PgPoolConnectionProvider
 import com.razz.eva.persistence.vertx.VertxTransactionManager
+import com.razz.eva.tracing.PoolAttribution
 import io.kotest.core.spec.style.ShouldSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
@@ -25,14 +26,14 @@ import io.vertx.sqlclient.PreparedQuery
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
 import io.vertx.sqlclient.impl.ListTuple
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import org.jooq.Record
 import org.jooq.SQLDialect.POSTGRES
 import org.jooq.impl.DSL
 import org.jooq.impl.SQLDataType
 import org.jooq.impl.TableImpl
 import java.util.function.Function
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 private val orders = object : TableImpl<Record>(DSL.name("payment_order")) {
     val ID = createField(DSL.name("id"), SQLDataType.UUID)!!
@@ -63,7 +64,11 @@ class VertxQueryExecutorTracingSpec : ShouldSpec({
     val replicaProvider = mockk<PgPoolConnectionProvider>(relaxed = true) {
         every { endpoint } returns replicaEndpoint
     }
-    val transactionManager = spyk(VertxTransactionManager(primaryProvider, replicaProvider))
+    val transactionManager = spyk(VertxTransactionManager(
+        primaryProvider,
+        replicaProvider,
+        attribution = PoolAttribution.CurrentSpan,
+    ))
     val executor = VertxQueryExecutor(transactionManager, telemetry)
 
     val preparedQueryMock = mockk<PreparedQuery<RowSet<Row>>> {
