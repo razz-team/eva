@@ -15,6 +15,14 @@ private val events = object : TableImpl<Record>(DSL.name("model_events")) {
     val ID = createField(DSL.name("id"), SQLDataType.UUID)!!
 }
 
+private val principals = object : TableImpl<Record>(DSL.name("principal")) {
+    val ID = createField(DSL.name("id"), SQLDataType.UUID)!!
+}
+
+private val departments = object : TableImpl<Record>(DSL.name("department")) {
+    val ID = createField(DSL.name("id"), SQLDataType.UUID)!!
+}
+
 class QueryNamingSpec : FunSpec({
 
     val ctx = DSL.using(POSTGRES)
@@ -52,6 +60,20 @@ class QueryNamingSpec : FunSpec({
         operationName(query) shouldBe "MERGE"
         queryTarget(query) shouldBe null
         spanName(query) shouldBe "MERGE"
+    }
+
+    test("names a select over a join after its leftmost table") {
+        val query = ctx.select(events.ID).from(events.join(principals).on(events.ID.eq(principals.ID)))
+        operationName(query) shouldBe "SELECT"
+        queryTarget(query) shouldBe "model_events"
+    }
+
+    test("names a select over nested joins after its leftmost table") {
+        val query = ctx.select(events.ID).from(
+            events.join(principals).on(events.ID.eq(principals.ID))
+                .leftJoin(departments).on(events.ID.eq(departments.ID)),
+        )
+        spanName(query) shouldBe "SELECT model_events"
     }
 
     test("an unknown query falls back") {
