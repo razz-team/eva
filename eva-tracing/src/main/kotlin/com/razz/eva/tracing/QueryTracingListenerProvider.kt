@@ -3,6 +3,7 @@ package com.razz.eva.tracing
 import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.api.trace.Span
 import io.opentelemetry.api.trace.SpanKind.CLIENT
+import io.opentelemetry.api.trace.StatusCode.ERROR
 import io.opentelemetry.context.Context
 import org.jooq.ExecuteContext
 import org.jooq.ExecuteListener
@@ -10,23 +11,41 @@ import org.jooq.ExecuteListenerProvider
 
 class QueryTracingListenerProvider(
     private val openTelemetry: OpenTelemetry,
+    /**
+     * Cap on the `db.statement` attribute. A folded multi row insert or a large `IN` list renders to a very
+     * long string, and nothing downstream truncates it: the OpenTelemetry default attribute value length is
+     * unlimited. A statement over the cap is cut, and `db.statement.length` reports what it was.
+     *
+     * Inlined bind values are part of the rendered string, so this also bounds how much of them travels.
+     */
+    private val maxStatementLength: Int = 8 * 1024,
 ) : ExecuteListenerProvider {
 
-    override fun provide(): ExecuteListener = TracingListener(openTelemetry)
+    override fun provide(): ExecuteListener = TracingListener(openTelemetry, maxStatementLength)
 
-    private class TracingListener(private val openTelemetry: OpenTelemetry) : ExecuteListener {
+    private class TracingListener(
+        private val openTelemetry: OpenTelemetry,
+        private val maxStatementLength: Int,
+    ) : ExecuteListener {
         private var span: Span? = null
 
         override fun executeStart(context: ExecuteContext) {
-            val rootSpan = Span.fromContextOrNull(Context.current())
-            // We don't want to record queries out of requests/jobs/consumers (f.e. module init or migrations)
-            if (rootSpan != null) {
+            // We don't want to record queries out of requests/jobs/consumers (f.e. module init or migrations),
+            // and isRecording also skips a trace that sampling has already dropped.
+            if (Span.fromContextOrNull(Context.current())?.isRecording == true) {
+                val query = context.query()
+                val statement = context.sql() ?: ""
                 span = openTelemetry.getTracer("JOOQ")
-                    .spanBuilder("PostgreSQL")
+                    .spanBuilder(QueryNaming.spanName(query))
                     .setAttribute("db.system", "postgresql")
-                    .setAttribute("db.statement", context.sql() ?: "")
+                    .setAttribute("db.operation.name", QueryNaming.operationName(query))
+                    .setAttribute("db.statement", statement.take(maxStatementLength))
                     .setSpanKind(CLIENT)
                     .startSpan()
+                QueryNaming.queryTarget(query)?.let { span?.setAttribute("db.collection.name", it) }
+                if (statement.length > maxStatementLength) {
+                    span?.setAttribute("db.statement.length", statement.length.toLong())
+                }
             }
         }
 
@@ -38,6 +57,8 @@ class QueryTracingListenerProvider(
             val ex = ctx.sqlException()
             if (ex != null) {
                 span?.recordException(ex)
+                // Without a status the span metric error rate reads zero for every failed query.
+                span?.setStatus(ERROR)
                 span?.end()
             }
         }

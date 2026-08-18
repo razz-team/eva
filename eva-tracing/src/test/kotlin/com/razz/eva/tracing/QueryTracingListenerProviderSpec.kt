@@ -2,6 +2,7 @@ package com.razz.eva.tracing
 
 import io.kotest.core.spec.IsolationMode.InstancePerTest
 import io.kotest.core.spec.style.AnnotationSpec
+import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import io.mockk.every
@@ -18,6 +19,9 @@ import java.sql.SQLException
 import kotlinx.coroutines.withContext
 import org.jooq.ExecuteContext
 
+private val table = org.jooq.impl.DSL.table(org.jooq.impl.DSL.name("model_events"))
+private val jooqQuery = org.jooq.impl.DSL.using(org.jooq.SQLDialect.POSTGRES).deleteQuery(table)
+
 class QueryTracingListenerProviderSpec : AnnotationSpec() {
 
     override fun isolationMode() = InstancePerTest
@@ -33,6 +37,61 @@ class QueryTracingListenerProviderSpec : AnnotationSpec() {
     val listenerProvider = QueryTracingListenerProvider(telemetry)
 
     @Test
+    suspend fun `should name the span after the operation and the table`() {
+        val listener = listenerProvider.provide()
+        val rootSpan = telemetry.tracerProvider.get("JOOQ").spanBuilder("root").startSpan()
+        val sqlContext = mockk<ExecuteContext> {
+            every { sql() } returns "delete from model_events"
+            every { query() } returns jooqQuery
+        }
+        withContext(rootSpan.asContextElement()) {
+            listener.executeStart(sqlContext)
+            listener.executeEnd(sqlContext)
+        }
+        val span = spanExporter.finishedSpanItems.single()
+        span.name shouldBe "DELETE model_events"
+        span.attributes.get(stringKey("db.operation.name")) shouldBe "DELETE"
+        span.attributes.get(stringKey("db.collection.name")) shouldBe "model_events"
+    }
+
+    @Test
+    suspend fun `should not record a span for a sampled out trace`() {
+        val dropped = OpenTelemetrySdk.builder()
+            .setTracerProvider(
+                SdkTracerProvider.builder()
+                    .setSampler(io.opentelemetry.sdk.trace.samplers.Sampler.alwaysOff())
+                    .addSpanProcessor(SimpleSpanProcessor.create(spanExporter))
+                    .build(),
+            )
+            .build()
+        val listener = listenerProvider.provide()
+        val sqlContext = mockk<ExecuteContext>()
+        withContext(dropped.tracerProvider.get("JOOQ").spanBuilder("root").startSpan().asContextElement()) {
+            listener.executeStart(sqlContext)
+            listener.executeEnd(sqlContext)
+        }
+        spanExporter.finishedSpanItems.shouldBeEmpty()
+    }
+
+    @Test
+    suspend fun `should cap an oversized statement and report its length`() {
+        val listener = QueryTracingListenerProvider(telemetry, maxStatementLength = 16).provide()
+        val long = "delete from model_events where id in (" + "?, ".repeat(50) + ")"
+        val sqlContext = mockk<ExecuteContext> {
+            every { sql() } returns long
+            every { query() } returns jooqQuery
+        }
+        withContext(telemetry.tracerProvider.get("JOOQ").spanBuilder("root").startSpan().asContextElement()) {
+            listener.executeStart(sqlContext)
+            listener.executeEnd(sqlContext)
+        }
+        val span = spanExporter.finishedSpanItems.single()
+        span.attributes.get(stringKey("db.statement")) shouldBe long.take(16)
+        span.attributes.get(io.opentelemetry.api.common.AttributeKey.longKey("db.statement.length")) shouldBe
+            long.length.toLong()
+    }
+
+    @Test
     suspend fun `should end span when query is completed`() {
         // given
         val listener = listenerProvider.provide()
@@ -41,6 +100,7 @@ class QueryTracingListenerProviderSpec : AnnotationSpec() {
             .startSpan()
         val sqlContext = mockk<ExecuteContext> {
             every { sql() } returns "SELECT * FROM table"
+            every { query() } returns jooqQuery
         }
 
         withContext(rootSpan.asContextElement()) {
@@ -69,6 +129,7 @@ class QueryTracingListenerProviderSpec : AnnotationSpec() {
         val exception = SQLException("some sql error")
         val sqlContext = mockk<ExecuteContext> {
             every { sql() } returns "SELECT * FROM table"
+            every { query() } returns jooqQuery
             every { sqlException() } returns exception
         }
 
@@ -97,6 +158,7 @@ class QueryTracingListenerProviderSpec : AnnotationSpec() {
         val listener = listenerProvider.provide()
         val sqlContext = mockk<ExecuteContext> {
             every { sql() } returns "SELECT * FROM table"
+            every { query() } returns jooqQuery
         }
 
         // when
