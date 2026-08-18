@@ -7,14 +7,14 @@ import io.opentelemetry.context.Context
 import org.jooq.Query
 
 /** Default cap on the `db.statement` attribute. */
-const val MAX_STATEMENT_LENGTH: Int = 8 * 1024
+internal const val MAX_STATEMENT_LENGTH: Int = 8 * 1024
 
 /**
  * Whether anything is being recorded. A caller checks this before doing the work a span needs, which keeps
  * queries outside a request, a job or a consumer untraced, module initialisation and migrations among them.
  * A sampled out trace is not recording either.
  */
-fun tracingDatabaseQueries(): Boolean = Span.fromContextOrNull(Context.current())?.isRecording == true
+internal fun tracingDatabaseQueries(): Boolean = Span.fromContextOrNull(Context.current())?.isRecording == true
 
 /**
  * A span for one database query, named and attributed by the semantic conventions for database clients.
@@ -22,7 +22,7 @@ fun tracingDatabaseQueries(): Boolean = Span.fromContextOrNull(Context.current()
  * Both the jOOQ execute listener and the vertx executor build their spans here, so the two paths cannot
  * drift on a name or an attribute.
  */
-fun OpenTelemetry.databaseSpan(
+internal fun OpenTelemetry.databaseSpan(
     tracerName: String,
     jooqQuery: Query?,
     statement: String,

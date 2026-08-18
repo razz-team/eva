@@ -14,7 +14,7 @@ import org.jooq.impl.QOM
  * The semantic conventions ask for `{db.operation.name} {target}`. A constant name puts every database call
  * in one span metric bucket, and the table set bounds the cardinality of this one.
  */
-object QueryNaming {
+internal object QueryNaming {
 
     fun operationName(jooqQuery: Query?): String = when (jooqQuery) {
         is Select<*> -> "SELECT"

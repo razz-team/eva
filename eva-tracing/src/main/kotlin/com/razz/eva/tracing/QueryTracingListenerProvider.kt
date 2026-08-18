@@ -8,7 +8,7 @@ import org.jooq.ExecuteListener
 import org.jooq.ExecuteListenerProvider
 import org.jooq.Query
 
-class QueryTracingListenerProvider(
+internal class QueryTracingListenerProvider(
     private val openTelemetry: OpenTelemetry,
     /**
      * The typed query the statement came from. An executor that renders a query to text and then runs plain

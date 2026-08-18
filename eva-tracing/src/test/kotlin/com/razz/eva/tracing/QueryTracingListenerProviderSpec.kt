@@ -36,7 +36,7 @@ class QueryTracingListenerProviderSpec : AnnotationSpec() {
                 .build(),
         )
         .build()
-    val listenerProvider = QueryTracingListenerProvider(telemetry, sourceQuery = null)
+    private val listenerProvider = QueryTracingListenerProvider(telemetry, sourceQuery = null)
 
     @Test
     suspend fun `should name the span after the operation and the table`() {
