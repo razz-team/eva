@@ -27,10 +27,12 @@ import org.jooq.impl.DSL
 import org.jooq.impl.SQLDataType
 import org.jooq.impl.TableImpl
 import java.sql.Date
+import java.sql.Time
 import java.sql.Timestamp
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.LocalTime
 import java.time.ZoneOffset.UTC
 import java.util.function.Function
 
@@ -40,6 +42,13 @@ private class SqlDateConverter : Converter<Date, LocalDate> {
     override fun to(userObject: LocalDate?): Date? = userObject?.let(Date::valueOf)
     override fun fromType(): Class<Date> = Date::class.java
     override fun toType(): Class<LocalDate> = LocalDate::class.java
+}
+
+private class SqlTimeConverter : Converter<Time, LocalTime> {
+    override fun from(databaseObject: Time?): LocalTime? = databaseObject?.toLocalTime()
+    override fun to(userObject: LocalTime?): Time? = userObject?.let(Time::valueOf)
+    override fun fromType(): Class<Time> = Time::class.java
+    override fun toType(): Class<LocalTime> = LocalTime::class.java
 }
 
 /** Mirrors com.razz.jooq.converter.InstantConverter. */
@@ -54,6 +63,7 @@ private class SqlTimestampConverter : Converter<Timestamp, Instant> {
 private val temporalTable = object : TableImpl<Record>(DSL.name("temporal_test")) {
     val DAY = createField(DSL.name("day"), SQLDataType.DATE.asConvertedDataType(SqlDateConverter()))!!
     val AT = createField(DSL.name("at"), SQLDataType.TIMESTAMP.asConvertedDataType(SqlTimestampConverter()))!!
+    val AT_TIME = createField(DSL.name("at_time"), SQLDataType.TIME.asConvertedDataType(SqlTimeConverter()))!!
 }
 
 class VertxQueryExecutorTemporalSpec : ShouldSpec({
@@ -116,6 +126,26 @@ class VertxQueryExecutorTemporalSpec : ShouldSpec({
         val bound = boundValue(temporalTable.AT.eq(DSL.any(*moments.toTypedArray())))
         bound!!::class.java shouldBe Array<LocalDateTime>::class.java
         (bound as Array<*>).toList() shouldBe moments.map { LocalDateTime.ofInstant(it, UTC) }
+    }
+
+    should("bind a timestamp array holding a null") {
+        val moments = arrayOf(Instant.parse("2026-08-10T10:15:30Z"), null, Instant.parse("2026-08-12T10:15:30Z"))
+        val bound = boundValue(temporalTable.AT.eq(DSL.any(*moments)))
+        bound!!::class.java shouldBe Array<LocalDateTime>::class.java
+        (bound as Array<*>).toList() shouldBe listOf(
+            LocalDateTime.parse("2026-08-10T10:15:30"),
+            null,
+            LocalDateTime.parse("2026-08-12T10:15:30"),
+        )
+    }
+
+    should("bind a time array through the converter route") {
+        // The converter hands back java.sql.Time[], which has to be mapped. Throwing on it or
+        // passed through: vertx cannot encode it.
+        val times = listOf(LocalTime.parse("10:15:30"), LocalTime.parse("11:15:30"))
+        val bound = boundValue(temporalTable.AT_TIME.eq(DSL.any(*times.toTypedArray())))
+        bound!!::class.java shouldBe Array<LocalTime>::class.java
+        (bound as Array<*>).toList() shouldBe times
     }
 
     should("keep binding a single date as a LocalDate") {
