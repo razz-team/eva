@@ -46,7 +46,7 @@ class JdbcQueryExecutor(
         table: Table<R>,
     ): List<R> {
         return transactionManager.withConnection { connection ->
-            dslContext.using(connection).preparedQuery(jooqQuery).coerce(table).fetch()
+            dslContext.preparedQuery(connection, jooqQuery).coerce(table).fetch()
         }
     }
 
@@ -59,13 +59,13 @@ class JdbcQueryExecutor(
         return if (returning == null) {
             jooqQuery.setReturning()
             transactionManager.inTransaction(REQUIRE_EXISTING) { connection ->
-                dslContext.using(connection).preparedQuery(jooqQuery).coerce(table).fetch()
+                dslContext.preparedQuery(connection, jooqQuery).coerce(table).fetch()
             }
         } else {
             val fields = matchReturning(jooqQuery, returning)
             jooqQuery.setReturning(fields)
             transactionManager.inTransaction(REQUIRE_EXISTING) { connection ->
-                dslContext.using(connection).preparedQuery(jooqQuery).coerce(fields).fetch().map { it.into(table) }
+                dslContext.preparedQuery(connection, jooqQuery).coerce(fields).fetch().map { it.into(table) }
             }
         }
     }
@@ -75,7 +75,7 @@ class JdbcQueryExecutor(
         jooqQuery: DMLQuery<R>,
     ): Int {
         return transactionManager.inTransaction(REQUIRE_EXISTING) { connection ->
-            dslContext.using(connection).run {
+            dslContext.using(connection, jooqQuery).run {
                 execute(
                     render(jooqQuery),
                     *extractParams(jooqQuery)
@@ -88,14 +88,17 @@ class JdbcQueryExecutor(
     }
 
     private fun DSLContext.preparedQuery(
+        connection: Connection,
         jooqQuery: Query,
-    ): ResultQuery<Record> = resultQuery(
-        render(jooqQuery),
-        *extractParams(jooqQuery)
-            .values
-            .filterNot(Param<*>::isInline)
-            .toTypedArray(),
-    )
+    ): ResultQuery<Record> = using(connection, jooqQuery).run {
+        resultQuery(
+            render(jooqQuery),
+            *extractParams(jooqQuery)
+                .values
+                .filterNot(Param<*>::isInline)
+                .toTypedArray(),
+        )
+    }
 
     override fun extractConstraintName(ex: Exception): Constraint? {
         val dataAccessException = ex as? DataAccessException ?: return null
@@ -152,11 +155,12 @@ class JdbcQueryExecutor(
     private fun DataAccessException.connectionUnavailable(): Boolean =
         sqlStateClass() == C08_CONNECTION_EXCEPTION || sqlState() in PG_CONNECTION_UNAVAILABLE
 
-    private fun DSLContext.using(connection: Connection): DSLContext {
+    private fun DSLContext.using(connection: Connection, jooqQuery: Query): DSLContext {
         val configWithConnection = configuration()
             .derive(connection)
             .derive(settings())
-            .derive(QueryTracingListenerProvider(openTelemetry))
+            // the statement runs as rendered plain sql, so the listener has no query object to name a span from
+            .derive(QueryTracingListenerProvider(openTelemetry, jooqQuery))
 
         return DSL.using(configWithConnection)
     }

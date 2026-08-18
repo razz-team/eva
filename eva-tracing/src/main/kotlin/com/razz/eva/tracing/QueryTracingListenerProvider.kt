@@ -6,9 +6,19 @@ import io.opentelemetry.api.trace.StatusCode.ERROR
 import org.jooq.ExecuteContext
 import org.jooq.ExecuteListener
 import org.jooq.ExecuteListenerProvider
+import org.jooq.Query
 
-class QueryTracingListenerProvider(
+internal class QueryTracingListenerProvider(
     private val openTelemetry: OpenTelemetry,
+    /**
+     * The typed query the statement came from. An executor that renders a query to text and then runs plain
+     * SQL leaves jOOQ with nothing to name a span from: [ExecuteContext.query] reports the plain SQL query,
+     * which matches no QOM type, so the span reads `QUERY` and carries no table. Such an executor builds one
+     * provider per statement and passes the query it started with here.
+     *
+     * Null leaves the naming to [ExecuteContext.query], which is what a jOOQ built statement needs.
+     */
+    private val sourceQuery: Query?,
     /**
      * Cap on the `db.statement` attribute. A folded multi row insert or a large `IN` list renders to a very
      * long string, and nothing downstream truncates it: the OpenTelemetry default attribute value length is
@@ -19,10 +29,11 @@ class QueryTracingListenerProvider(
     private val maxStatementLength: Int = MAX_STATEMENT_LENGTH,
 ) : ExecuteListenerProvider {
 
-    override fun provide(): ExecuteListener = TracingListener(openTelemetry, maxStatementLength)
+    override fun provide(): ExecuteListener = TracingListener(openTelemetry, sourceQuery, maxStatementLength)
 
     private class TracingListener(
         private val openTelemetry: OpenTelemetry,
+        private val sourceQuery: Query?,
         private val maxStatementLength: Int,
     ) : ExecuteListener {
         private var span: Span? = null
@@ -31,7 +42,7 @@ class QueryTracingListenerProvider(
             if (tracingDatabaseQueries()) {
                 span = openTelemetry.databaseSpan(
                     tracerName = "JOOQ",
-                    jooqQuery = context.query(),
+                    jooqQuery = sourceQuery ?: context.query(),
                     statement = context.sql() ?: "",
                     maxStatementLength = maxStatementLength,
                 )
