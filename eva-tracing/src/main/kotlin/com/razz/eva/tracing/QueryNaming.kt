@@ -5,6 +5,7 @@ import org.jooq.Insert
 import org.jooq.Merge
 import org.jooq.Query
 import org.jooq.Select
+import org.jooq.Table
 import org.jooq.Update
 import org.jooq.impl.QOM
 
@@ -30,14 +31,25 @@ internal object QueryNaming {
      * a [QOM.Delete] and not a `DeleteQuery`, so matching only the latter would name nothing at all.
      *
      * A merge upsert returns null. `org.jooq.impl.MergeUpsert` implements [Merge] and not [QOM.Merge].
+     *
+     * A select over a join reports the leftmost table of the from clause.
      */
     fun queryTarget(jooqQuery: Query?): String? = when (jooqQuery) {
         is QOM.Insert<*> -> jooqQuery.`$into`()?.name
         is QOM.Update<*> -> jooqQuery.`$table`()?.name
         is QOM.Delete<*> -> jooqQuery.`$from`()?.name
         is QOM.Merge<*> -> jooqQuery.`$into`()?.name
-        is Select<*> -> jooqQuery.`$from`().firstOrNull()?.let { (it as? org.jooq.Table<*>)?.name }
+        is Select<*> -> primaryTable(jooqQuery.`$from`().firstOrNull())
         else -> null
+    }
+
+    // jOOQ models a join as a table of its own, and that table is named `join`, so a select over one reported
+    // that word as the collection. A repository selects from its own table and joins the rest, which makes the
+    // leftmost table the one the statement is about.
+    private tailrec fun primaryTable(table: Table<*>?): String? = when (table) {
+        null -> null
+        is QOM.JoinTable<*, *> -> primaryTable(table.`$table1`())
+        else -> table.name
     }
 
     fun spanName(jooqQuery: Query?): String {
