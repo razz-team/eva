@@ -11,11 +11,22 @@ import org.jooq.ExecuteListenerProvider
 
 class QueryTracingListenerProvider(
     private val openTelemetry: OpenTelemetry,
+    /**
+     * Cap on the `db.statement` attribute. A folded multi row insert or a large `IN` list renders to a very
+     * long string, and nothing downstream truncates it: the OpenTelemetry default attribute value length is
+     * unlimited. A statement over the cap is cut, and `db.statement.length` reports what it was.
+     *
+     * Inlined bind values are part of the rendered string, so this also bounds how much of them travels.
+     */
+    private val maxStatementLength: Int = 8 * 1024,
 ) : ExecuteListenerProvider {
 
-    override fun provide(): ExecuteListener = TracingListener(openTelemetry)
+    override fun provide(): ExecuteListener = TracingListener(openTelemetry, maxStatementLength)
 
-    private class TracingListener(private val openTelemetry: OpenTelemetry) : ExecuteListener {
+    private class TracingListener(
+        private val openTelemetry: OpenTelemetry,
+        private val maxStatementLength: Int,
+    ) : ExecuteListener {
         private var span: Span? = null
 
         override fun executeStart(context: ExecuteContext) {
@@ -23,14 +34,18 @@ class QueryTracingListenerProvider(
             // and isRecording also skips a trace that sampling has already dropped.
             if (Span.fromContextOrNull(Context.current())?.isRecording == true) {
                 val query = context.query()
+                val statement = context.sql() ?: ""
                 span = openTelemetry.getTracer("JOOQ")
                     .spanBuilder(QueryNaming.spanName(query))
                     .setAttribute("db.system", "postgresql")
                     .setAttribute("db.operation.name", QueryNaming.operationName(query))
-                    .setAttribute("db.statement", context.sql() ?: "")
+                    .setAttribute("db.statement", statement.take(maxStatementLength))
                     .setSpanKind(CLIENT)
                     .startSpan()
                 QueryNaming.queryTarget(query)?.let { span?.setAttribute("db.collection.name", it) }
+                if (statement.length > maxStatementLength) {
+                    span?.setAttribute("db.statement.length", statement.length.toLong())
+                }
             }
         }
 

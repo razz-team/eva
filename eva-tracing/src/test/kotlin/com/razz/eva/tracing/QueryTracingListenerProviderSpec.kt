@@ -74,6 +74,24 @@ class QueryTracingListenerProviderSpec : AnnotationSpec() {
     }
 
     @Test
+    suspend fun `should cap an oversized statement and report its length`() {
+        val listener = QueryTracingListenerProvider(telemetry, maxStatementLength = 16).provide()
+        val long = "delete from model_events where id in (" + "?, ".repeat(50) + ")"
+        val sqlContext = mockk<ExecuteContext> {
+            every { sql() } returns long
+            every { query() } returns jooqQuery
+        }
+        withContext(telemetry.tracerProvider.get("JOOQ").spanBuilder("root").startSpan().asContextElement()) {
+            listener.executeStart(sqlContext)
+            listener.executeEnd(sqlContext)
+        }
+        val span = spanExporter.finishedSpanItems.single()
+        span.attributes.get(stringKey("db.statement")) shouldBe long.take(16)
+        span.attributes.get(io.opentelemetry.api.common.AttributeKey.longKey("db.statement.length")) shouldBe
+            long.length.toLong()
+    }
+
+    @Test
     suspend fun `should end span when query is completed`() {
         // given
         val listener = listenerProvider.provide()
