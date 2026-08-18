@@ -2,9 +2,7 @@ package com.razz.eva.tracing
 
 import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.api.trace.Span
-import io.opentelemetry.api.trace.SpanKind.CLIENT
 import io.opentelemetry.api.trace.StatusCode.ERROR
-import io.opentelemetry.context.Context
 import org.jooq.ExecuteContext
 import org.jooq.ExecuteListener
 import org.jooq.ExecuteListenerProvider
@@ -18,7 +16,7 @@ class QueryTracingListenerProvider(
      *
      * Inlined bind values are part of the rendered string, so this also bounds how much of them travels.
      */
-    private val maxStatementLength: Int = 8 * 1024,
+    private val maxStatementLength: Int = MAX_STATEMENT_LENGTH,
 ) : ExecuteListenerProvider {
 
     override fun provide(): ExecuteListener = TracingListener(openTelemetry, maxStatementLength)
@@ -30,22 +28,13 @@ class QueryTracingListenerProvider(
         private var span: Span? = null
 
         override fun executeStart(context: ExecuteContext) {
-            // We don't want to record queries out of requests/jobs/consumers (f.e. module init or migrations),
-            // and isRecording also skips a trace that sampling has already dropped.
-            if (Span.fromContextOrNull(Context.current())?.isRecording == true) {
-                val query = context.query()
-                val statement = context.sql() ?: ""
-                span = openTelemetry.getTracer("JOOQ")
-                    .spanBuilder(QueryNaming.spanName(query))
-                    .setAttribute("db.system", "postgresql")
-                    .setAttribute("db.operation.name", QueryNaming.operationName(query))
-                    .setAttribute("db.statement", statement.take(maxStatementLength))
-                    .setSpanKind(CLIENT)
-                    .startSpan()
-                QueryNaming.queryTarget(query)?.let { span?.setAttribute("db.collection.name", it) }
-                if (statement.length > maxStatementLength) {
-                    span?.setAttribute("db.statement.length", statement.length.toLong())
-                }
+            if (tracingDatabaseQueries()) {
+                span = openTelemetry.databaseSpan(
+                    tracerName = "JOOQ",
+                    jooqQuery = context.query(),
+                    statement = context.sql() ?: "",
+                    maxStatementLength = maxStatementLength,
+                )
             }
         }
 

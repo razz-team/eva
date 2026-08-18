@@ -14,6 +14,11 @@ import com.razz.eva.persistence.executor.QueryExecutor.Companion.matchReturning
 import com.razz.eva.persistence.executor.QueryExecutor.Constraint
 import com.razz.eva.persistence.postgres.PgHelpers.PG_CONNECTION_UNAVAILABLE
 import com.razz.eva.persistence.postgres.PgHelpers.PG_UNIQUE_VIOLATION
+import com.razz.eva.tracing.databaseSpan
+import com.razz.eva.tracing.tracingDatabaseQueries
+import com.razz.eva.tracing.use
+import io.opentelemetry.api.OpenTelemetry
+import io.opentelemetry.api.OpenTelemetry.noop
 import io.vertx.core.json.Json
 import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.pgclient.PgConnection
@@ -50,9 +55,16 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneOffset.UTC
+import kotlinx.coroutines.withContext
+import kotlin.coroutines.EmptyCoroutineContext
 
 class VertxQueryExecutor(
     private val transactionManager: TransactionManager<PgConnection>,
+    /**
+     * Telemetry the spans go to. This executor does not run through jOOQ, so a jOOQ execute listener never
+     * fires for it and it emitted no spans at all before. Pass a real instance to get them.
+     */
+    private val openTelemetry: OpenTelemetry = noop(),
 ) : QueryExecutor {
 
     override suspend fun <R : Record> executeSelect(
@@ -60,9 +72,11 @@ class VertxQueryExecutor(
         jooqQuery: Select<R>,
         table: Table<R>,
     ): List<R> {
-        return transactionManager.withConnection { connection ->
-            val rows = executeQuery(connection, dslContext, jooqQuery, table.fields(), table)
-            rows.toList()
+        return traced(jooqQuery, dslContext) {
+            transactionManager.withConnection { connection ->
+                val rows = executeQuery(connection, dslContext, jooqQuery, table.fields(), table)
+                rows.toList()
+            }
         }
     }
 
@@ -73,16 +87,19 @@ class VertxQueryExecutor(
         returning: Collection<Field<*>>?,
     ): List<ROUT> {
         val matched = returning?.let { matchReturning(jooqQuery, it) }
-        return transactionManager.inTransaction(REQUIRE_EXISTING) { connection ->
-            val fields = if (matched == null) {
-                jooqQuery.setReturning()
-                table.fields()
-            } else {
-                jooqQuery.setReturning(matched)
-                matched.toTypedArray()
+        // The returning clause is part of the statement, so it is set before the span renders the SQL.
+        val fields = if (matched == null) {
+            jooqQuery.setReturning()
+            table.fields()
+        } else {
+            jooqQuery.setReturning(matched)
+            matched.toTypedArray()
+        }
+        return traced(jooqQuery, dslContext) {
+            transactionManager.inTransaction(REQUIRE_EXISTING) { connection ->
+                val rows = executeQuery(connection, dslContext, jooqQuery, fields, table)
+                rows.toList()
             }
-            val rows = executeQuery(connection, dslContext, jooqQuery, fields, table)
-            rows.toList()
         }
     }
 
@@ -90,9 +107,11 @@ class VertxQueryExecutor(
         dslContext: DSLContext,
         jooqQuery: DMLQuery<R>,
     ): Int {
-        return transactionManager.inTransaction(REQUIRE_EXISTING) { connection ->
-            connection.preparedQuery(dslContext.renderNamedParams(jooqQuery))
-                .execute(bindParams(dslContext, jooqQuery)).map(SqlResult<*>::rowCount).coAwait()
+        return traced(jooqQuery, dslContext) {
+            transactionManager.inTransaction(REQUIRE_EXISTING) { connection ->
+                connection.preparedQuery(dslContext.renderNamedParams(jooqQuery))
+                    .execute(bindParams(dslContext, jooqQuery)).map(SqlResult<*>::rowCount).coAwait()
+            }
         }
     }
 
@@ -105,6 +124,21 @@ class VertxQueryExecutor(
     ): RowSet<R> = connection.preparedQuery(dslContext.renderNamedParams(jooqQuery)).mapping { row ->
         convertRowToRecord(dslContext, row, fields, table)
     }.execute(bindParams(dslContext, jooqQuery)).coAwait()
+
+    private suspend fun <T> traced(jooqQuery: Query, dslContext: DSLContext, block: suspend () -> T): T {
+        if (!tracingDatabaseQueries()) {
+            return block()
+        }
+        // Built inside withContext, because withContext runs ensureActive first and a span built outside it
+        // would never end for a call cancelled before it starts. use makes the span current and ends it.
+        return withContext(EmptyCoroutineContext) {
+            openTelemetry.databaseSpan(
+                tracerName = "vertx",
+                jooqQuery = jooqQuery,
+                statement = dslContext.renderNamedParams(jooqQuery),
+            ).use { block() }
+        }
+    }
 
     private fun bindParams(
         dslContext: DSLContext,
