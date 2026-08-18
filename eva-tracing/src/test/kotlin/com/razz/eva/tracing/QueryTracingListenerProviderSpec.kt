@@ -21,6 +21,8 @@ import org.jooq.ExecuteContext
 
 private val table = org.jooq.impl.DSL.table(org.jooq.impl.DSL.name("model_events"))
 private val jooqQuery = org.jooq.impl.DSL.using(org.jooq.SQLDialect.POSTGRES).deleteQuery(table)
+private val plainSql = org.jooq.impl.DSL.using(org.jooq.SQLDialect.POSTGRES)
+    .resultQuery("delete from model_events")
 
 class QueryTracingListenerProviderSpec : AnnotationSpec() {
 
@@ -34,7 +36,7 @@ class QueryTracingListenerProviderSpec : AnnotationSpec() {
                 .build(),
         )
         .build()
-    val listenerProvider = QueryTracingListenerProvider(telemetry)
+    val listenerProvider = QueryTracingListenerProvider(telemetry, sourceQuery = null)
 
     @Test
     suspend fun `should name the span after the operation and the table`() {
@@ -52,6 +54,39 @@ class QueryTracingListenerProviderSpec : AnnotationSpec() {
         span.name shouldBe "DELETE model_events"
         span.attributes.get(stringKey("db.operation.name")) shouldBe "DELETE"
         span.attributes.get(stringKey("db.collection.name")) shouldBe "model_events"
+    }
+
+    @Test
+    suspend fun `should name the span after the query the rendered sql came from`() {
+        val listener = QueryTracingListenerProvider(telemetry, sourceQuery = jooqQuery).provide()
+        val sqlContext = mockk<ExecuteContext> {
+            every { sql() } returns "delete from model_events"
+            every { query() } returns plainSql
+        }
+        withContext(telemetry.tracerProvider.get("JOOQ").spanBuilder("root").startSpan().asContextElement()) {
+            listener.executeStart(sqlContext)
+            listener.executeEnd(sqlContext)
+        }
+        val span = spanExporter.finishedSpanItems.single()
+        span.name shouldBe "DELETE model_events"
+        span.attributes.get(stringKey("db.operation.name")) shouldBe "DELETE"
+        span.attributes.get(stringKey("db.collection.name")) shouldBe "model_events"
+    }
+
+    @Test
+    suspend fun `should name a plain sql statement after the operation alone`() {
+        val listener = listenerProvider.provide()
+        val sqlContext = mockk<ExecuteContext> {
+            every { sql() } returns "delete from model_events"
+            every { query() } returns plainSql
+        }
+        withContext(telemetry.tracerProvider.get("JOOQ").spanBuilder("root").startSpan().asContextElement()) {
+            listener.executeStart(sqlContext)
+            listener.executeEnd(sqlContext)
+        }
+        val span = spanExporter.finishedSpanItems.single()
+        span.name shouldBe "QUERY"
+        span.attributes.get(stringKey("db.collection.name")) shouldBe null
     }
 
     @Test
@@ -75,7 +110,7 @@ class QueryTracingListenerProviderSpec : AnnotationSpec() {
 
     @Test
     suspend fun `should cap an oversized statement and report its length`() {
-        val listener = QueryTracingListenerProvider(telemetry, maxStatementLength = 16).provide()
+        val listener = QueryTracingListenerProvider(telemetry, sourceQuery = null, maxStatementLength = 16).provide()
         val long = "delete from model_events where id in (" + "?, ".repeat(50) + ")"
         val sqlContext = mockk<ExecuteContext> {
             every { sql() } returns long
