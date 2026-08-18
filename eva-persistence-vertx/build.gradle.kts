@@ -10,6 +10,7 @@ dependencies {
     api(libs.vertx.pg)
 
     api(project(eva.eva_persistence))
+    api(project(eva.eva_tracing))
 
     implementation(libs.kotlin.stdlib)
     implementation(libs.kotlin.coroutines)
@@ -20,4 +21,5 @@ dependencies {
     implementation(libs.jooq.postgres)
 
     testImplementation(testFixtures(project(eva.eva_persistence)))
+    testImplementation(libs.opentelemetry.sdk.testing)
 }
