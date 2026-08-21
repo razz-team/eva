@@ -90,5 +90,15 @@ class ModelParam<MID : ModelId<out Comparable<*>>, M : Model<MID, *>> private co
         ): ModelParam<MID, M> {
             return ModelParam(modelId, modelQueries)
         }
+
+        @Deprecated(
+            message = "idModelParam re-reads the model inside the uow and would not see the enclosing uow's " +
+                "uncommitted changes; pass the in-memory model with constantModelParam instead",
+            level = DeprecationLevel.ERROR,
+        )
+        fun <MID : ModelId<out Comparable<*>>, M : Model<MID, *>> InstantiationContext.Internal.idModelParam(
+            modelId: MID,
+            modelQueries: suspend (MID) -> M,
+        ): ModelParam<MID, M> = error("idModelParam is not callable from within a uow")
     }
 }
