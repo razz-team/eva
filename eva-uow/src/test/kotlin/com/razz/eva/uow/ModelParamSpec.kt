@@ -3,6 +3,7 @@ package com.razz.eva.uow
 import com.razz.eva.domain.TestModel
 import com.razz.eva.domain.TestModelId
 import com.razz.eva.domain.TestModelId.Companion.randomTestModelId
+import com.razz.eva.uow.ModelParam.Factory.idModelParam
 import com.razz.eva.uow.ModelParam.Factory.modelParam
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
@@ -89,6 +90,21 @@ class ModelParamSpec : FunSpec({
         val modelParam = InstantiationContext(0).modelParam(heldModel) { error("not used") }
         Thread.sleep(STALENESS_SLEEP_MILLIS)
         modelParam.model().param1 shouldBe heldModel.param1
+    }
+
+    test("Id model param queries its model on first access and caches it") {
+        val model = TestModel.existingCreatedTestModel(param1 = "lel", param2 = 1337)
+        var queryCount = 0
+        val modelParam = idModelParam(model.id()) { id ->
+            queryCount++
+            id shouldBe model.id()
+            model
+        }
+        modelParam.id() shouldBe model.id()
+        queryCount shouldBe 0
+        modelParam.model().param1 shouldBe "lel"
+        modelParam.model().param1 shouldBe "lel"
+        queryCount shouldBe 1
     }
 
     test("Deserialized model param returns its id but refuses to load a model") {
