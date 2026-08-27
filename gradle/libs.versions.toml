@@ -71,4 +71,4 @@ dokka-plugin = { module = "org.jetbrains.dokka:dokka-gradle-plugin", version = "
 maven-publish-plugin = { module = "com.vanniktech:gradle-maven-publish-plugin", version = "0.37.0" }
 
 [plugins]
-versions = { id = "com.github.ben-manes.versions", version = "0.60.0" }
+versions = { id = "com.github.ben-manes.versions", version = "0.61.0" }
