@@ -24,7 +24,7 @@ jackson-bom = { module = "com.fasterxml.jackson:jackson-bom", version = "2.22.2"
 vertx-bom = { module = "io.vertx:vertx-stack-depchain", version = "5.1.6" }
 
 micrometer-bom = { module = "io.micrometer:micrometer-bom", version = "1.17.1" }
-opentelemetry-instrumentation-bom = { module = "io.opentelemetry.instrumentation:opentelemetry-instrumentation-bom", version = "2.30.0" }
+opentelemetry-instrumentation-bom = { module = "io.opentelemetry.instrumentation:opentelemetry-instrumentation-bom", version = "2.31.1" }
 opentelemetry-instrumentation-alpha-bom = { module = "io.opentelemetry.instrumentation:opentelemetry-instrumentation-bom-alpha", version = "2.31.1-alpha" }
 
 testcontainers-bom = { module = "org.testcontainers:testcontainers-bom", version = "2.0.5" }
