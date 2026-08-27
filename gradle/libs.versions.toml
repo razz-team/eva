@@ -1,5 +1,5 @@
 [versions]
-flywaydb = "13.2.0"
+flywaydb = "13.3.0"
 detekt = "1.23.8"
 kotlin = "2.4.10"
 kotlinx-serialization = "1.11.0"
