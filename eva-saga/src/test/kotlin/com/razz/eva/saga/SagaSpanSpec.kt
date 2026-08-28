@@ -193,6 +193,6 @@ internal class SagaSpanSpec : ShouldSpec({
 
         saga.resume(principal, Params({ Finish0("stop") }))
 
-        exporter.finishedSpanItems.map { it.name } shouldContain "DelegateSaga"
+        exporter.finishedSpanItems.map { it.name } shouldBe listOf("DelegateSaga-init", "DelegateSaga")
     }
 })
