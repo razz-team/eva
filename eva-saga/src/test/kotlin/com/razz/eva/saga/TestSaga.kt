@@ -8,8 +8,22 @@ import com.razz.eva.saga.TestSaga.Intermediary.Step0
 import com.razz.eva.saga.TestSaga.Params
 import com.razz.eva.saga.TestSaga.Terminal
 import com.razz.eva.saga.TestSaga.TestPrincipal
+import java.time.Duration
 
-internal object TestSaga : Saga<TestPrincipal, Params, Intermediary, Terminal, TestSaga>() {
+internal class TestSaga(
+    observers: List<SagaObserver<TestPrincipal, Params>> = listOf(),
+    executionContext: SagaExecutionContext = sagaExecutionContext(),
+    private val name: String? = null,
+    private val restartPolicy: ((Int, Exception) -> Duration?)? = null,
+) : Saga<TestPrincipal, Params, Intermediary, Terminal, TestSaga>(executionContext, observers) {
+
+    override val sagaName: String
+        get() = name ?: super.sagaName
+
+    override suspend fun restartAfter(attempt: Int, ex: Exception): Duration? {
+        val policy = restartPolicy ?: return super.restartAfter(attempt, ex)
+        return policy(attempt, ex)
+    }
 
     data class TestPrincipal(
         override val id: Id<String>,
