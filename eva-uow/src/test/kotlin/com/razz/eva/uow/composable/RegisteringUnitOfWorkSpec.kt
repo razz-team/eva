@@ -24,7 +24,6 @@ import com.razz.eva.uow.NoopModel
 import com.razz.eva.uow.PersistedLookup
 import com.razz.eva.uow.TestPrincipal
 import com.razz.eva.uow.UpdateEntity
-import com.razz.eva.uow.UpdateModel
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.nulls.shouldNotBeNull
@@ -53,24 +52,6 @@ class RegisteringUnitOfWorkSpec : FunSpec({
 
         changes.modelChangesToPersist shouldBe listOf(AddModel(model0, listOf(TestModelCreated(model0.id()))))
         changes.result shouldBe model0
-    }
-
-    test("with pairs two registrations") {
-        val model0 = createdTestModel("MLG", 420)
-        val model1 = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1).activate()
-
-        val uow = object : DummyRegisteringUow<Pair<CreatedTestModel, ActiveTestModel>>(executionContext) {
-            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
-                add(model0) with update(model1)
-            }
-        }
-        val changes = uow.tryPerform(TestPrincipal, DummyRegisteringUow.Params)
-
-        changes.modelChangesToPersist shouldBe listOf(
-            AddModel(model0, listOf(TestModelCreated(model0.id()))),
-            UpdateModel(model1, listOf(TestModelStatusChanged(model1.id(), CREATED, ACTIVE))),
-        )
-        changes.result shouldBe (model0 to model1)
     }
 
     test("notChanged registers and returns the persisted model") {

@@ -21,8 +21,6 @@ class Registered<out R> internal constructor(
      * what was registered.
      */
     fun <T> map(transform: (R) -> T): Registered<T> = Registered(transform(result))
-
-    infix fun <T> with(other: Registered<T>): Registered<Pair<R, T>> = Registered(result to other.result)
 }
 
 /**

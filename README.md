@@ -696,14 +696,11 @@ class DepositUow(
 }
 ```
 
-For a result that genuinely is not a model, state the exception in the open with `resultOnly`; a reviewer sees the claim "nothing here needed registering" instead of an absence. Shape a registered result with `map`, or pair registrations with `with`:
+For a result that genuinely is not a model, state the exception in the open with `resultOnly`; a reviewer sees the claim "nothing here needed registering" instead of an absence. Shape a registered result with `map`:
 
 ```kotlin
     changes {
         update(wallet.deposit(amount)).map { it.id() }        // Registered<Wallet.Id>
-    }
-    changes {
-        add(receipt) with update(wallet.deposit(amount))      // Registered<Pair<Receipt, Wallet>>
     }
     changes {
         update(wallet.deposit(amount))
