@@ -11,7 +11,7 @@ import com.razz.eva.uow.UowParams
 abstract class CustomUnitOfWork<PRINCIPAL, PARAMS, RESULT>(
     executionContext: ExecutionContext,
     configuration: Configuration = default(),
-) : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, CustomChangesDsl>(executionContext, configuration)
+) : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, CustomChangesDsl, RESULT>(executionContext, configuration)
     where PRINCIPAL : Principal<*>, PARAMS : UowParams<PARAMS>, RESULT : Any {
 
     final override suspend fun changes(init: suspend CustomChangesDsl.() -> RESULT): Changes<RESULT> {

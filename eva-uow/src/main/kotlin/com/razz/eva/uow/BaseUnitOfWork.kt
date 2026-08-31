@@ -6,10 +6,19 @@ import com.razz.eva.uow.BaseUnitOfWork.Configuration.Companion.default
 import com.razz.eva.uow.Retry.StaleRecordFixedRetry.Companion.DEFAULT
 import java.time.InstantSource
 
-abstract class BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, C>(
+/**
+ * The template every unit of work variant instantiates. [C] is the receiver of the change block and
+ * [BLOCK] is what the block must end on. The plain and composable [UnitOfWork]s pin [BLOCK] to
+ * [RESULT]: their blocks end on the UoW result itself. The registering variants pin it to
+ * `Registered<RESULT>`, so a block whose last expression is a model that never went through the DSL
+ * does not compile. Separating [BLOCK] from [RESULT] is what lets both families keep the one name,
+ * `changes`: a suspend block with receiver erases to the same JVM signature whatever its return type,
+ * so the two shapes cannot coexist as an overload or an override pair.
+ */
+abstract class BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, C, BLOCK>(
     executionContext: ExecutionContext,
     private val configuration: Configuration = default(),
-) where PRINCIPAL : Principal<*>, PARAMS : UowParams<PARAMS>, RESULT : Any, C : Any {
+) where PRINCIPAL : Principal<*>, PARAMS : UowParams<PARAMS>, RESULT : Any, C : Any, BLOCK : Any {
 
     protected val clock: InstantSource = executionContext.clock
 
@@ -27,7 +36,7 @@ abstract class BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, C>(
 
     protected fun <R> noChanges(result: R): Changes<R> = RealisedChanges(result, listOf(), listOf())
 
-    protected abstract suspend fun changes(init: suspend C.() -> RESULT): Changes<RESULT>
+    protected abstract suspend fun changes(init: suspend C.() -> BLOCK): Changes<RESULT>
 
     protected fun <R> Changes<R>.result(): R = this.result
 

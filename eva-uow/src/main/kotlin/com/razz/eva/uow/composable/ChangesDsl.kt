@@ -12,6 +12,7 @@ import com.razz.eva.uow.OtelAttributes.MODEL_ID
 import com.razz.eva.tracing.getEvaTracer
 import com.razz.eva.tracing.use
 import com.razz.eva.uow.AddModel
+import com.razz.eva.uow.BaseUnitOfWork
 import com.razz.eva.uow.ChangeSetLookup
 import com.razz.eva.uow.Changes
 import com.razz.eva.uow.ChangesAccumulator
@@ -130,7 +131,8 @@ class ChangesDsl internal constructor(
         where PRINCIPAL : Principal<*>,
               PARAMS : UowParams<PARAMS>,
               RESULT : Any,
-              UOW : UnitOfWork<PRINCIPAL, PARAMS, RESULT> {
+              UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *, *>,
+              UOW : Composable {
         val uow = uowFactory(executionContext.withInheritedChanges(changes))
         val span = uowSpan(uow.name())
         return span.use {

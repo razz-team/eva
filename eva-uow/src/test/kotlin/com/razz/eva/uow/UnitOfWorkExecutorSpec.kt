@@ -1114,6 +1114,80 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
             }
         }
     }
+
+    Given("A registering UnitOfWork registered in the executor") {
+        val clock = fixedUTC(ofEpochMilli(0))
+        val departmentId = randomDepartmentId()
+        val bossId = EmployeeId(UUID.randomUUID())
+        val department = OwnedDepartment(
+            id = departmentId,
+            name = "KazahDepartment",
+            headcount = 1,
+            ration = Ration.BUBALEH,
+            boss = bossId,
+            modelState = newState(
+                OwnedDepartmentCreated(
+                    departmentId = departmentId,
+                    name = "KazahDepartment",
+                    headcount = 1,
+                    ration = Ration.BUBALEH,
+                    boss = bossId,
+                ),
+            ),
+        )
+        val persisting = mockk<Persisting>(relaxed = true)
+        @Suppress("UNCHECKED_CAST")
+        val regClass = DummyRegisteringUow::class as KClass<DummyRegisteringUow<OwnedDepartment>>
+        val uowx = UnitOfWorkExecutor(
+            factories = listOf(
+                regClass withFactory {
+                    object : DummyRegisteringUow<OwnedDepartment>(it) {
+                        override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                            add(department)
+                        }
+                    }
+                },
+            ),
+            persisting = persisting,
+            clock = clock,
+            openTelemetry = OpenTelemetry.noop(),
+        )
+        coEvery {
+            persisting.persist(
+                uowName = any(),
+                params = DummyRegisteringUow.Params,
+                principal = TestPrincipal,
+                modelChanges = any(),
+                entityChanges = any(),
+                now = any(),
+                uowSupportsOutOfOrderPersisting = any(),
+                connectionMode = any(),
+            )
+        } returns Pair(uowEvent(), listOf(department))
+
+        When("Principal executes registering UnitOfWork") {
+            val result = uowx.execute(regClass, TestPrincipal) { DummyRegisteringUow.Params }
+
+            Then("The registered model comes back unwrapped as the result") {
+                result shouldBe department
+            }
+
+            And("Its add went to persisting") {
+                coVerify {
+                    persisting.persist(
+                        uowName = any(),
+                        params = DummyRegisteringUow.Params,
+                        principal = TestPrincipal,
+                        modelChanges = match { it.size == 1 && it.single().id == departmentId },
+                        entityChanges = listOf(),
+                        now = clock.instant(),
+                        uowSupportsOutOfOrderPersisting = any(),
+                        connectionMode = REQUIRE_NEW,
+                    )
+                }
+            }
+        }
+    }
 })
 
 private fun uowEvent() = UowEvent(
