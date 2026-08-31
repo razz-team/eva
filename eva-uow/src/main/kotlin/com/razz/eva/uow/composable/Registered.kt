@@ -1,10 +1,10 @@
-package com.razz.eva.uow
+package com.razz.eva.uow.composable
 
 /**
  * Evidence that a value went through the changes DSL. `changes { }` persists only what was handed to
  * `add` / `update` / `notChanged`; a freshly mutated model returned without one of those calls compiles,
- * "succeeds", and writes nothing. A [RegisteringUnitOfWork] (plain or composable) asks its block for a
- * `Registered<RESULT>`, and the registering DSLs are the only things that mint one, so the
+ * "succeeds", and writes nothing. A [RegisteringUnitOfWork] asks its block for a
+ * `Registered<RESULT>`, and [RegisteringChangesDsl] is the only thing that mints one, so the
  * forgotten-registration branch stops compiling instead of silently dropping the write.
  *
  * The constructor is internal: domain code cannot forge evidence, it can only earn it

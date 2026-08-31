@@ -49,6 +49,7 @@ import io.opentelemetry.sdk.testing.exporter.InMemoryMetricReader
 import java.time.Duration.ofMillis
 import java.time.Instant.ofEpochMilli
 import java.util.*
+import com.razz.eva.uow.composable.DummyRegisteringUow
 import com.razz.eva.uow.composable.DummyUow
 import com.razz.eva.uow.composable.UnitOfWork as ComposableUnitOfWork
 import kotlin.reflect.KClass

@@ -12,7 +12,6 @@ import com.razz.eva.uow.BaseUnitOfWork
 import com.razz.eva.uow.ExecutionContext
 import com.razz.eva.uow.InstantiationContext
 import com.razz.eva.uow.PersistedLookup
-import com.razz.eva.uow.Registered
 import com.razz.eva.uow.UowParams
 
 /**

@@ -9,11 +9,11 @@ import java.time.InstantSource
 /**
  * The template every unit of work variant instantiates. [C] is the receiver of the change block and
  * [BLOCK] is what the block must end on. The plain and composable [UnitOfWork]s pin [BLOCK] to
- * [RESULT]: their blocks end on the UoW result itself. The registering variants pin it to
- * `Registered<RESULT>`, so a block whose last expression is a model that never went through the DSL
- * does not compile. Separating [BLOCK] from [RESULT] is what lets both families keep the one name,
- * `changes`: a suspend block with receiver erases to the same JVM signature whatever its return type,
- * so the two shapes cannot coexist as an overload or an override pair.
+ * [RESULT]: their blocks end on the UoW result itself. [com.razz.eva.uow.composable.RegisteringUnitOfWork]
+ * pins it to `Registered<RESULT>`, so a block whose last expression is a model that never went through
+ * the DSL does not compile. Separating [BLOCK] from [RESULT] is what lets both families keep the one
+ * name, `changes`: a suspend block with receiver erases to the same JVM signature whatever its return
+ * type, so the two shapes cannot coexist as an overload or an override pair.
  */
 abstract class BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, C, BLOCK>(
     executionContext: ExecutionContext,

@@ -4,9 +4,7 @@ import com.razz.eva.domain.Principal
 import com.razz.eva.uow.BaseUnitOfWork
 import com.razz.eva.uow.Changes
 import com.razz.eva.uow.ExecutionContext
-import com.razz.eva.uow.Registered
 import com.razz.eva.uow.UowParams
-import com.razz.eva.uow.resultOnly
 
 /**
  * A composable [UnitOfWork] whose change block must end on a [Registered] value. `changes { }` persists

@@ -268,48 +268,6 @@ You can verify that the model was actually changed within the unit of work:
     }
 ```
 
-#### Proving the result reached the change set
-
-`changes { }` persists only what was handed to `add` / `update` / `notChanged`. A UoW that mutates a model and returns it without one of those calls compiles, reports success, and writes nothing:
-
-```kotlin
-override suspend fun tryPerform(principal: ServicePrincipal, params: Params) = changes {
-    wallet.deposit(params.amount) // compiles, "succeeds", writes nothing
-}
-```
-
-Extend `RegisteringUnitOfWork` instead of `UnitOfWork` and that branch stops compiling. The block keeps the DSL's own names, but registrations return `Registered<M>` instead of the model, and the block must end on a `Registered<RESULT>`. Only the DSL mints one, so the result provably went through the change set:
-
-```kotlin
-class DepositUow(
-    private val walletQueries: WalletQueries,
-    executionContext: ExecutionContext,
-) : RegisteringUnitOfWork<ServicePrincipal, Params, Wallet>(executionContext) {
-
-    override suspend fun tryPerform(principal: ServicePrincipal, params: Params) = changes {
-        val wallet = walletQueries.get(params.walletId)
-        update(wallet.deposit(params.amount)) // Registered<Wallet>, the block ends on it
-    }
-}
-```
-
-For a result that genuinely is not a model, state the exception in the open with `resultOnly`; a reviewer sees the claim "nothing here needed registering" instead of an absence. Shape a registered result with `map`, or pair registrations with `with`:
-
-```kotlin
-    changes {
-        update(wallet.deposit(amount)).map { it.id() }        // Registered<Wallet.Id>
-    }
-    changes {
-        add(receipt) with update(wallet.deposit(amount))      // Registered<Pair<Receipt, Wallet>>
-    }
-    changes {
-        update(wallet.deposit(amount))
-        resultOnly(DepositReport(amount, clock.instant()))    // stated: the report is not a model
-    }
-```
-
-Adoption is per UoW and invisible from the outside: the executor still sees the same UoW shape, callers and specs are untouched. There is a composable flavour too, `com.razz.eva.uow.composable.RegisteringUnitOfWork` - see [Composable Unit of Work](#composable-unit-of-work).
-
 ### Repository
 To persist our model we need to add a repository for it.
 We use [jOOQ](https://www.jooq.org/) to have a type-safe DB querying.
@@ -692,7 +650,7 @@ class CheckoutUow(
 
 The `execute` function takes a UoW factory, a principal, and params. Child UoWs inherit accumulated changes from the parent, and their changes are merged back. All changes from parent and child UoWs are persisted in a single transaction.
 
-Child UoWs must also extend `com.razz.eva.uow.composable.UnitOfWork` (or `com.razz.eva.uow.composable.RegisteringUnitOfWork`, the composable flavour of [the registering UoW](#proving-the-result-reached-the-change-set); registering and plain UoWs compose with each other in either direction):
+Child UoWs must also extend `com.razz.eva.uow.composable.UnitOfWork` (or [`RegisteringUnitOfWork`](#proving-the-result-reached-the-change-set); registering and plain UoWs compose with each other in either direction):
 
 ```kotlin
 class DebitAccountUow(
@@ -712,6 +670,48 @@ class DebitAccountUow(
     }
 }
 ```
+
+#### Proving the result reached the change set
+
+`changes { }` persists only what was handed to `add` / `update` / `notChanged`. A UoW that mutates a model and returns it without one of those calls compiles, reports success, and writes nothing:
+
+```kotlin
+override suspend fun tryPerform(principal: ServicePrincipal, params: Params) = changes {
+    wallet.deposit(params.amount) // compiles, "succeeds", writes nothing
+}
+```
+
+Extend `com.razz.eva.uow.composable.RegisteringUnitOfWork` instead of `UnitOfWork` and that branch stops compiling. The block keeps the DSL's own names, but registrations return `Registered<M>` instead of the model, and the block must end on a `Registered<RESULT>`. Only the DSL mints one, so the result provably went through the change set:
+
+```kotlin
+class DepositUow(
+    private val walletQueries: WalletQueries,
+    executionContext: ExecutionContext,
+) : RegisteringUnitOfWork<ServicePrincipal, Params, Wallet>(executionContext) {
+
+    override suspend fun tryPerform(principal: ServicePrincipal, params: Params) = changes {
+        val wallet = walletQueries.get(params.walletId)
+        update(wallet.deposit(params.amount)) // Registered<Wallet>, the block ends on it
+    }
+}
+```
+
+For a result that genuinely is not a model, state the exception in the open with `resultOnly`; a reviewer sees the claim "nothing here needed registering" instead of an absence. Shape a registered result with `map`, or pair registrations with `with`:
+
+```kotlin
+    changes {
+        update(wallet.deposit(amount)).map { it.id() }        // Registered<Wallet.Id>
+    }
+    changes {
+        add(receipt) with update(wallet.deposit(amount))      // Registered<Pair<Receipt, Wallet>>
+    }
+    changes {
+        update(wallet.deposit(amount))
+        resultOnly(DepositReport(amount, clock.instant()))    // stated: the report is not a model
+    }
+```
+
+Entity changes and `execute` hand back what they always did, and a registering UoW stays composable: it can execute children and be executed as a child, from plain and registering parents alike. Adoption is per UoW and invisible from the outside: the executor still sees the same UoW shape, callers and specs are untouched.
 
 #### Returning persisted models with `roundtrip { }`
 
