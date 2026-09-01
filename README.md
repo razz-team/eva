@@ -681,7 +681,7 @@ override suspend fun tryPerform(principal: ServicePrincipal, params: Params) = c
 }
 ```
 
-Extend `com.razz.eva.uow.composable.ProvingUnitOfWork` instead of `UnitOfWork` and that branch stops compiling. The block keeps the DSL's own names, but registrations return `Accounted<M>` instead of the model, and the block must end on an `Accounted<RESULT>`, which only the DSL mints:
+Extend `com.razz.eva.uow.composable.ProvingUnitOfWork` instead of `UnitOfWork` and that branch stops compiling. Adoption can be just an import: `com.razz.eva.uow.proving.UnitOfWork` aliases the proving base, so the declaration keeps reading `UnitOfWork<...>`. The block keeps the DSL's own names, but registrations return `Accounted<M>` instead of the model, and the block must end on an `Accounted<RESULT>`, which only the DSL mints (`noModelResult()` for a `Unit` result):
 
 ```kotlin
 class DepositUow(

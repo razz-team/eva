@@ -51,6 +51,9 @@ class ProvingChangesDsl internal constructor(
      */
     fun <R> noModelResult(result: R): Accounted<R> = Accounted(result, this)
 
+    /** The stated exception for a block whose UoW result is [Unit]: the registrations happened above. */
+    fun noModelResult(): Accounted<Unit> = Accounted(Unit, this)
+
     @Deprecated(
         "A model result must be registered through add / update / notChanged, not stated as noModelResult",
         level = DeprecationLevel.ERROR,

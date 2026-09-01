@@ -24,6 +24,7 @@ import com.razz.eva.uow.NoopModel
 import com.razz.eva.uow.PersistedLookup
 import com.razz.eva.uow.TestPrincipal
 import com.razz.eva.uow.UpdateEntity
+import com.razz.eva.uow.proving.UnitOfWork as AliasedUnitOfWork
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldHaveSize
@@ -163,6 +164,21 @@ class ProvingUnitOfWorkSpec : FunSpec({
         }
         exception.message shouldBe "Unregistered changed model [${model0.id().stringValue()}] " +
             "in the result: the write would be silently dropped"
+    }
+
+    test("Adoption via the proving.UnitOfWork alias is an import away, and Unit blocks end on noModelResult()") {
+        val model0 = createdTestModel("MLG", 420)
+
+        val uow = object : AliasedUnitOfWork<TestPrincipal, DummyProvingUow.Params, Unit>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: DummyProvingUow.Params) = changes {
+                add(model0)
+                noModelResult()
+            }
+        }
+        val changes = uow.tryPerform(TestPrincipal, DummyProvingUow.Params)
+
+        changes.result shouldBe Unit
+        changes.modelChangesToPersist shouldBe listOf(AddModel(model0, listOf(TestModelCreated(model0.id()))))
     }
 
     test("A batch of registered models is a legal result") {
