@@ -650,7 +650,7 @@ class CheckoutUow(
 
 The `execute` function takes a UoW factory, a principal, and params. Child UoWs inherit accumulated changes from the parent, and their changes are merged back. All changes from parent and child UoWs are persisted in a single transaction.
 
-Child UoWs must also extend `com.razz.eva.uow.composable.UnitOfWork` (or [`ProvingUnitOfWork`](#making-the-block-end-on-accounted-evidence); proving and plain UoWs compose with each other in either direction). A child must be constructed with the `ExecutionContext` handed to the factory; `execute` fails loudly if a factory substitutes its own context and the child's changes would otherwise replace the parent's:
+Child UoWs must also extend `com.razz.eva.uow.composable.UnitOfWork` (or [`ProvingUnitOfWork`](#making-the-block-end-on-accounted-evidence); proving and plain UoWs compose with each other in either direction). Construct the child with the `ExecutionContext` handed to the factory. The merge is additive: the parent's accumulated changes always survive, and the same model changed on diverged event streams fails loudly. In tests, build a stubbed child's return value with `stubChanges(result, ...)` rather than hand-assembling accumulators:
 
 ```kotlin
 class DebitAccountUow(

@@ -20,6 +20,8 @@ import com.razz.eva.uow.ExecutionContext
 import com.razz.eva.uow.InstantiationContext
 import com.razz.eva.uow.NoopModel
 import com.razz.eva.uow.PersistedLookup
+import com.razz.eva.uow.isSameAs
+import com.razz.eva.uow.isSuccessorOf
 import com.razz.eva.uow.UpdateModel
 import com.razz.eva.uow.UowParams
 import io.opentelemetry.api.trace.Span
@@ -144,26 +146,11 @@ class ChangesDsl internal constructor(
                 subChanges.modelChangesToPersist.map { it.id.stringValue() },
             )
             if (subChanges.modelChangesToPersist.isNotEmpty() || subChanges.entityChangesToPersist.isNotEmpty()) {
-                val merged = ChangesAccumulator.from(subChanges)
-                // A child built with a context other than the one given to the factory starts from an
-                // empty accumulator and its changes would replace, not extend, everything gathered so
-                // far: every inherited change must come back, its events preserved as a prefix.
-                for (id in changes.modelIds()) {
-                    val prev = checkNotNull(changes.changeFor(id))
-                    val next = merged.changeFor(id)
-                    val intact = next != null &&
-                        (next.modelEvents isSameAs prev.modelEvents || next.modelEvents isSuccessorOf prev.modelEvents)
-                    check(intact) {
-                        "Composed ${uow.name()} dropped inherited changes for model [${id.stringValue()}]; " +
-                            "construct the child with the ExecutionContext given to the factory"
-                    }
-                }
-                check(merged.entities().containsAll(changes.entities())) {
-                    "Composed ${uow.name()} dropped inherited entity changes; " +
-                        "construct the child with the ExecutionContext given to the factory"
-                }
-                changes = merged
-                inheritedModelIds.addAll(merged.modelIds())
+                // Additive merge: the accumulated changes always survive, so a child built with a
+                // context other than the one given to the factory can add changes but cannot make
+                // inherited ones vanish; a same-model conflict on diverged event streams fails loudly.
+                changes = changes.merging(uow.name(), subChanges)
+                inheritedModelIds.addAll(changes.modelIds())
             }
             // Under composition the caller gets this in-memory seed; the child's resultBuilder is not rerun.
             subChanges.result
@@ -189,30 +176,4 @@ class ChangesDsl internal constructor(
     private fun performingSpan(name: String): Span = executionContext.otel.getEvaTracer()
         .spanBuilder("$name-perform")
         .startSpan()
-
-    private infix fun List<ModelEvent<*>>
-        .isSuccessorOf(events: List<ModelEvent<*>>): Boolean {
-        if (size <= events.size) {
-            return false
-        }
-        events.forEachIndexed { i, e ->
-            if (this[i] !== e) {
-                return false
-            }
-        }
-        return true
-    }
-
-    private infix fun List<ModelEvent<*>>
-        .isSameAs(events: List<ModelEvent<*>>): Boolean {
-        if (size != events.size) {
-            return false
-        }
-        events.forEachIndexed { i, e ->
-            if (this[i] !== e) {
-                return false
-            }
-        }
-        return true
-    }
 }

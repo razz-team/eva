@@ -92,7 +92,32 @@ class ChangesAccumulator private constructor(
 
     internal fun modelIds(): Set<ModelId<out Comparable<*>>> = modelChanges.keys
 
-    internal fun entities(): List<EntityChange> = entityChanges
+    /**
+     * Merges a composed child's changes additively: the accumulated changes always survive, so a child
+     * constructed with the wrong `ExecutionContext` can add changes but can no longer make inherited
+     * ones vanish. The one irreconcilable case is the same model changed on two diverged event
+     * streams, which fails loudly instead of silently clobbering.
+     */
+    internal fun merging(uowName: String, subChanges: Changes<*>): ChangesAccumulator {
+        val mergedModels = LinkedHashMap(modelChanges)
+        for (change in subChanges.modelChangesToPersist) {
+            val prev = mergedModels[change.id]
+            if (prev != null && change is NoopModel) {
+                // the child's "unchanged" claim never demotes an accumulated change
+                continue
+            }
+            val intact = prev == null ||
+                change.modelEvents isSameAs prev.modelEvents ||
+                change.modelEvents isSuccessorOf prev.modelEvents
+            check(intact) {
+                "Composed $uowName produced conflicting changes for model [${change.id.stringValue()}]; " +
+                    "construct the child with the ExecutionContext given to the factory"
+            }
+            mergedModels[change.id] = change
+        }
+        val newEntities = subChanges.entityChangesToPersist.filter { child -> entityChanges.none { it === child } }
+        return ChangesAccumulator(mergedModels, entityChanges + newEntities)
+    }
 
     fun <R> withResult(
         result: R,
@@ -169,3 +194,29 @@ internal class RealisedChanges<R>(
     override val entityChangesToPersist: List<EntityChange>,
     override val resultBuilder: ((PersistedLookup) -> Any?)? = null,
 ) : Changes<R>()
+
+// Reference-identity prefix checks over event lists: composed changes to one model are reconcilable
+// only when one list literally extends the other, which is what the DSL's merge produces.
+internal infix fun List<ModelEvent<*>>.isSuccessorOf(events: List<ModelEvent<*>>): Boolean {
+    if (size <= events.size) {
+        return false
+    }
+    events.forEachIndexed { i, e ->
+        if (this[i] !== e) {
+            return false
+        }
+    }
+    return true
+}
+
+internal infix fun List<ModelEvent<*>>.isSameAs(events: List<ModelEvent<*>>): Boolean {
+    if (size != events.size) {
+        return false
+    }
+    events.forEachIndexed { i, e ->
+        if (this[i] !== e) {
+            return false
+        }
+    }
+    return true
+}

@@ -30,6 +30,7 @@ import com.razz.eva.uow.ExecutionContext
 import com.razz.eva.uow.NoopModel
 import com.razz.eva.uow.PersistedLookup
 import com.razz.eva.uow.TestPrincipal
+import com.razz.eva.uow.stubChanges
 import com.razz.eva.uow.UpdateModel
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
@@ -984,7 +985,7 @@ class ChangesDslSpec : FunSpec({
         exception.message shouldBe "Change for a given model [${model.id().stringValue()}] was already registered"
     }
 
-    test("Should throw when a composed child drops inherited changes by substituting the context") {
+    test("Should keep inherited model changes when a composed child was built with a substituted context") {
         val model0 = createdTestModel("MLG", 420)
         val model1 = createdTestModel("noscope", 360)
 
@@ -1002,13 +1003,16 @@ class ChangesDslSpec : FunSpec({
                 "K P A C U B O"
             }
         }
-        val exception = shouldThrow<IllegalStateException> {
-            uow.tryPerform(TestPrincipal, DummyUow.Params)
-        }
-        exception.message.shouldNotBeNull() shouldContain "dropped inherited changes"
+        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
+
+        changes.modelChangesToPersist shouldBe listOf(
+            AddModel(model0, listOf(TestModelCreated(model0.id()))),
+            AddModel(model1, listOf(TestModelCreated(model1.id()))),
+        )
+        changes.result shouldBe "K P A C U B O"
     }
 
-    test("Should throw when a context-dropping child loses the parent's entity changes") {
+    test("Should keep inherited entity changes when a composed child was built with a substituted context") {
         val departmentId = randomDepartmentId()
         val tag = Tag.environmentTag(departmentId.id, "production")
         val model1 = createdTestModel("noscope", 360)
@@ -1027,13 +1031,14 @@ class ChangesDslSpec : FunSpec({
                 "K P A C U B O"
             }
         }
-        val exception = shouldThrow<IllegalStateException> {
-            uow.tryPerform(TestPrincipal, DummyUow.Params)
-        }
-        exception.message.shouldNotBeNull() shouldContain "dropped inherited entity changes"
+        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
+
+        changes.entityChangesToPersist shouldBe listOf(AddEntity(tag))
+        changes.modelChangesToPersist shouldBe listOf(AddModel(model1, listOf(TestModelCreated(model1.id()))))
+        changes.result shouldBe "K P A C U B O"
     }
 
-    test("Should throw when a context-dropping child clobbers the parent's events for the same model") {
+    test("Should throw when a context-substituting child produces conflicting changes for the same model") {
         val id = randomTestModelId()
         val parentInstance = existingCreatedTestModel(id, "noscope", 360, V1).activate()
         val childInstance = existingCreatedTestModel(id, "noscope", 360, V1).activate()
@@ -1056,7 +1061,34 @@ class ChangesDslSpec : FunSpec({
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
         exception.message.shouldNotBeNull() shouldContain
-            "dropped inherited changes for model [${id.stringValue()}]"
+            "conflicting changes for model [${id.stringValue()}]"
+    }
+
+    test("A stubbed child's changes merge without demoting or anchoring") {
+        val model0 = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1).activate()
+        val fresh = createdTestModel("MLG", 420)
+
+        val stubbedChild = { _: ExecutionContext ->
+            object : DummyUow<CreatedTestModel>(ExecutionContext(clock, OpenTelemetry.noop())) {
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params) =
+                    stubChanges(fresh, model0)
+            }
+        }
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                update(model0)
+                val created = execute(stubbedChild, TestPrincipal) { Params }
+                created shouldBe fresh
+                "K P A C U B O"
+            }
+        }
+        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
+
+        changes.modelChangesToPersist shouldBe listOf(
+            UpdateModel(model0, listOf(TestModelStatusChanged(model0.id(), CREATED, ACTIVE))),
+            NoopModel(fresh),
+        )
+        changes.result shouldBe "K P A C U B O"
     }
 
     test("Should throw when an unregistered new model is the result") {
