@@ -18,7 +18,6 @@ import com.razz.eva.uow.Changes
 import com.razz.eva.uow.ChangesAccumulator
 import com.razz.eva.uow.ExecutionContext
 import com.razz.eva.uow.InstantiationContext
-import com.razz.eva.uow.ModelChange
 import com.razz.eva.uow.NoopModel
 import com.razz.eva.uow.PersistedLookup
 import com.razz.eva.uow.UpdateModel
@@ -124,9 +123,6 @@ class ChangesDsl internal constructor(
         changes = changes.withDeletedEntityByKey(key, entityClass)
     }
 
-    // [ProvingUnitOfWork] verifies a model in the block's result against the registered instance.
-    internal fun changeFor(id: ModelId<out Comparable<*>>): ModelChange? = changes.changeFor(id)
-
     suspend fun <PRINCIPAL, PARAMS, RESULT, UOW> execute(
         uowFactory: (ExecutionContext) -> UOW,
         principal: PRINCIPAL,
@@ -150,9 +146,20 @@ class ChangesDsl internal constructor(
             if (subChanges.modelChangesToPersist.isNotEmpty() || subChanges.entityChangesToPersist.isNotEmpty()) {
                 val merged = ChangesAccumulator.from(subChanges)
                 // A child built with a context other than the one given to the factory starts from an
-                // empty accumulator and its changes would replace, not extend, everything gathered so far.
-                check(merged.modelIds().containsAll(changes.modelIds())) {
-                    "Composed ${uow.name()} dropped inherited changes; " +
+                // empty accumulator and its changes would replace, not extend, everything gathered so
+                // far: every inherited change must come back, its events preserved as a prefix.
+                for (id in changes.modelIds()) {
+                    val prev = checkNotNull(changes.changeFor(id))
+                    val next = merged.changeFor(id)
+                    val intact = next != null &&
+                        (next.modelEvents isSameAs prev.modelEvents || next.modelEvents isSuccessorOf prev.modelEvents)
+                    check(intact) {
+                        "Composed ${uow.name()} dropped inherited changes for model [${id.stringValue()}]; " +
+                            "construct the child with the ExecutionContext given to the factory"
+                    }
+                }
+                check(merged.entities().containsAll(changes.entities())) {
+                    "Composed ${uow.name()} dropped inherited entity changes; " +
                         "construct the child with the ExecutionContext given to the factory"
                 }
                 changes = merged

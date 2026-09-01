@@ -13,7 +13,6 @@ import com.razz.eva.uow.ExecutionContext
 import com.razz.eva.uow.InstantiationContext
 import com.razz.eva.uow.PersistedLookup
 import com.razz.eva.uow.UowParams
-import com.razz.eva.uow.requireNoDroppedWrite
 
 /**
  * [ChangesDsl] with the model registrations returning [Accounted] instead of the model.
@@ -44,15 +43,13 @@ class ProvingChangesDsl internal constructor(
         Accounted(dsl.notChanged(model), this)
 
     /**
-     * The stated exception: a result that is not a model, such as a computed value, a report, or a
-     * projection built before registration. Spelling it at the return site is the point; a reviewer
-     * sees the claim "no model here needed registering" instead of an absence. A new or dirty model,
-     * bare or inside a collection, is refused: it needed registering.
+     * The stated exception: a result that is not a bare model, such as a computed value, a report, or
+     * a collection assembled from registered models. Spelling it at the return site is the point; a
+     * reviewer sees the claim "no model here needed registering" instead of an absence. The models
+     * reachable from the block's final value are verified against the change set when the block
+     * completes: an unregistered new or dirty one fails the UoW.
      */
-    fun <R> noModelResult(result: R): Accounted<R> {
-        requireNoDroppedWrite(result, "noModelResult")
-        return Accounted(result, this)
-    }
+    fun <R> noModelResult(result: R): Accounted<R> = Accounted(result, this)
 
     @Deprecated(
         "A model result must be registered through add / update / notChanged, not stated as noModelResult",
@@ -71,16 +68,17 @@ class ProvingChangesDsl internal constructor(
 
     /**
      * Passes through bare: end the block with `noModelResult(roundtrip { ... })`. A builder returning
-     * [Accounted] is refused at runtime, because the builder is rerun over the persisted set at top
-     * level and its value is handed to the caller as the UoW result; a wrapper there corrupts the
-     * declared result type.
+     * [Accounted] is refused, because the builder is rerun over the persisted set at top level and its
+     * value is handed to the caller as the UoW result; a wrapper there corrupts the declared result
+     * type. The refusal is wrapped around the builder itself, so it also fires on the executor's
+     * post-flush rerun, not only on the eager seed.
      */
-    fun <R> roundtrip(build: (p: PersistedLookup) -> R): R {
-        val seed = dsl.roundtrip(build)
-        check(seed !is Accounted<*>) {
+    fun <R> roundtrip(build: (p: PersistedLookup) -> R): R = dsl.roundtrip { p ->
+        val built = build(p)
+        check(built !is Accounted<*>) {
             "roundtrip builder must return the bare result; end the block with noModelResult(roundtrip { ... })"
         }
-        return seed
+        built
     }
 
     suspend fun <PRINCIPAL, PARAMS, RESULT, UOW> execute(

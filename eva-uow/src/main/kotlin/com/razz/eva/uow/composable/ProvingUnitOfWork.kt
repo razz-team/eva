@@ -1,11 +1,11 @@
 package com.razz.eva.uow.composable
 
-import com.razz.eva.domain.Model
 import com.razz.eva.domain.Principal
-import com.razz.eva.uow.Changes
 import com.razz.eva.uow.BaseUnitOfWork
+import com.razz.eva.uow.Changes
 import com.razz.eva.uow.ExecutionContext
 import com.razz.eva.uow.UowParams
+import com.razz.eva.uow.modelsIn
 
 /**
  * A composable [UnitOfWork] whose change block must end on an [Accounted] value. `changes { }` persists
@@ -14,10 +14,11 @@ import com.razz.eva.uow.UowParams
  * not compile: `changes` takes a block returning `Accounted<RESULT>`, and the only mints are
  * [ProvingChangesDsl]'s registrations and the explicit [ProvingChangesDsl.noModelResult].
  *
- * The compile-time check covers the block's tail. It is backed at runtime, before the block's value is
- * unwrapped: the evidence must have been minted by this block's own DSL, a model in the result must be
- * the registered instance, and an unregistered model in the result must be clean. A mutation discarded
- * mid-block, or a secondary model that is never referenced again, remains the author's to register.
+ * The compile-time check covers the block's tail. It is backed at runtime once the block completes:
+ * the evidence must have been minted by this block's own DSL, and every model reachable from the
+ * result through iterables, maps, arrays, pairs and triples must be the registered instance or clean.
+ * A mutation discarded mid-block, a secondary model that is never referenced again, or a model buried
+ * in a wrapper the walk cannot see (a data class, a Sequence) remains the author's to register.
  *
  * `tryPerform` keeps the name, the parameters and the return type the base class gives it, the block
  * keeps the DSL's own names, and the block builder keeps the name `changes`. The UoW stays
@@ -35,27 +36,26 @@ abstract class ProvingUnitOfWork<PRINCIPAL, PARAMS, RESULT>(
     protected suspend fun changes(
         init: suspend ProvingChangesDsl.() -> Accounted<RESULT>,
     ): Changes<RESULT> {
-        return ChangesDsl.changes(executionContext) {
+        val changes = ChangesDsl.changes(executionContext) {
             val proving = ProvingChangesDsl(this)
             val accounted = proving.init()
             check(accounted.origin === proving) {
                 "Accounted evidence was minted by another changes block"
             }
-            verifyResultModels(accounted.result, proving)
             accounted.result
         }
+        verifyResultModels(changes)
+        return changes
     }
 
-    private fun verifyResultModels(result: Any?, proving: ProvingChangesDsl) {
-        val models = when (result) {
-            is Model<*, *> -> listOf(result)
-            is Collection<*> -> result.filterIsInstance<Model<*, *>>()
-            else -> listOf()
-        }
-        for (model in models) {
-            val registered = proving.dsl.changeFor(model.id())?.model
-            if (registered != null) {
-                check(registered === model) {
+    // Verified against the built change set, not the DSL: modelChangesToPersist is the flattened list
+    // that will actually be persisted, so owned children of a registered Aggregate count as registered.
+    private fun verifyResultModels(changes: Changes<RESULT>) {
+        val registered = changes.modelChangesToPersist.associateBy { it.id }
+        for (model in modelsIn(changes.result)) {
+            val change = registered[model.id()]
+            if (change != null) {
+                check(change.model === model) {
                     "Model [${model.id().stringValue()}] in the result is not the registered instance"
                 }
             } else {

@@ -116,7 +116,7 @@ class ProvingUnitOfWorkSpec : FunSpec({
         changes.result shouldBe model0.id()
     }
 
-    test("noModelResult rejects a new model hidden in a collection") {
+    test("An unregistered new model hidden in a collection fails the block") {
         val model0 = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
         val hidden = createdTestModel("MLG", 420)
 
@@ -126,14 +126,31 @@ class ProvingUnitOfWorkSpec : FunSpec({
                 noModelResult(listOf(hidden))
             }
         }
-        val exception = shouldThrow<IllegalArgumentException> {
+        val exception = shouldThrow<IllegalStateException> {
             uow.tryPerform(TestPrincipal, DummyProvingUow.Params)
         }
-        exception.message shouldBe "Attempted to pass new model [${hidden.id().stringValue()}] " +
-            "to noModelResult: the write would be silently dropped"
+        exception.message shouldBe "Unregistered new model [${hidden.id().stringValue()}] " +
+            "in the result: the write would be silently dropped"
     }
 
-    test("map rejects a changed model hidden in a collection") {
+    test("An unregistered dirty model hidden in nested containers fails the block") {
+        val model0 = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
+        val hidden = existingCreatedTestModel(randomTestModelId(), "smuggle", 1, V1).activate()
+
+        val uow = object : DummyProvingUow<Map<String, List<ActiveTestModel>>>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                notChanged(model0)
+                noModelResult(mapOf("k" to listOf(hidden)))
+            }
+        }
+        val exception = shouldThrow<IllegalStateException> {
+            uow.tryPerform(TestPrincipal, DummyProvingUow.Params)
+        }
+        exception.message shouldBe "Unregistered changed model [${hidden.id().stringValue()}] " +
+            "in the result: the write would be silently dropped"
+    }
+
+    test("map cannot smuggle a fresh mutation of a registered model") {
         val model0 = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
 
         val uow = object : DummyProvingUow<List<ActiveTestModel>>(executionContext) {
@@ -141,11 +158,31 @@ class ProvingUnitOfWorkSpec : FunSpec({
                 notChanged(model0).map { listOf(it.activate()) }
             }
         }
-        val exception = shouldThrow<IllegalArgumentException> {
+        val exception = shouldThrow<IllegalStateException> {
             uow.tryPerform(TestPrincipal, DummyProvingUow.Params)
         }
-        exception.message shouldBe "Attempted to pass changed model [${model0.id().stringValue()}] " +
-            "to map: the write would be silently dropped"
+        exception.message shouldBe
+            "Model [${model0.id().stringValue()}] in the result is not the registered instance"
+    }
+
+    test("A batch of registered models is a legal result") {
+        val model0 = createdTestModel("MLG", 420)
+        val model1 = createdTestModel("noscope", 360)
+
+        val uow = object : DummyProvingUow<List<CreatedTestModel>>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                add(model0)
+                add(model1)
+                noModelResult(listOf(model0, model1))
+            }
+        }
+        val changes = uow.tryPerform(TestPrincipal, DummyProvingUow.Params)
+
+        changes.result shouldBe listOf(model0, model1)
+        changes.modelChangesToPersist shouldBe listOf(
+            AddModel(model0, listOf(TestModelCreated(model0.id()))),
+            AddModel(model1, listOf(TestModelCreated(model1.id()))),
+        )
     }
 
     test("Accounted minted by another changes block is rejected") {

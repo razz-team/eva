@@ -1,7 +1,5 @@
 package com.razz.eva.uow.composable
 
-import com.razz.eva.uow.requireNoDroppedWrite
-
 /**
  * Evidence that a value's relationship to the change set was accounted for. `changes { }` persists only
  * what was handed to `add` / `update` / `notChanged`; a freshly mutated model returned without one of
@@ -25,12 +23,9 @@ class Accounted<out R> internal constructor(
 ) {
 
     /**
-     * Shapes the accounted result into a projection (an id, a DTO, a response). Mapping to a new or
-     * dirty model is refused at runtime: the projection would carry evidence the model never earned.
+     * Shapes the accounted result into a projection (an id, a DTO, a response). A new or dirty model
+     * that was never registered cannot hide in the projection: the models reachable from the block's
+     * final value are verified against the change set when the block completes.
      */
-    fun <T> map(transform: (R) -> T): Accounted<T> {
-        val mapped = transform(result)
-        requireNoDroppedWrite(mapped, "map")
-        return Accounted(mapped, origin)
-    }
+    fun <T> map(transform: (R) -> T): Accounted<T> = Accounted(transform(result), origin)
 }

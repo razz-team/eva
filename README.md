@@ -708,7 +708,7 @@ For a result that genuinely is not a model, state the exception in the open with
     }
 ```
 
-The compile-time check covers the block's tail, and runtime guards back it up: `noModelResult` and `map` reject a new or dirty model (bare or inside a collection), the evidence must have been minted by the executing block, a model in the result must be the registered instance, and `noChanges` rejects a new or dirty model on every UoW family. What remains the author's responsibility: a mutation discarded mid-block, a secondary model never referenced again, and a dirty model buried inside a non-collection wrapper passed to `noModelResult`.
+The compile-time check covers the block's tail, and runtime verification backs it up when the block completes: every model reachable from the result through iterables (nested to any depth), maps, arrays, pairs and triples is checked against the change set. A model with a registered id must be the registered instance; an unregistered model must be clean; the evidence must have been minted by the executing block. A batch result like `noModelResult(listOf(m1, m2))` after `add(m1); add(m2)` is legal. Independently, `noChanges` rejects a new or dirty model on every UoW family. What remains the author's responsibility: a mutation discarded mid-block, a secondary model never referenced again, and a model buried in a wrapper the walk cannot see (a data class, a `Sequence`).
 
 Entity changes and `execute` hand back what they always did, and a proving UoW stays composable: it can execute children and be executed as a child, from plain and proving parents alike. Adopting it on an existing UoW means changing the base class and reworking the block's tail to end on evidence; the executor, callers and specs are untouched.
 

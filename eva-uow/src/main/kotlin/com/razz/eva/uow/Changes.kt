@@ -92,6 +92,8 @@ class ChangesAccumulator private constructor(
 
     internal fun modelIds(): Set<ModelId<out Comparable<*>>> = modelChanges.keys
 
+    internal fun entities(): List<EntityChange> = entityChanges
+
     fun <R> withResult(
         result: R,
         resultBuilder: ((PersistedLookup) -> Any?)? = null,

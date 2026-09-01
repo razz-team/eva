@@ -54,17 +54,45 @@ abstract class BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, C>(
 }
 
 /**
+ * Every model reachable from [value] through the containers the guards understand: bare models,
+ * [Iterable]s (nested to any depth), [Map] keys and values, [Array]s, [Pair]s and [Triple]s.
+ * A model inside any other wrapper (a data class, a sealed outcome, a [Sequence], which cannot be
+ * walked without consuming it) is invisible to the guards; the docs state that as the boundary.
+ */
+internal fun modelsIn(value: Any?): List<Model<*, *>> {
+    val found = mutableListOf<Model<*, *>>()
+    fun walk(v: Any?) {
+        when (v) {
+            is Model<*, *> -> found.add(v)
+            is Iterable<*> -> v.forEach(::walk)
+            is Map<*, *> -> {
+                v.keys.forEach(::walk)
+                v.values.forEach(::walk)
+            }
+            is Array<*> -> v.forEach(::walk)
+            is Pair<*, *> -> {
+                walk(v.first)
+                walk(v.second)
+            }
+            is Triple<*, *, *> -> {
+                walk(v.first)
+                walk(v.second)
+                walk(v.third)
+            }
+            else -> {}
+        }
+    }
+    walk(value)
+    return found
+}
+
+/**
  * A new or dirty model in [result] is about to leave a UoW without going through the changes DSL:
  * whatever mutation it carries will never be persisted. Rejecting it here turns the silent write drop
  * into a loud failure at the site that dropped it.
  */
 internal fun requireNoDroppedWrite(result: Any?, site: String) {
-    val models = when (result) {
-        is Model<*, *> -> listOf(result)
-        is Collection<*> -> result.filterIsInstance<Model<*, *>>()
-        else -> listOf()
-    }
-    for (model in models) {
+    for (model in modelsIn(result)) {
         require(!model.isNew() && !model.isDirty()) {
             "Attempted to pass ${if (model.isNew()) "new" else "changed"} " +
                 "model [${model.id().stringValue()}] to $site: the write would be silently dropped"

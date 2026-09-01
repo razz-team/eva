@@ -60,4 +60,10 @@ class ProvingCompileRejectionSpec : FunSpec({
         val result = compile("add(createdTestModel(\"MLG\", 420))")
         result.exitCode shouldBe KotlinCompilation.ExitCode.OK
     }
+
+    test("noModelResult refuses a bare model at compile time") {
+        val result = compile("noModelResult(createdTestModel(\"MLG\", 420))")
+        result.exitCode shouldBe KotlinCompilation.ExitCode.COMPILATION_ERROR
+        result.messages shouldContain "must be registered"
+    }
 })

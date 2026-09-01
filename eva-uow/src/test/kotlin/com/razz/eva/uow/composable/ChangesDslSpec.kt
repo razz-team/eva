@@ -1007,6 +1007,57 @@ class ChangesDslSpec : FunSpec({
         }
         exception.message.shouldNotBeNull() shouldContain "dropped inherited changes"
     }
+
+    test("Should throw when a context-dropping child loses the parent's entity changes") {
+        val departmentId = randomDepartmentId()
+        val tag = Tag.environmentTag(departmentId.id, "production")
+        val model1 = createdTestModel("noscope", 360)
+
+        val rogueChild = { _: ExecutionContext ->
+            object : DummyUow<CreatedTestModel>(ExecutionContext(clock, OpenTelemetry.noop())) {
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                    add(model1)
+                }
+            }
+        }
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                add(tag)
+                execute(rogueChild, TestPrincipal) { Params }
+                "K P A C U B O"
+            }
+        }
+        val exception = shouldThrow<IllegalStateException> {
+            uow.tryPerform(TestPrincipal, DummyUow.Params)
+        }
+        exception.message.shouldNotBeNull() shouldContain "dropped inherited entity changes"
+    }
+
+    test("Should throw when a context-dropping child clobbers the parent's events for the same model") {
+        val id = randomTestModelId()
+        val parentInstance = existingCreatedTestModel(id, "noscope", 360, V1).activate()
+        val childInstance = existingCreatedTestModel(id, "noscope", 360, V1).activate()
+
+        val rogueChild = { _: ExecutionContext ->
+            object : DummyUow<ActiveTestModel>(ExecutionContext(clock, OpenTelemetry.noop())) {
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                    update(childInstance)
+                }
+            }
+        }
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                update(parentInstance)
+                execute(rogueChild, TestPrincipal) { Params }
+                "K P A C U B O"
+            }
+        }
+        val exception = shouldThrow<IllegalStateException> {
+            uow.tryPerform(TestPrincipal, DummyUow.Params)
+        }
+        exception.message.shouldNotBeNull() shouldContain
+            "dropped inherited changes for model [${id.stringValue()}]"
+    }
 })
 
 private data class RoundtripResult(val model: com.razz.eva.domain.TestModel, val label: String)
