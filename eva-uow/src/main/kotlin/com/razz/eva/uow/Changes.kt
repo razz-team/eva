@@ -19,6 +19,8 @@ abstract class Changes<R> {
     internal abstract val entityChangesToPersist: List<EntityChange>
     // Builder set by roundtrip { }; the executor runs it over persisted models. Any? since R is known only per call.
     internal open val resultBuilder: ((PersistedLookup) -> Any?)? get() = null
+    // Set by stubChanges: the executor refuses a stub as a real UoW's outcome.
+    internal open val stubbed: Boolean get() = false
 }
 
 /**
@@ -93,30 +95,42 @@ class ChangesAccumulator private constructor(
     internal fun modelIds(): Set<ModelId<out Comparable<*>>> = modelChanges.keys
 
     /**
-     * Merges a composed child's changes additively: the accumulated changes always survive, so a child
-     * constructed with the wrong `ExecutionContext` can add changes but can no longer make inherited
-     * ones vanish. The one irreconcilable case is the same model changed on two diverged event
-     * streams, which fails loudly instead of silently clobbering.
+     * Folds a composed child's outcome into the accumulated changes. A claim-only child (every change
+     * a [NoopModel] and no entity changes, the shape of a stubbed test double) merges additively:
+     * claims for new ids join the set, claims for known ids never demote the accumulated change. A
+     * child that made real changes must have seeded from this accumulator, so every accumulated model
+     * change must come back with its events preserved as a prefix and every accumulated entity change
+     * must survive; the child's set is then the continuation of this one and replaces it wholesale,
+     * preserving order.
      */
     internal fun merging(uowName: String, subChanges: Changes<*>): ChangesAccumulator {
-        val mergedModels = LinkedHashMap(modelChanges)
-        for (change in subChanges.modelChangesToPersist) {
-            val prev = mergedModels[change.id]
-            if (prev != null && change is NoopModel) {
-                // the child's "unchanged" claim never demotes an accumulated change
-                continue
+        val claimOnly = subChanges.entityChangesToPersist.isEmpty() &&
+            subChanges.modelChangesToPersist.all { it is NoopModel }
+        if (claimOnly) {
+            val mergedModels = LinkedHashMap(modelChanges)
+            for (change in subChanges.modelChangesToPersist) {
+                mergedModels.putIfAbsent(change.id, change)
             }
-            val intact = prev == null ||
-                change.modelEvents isSameAs prev.modelEvents ||
-                change.modelEvents isSuccessorOf prev.modelEvents
+            return ChangesAccumulator(mergedModels, entityChanges)
+        }
+        val childModels = subChanges.modelChangesToPersist.associateBy { it.id }
+        for ((id, prev) in modelChanges) {
+            val next = childModels[id]
+            val intact = next != null &&
+                (next.modelEvents isSameAs prev.modelEvents || next.modelEvents isSuccessorOf prev.modelEvents)
             check(intact) {
-                "Composed $uowName produced conflicting changes for model [${change.id.stringValue()}]; " +
+                "Composed $uowName dropped inherited changes for model [${id.stringValue()}]; " +
                     "construct the child with the ExecutionContext given to the factory"
             }
-            mergedModels[change.id] = change
         }
-        val newEntities = subChanges.entityChangesToPersist.filter { child -> entityChanges.none { it === child } }
-        return ChangesAccumulator(mergedModels, entityChanges + newEntities)
+        check(subChanges.entityChangesToPersist.containsAll(entityChanges)) {
+            "Composed $uowName dropped inherited entity changes; " +
+                "construct the child with the ExecutionContext given to the factory"
+        }
+        return ChangesAccumulator(
+            subChanges.modelChangesToPersist.associateByTo(LinkedHashMap()) { it.id },
+            subChanges.entityChangesToPersist,
+        )
     }
 
     fun <R> withResult(
@@ -131,10 +145,13 @@ class ChangesAccumulator private constructor(
 
     // The universal net under every changes block, whatever the UoW family: a new or dirty model in
     // the result whose id is not in the change set carries a write that will never be persisted.
+    // A NoopModel claim vouches only for the claimed instance; a real change vouches for its id.
     private fun verifyResultAccounted(result: Any?, flattened: List<ModelChange>) {
-        val registered = flattened.mapTo(HashSet()) { it.id }
+        val registered = flattened.associateBy { it.id }
         for (model in modelsIn(result)) {
-            if (model.id() in registered) continue
+            val change = registered[model.id()]
+            val accounted = change != null && (change !is NoopModel || change.model === model)
+            if (accounted) continue
             check(!model.isNew() && !model.isDirty()) {
                 "Unregistered ${if (model.isNew()) "new" else "changed"} " +
                     "model [${model.id().stringValue()}] in the result: the write would be silently dropped"
@@ -193,6 +210,7 @@ internal class RealisedChanges<R>(
     override val modelChangesToPersist: List<ModelChange>,
     override val entityChangesToPersist: List<EntityChange>,
     override val resultBuilder: ((PersistedLookup) -> Any?)? = null,
+    override val stubbed: Boolean = false,
 ) : Changes<R>()
 
 // Reference-identity prefix checks over event lists: composed changes to one model are reconcilable

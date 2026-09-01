@@ -161,8 +161,8 @@ class ProvingUnitOfWorkSpec : FunSpec({
         val exception = shouldThrow<IllegalStateException> {
             uow.tryPerform(TestPrincipal, DummyProvingUow.Params)
         }
-        exception.message shouldBe
-            "Model [${model0.id().stringValue()}] in the result is not the registered instance"
+        exception.message shouldBe "Unregistered changed model [${model0.id().stringValue()}] " +
+            "in the result: the write would be silently dropped"
     }
 
     test("A batch of registered models is a legal result") {

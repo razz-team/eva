@@ -1,7 +1,6 @@
 package com.razz.eva.uow
 
 import com.razz.eva.domain.Model
-import com.razz.eva.domain.ModelId
 import com.razz.eva.domain.Principal
 import com.razz.eva.persistence.PersistenceException
 import com.razz.eva.uow.BaseUnitOfWork.Configuration.Companion.default
@@ -36,11 +35,12 @@ abstract class BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, C>(
     protected fun noChanges() = NO_CHANGES
 
     // Under composition a dirty model handed back through noChanges may already be registered in the
-    // parent's change set (threaded in via a ModelParam); its write persists via the parent, so only
-    // a model registered nowhere is a dropped write.
+    // parent's change set (threaded in via a ModelParam): that exact instance's write persists via
+    // the parent. Only the registered instance vouches; a divergent instance under the same id
+    // carries events of its own that would be silently dropped.
     protected fun <R> noChanges(result: R): Changes<R> {
-        requireNoDroppedWrite(result, "noChanges") { id ->
-            executionContext.inheritedChanges?.changeFor(id) != null
+        requireNoDroppedWrite(result, "noChanges") { model ->
+            executionContext.inheritedChanges?.changeFor(model.id())?.model === model
         }
         return RealisedChanges(result, listOf(), listOf())
     }
@@ -94,17 +94,17 @@ internal fun modelsIn(value: Any?): List<Model<*, *>> {
 
 /**
  * A new or dirty model in [result] is about to leave a UoW without going through the changes DSL:
- * whatever mutation it carries will never be persisted, unless [isRegistered] says some change set
- * already holds its id. Rejecting it here turns the silent write drop into a loud failure at the site
- * that dropped it.
+ * whatever mutation it carries will never be persisted, unless [isAccounted] says some change set
+ * already vouches for that exact instance. Rejecting it here turns the silent write drop into a loud
+ * failure at the site that dropped it.
  */
 internal fun requireNoDroppedWrite(
     result: Any?,
     site: String,
-    isRegistered: (ModelId<out Comparable<*>>) -> Boolean,
+    isAccounted: (Model<*, *>) -> Boolean,
 ) {
     for (model in modelsIn(result)) {
-        if (isRegistered(model.id())) continue
+        if (isAccounted(model)) continue
         require(!model.isNew() && !model.isDirty()) {
             "Attempted to pass ${if (model.isNew()) "new" else "changed"} " +
                 "model [${model.id().stringValue()}] to $site: the write would be silently dropped"

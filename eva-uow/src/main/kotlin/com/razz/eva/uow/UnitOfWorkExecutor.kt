@@ -254,6 +254,9 @@ class UnitOfWorkExecutor(
                 }
             }
         }
+        check(!changes.stubbed) {
+            "$name returned stubChanges; it builds test doubles only, a real UnitOfWork must go through changes { }"
+        }
         uowSpan.setAttribute(
             MODEL_ID,
             changes.modelChangesToPersist.map { it.id.stringValue() },

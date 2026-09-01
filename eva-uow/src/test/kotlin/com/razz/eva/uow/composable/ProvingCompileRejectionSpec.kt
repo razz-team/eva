@@ -66,4 +66,42 @@ class ProvingCompileRejectionSpec : FunSpec({
         result.exitCode shouldBe KotlinCompilation.ExitCode.COMPILATION_ERROR
         result.messages shouldContain "must be registered"
     }
+
+    test("stubChanges is opt-in only: a tryPerform returning it does not compile without the marker") {
+        val probe = SourceFile.kotlin(
+            "StubProbe.kt",
+            """
+            package probe
+
+            import com.razz.eva.domain.TestModel.CreatedTestModel
+            import com.razz.eva.domain.TestModel.Factory.createdTestModel
+            import com.razz.eva.uow.Changes
+            import com.razz.eva.uow.ExecutionContext
+            import com.razz.eva.uow.TestPrincipal
+            import com.razz.eva.uow.UowParams
+            import com.razz.eva.uow.composable.ProvingUnitOfWork
+            import com.razz.eva.uow.stubChanges
+
+            object Params : UowParams<Params>
+
+            class StubbingUow(
+                executionContext: ExecutionContext,
+            ) : ProvingUnitOfWork<TestPrincipal, Params, CreatedTestModel>(executionContext) {
+
+                override suspend fun tryPerform(
+                    principal: TestPrincipal,
+                    params: Params,
+                ): Changes<CreatedTestModel> = stubChanges(createdTestModel("MLG", 420))
+            }
+            """.trimIndent(),
+        )
+        val result = KotlinCompilation().apply {
+            sources = listOf(probe)
+            inheritClassPath = true
+            verbose = false
+            messageOutputStream = OutputStream.nullOutputStream()
+        }.compile()
+        result.exitCode shouldBe KotlinCompilation.ExitCode.COMPILATION_ERROR
+        result.messages shouldContain "test doubles"
+    }
 })

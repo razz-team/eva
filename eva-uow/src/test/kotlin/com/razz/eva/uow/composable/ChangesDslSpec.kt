@@ -1,3 +1,5 @@
+@file:OptIn(com.razz.eva.uow.TestDoubleApi::class)
+
 package com.razz.eva.uow.composable
 
 import com.razz.eva.domain.DepartmentId.Companion.randomDepartmentId
@@ -985,7 +987,7 @@ class ChangesDslSpec : FunSpec({
         exception.message shouldBe "Change for a given model [${model.id().stringValue()}] was already registered"
     }
 
-    test("Should keep inherited model changes when a composed child was built with a substituted context") {
+    test("Should throw when a child with real changes was built with a substituted context") {
         val model0 = createdTestModel("MLG", 420)
         val model1 = createdTestModel("noscope", 360)
 
@@ -1003,16 +1005,13 @@ class ChangesDslSpec : FunSpec({
                 "K P A C U B O"
             }
         }
-        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
-
-        changes.modelChangesToPersist shouldBe listOf(
-            AddModel(model0, listOf(TestModelCreated(model0.id()))),
-            AddModel(model1, listOf(TestModelCreated(model1.id()))),
-        )
-        changes.result shouldBe "K P A C U B O"
+        val exception = shouldThrow<IllegalStateException> {
+            uow.tryPerform(TestPrincipal, DummyUow.Params)
+        }
+        exception.message.shouldNotBeNull() shouldContain "dropped inherited changes"
     }
 
-    test("Should keep inherited entity changes when a composed child was built with a substituted context") {
+    test("Should throw when a context-substituting child loses the parent's entity changes") {
         val departmentId = randomDepartmentId()
         val tag = Tag.environmentTag(departmentId.id, "production")
         val model1 = createdTestModel("noscope", 360)
@@ -1031,11 +1030,10 @@ class ChangesDslSpec : FunSpec({
                 "K P A C U B O"
             }
         }
-        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
-
-        changes.entityChangesToPersist shouldBe listOf(AddEntity(tag))
-        changes.modelChangesToPersist shouldBe listOf(AddModel(model1, listOf(TestModelCreated(model1.id()))))
-        changes.result shouldBe "K P A C U B O"
+        val exception = shouldThrow<IllegalStateException> {
+            uow.tryPerform(TestPrincipal, DummyUow.Params)
+        }
+        exception.message.shouldNotBeNull() shouldContain "dropped inherited entity changes"
     }
 
     test("Should throw when a context-substituting child produces conflicting changes for the same model") {
@@ -1061,7 +1059,7 @@ class ChangesDslSpec : FunSpec({
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
         exception.message.shouldNotBeNull() shouldContain
-            "conflicting changes for model [${id.stringValue()}]"
+            "dropped inherited changes for model [${id.stringValue()}]"
     }
 
     test("A stubbed child's changes merge without demoting or anchoring") {
@@ -1105,6 +1103,45 @@ class ChangesDslSpec : FunSpec({
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
         exception.message shouldBe "Unregistered new model [${fresh.id().stringValue()}] " +
+            "in the result: the write would be silently dropped"
+    }
+
+    test("noChanges rejects a fresh mutation of a model the parent registered as unchanged") {
+        val model0 = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
+
+        val child = { ctx: ExecutionContext ->
+            object : DummyUow<ActiveTestModel>(ctx) {
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params) =
+                    noChanges(model0.activate())
+            }
+        }
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                notChanged(model0)
+                execute(child, TestPrincipal) { Params }
+                "K P A C U B O"
+            }
+        }
+        val exception = shouldThrow<IllegalArgumentException> {
+            uow.tryPerform(TestPrincipal, DummyUow.Params)
+        }
+        exception.message shouldBe "Attempted to pass changed model [${model0.id().stringValue()}] " +
+            "to noChanges: the write would be silently dropped"
+    }
+
+    test("An unchanged registration vouches only for its instance, not its id") {
+        val model0 = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
+
+        val uow = object : DummyUow<List<ActiveTestModel>>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                notChanged(model0)
+                listOf(model0.activate())
+            }
+        }
+        val exception = shouldThrow<IllegalStateException> {
+            uow.tryPerform(TestPrincipal, DummyUow.Params)
+        }
+        exception.message shouldBe "Unregistered changed model [${model0.id().stringValue()}] " +
             "in the result: the write would be silently dropped"
     }
 

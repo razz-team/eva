@@ -36,6 +36,7 @@ import io.kotest.core.spec.IsolationMode.InstancePerLeaf
 import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain as shouldContainText
 import io.mockk.Called
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -1262,6 +1263,39 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
 
             Then("The builder is rerun over the flushed set and the result is bare, not Accounted") {
                 result shouldBe WrappedDepartment(flushedDepartment, "wrapped")
+            }
+        }
+    }
+
+    Given("A UnitOfWork whose tryPerform returns a stub") {
+        val clock = fixedUTC(ofEpochMilli(0))
+        val persisting = mockk<Persisting>(relaxed = true)
+        @Suppress("UNCHECKED_CAST")
+        val uowClass = DummyUow::class as KClass<DummyUow<String>>
+        val uowx = UnitOfWorkExecutor(
+            factories = listOf(
+                uowClass withFactory {
+                    object : DummyUow<String>(it) {
+                        @OptIn(TestDoubleApi::class)
+                        override suspend fun tryPerform(principal: TestPrincipal, params: Params) =
+                            stubChanges("NOT A REAL OUTCOME")
+                    }
+                },
+            ),
+            persisting = persisting,
+            clock = clock,
+            openTelemetry = OpenTelemetry.noop(),
+        )
+
+        When("Principal executes it") {
+            val attempt = suspend {
+                uowx.execute(uowClass, TestPrincipal) { DummyUow.Params }
+            }
+
+            Then("The executor refuses the stub and nothing is persisted") {
+                val ex = shouldThrow<IllegalStateException> { attempt() }
+                checkNotNull(ex.message) shouldContainText "test doubles"
+                verify { persisting wasNot Called }
             }
         }
     }

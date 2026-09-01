@@ -11,11 +11,13 @@ import com.razz.eva.domain.ModelId
  * double is supposed to have registered.
  *
  * A stub declares child behaviour instead of performing it, so every model reachable from [result]
- * (through iterables, maps, arrays, pairs and triples) is registered as an unchanged entry
+ * (through iterables, maps, arrays, pairs and triples) is registered as an unchanged claim
  * automatically; [alsoRegistered] adds models the double claims the child registered without
- * returning. Under composition the additive merge treats these unchanged entries as claims, never as
- * demotions of changes the parent already accumulated.
+ * returning. Under composition the merge treats these claims as claims only: they never demote
+ * changes the parent already accumulated, and they vouch for exactly the claimed instances. The
+ * executor rejects a stub returned by a real UoW's `tryPerform`.
  */
+@TestDoubleApi
 fun <R> stubChanges(result: R, vararg alsoRegistered: Model<*, *>): Changes<R> {
     val models = LinkedHashMap<ModelId<out Comparable<*>>, Model<*, *>>()
     for (model in modelsIn(result) + alsoRegistered) {
@@ -25,5 +27,5 @@ fun <R> stubChanges(result: R, vararg alsoRegistered: Model<*, *>): Changes<R> {
         @Suppress("UNCHECKED_CAST")
         NoopModel(model as Model<ModelId<out Comparable<*>>, ModelEvent<ModelId<out Comparable<*>>>>)
     }
-    return RealisedChanges(result, changes, listOf())
+    return RealisedChanges(result, changes, listOf(), resultBuilder = null, stubbed = true)
 }
