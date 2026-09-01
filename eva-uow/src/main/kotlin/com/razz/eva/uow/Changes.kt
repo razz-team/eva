@@ -99,7 +99,22 @@ class ChangesAccumulator private constructor(
         resultBuilder: ((PersistedLookup) -> Any?)? = null,
     ): Changes<R> {
         require(modelChanges.isNotEmpty() || entityChanges.isNotEmpty()) { "No changes to persist" }
-        return RealisedChanges(result, flattenChildModels(), entityChanges, resultBuilder)
+        val flattened = flattenChildModels()
+        verifyResultAccounted(result, flattened)
+        return RealisedChanges(result, flattened, entityChanges, resultBuilder)
+    }
+
+    // The universal net under every changes block, whatever the UoW family: a new or dirty model in
+    // the result whose id is not in the change set carries a write that will never be persisted.
+    private fun verifyResultAccounted(result: Any?, flattened: List<ModelChange>) {
+        val registered = flattened.mapTo(HashSet()) { it.id }
+        for (model in modelsIn(result)) {
+            if (model.id() in registered) continue
+            check(!model.isNew() && !model.isDirty()) {
+                "Unregistered ${if (model.isNew()) "new" else "changed"} " +
+                    "model [${model.id().stringValue()}] in the result: the write would be silently dropped"
+            }
+        }
     }
 
     @Suppress("UNCHECKED_CAST")

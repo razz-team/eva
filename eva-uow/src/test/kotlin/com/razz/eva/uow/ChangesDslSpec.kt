@@ -1,5 +1,6 @@
 package com.razz.eva.uow
 
+import com.razz.eva.domain.TestModel.ActiveTestModel
 import com.razz.eva.domain.TestModel.Factory.createdTestModel
 import com.razz.eva.domain.TestModel.Factory.existingCreatedTestModel
 import com.razz.eva.domain.TestModelEvent.TestModelCreated
@@ -198,5 +199,22 @@ class ChangesDslSpec : FunSpec({
 
         changes.modelChangesToPersist shouldBe listOf(NoopModel(model))
         changes.result shouldBe "K P A C U B O"
+    }
+
+    test("Should throw when an unregistered changed model is the result") {
+        val model0 = createdTestModel("MLG", 420)
+        val dirty = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1).activate()
+
+        val uow = object : UnitOfWork<TestPrincipal, DummyUow.Params, ActiveTestModel>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: DummyUow.Params) = changes {
+                add(model0)
+                dirty
+            }
+        }
+        val exception = shouldThrow<IllegalStateException> {
+            uow.tryPerform(TestPrincipal, DummyUow.Params)
+        }
+        exception.message shouldBe "Unregistered changed model [${dirty.id().stringValue()}] " +
+            "in the result: the write would be silently dropped"
     }
 })

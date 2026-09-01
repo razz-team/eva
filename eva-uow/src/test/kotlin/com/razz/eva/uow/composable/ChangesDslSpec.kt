@@ -1058,6 +1058,46 @@ class ChangesDslSpec : FunSpec({
         exception.message.shouldNotBeNull() shouldContain
             "dropped inherited changes for model [${id.stringValue()}]"
     }
+
+    test("Should throw when an unregistered new model is the result") {
+        val model0 = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1).activate()
+        val fresh = createdTestModel("MLG", 420)
+
+        val uow = object : DummyUow<CreatedTestModel>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                update(model0)
+                fresh
+            }
+        }
+        val exception = shouldThrow<IllegalStateException> {
+            uow.tryPerform(TestPrincipal, DummyUow.Params)
+        }
+        exception.message shouldBe "Unregistered new model [${fresh.id().stringValue()}] " +
+            "in the result: the write would be silently dropped"
+    }
+
+    test("noChanges accepts a dirty model already registered in the parent's change set") {
+        val model0 = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1).activate()
+
+        val child = { ctx: ExecutionContext ->
+            object : DummyUow<ActiveTestModel>(ctx) {
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params) = noChanges(model0)
+            }
+        }
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                update(model0)
+                execute(child, TestPrincipal) { Params }
+                "K P A C U B O"
+            }
+        }
+        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
+
+        changes.result shouldBe "K P A C U B O"
+        changes.modelChangesToPersist shouldBe listOf(
+            UpdateModel(model0, listOf(TestModelStatusChanged(model0.id(), CREATED, ACTIVE))),
+        )
+    }
 })
 
 private data class RoundtripResult(val model: com.razz.eva.domain.TestModel, val label: String)

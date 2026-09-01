@@ -48,21 +48,17 @@ abstract class ProvingUnitOfWork<PRINCIPAL, PARAMS, RESULT>(
         return changes
     }
 
-    // Verified against the built change set, not the DSL: modelChangesToPersist is the flattened list
-    // that will actually be persisted, so owned children of a registered Aggregate count as registered.
+    // The proving family's strict addition on top of the universal withResult net (which already
+    // rejected unregistered new or dirty models): a model with a registered id must be the registered
+    // instance, so stale or smuggled instances cannot pose as the persisted state. Verified against
+    // the built change set: modelChangesToPersist is the flattened list that will actually be
+    // persisted, so owned children of a registered Aggregate count as registered.
     private fun verifyResultModels(changes: Changes<RESULT>) {
         val registered = changes.modelChangesToPersist.associateBy { it.id }
         for (model in modelsIn(changes.result)) {
-            val change = registered[model.id()]
-            if (change != null) {
-                check(change.model === model) {
-                    "Model [${model.id().stringValue()}] in the result is not the registered instance"
-                }
-            } else {
-                check(!model.isNew() && !model.isDirty()) {
-                    "Unregistered ${if (model.isNew()) "new" else "changed"} " +
-                        "model [${model.id().stringValue()}] in the result: the write would be silently dropped"
-                }
+            val change = registered[model.id()] ?: continue
+            check(change.model === model) {
+                "Model [${model.id().stringValue()}] in the result is not the registered instance"
             }
         }
     }

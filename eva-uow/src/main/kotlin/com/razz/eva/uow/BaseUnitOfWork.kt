@@ -1,6 +1,7 @@
 package com.razz.eva.uow
 
 import com.razz.eva.domain.Model
+import com.razz.eva.domain.ModelId
 import com.razz.eva.domain.Principal
 import com.razz.eva.persistence.PersistenceException
 import com.razz.eva.uow.BaseUnitOfWork.Configuration.Companion.default
@@ -16,7 +17,7 @@ import java.time.InstantSource
  * would buy nothing and force one shape on every family.
  */
 abstract class BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, C>(
-    executionContext: ExecutionContext,
+    private val executionContext: ExecutionContext,
     private val configuration: Configuration = default(),
 ) where PRINCIPAL : Principal<*>, PARAMS : UowParams<PARAMS>, RESULT : Any, C : Any {
 
@@ -34,8 +35,13 @@ abstract class BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, C>(
 
     protected fun noChanges() = NO_CHANGES
 
+    // Under composition a dirty model handed back through noChanges may already be registered in the
+    // parent's change set (threaded in via a ModelParam); its write persists via the parent, so only
+    // a model registered nowhere is a dropped write.
     protected fun <R> noChanges(result: R): Changes<R> {
-        requireNoDroppedWrite(result, "noChanges")
+        requireNoDroppedWrite(result, "noChanges") { id ->
+            executionContext.inheritedChanges?.changeFor(id) != null
+        }
         return RealisedChanges(result, listOf(), listOf())
     }
 
@@ -88,11 +94,17 @@ internal fun modelsIn(value: Any?): List<Model<*, *>> {
 
 /**
  * A new or dirty model in [result] is about to leave a UoW without going through the changes DSL:
- * whatever mutation it carries will never be persisted. Rejecting it here turns the silent write drop
- * into a loud failure at the site that dropped it.
+ * whatever mutation it carries will never be persisted, unless [isRegistered] says some change set
+ * already holds its id. Rejecting it here turns the silent write drop into a loud failure at the site
+ * that dropped it.
  */
-internal fun requireNoDroppedWrite(result: Any?, site: String) {
+internal fun requireNoDroppedWrite(
+    result: Any?,
+    site: String,
+    isRegistered: (ModelId<out Comparable<*>>) -> Boolean,
+) {
     for (model in modelsIn(result)) {
+        if (isRegistered(model.id())) continue
         require(!model.isNew() && !model.isDirty()) {
             "Attempted to pass ${if (model.isNew()) "new" else "changed"} " +
                 "model [${model.id().stringValue()}] to $site: the write would be silently dropped"
