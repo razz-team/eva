@@ -12,6 +12,7 @@ hikari = { module = "com.zaxxer:HikariCP", version = "7.1.0" }
 kotlin-logging = { module = "io.github.microutils:kotlin-logging", version = "3.0.5" }
 logback = { module = "ch.qos.logback:logback-classic", version = "1.6.3" }
 mockk = { module = "io.mockk:mockk", version = "1.14.11" }
+kctfork-core = { module = "dev.zacsweers.kctfork:core", version = "0.13.0" }
 postgres = { module = "org.postgresql:postgresql", version = "42.7.13" }
 
 # BOMs

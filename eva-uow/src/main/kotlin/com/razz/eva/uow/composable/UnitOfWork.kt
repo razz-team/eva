@@ -9,11 +9,11 @@ import com.razz.eva.uow.UowParams
 abstract class UnitOfWork<PRINCIPAL, PARAMS, RESULT>(
     private val executionContext: ExecutionContext,
     configuration: Configuration = Configuration.default(),
-) : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, ChangesDsl, RESULT>(executionContext, configuration),
-    Composable
+) : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, ChangesDsl>(executionContext, configuration),
+    ComposableUow
     where PRINCIPAL : Principal<*>, PARAMS : UowParams<PARAMS>, RESULT : Any {
 
-    final override suspend fun changes(init: suspend ChangesDsl.() -> RESULT): Changes<RESULT> {
+    protected suspend fun changes(init: suspend ChangesDsl.() -> RESULT): Changes<RESULT> {
         return ChangesDsl.changes(executionContext, init)
     }
 }

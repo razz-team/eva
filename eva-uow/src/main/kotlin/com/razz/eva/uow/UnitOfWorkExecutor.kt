@@ -44,7 +44,7 @@ infix fun <PRINCIPAL, PARAMS, RESULT, UOW> KClass<UOW>.withFactory(
     factory: (ExecutionContext) -> UOW,
 ) where PRINCIPAL : Principal<*>,
       PARAMS : UowParams<PARAMS>,
-      UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *, *>,
+      UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *>,
       RESULT : Any =
     ClassToUow(this, factory)
 
@@ -61,7 +61,7 @@ class UnitOfWorkExecutor(
         internal val uowClass: KClass<UOW>,
         internal val uowFactory: (ExecutionContext) -> UOW,
     ) where PRINCIPAL : Principal<*>,
-          UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *, *>,
+          UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *>,
           PARAMS : UowParams<PARAMS>,
           RESULT : Any
 
@@ -78,7 +78,7 @@ class UnitOfWorkExecutor(
     ): RESULT where PRINCIPAL : Principal<*>,
           PARAMS : UowParams<PARAMS>,
           RESULT : Any,
-          UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *, *> {
+          UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *> {
         return execute(
             principal = principal,
             uowName = "<dynamic uow factory>",
@@ -95,7 +95,7 @@ class UnitOfWorkExecutor(
     ): RESULT where PRINCIPAL : Principal<*>,
           PARAMS : UowParams<PARAMS>,
           RESULT : Any,
-          UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *, *> {
+          UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *> {
         val startTime = System.nanoTime()
         val uowSpan = uowSpan().apply {
             updateName(uowName)
@@ -184,7 +184,7 @@ class UnitOfWorkExecutor(
     ): Attempted<RESULT> where PRINCIPAL : Principal<*>,
           PARAMS : UowParams<PARAMS>,
           RESULT : Any,
-          UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *, *> {
+          UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *> {
         return when (uow.configuration().writeTxScope) {
             WriteTxScope.FLUSH -> {
                 // tryPerform stays outside the conflict handling: its persistence exceptions
@@ -246,7 +246,7 @@ class UnitOfWorkExecutor(
     ): Changes<RESULT> where PRINCIPAL : Principal<*>,
           PARAMS : UowParams<PARAMS>,
           RESULT : Any,
-          UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *, *> {
+          UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *> {
         val changes = instrumentedPerform(name) { acquisitions ->
             withContext(PrimaryConnectionRequiredFlag + acquisitions + uowSpan.asContextElement()) {
                 performingSpan(name).use {
@@ -278,7 +278,7 @@ class UnitOfWorkExecutor(
     ): Attempted.Committed<RESULT> where PRINCIPAL : Principal<*>,
           PARAMS : UowParams<PARAMS>,
           RESULT : Any,
-          UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *, *> {
+          UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *> {
         val (uowEvent, persisted) = timed(persistTimer, name) {
             withContext(uowSpan.asContextElement()) {
                 persistingSpan(name).use {
@@ -359,7 +359,7 @@ class UnitOfWorkExecutor(
     ): RESULT where PRINCIPAL : Principal<*>,
           PARAMS : UowParams<PARAMS>,
           RESULT : Any,
-          UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *, *> {
+          UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *> {
         return execute(
             principal = principal,
             uowName = target.java.simpleName,
@@ -381,7 +381,7 @@ class UnitOfWorkExecutor(
     ): UOW where PRINCIPAL : Principal<*>,
           PARAMS : UowParams<PARAMS>,
           RESULT : Any,
-          UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *, *> {
+          UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *> {
         val factory = classToFactory[target] ?: throw UowFactoryNotFoundException(target)
         return (factory as (ExecutionContext) -> UOW)(executionContext)
     }

@@ -12,10 +12,10 @@ abstract class CustomUnitOfWork<PRINCIPAL, PARAMS, RESULT>(
     executionContext: ExecutionContext,
     private val head: CustomChangesDsl? = null,
     configuration: Configuration = default(),
-) : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, CustomChangesDsl, RESULT>(executionContext, configuration)
+) : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, CustomChangesDsl>(executionContext, configuration)
     where PRINCIPAL : Principal<*>, PARAMS : UowParams<PARAMS>, RESULT : Any {
 
-    final override suspend fun changes(init: suspend CustomChangesDsl.() -> RESULT): Changes<RESULT> {
+    protected suspend fun changes(init: suspend CustomChangesDsl.() -> RESULT): Changes<RESULT> {
         return if (head == null) {
             CustomChangesDsl.changes(ChangesAccumulator(), init)
         } else {

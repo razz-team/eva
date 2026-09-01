@@ -18,6 +18,7 @@ import com.razz.eva.uow.Changes
 import com.razz.eva.uow.ChangesAccumulator
 import com.razz.eva.uow.ExecutionContext
 import com.razz.eva.uow.InstantiationContext
+import com.razz.eva.uow.ModelChange
 import com.razz.eva.uow.NoopModel
 import com.razz.eva.uow.PersistedLookup
 import com.razz.eva.uow.UpdateModel
@@ -123,6 +124,9 @@ class ChangesDsl internal constructor(
         changes = changes.withDeletedEntityByKey(key, entityClass)
     }
 
+    // [ProvingUnitOfWork] verifies a model in the block's result against the registered instance.
+    internal fun changeFor(id: ModelId<out Comparable<*>>): ModelChange? = changes.changeFor(id)
+
     suspend fun <PRINCIPAL, PARAMS, RESULT, UOW> execute(
         uowFactory: (ExecutionContext) -> UOW,
         principal: PRINCIPAL,
@@ -131,8 +135,8 @@ class ChangesDsl internal constructor(
         where PRINCIPAL : Principal<*>,
               PARAMS : UowParams<PARAMS>,
               RESULT : Any,
-              UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *, *>,
-              UOW : Composable {
+              UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *>,
+              UOW : ComposableUow {
         val uow = uowFactory(executionContext.withInheritedChanges(changes))
         val span = uowSpan(uow.name())
         return span.use {
@@ -144,8 +148,15 @@ class ChangesDsl internal constructor(
                 subChanges.modelChangesToPersist.map { it.id.stringValue() },
             )
             if (subChanges.modelChangesToPersist.isNotEmpty() || subChanges.entityChangesToPersist.isNotEmpty()) {
-                changes = ChangesAccumulator.from(subChanges)
-                inheritedModelIds.addAll(changes.modelIds())
+                val merged = ChangesAccumulator.from(subChanges)
+                // A child built with a context other than the one given to the factory starts from an
+                // empty accumulator and its changes would replace, not extend, everything gathered so far.
+                check(merged.modelIds().containsAll(changes.modelIds())) {
+                    "Composed ${uow.name()} dropped inherited changes; " +
+                        "construct the child with the ExecutionContext given to the factory"
+                }
+                changes = merged
+                inheritedModelIds.addAll(merged.modelIds())
             }
             // Under composition the caller gets this in-memory seed; the child's resultBuilder is not rerun.
             subChanges.result

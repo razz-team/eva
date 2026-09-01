@@ -49,7 +49,7 @@ import io.opentelemetry.sdk.testing.exporter.InMemoryMetricReader
 import java.time.Duration.ofMillis
 import java.time.Instant.ofEpochMilli
 import java.util.*
-import com.razz.eva.uow.composable.DummyRegisteringUow
+import com.razz.eva.uow.composable.DummyProvingUow
 import com.razz.eva.uow.composable.DummyUow
 import com.razz.eva.uow.composable.UnitOfWork as ComposableUnitOfWork
 import kotlin.reflect.KClass
@@ -1116,7 +1116,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
         }
     }
 
-    Given("A registering UnitOfWork registered in the executor") {
+    Given("A proving UnitOfWork registered in the executor") {
         val clock = fixedUTC(ofEpochMilli(0))
         val departmentId = randomDepartmentId()
         val bossId = EmployeeId(UUID.randomUUID())
@@ -1138,11 +1138,11 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
         )
         val persisting = mockk<Persisting>(relaxed = true)
         @Suppress("UNCHECKED_CAST")
-        val regClass = DummyRegisteringUow::class as KClass<DummyRegisteringUow<OwnedDepartment>>
+        val provingClass = DummyProvingUow::class as KClass<DummyProvingUow<OwnedDepartment>>
         val uowx = UnitOfWorkExecutor(
             factories = listOf(
-                regClass withFactory {
-                    object : DummyRegisteringUow<OwnedDepartment>(it) {
+                provingClass withFactory {
+                    object : DummyProvingUow<OwnedDepartment>(it) {
                         override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
                             add(department)
                         }
@@ -1156,7 +1156,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
         coEvery {
             persisting.persist(
                 uowName = any(),
-                params = DummyRegisteringUow.Params,
+                params = DummyProvingUow.Params,
                 principal = TestPrincipal,
                 modelChanges = any(),
                 entityChanges = any(),
@@ -1166,10 +1166,10 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
             )
         } returns Pair(uowEvent(), listOf(department))
 
-        When("Principal executes registering UnitOfWork") {
-            val result = uowx.execute(regClass, TestPrincipal) { DummyRegisteringUow.Params }
+        When("Principal executes proving UnitOfWork") {
+            val result = uowx.execute(provingClass, TestPrincipal) { DummyProvingUow.Params }
 
-            Then("The registered model comes back unwrapped as the result") {
+            Then("The registered model comes back bare as the result") {
                 result shouldBe department
             }
 
@@ -1177,7 +1177,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                 coVerify {
                     persisting.persist(
                         uowName = any(),
-                        params = DummyRegisteringUow.Params,
+                        params = DummyProvingUow.Params,
                         principal = TestPrincipal,
                         modelChanges = match { it.size == 1 && it.single().id == departmentId },
                         entityChanges = listOf(),
@@ -1189,7 +1189,85 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
             }
         }
     }
+
+    Given("A proving UnitOfWork with a roundtrip result registered in the executor") {
+        val clock = fixedUTC(ofEpochMilli(0))
+        val departmentId = randomDepartmentId()
+        val bossId = EmployeeId(UUID.randomUUID())
+        val department = OwnedDepartment(
+            id = departmentId,
+            name = "KazahDepartment",
+            headcount = 1,
+            ration = Ration.BUBALEH,
+            boss = bossId,
+            modelState = newState(
+                OwnedDepartmentCreated(
+                    departmentId = departmentId,
+                    name = "KazahDepartment",
+                    headcount = 1,
+                    ration = Ration.BUBALEH,
+                    boss = bossId,
+                ),
+            ),
+        )
+        val flushedDepartment = OwnedDepartment(
+            id = departmentId,
+            name = "FlushedDepartment",
+            headcount = 1,
+            ration = Ration.BUBALEH,
+            boss = bossId,
+            modelState = newState(
+                OwnedDepartmentCreated(
+                    departmentId = departmentId,
+                    name = "FlushedDepartment",
+                    headcount = 1,
+                    ration = Ration.BUBALEH,
+                    boss = bossId,
+                ),
+            ),
+        )
+        val persisting = mockk<Persisting>(relaxed = true)
+        @Suppress("UNCHECKED_CAST")
+        val provingClass = DummyProvingUow::class as KClass<DummyProvingUow<WrappedDepartment>>
+        val uowx = UnitOfWorkExecutor(
+            factories = listOf(
+                provingClass withFactory {
+                    object : DummyProvingUow<WrappedDepartment>(it) {
+                        override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                            add(department)
+                            noModelResult(roundtrip { p -> WrappedDepartment(p(department), "wrapped") })
+                        }
+                    }
+                },
+            ),
+            persisting = persisting,
+            clock = clock,
+            openTelemetry = OpenTelemetry.noop(),
+        )
+        coEvery {
+            persisting.persist(
+                uowName = any(),
+                params = DummyProvingUow.Params,
+                principal = TestPrincipal,
+                modelChanges = any(),
+                entityChanges = any(),
+                now = any(),
+                uowSupportsOutOfOrderPersisting = any(),
+                connectionMode = any(),
+            )
+        } returns Pair(uowEvent(), listOf(flushedDepartment))
+
+        When("Principal executes proving UnitOfWork") {
+            val result = uowx.execute(provingClass, TestPrincipal) { DummyProvingUow.Params }
+
+            Then("The builder is rerun over the flushed set and the result is bare, not Accounted") {
+                result shouldBe WrappedDepartment(flushedDepartment, "wrapped")
+            }
+        }
+    }
 })
+
+private data class WrappedDepartment(val department: OwnedDepartment, val label: String)
 
 private fun uowEvent() = UowEvent(
     id = UowEvent.Id.random(),

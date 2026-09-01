@@ -36,6 +36,7 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeTypeOf
 import io.opentelemetry.api.OpenTelemetry
 import java.time.LocalDate
@@ -981,6 +982,30 @@ class ChangesDslSpec : FunSpec({
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
         exception.message shouldBe "Change for a given model [${model.id().stringValue()}] was already registered"
+    }
+
+    test("Should throw when a composed child drops inherited changes by substituting the context") {
+        val model0 = createdTestModel("MLG", 420)
+        val model1 = createdTestModel("noscope", 360)
+
+        val rogueChild = { _: ExecutionContext ->
+            object : DummyUow<CreatedTestModel>(ExecutionContext(clock, OpenTelemetry.noop())) {
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                    add(model1)
+                }
+            }
+        }
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                add(model0)
+                execute(rogueChild, TestPrincipal) { Params }
+                "K P A C U B O"
+            }
+        }
+        val exception = shouldThrow<IllegalStateException> {
+            uow.tryPerform(TestPrincipal, DummyUow.Params)
+        }
+        exception.message.shouldNotBeNull() shouldContain "dropped inherited changes"
     }
 })
 

@@ -1,5 +1,6 @@
 package com.razz.eva.uow
 
+import com.razz.eva.domain.Model
 import com.razz.eva.domain.Principal
 import com.razz.eva.persistence.PersistenceException
 import com.razz.eva.uow.BaseUnitOfWork.Configuration.Companion.default
@@ -7,18 +8,17 @@ import com.razz.eva.uow.Retry.StaleRecordFixedRetry.Companion.DEFAULT
 import java.time.InstantSource
 
 /**
- * The template every unit of work variant instantiates. [C] is the receiver of the change block and
- * [BLOCK] is what the block must end on. The plain and composable [UnitOfWork]s pin [BLOCK] to
- * [RESULT]: their blocks end on the UoW result itself. [com.razz.eva.uow.composable.RegisteringUnitOfWork]
- * pins it to `Registered<RESULT>`, so a block whose last expression is a model that never went through
- * the DSL does not compile. Separating [BLOCK] from [RESULT] is what lets both families keep the one
- * name, `changes`: a suspend block with receiver erases to the same JVM signature whatever its return
- * type, so the two shapes cannot coexist as an overload or an override pair.
+ * The template every unit of work family instantiates. [C] documents the receiver of the change block
+ * that the family's own `changes` builder accepts. The builder is deliberately not declared here:
+ * block result types differ per family (a plain block ends on [RESULT], a proving block ends on
+ * `Accounted<RESULT>`), a suspend block with receiver erases to the same JVM signature whatever its
+ * return type, and nothing ever calls `changes` polymorphically, so a single overridable declaration
+ * would buy nothing and force one shape on every family.
  */
-abstract class BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, C, BLOCK>(
+abstract class BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, C>(
     executionContext: ExecutionContext,
     private val configuration: Configuration = default(),
-) where PRINCIPAL : Principal<*>, PARAMS : UowParams<PARAMS>, RESULT : Any, C : Any, BLOCK : Any {
+) where PRINCIPAL : Principal<*>, PARAMS : UowParams<PARAMS>, RESULT : Any, C : Any {
 
     protected val clock: InstantSource = executionContext.clock
 
@@ -34,9 +34,10 @@ abstract class BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, C, BLOCK>(
 
     protected fun noChanges() = NO_CHANGES
 
-    protected fun <R> noChanges(result: R): Changes<R> = RealisedChanges(result, listOf(), listOf())
-
-    protected abstract suspend fun changes(init: suspend C.() -> BLOCK): Changes<RESULT>
+    protected fun <R> noChanges(result: R): Changes<R> {
+        requireNoDroppedWrite(result, "noChanges")
+        return RealisedChanges(result, listOf(), listOf())
+    }
 
     protected fun <R> Changes<R>.result(): R = this.result
 
@@ -48,6 +49,25 @@ abstract class BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, C, BLOCK>(
     ) {
         companion object {
             fun default() = Configuration()
+        }
+    }
+}
+
+/**
+ * A new or dirty model in [result] is about to leave a UoW without going through the changes DSL:
+ * whatever mutation it carries will never be persisted. Rejecting it here turns the silent write drop
+ * into a loud failure at the site that dropped it.
+ */
+internal fun requireNoDroppedWrite(result: Any?, site: String) {
+    val models = when (result) {
+        is Model<*, *> -> listOf(result)
+        is Collection<*> -> result.filterIsInstance<Model<*, *>>()
+        else -> listOf()
+    }
+    for (model in models) {
+        require(!model.isNew() && !model.isDirty()) {
+            "Attempted to pass ${if (model.isNew()) "new" else "changed"} " +
+                "model [${model.id().stringValue()}] to $site: the write would be silently dropped"
         }
     }
 }

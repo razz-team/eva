@@ -1,0 +1,330 @@
+package com.razz.eva.uow.composable
+
+import com.razz.eva.domain.DepartmentId.Companion.randomDepartmentId
+import com.razz.eva.domain.Tag
+import com.razz.eva.domain.TestModel.ActiveTestModel
+import com.razz.eva.domain.TestModel.CreatedTestModel
+import com.razz.eva.domain.TestModel.Factory.createdTestModel
+import com.razz.eva.domain.TestModel.Factory.existingCreatedTestModel
+import com.razz.eva.domain.TestModelEvent
+import com.razz.eva.domain.TestModelEvent.TestModelCreated
+import com.razz.eva.domain.TestModelEvent.TestModelStatusChanged
+import com.razz.eva.domain.TestModelId
+import com.razz.eva.domain.TestModelId.Companion.randomTestModelId
+import com.razz.eva.domain.TestModelStatus.ACTIVE
+import com.razz.eva.domain.TestModelStatus.CREATED
+import com.razz.eva.domain.Version.Companion.V1
+import com.razz.eva.uow.AddEntity
+import com.razz.eva.uow.AddModel
+import com.razz.eva.uow.Clocks.fixedUTC
+import com.razz.eva.uow.Clocks.millisUTC
+import com.razz.eva.uow.DeleteEntity
+import com.razz.eva.uow.ExecutionContext
+import com.razz.eva.uow.NoopModel
+import com.razz.eva.uow.PersistedLookup
+import com.razz.eva.uow.TestPrincipal
+import com.razz.eva.uow.UpdateEntity
+import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.collections.shouldHaveSize
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeTypeOf
+import io.opentelemetry.api.OpenTelemetry
+
+// The forgotten-registration branch itself (a block ending on an unregistered model) is a compile
+// error by construction; ProvingCompileRejectionSpec pins that in CI. These tests cover what still
+// has to compile and behave, and the runtime guards backing the compile-time check.
+class ProvingUnitOfWorkSpec : FunSpec({
+
+    val now = millisUTC().instant()
+    val clock = fixedUTC(now)
+    val executionContext = ExecutionContext(clock, OpenTelemetry.noop())
+
+    test("Block ending on a registered add produces the same changes a plain UnitOfWork would") {
+        val model0 = createdTestModel("MLG", 420)
+
+        val uow = object : DummyProvingUow<CreatedTestModel>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                add(model0)
+            }
+        }
+        val changes = uow.tryPerform(TestPrincipal, DummyProvingUow.Params)
+
+        changes.modelChangesToPersist shouldBe listOf(AddModel(model0, listOf(TestModelCreated(model0.id()))))
+        changes.result shouldBe model0
+    }
+
+    test("notChanged registers and returns the persisted model") {
+        val model0 = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
+
+        val uow = object : DummyProvingUow<CreatedTestModel>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                notChanged(model0)
+            }
+        }
+        val changes = uow.tryPerform(TestPrincipal, DummyProvingUow.Params)
+
+        changes.modelChangesToPersist shouldBe listOf(NoopModel(model0))
+        changes.result shouldBe model0
+    }
+
+    test("noChanges(result) from the base class is still available") {
+        val uow = object : DummyProvingUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) =
+                noChanges("NOTHING TO DO")
+        }
+        val changes = uow.tryPerform(TestPrincipal, DummyProvingUow.Params)
+
+        changes.modelChangesToPersist shouldBe listOf()
+        changes.result shouldBe "NOTHING TO DO"
+    }
+
+    test("noChanges rejects a changed model instead of silently dropping the write") {
+        val model0 = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
+
+        val uow = object : DummyProvingUow<ActiveTestModel>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) =
+                noChanges(model0.activate())
+        }
+        val exception = shouldThrow<IllegalArgumentException> {
+            uow.tryPerform(TestPrincipal, DummyProvingUow.Params)
+        }
+        exception.message shouldBe "Attempted to pass changed model [${model0.id().stringValue()}] " +
+            "to noChanges: the write would be silently dropped"
+    }
+
+    test("Entity changes pass through bare while model registrations return Accounted") {
+        val departmentId = randomDepartmentId()
+        val tag1 = Tag.environmentTag(departmentId.id, "staging")
+        val tag2 = Tag.priorityTag(departmentId.id, 5)
+        val tag3 = Tag.tag(departmentId.id, "region", "eu-west")
+        val model0 = createdTestModel("MLG", 420)
+
+        val uow = object : DummyProvingUow<TestModelId>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                add(tag1)
+                update(tag2)
+                delete(tag3)
+                add(model0).map { it.id() }
+            }
+        }
+        val changes = uow.tryPerform(TestPrincipal, DummyProvingUow.Params)
+
+        changes.modelChangesToPersist shouldBe listOf(AddModel(model0, listOf(TestModelCreated(model0.id()))))
+        changes.entityChangesToPersist shouldBe listOf(AddEntity(tag1), UpdateEntity(tag2), DeleteEntity(tag3))
+        changes.result shouldBe model0.id()
+    }
+
+    test("noModelResult rejects a new model hidden in a collection") {
+        val model0 = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
+        val hidden = createdTestModel("MLG", 420)
+
+        val uow = object : DummyProvingUow<List<CreatedTestModel>>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                notChanged(model0)
+                noModelResult(listOf(hidden))
+            }
+        }
+        val exception = shouldThrow<IllegalArgumentException> {
+            uow.tryPerform(TestPrincipal, DummyProvingUow.Params)
+        }
+        exception.message shouldBe "Attempted to pass new model [${hidden.id().stringValue()}] " +
+            "to noModelResult: the write would be silently dropped"
+    }
+
+    test("map rejects a changed model hidden in a collection") {
+        val model0 = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
+
+        val uow = object : DummyProvingUow<List<ActiveTestModel>>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                notChanged(model0).map { listOf(it.activate()) }
+            }
+        }
+        val exception = shouldThrow<IllegalArgumentException> {
+            uow.tryPerform(TestPrincipal, DummyProvingUow.Params)
+        }
+        exception.message shouldBe "Attempted to pass changed model [${model0.id().stringValue()}] " +
+            "to map: the write would be silently dropped"
+    }
+
+    test("Accounted minted by another changes block is rejected") {
+        val model0 = createdTestModel("MLG", 420)
+        val model1 = createdTestModel("noscope", 360)
+        var smuggled: Accounted<CreatedTestModel>? = null
+
+        val minter = object : DummyProvingUow<CreatedTestModel>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                add(model0).also { smuggled = it }
+            }
+        }
+        minter.tryPerform(TestPrincipal, DummyProvingUow.Params)
+
+        val smuggler = object : DummyProvingUow<CreatedTestModel>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                add(model1)
+                smuggled.shouldNotBeNull()
+            }
+        }
+        val exception = shouldThrow<IllegalStateException> {
+            smuggler.tryPerform(TestPrincipal, DummyProvingUow.Params)
+        }
+        exception.message shouldBe "Accounted evidence was minted by another changes block"
+    }
+
+    test("A model in the result that is not the registered instance is rejected") {
+        val id = randomTestModelId()
+        val registered = existingCreatedTestModel(id, "noscope", 360, V1)
+        val stale = existingCreatedTestModel(id, "noscope", 360, V1)
+
+        val uow = object : DummyProvingUow<List<CreatedTestModel>>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                update(registered.activate())
+                noModelResult(listOf(stale))
+            }
+        }
+        val exception = shouldThrow<IllegalStateException> {
+            uow.tryPerform(TestPrincipal, DummyProvingUow.Params)
+        }
+        exception.message shouldBe "Model [${id.stringValue()}] in the result is not the registered instance"
+    }
+
+    test("A clean unregistered model in a collection result passes: nothing to persist for it") {
+        val model0 = createdTestModel("MLG", 420)
+        val queried = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
+
+        val uow = object : DummyProvingUow<List<CreatedTestModel>>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                add(model0)
+                noModelResult(listOf(queried))
+            }
+        }
+        val changes = uow.tryPerform(TestPrincipal, DummyProvingUow.Params)
+
+        changes.result shouldBe listOf(queried)
+    }
+
+    test("execute passes the child result through bare and merges child changes") {
+        val model0 = createdTestModel("MLG", 420)
+
+        val innerUow = { ctx: ExecutionContext ->
+            object : DummyUow<CreatedTestModel>(ctx) {
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                    add(model0)
+                }
+            }
+        }
+        val uow = object : DummyProvingUow<ActiveTestModel>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                val added = execute(innerUow, TestPrincipal) { DummyUow.Params }
+                update(added.activate())
+            }
+        }
+        val changes = uow.tryPerform(TestPrincipal, DummyProvingUow.Params)
+
+        changes.modelChangesToPersist shouldHaveSize 1
+        val add = changes.modelChangesToPersist.first()
+            .shouldBeTypeOf<AddModel<TestModelId, ActiveTestModel, TestModelEvent>>()
+        add.id shouldBe model0.id()
+        add.modelEvents shouldBe listOf(
+            TestModelCreated(model0.id()),
+            TestModelStatusChanged(model0.id(), CREATED, ACTIVE),
+        )
+    }
+
+    test("A proving child composes under a plain composable parent") {
+        val model0 = createdTestModel("MLG", 420)
+
+        val innerUow = { ctx: ExecutionContext ->
+            object : DummyProvingUow<CreatedTestModel>(ctx) {
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                    add(model0)
+                }
+            }
+        }
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                val added = execute(innerUow, TestPrincipal) { DummyProvingUow.Params }
+                update(added.activate())
+                "K P A C U B O"
+            }
+        }
+        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
+
+        changes.modelChangesToPersist shouldHaveSize 1
+        val add = changes.modelChangesToPersist.first()
+            .shouldBeTypeOf<AddModel<TestModelId, ActiveTestModel, TestModelEvent>>()
+        add.id shouldBe model0.id()
+        add.modelEvents shouldBe listOf(
+            TestModelCreated(model0.id()),
+            TestModelStatusChanged(model0.id(), CREATED, ACTIVE),
+        )
+        changes.result shouldBe "K P A C U B O"
+    }
+
+    test("A proving child composes under a proving parent") {
+        val model0 = createdTestModel("MLG", 420)
+
+        val innerUow = { ctx: ExecutionContext ->
+            object : DummyProvingUow<CreatedTestModel>(ctx) {
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                    add(model0)
+                }
+            }
+        }
+        val uow = object : DummyProvingUow<ActiveTestModel>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                val added = execute(innerUow, TestPrincipal) { DummyProvingUow.Params }
+                update(added.activate())
+            }
+        }
+        val changes = uow.tryPerform(TestPrincipal, DummyProvingUow.Params)
+
+        changes.modelChangesToPersist shouldHaveSize 1
+        val add = changes.modelChangesToPersist.first()
+            .shouldBeTypeOf<AddModel<TestModelId, ActiveTestModel, TestModelEvent>>()
+        add.id shouldBe model0.id()
+        add.modelEvents shouldBe listOf(
+            TestModelCreated(model0.id()),
+            TestModelStatusChanged(model0.id(), CREATED, ACTIVE),
+        )
+    }
+
+    test("roundtrip passes through bare and keeps its builder, noModelResult states the claim") {
+        val model0 = createdTestModel("MLG", 420)
+
+        val uow = object : DummyProvingUow<ProvingRoundtripResult>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                add(model0)
+                noModelResult(roundtrip { p -> ProvingRoundtripResult(p(model0), "label") })
+            }
+        }
+        val changes = uow.tryPerform(TestPrincipal, DummyProvingUow.Params)
+
+        changes.result shouldBe ProvingRoundtripResult(model0, "label")
+        val emptyLookup = object : PersistedLookup {
+            override fun <M : com.razz.eva.domain.Model<*, *>> invoke(model: M): M = model
+        }
+        changes.resultBuilder.shouldNotBeNull().invoke(emptyLookup) shouldBe
+            ProvingRoundtripResult(model0, "label")
+    }
+
+    test("roundtrip refuses a builder that returns Accounted") {
+        val model0 = createdTestModel("MLG", 420)
+
+        val uow = object : DummyProvingUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                add(model0)
+                roundtrip<Any> { noModelResult("poison") }
+                noModelResult("unreached")
+            }
+        }
+        val exception = shouldThrow<IllegalStateException> {
+            uow.tryPerform(TestPrincipal, DummyProvingUow.Params)
+        }
+        exception.message shouldBe
+            "roundtrip builder must return the bare result; end the block with noModelResult(roundtrip { ... })"
+    }
+})
+
+private data class ProvingRoundtripResult(val model: com.razz.eva.domain.TestModel, val label: String)

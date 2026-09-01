@@ -650,7 +650,7 @@ class CheckoutUow(
 
 The `execute` function takes a UoW factory, a principal, and params. Child UoWs inherit accumulated changes from the parent, and their changes are merged back. All changes from parent and child UoWs are persisted in a single transaction.
 
-Child UoWs must also extend `com.razz.eva.uow.composable.UnitOfWork` (or [`RegisteringUnitOfWork`](#proving-the-result-reached-the-change-set); registering and plain UoWs compose with each other in either direction):
+Child UoWs must also extend `com.razz.eva.uow.composable.UnitOfWork` (or [`ProvingUnitOfWork`](#making-the-block-end-on-accounted-evidence); proving and plain UoWs compose with each other in either direction). A child must be constructed with the `ExecutionContext` handed to the factory; `execute` fails loudly if a factory substitutes its own context and the child's changes would otherwise replace the parent's:
 
 ```kotlin
 class DebitAccountUow(
@@ -671,7 +671,7 @@ class DebitAccountUow(
 }
 ```
 
-#### Proving the result reached the change set
+#### Making the block end on accounted evidence
 
 `changes { }` persists only what was handed to `add` / `update` / `notChanged`. A UoW that mutates a model and returns it without one of those calls compiles, reports success, and writes nothing:
 
@@ -681,34 +681,36 @@ override suspend fun tryPerform(principal: ServicePrincipal, params: Params) = c
 }
 ```
 
-Extend `com.razz.eva.uow.composable.RegisteringUnitOfWork` instead of `UnitOfWork` and that branch stops compiling. The block keeps the DSL's own names, but registrations return `Registered<M>` instead of the model, and the block must end on a `Registered<RESULT>`. Only the DSL mints one, so the result provably went through the change set:
+Extend `com.razz.eva.uow.composable.ProvingUnitOfWork` instead of `UnitOfWork` and that branch stops compiling. The block keeps the DSL's own names, but registrations return `Accounted<M>` instead of the model, and the block must end on an `Accounted<RESULT>`, which only the DSL mints:
 
 ```kotlin
 class DepositUow(
     private val walletQueries: WalletQueries,
     executionContext: ExecutionContext,
-) : RegisteringUnitOfWork<ServicePrincipal, Params, Wallet>(executionContext) {
+) : ProvingUnitOfWork<ServicePrincipal, Params, Wallet>(executionContext) {
 
     override suspend fun tryPerform(principal: ServicePrincipal, params: Params) = changes {
         val wallet = walletQueries.get(params.walletId)
-        update(wallet.deposit(params.amount)) // Registered<Wallet>, the block ends on it
+        update(wallet.deposit(params.amount)) // Accounted<Wallet>, the block ends on it
     }
 }
 ```
 
-For a result that genuinely is not a model, state the exception in the open with `resultOnly`; a reviewer sees the claim "nothing here needed registering" instead of an absence. Shape a registered result with `map`:
+For a result that genuinely is not a model, state the exception in the open with `noModelResult`; a reviewer sees the claim "no model here needed registering" instead of an absence. Shape a registered result with `map`:
 
 ```kotlin
     changes {
-        update(wallet.deposit(amount)).map { it.id() }        // Registered<Wallet.Id>
+        update(wallet.deposit(amount)).map { it.id() }        // Accounted<Wallet.Id>
     }
     changes {
         update(wallet.deposit(amount))
-        resultOnly(DepositReport(amount, clock.instant()))    // stated: the report is not a model
+        noModelResult(DepositReport(amount, clock.instant())) // stated: the report is not a model
     }
 ```
 
-Entity changes and `execute` hand back what they always did, and a registering UoW stays composable: it can execute children and be executed as a child, from plain and registering parents alike. Adoption is per UoW and invisible from the outside: the executor still sees the same UoW shape, callers and specs are untouched.
+The compile-time check covers the block's tail, and runtime guards back it up: `noModelResult` and `map` reject a new or dirty model (bare or inside a collection), the evidence must have been minted by the executing block, a model in the result must be the registered instance, and `noChanges` rejects a new or dirty model on every UoW family. What remains the author's responsibility: a mutation discarded mid-block, a secondary model never referenced again, and a dirty model buried inside a non-collection wrapper passed to `noModelResult`.
+
+Entity changes and `execute` hand back what they always did, and a proving UoW stays composable: it can execute children and be executed as a child, from plain and proving parents alike. Adopting it on an existing UoW means changing the base class and reworking the block's tail to end on evidence; the executor, callers and specs are untouched.
 
 #### Returning persisted models with `roundtrip { }`
 
