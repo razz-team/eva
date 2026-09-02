@@ -8,6 +8,6 @@ package com.razz.eva.uow.composable
  * streams fails loudly. Construct the child with the `ExecutionContext` handed to the factory.
  *
  * Sealed because only the bases in this package implement the seeding side of the contract:
- * [UnitOfWork] and [ProvingUnitOfWork].
+ * [UnitOfWork], [ProvingUnitOfWork] and [ProvingEffectUnitOfWork].
  */
 sealed interface ComposableUow

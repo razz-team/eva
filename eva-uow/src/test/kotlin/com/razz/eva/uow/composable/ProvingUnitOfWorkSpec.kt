@@ -24,7 +24,9 @@ import com.razz.eva.uow.NoopModel
 import com.razz.eva.uow.PersistedLookup
 import com.razz.eva.uow.TestPrincipal
 import com.razz.eva.uow.UpdateEntity
+import com.razz.eva.uow.UpdateModel
 import com.razz.eva.uow.proving.UnitOfWork as AliasedUnitOfWork
+import com.razz.eva.uow.proving.unit.UnitOfWork as EffectUnitOfWork
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldHaveSize
@@ -179,6 +181,62 @@ class ProvingUnitOfWorkSpec : FunSpec({
 
         changes.result shouldBe Unit
         changes.modelChangesToPersist shouldBe listOf(AddModel(model0, listOf(TestModelCreated(model0.id()))))
+    }
+
+    test("An effect UoW's block is free-form: registrations, no terminal, Unit result") {
+        val model0 = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
+        val activated = model0.activate()
+
+        val uow = object : EffectUnitOfWork<TestPrincipal, DummyProvingUow.Params>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: DummyProvingUow.Params) = changes {
+                update(activated)
+            }
+        }
+        val changes = uow.tryPerform(TestPrincipal, DummyProvingUow.Params)
+
+        changes.result shouldBe Unit
+        changes.modelChangesToPersist shouldBe listOf(
+            UpdateModel(activated, listOf(TestModelStatusChanged(model0.id(), CREATED, ACTIVE))),
+        )
+    }
+
+    test("An effect UoW whose block only discards a mutation fails loudly") {
+        val model0 = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
+
+        val uow = object : EffectUnitOfWork<TestPrincipal, DummyProvingUow.Params>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: DummyProvingUow.Params) = changes {
+                model0.activate()
+            }
+        }
+        val exception = shouldThrow<IllegalArgumentException> {
+            uow.tryPerform(TestPrincipal, DummyProvingUow.Params)
+        }
+        exception.message shouldBe "No changes to persist"
+    }
+
+    test("An effect UoW composes as a child under a proving parent") {
+        val model0 = createdTestModel("MLG", 420)
+        val model1 = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
+
+        val effectChild = { ctx: ExecutionContext ->
+            object : EffectUnitOfWork<TestPrincipal, DummyProvingUow.Params>(ctx) {
+                override suspend fun tryPerform(principal: TestPrincipal, params: DummyProvingUow.Params) =
+                    changes {
+                        update(model1.activate())
+                    }
+            }
+        }
+        val uow = object : DummyProvingUow<CreatedTestModel>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                val added = add(model0)
+                execute(effectChild, TestPrincipal) { DummyProvingUow.Params }
+                added
+            }
+        }
+        val changes = uow.tryPerform(TestPrincipal, DummyProvingUow.Params)
+
+        changes.result shouldBe model0
+        changes.modelChangesToPersist shouldHaveSize 2
     }
 
     test("A batch of registered models is a legal result") {
