@@ -84,7 +84,7 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
         val starting = currentStep == null
         val stepOutcome = if (starting) {
             recordAttempt(sagaRun)
-            initialise(sagaRun)
+            resolveFirst(sagaRun)
         } else {
             resolveNext(sagaRun, currentStep, trail)
         }
@@ -127,7 +127,7 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
         }
     }
 
-    private suspend fun initialise(sagaRun: SagaRun<PRINCIPAL, PARAMS>): StepOutcome<Step<SELF>> =
+    private suspend fun resolveFirst(sagaRun: SagaRun<PRINCIPAL, PARAMS>): StepOutcome<Step<SELF>> =
         try {
             StepOutcome.Resolved(
                 startSagaInitSpan(sagaRun.sagaName).use {
