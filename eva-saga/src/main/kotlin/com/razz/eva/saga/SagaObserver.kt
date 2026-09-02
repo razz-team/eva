@@ -27,12 +27,13 @@ value class SagaRunId(private val id: UUID) {
 data class SagaRun<PRINCIPAL, PARAMS>(
     val id: SagaRunId,
     val parentId: SagaRunId?,
+    val attempt: Int,
     val sagaName: String,
     val principal: PRINCIPAL,
     val params: PARAMS,
 ) where PRINCIPAL : Principal<*> {
 
-    override fun toString() = "SagaRun[sagaName=$sagaName, id=$id, parentId=$parentId]"
+    override fun toString() = "SagaRun[sagaName=$sagaName, id=$id, parentId=$parentId, attempt=$attempt]"
 }
 
 sealed interface SagaNotification<PRINCIPAL, PARAMS> where PRINCIPAL : Principal<*> {

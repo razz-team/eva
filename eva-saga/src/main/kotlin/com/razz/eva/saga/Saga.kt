@@ -34,22 +34,22 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
     private val sagaExecutionContext: SagaExecutionContext = sagaExecutionContext(),
     private val observers: List<SagaObserver<PRINCIPAL, PARAMS>> = listOf(),
 )
-    where PRINCIPAL : Principal<*>,
-          IS : Intermediary<SELF>,
-          TS : Terminal<SELF>,
-          SELF : Saga<PRINCIPAL, PARAMS, IS, TS, SELF> {
+        where PRINCIPAL : Principal<*>,
+              IS : Intermediary<SELF>,
+              TS : Terminal<SELF>,
+              SELF : Saga<PRINCIPAL, PARAMS, IS, TS, SELF> {
 
     class SagaHaltException(step: Intermediary<*>) :
         IllegalStateException("Saga step [${step::class.simpleName}] already seen")
 
     sealed interface Step<SAGA>
-        where SAGA : Saga<*, *, out Intermediary<SAGA>, out Terminal<SAGA>, SAGA>
+            where SAGA : Saga<*, *, out Intermediary<SAGA>, out Terminal<SAGA>, SAGA>
 
     interface Intermediary<SAGA> : Step<SAGA>
-        where SAGA : Saga<*, *, out Intermediary<SAGA>, out Terminal<SAGA>, SAGA>
+            where SAGA : Saga<*, *, out Intermediary<SAGA>, out Terminal<SAGA>, SAGA>
 
     interface Terminal<SAGA> : Step<SAGA>
-        where SAGA : Saga<*, *, out Intermediary<SAGA>, out Terminal<SAGA>, SAGA>
+            where SAGA : Saga<*, *, out Intermediary<SAGA>, out Terminal<SAGA>, SAGA>
 
     protected abstract suspend fun init(principal: PRINCIPAL, params: PARAMS): Step<SELF>
 
@@ -69,14 +69,15 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
         RESTART_BACKOFF.takeIf { attempt < MAX_RESTARTS }
 
     suspend fun resume(principal: PRINCIPAL, params: PARAMS): TS {
-        val sagaRun = SagaRun(SagaRunId.random(), null, sagaName, principal, params)
-        return startSagaRunSpan(sagaRun).use { advance(sagaRun, 0, null, setOf(), System.nanoTime()) }
+        val sagaRun = SagaRun(SagaRunId.random(), null, 0, sagaName, principal, params)
+        return startSagaRunSpan(sagaRun).use {
+            advance(sagaRun, null, setOf(), System.nanoTime())
+        }
     }
 
     @Suppress("UNCHECKED_CAST")
     private tailrec suspend fun advance(
         sagaRun: SagaRun<PRINCIPAL, PARAMS>,
-        attempt: Int,
         step: Step<SELF>?,
         trail: Set<KClass<out Step<SELF>>>,
         startedAt: Long,
@@ -87,7 +88,7 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
         val currentStep = step as IS?
         val stepStartedAt = System.nanoTime()
         val stepOutcome = if (currentStep == null) {
-            recordAttempt(attempt)
+            recordAttempt(sagaRun)
             initialise(sagaRun)
         } else {
             resolveNext(sagaRun, currentStep, trail)
@@ -96,25 +97,34 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
             is StepOutcome.Threw -> when (val sagaOutcome = failed(sagaRun, currentStep, stepOutcome.ex)) {
                 is Ended -> recordTerminal(sagaOutcome.terminal)
                 is Restart -> {
-                    val backoff = restartAfter(attempt, sagaOutcome.cause) ?: throw sagaOutcome.cause
+                    val backoff = restartAfter(sagaRun.attempt, sagaOutcome.cause) ?: throw sagaOutcome.cause
                     val restarted = sagaRun.copy(
                         id = SagaRunId.random(),
                         parentId = sagaRun.id,
+                        attempt = sagaRun.attempt + 1,
                         sagaName = sagaName,
                     )
-                    recordRestart(restarted.sagaName, restarted.id, sagaRun.id, attempt + 1)
+                    recordRestart(restarted, sagaRun.id)
                     delay(backoff.toMillis().milliseconds)
-                    advance(restarted, attempt + 1, null, setOf(), System.nanoTime())
+                    advance(restarted, null, setOf(), System.nanoTime())
                 }
             }
+
             is StepOutcome.Resolved -> {
                 val nextStep = stepOutcome.step
                 if (currentStep == null) {
                     notify(Resumed(sagaRun, nextStep))
-                    advance(sagaRun, attempt, nextStep, setOf(nextStep::class), startedAt)
+                    advance(sagaRun, nextStep, setOf(nextStep::class), startedAt)
                 } else {
-                    notify(Transitioned(sagaRun, currentStep, nextStep, elapsedSince(stepStartedAt)))
-                    advance(sagaRun, attempt, nextStep, trail + nextStep::class, startedAt)
+                    notify(
+                        Transitioned(
+                            sagaRun,
+                            currentStep,
+                            nextStep,
+                            elapsedSince(stepStartedAt)
+                        ),
+                    )
+                    advance(sagaRun, nextStep, trail + nextStep::class, startedAt)
                 }
             }
         }
@@ -123,7 +133,9 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
     private suspend fun initialise(sagaRun: SagaRun<PRINCIPAL, PARAMS>): StepOutcome<Step<SELF>> =
         try {
             StepOutcome.Resolved(
-                startSagaInitSpan(sagaRun.sagaName).use { init(sagaRun.principal, sagaRun.params) },
+                startSagaInitSpan(sagaRun.sagaName).use {
+                    init(sagaRun.principal, sagaRun.params)
+                },
             )
         } catch (ex: Exception) {
             StepOutcome.Threw(ex)
@@ -156,8 +168,8 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
         return terminal
     }
 
-    private fun recordAttempt(attempt: Int) {
-        Span.current().setAttribute(SAGA_ATTEMPTS, (attempt + 1).toLong())
+    private fun recordAttempt(sagaRun: SagaRun<PRINCIPAL, PARAMS>) {
+        Span.current().setAttribute(SAGA_ATTEMPTS, (sagaRun.attempt + 1).toLong())
     }
 
     private fun recordTerminal(terminal: TS): TS {
@@ -165,15 +177,15 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
         return terminal
     }
 
-    private fun recordRestart(sagaName: String, runId: SagaRunId, parentRunId: SagaRunId, attempt: Int) {
-        sagaExecutionContext.recordRestart(sagaName)
+    private fun recordRestart(restarted: SagaRun<PRINCIPAL, PARAMS>, parentRunId: SagaRunId) {
+        sagaExecutionContext.recordRestart(restarted.sagaName)
         Span.current()
             .addEvent(
                 Events.RESTART,
                 Attributes.of(
-                    SAGA_RUN_ID, runId.toString(),
+                    SAGA_RUN_ID, restarted.id.toString(),
                     SAGA_PARENT_RUN_ID, parentRunId.toString(),
-                    SAGA_ATTEMPT, attempt.toLong(),
+                    SAGA_ATTEMPT, restarted.attempt.toLong(),
                 ),
             )
     }
