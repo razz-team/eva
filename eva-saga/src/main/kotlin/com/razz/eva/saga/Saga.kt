@@ -34,22 +34,22 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
     private val sagaExecutionContext: SagaExecutionContext = sagaExecutionContext(),
     private val observers: List<SagaObserver<PRINCIPAL, PARAMS>> = listOf(),
 )
-        where PRINCIPAL : Principal<*>,
-              IS : Intermediary<SELF>,
-              TS : Terminal<SELF>,
-              SELF : Saga<PRINCIPAL, PARAMS, IS, TS, SELF> {
+    where PRINCIPAL : Principal<*>,
+          IS : Intermediary<SELF>,
+          TS : Terminal<SELF>,
+          SELF : Saga<PRINCIPAL, PARAMS, IS, TS, SELF> {
 
     class SagaHaltException(step: Intermediary<*>) :
         IllegalStateException("Saga step [${step::class.simpleName}] already seen")
 
     sealed interface Step<SAGA>
-            where SAGA : Saga<*, *, out Intermediary<SAGA>, out Terminal<SAGA>, SAGA>
+        where SAGA : Saga<*, *, out Intermediary<SAGA>, out Terminal<SAGA>, SAGA>
 
     interface Intermediary<SAGA> : Step<SAGA>
-            where SAGA : Saga<*, *, out Intermediary<SAGA>, out Terminal<SAGA>, SAGA>
+        where SAGA : Saga<*, *, out Intermediary<SAGA>, out Terminal<SAGA>, SAGA>
 
     interface Terminal<SAGA> : Step<SAGA>
-            where SAGA : Saga<*, *, out Intermediary<SAGA>, out Terminal<SAGA>, SAGA>
+        where SAGA : Saga<*, *, out Intermediary<SAGA>, out Terminal<SAGA>, SAGA>
 
     protected abstract suspend fun init(principal: PRINCIPAL, params: PARAMS): Step<SELF>
 
@@ -78,23 +78,19 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
     @Suppress("UNCHECKED_CAST")
     private tailrec suspend fun advance(
         sagaRun: SagaRun<PRINCIPAL, PARAMS>,
-        step: Step<SELF>?,
+        step: IS?,
         trail: Set<KClass<out Step<SELF>>>,
         startedAt: Long,
     ): TS {
-        if (step is Terminal<*>) {
-            return terminated(sagaRun, step as TS, startedAt)
-        }
-        val currentStep = step as IS?
         val stepStartedAt = System.nanoTime()
-        val stepOutcome = if (currentStep == null) {
+        val stepOutcome = if (step == null) {
             recordAttempt(sagaRun)
             initialise(sagaRun)
         } else {
-            resolveNext(sagaRun, currentStep, trail)
+            resolveNext(sagaRun, step, trail)
         }
         return when (stepOutcome) {
-            is StepOutcome.Threw -> when (val sagaOutcome = failed(sagaRun, currentStep, stepOutcome.ex)) {
+            is StepOutcome.Threw -> when (val sagaOutcome = failed(sagaRun, step, stepOutcome.ex)) {
                 is Ended -> recordTerminal(sagaOutcome.terminal)
                 is Restart -> {
                     val backoff = restartAfter(sagaRun.attempt, sagaOutcome.cause) ?: throw sagaOutcome.cause
@@ -112,19 +108,22 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
 
             is StepOutcome.Resolved -> {
                 val nextStep = stepOutcome.step
-                if (currentStep == null) {
+                val nextTrail = if (step == null) setOf(nextStep::class) else trail + nextStep::class
+                if (step == null) {
                     notify(Resumed(sagaRun, nextStep))
-                    advance(sagaRun, nextStep, setOf(nextStep::class), startedAt)
                 } else {
                     notify(
                         Transitioned(
                             sagaRun,
-                            currentStep,
+                            step,
                             nextStep,
-                            elapsedSince(stepStartedAt)
+                            elapsedSince(stepStartedAt),
                         ),
                     )
-                    advance(sagaRun, nextStep, trail + nextStep::class, startedAt)
+                }
+                when (nextStep) {
+                    is Terminal<*> -> terminated(sagaRun, nextStep as TS, startedAt)
+                    is Intermediary<*> -> advance(sagaRun, nextStep as IS, nextTrail, startedAt)
                 }
             }
         }
