@@ -103,7 +103,6 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
                     advance(restarted, null, setOf(), System.nanoTime())
                 }
             }
-
             is StepOutcome.Resolved -> {
                 val nextStep = stepOutcome.step
                 val nextTrail = if (step == null) setOf(nextStep::class) else trail + nextStep::class
