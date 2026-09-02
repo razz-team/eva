@@ -76,43 +76,44 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
     @Suppress("UNCHECKED_CAST")
     private tailrec suspend fun advance(
         sagaRun: SagaRun<PRINCIPAL, PARAMS>,
-        step: IS?,
+        currentStep: IS?,
         trail: Set<KClass<out Step<SELF>>>,
         startedAt: Long,
     ): TS {
         val stepStartedAt = System.nanoTime()
-        val stepOutcome = if (step == null) {
+        val starting = currentStep == null
+        val stepOutcome = if (starting) {
             recordAttempt(sagaRun)
             initialise(sagaRun)
         } else {
-            resolveNext(sagaRun, step, trail)
+            resolveNext(sagaRun, currentStep, trail)
         }
         return when (stepOutcome) {
-            is StepOutcome.Threw -> when (val sagaOutcome = failed(sagaRun, step, stepOutcome.ex)) {
+            is StepOutcome.Threw -> when (val sagaOutcome = failed(sagaRun, currentStep, stepOutcome.ex)) {
                 is SagaOutcome.Ended -> recordTerminal(sagaOutcome.terminal)
                 is SagaOutcome.Restart -> {
                     val backoff = restartAfter(sagaRun.attempt, sagaOutcome.cause) ?: throw sagaOutcome.cause
-                    val restarted = sagaRun.copy(
+                    val restartedSagaRun = sagaRun.copy(
                         id = SagaRunId.random(),
                         parentId = sagaRun.id,
                         attempt = sagaRun.attempt + 1,
                         sagaName = sagaName,
                     )
-                    recordRestart(restarted, sagaRun.id)
+                    recordRestart(restartedSagaRun, sagaRun.id)
                     delay(backoff.toMillis().milliseconds)
-                    advance(restarted, null, setOf(), System.nanoTime())
+                    advance(restartedSagaRun, null, setOf(), System.nanoTime())
                 }
             }
             is StepOutcome.Resolved -> {
                 val nextStep = stepOutcome.step
-                val nextTrail = if (step == null) setOf(nextStep::class) else trail + nextStep::class
-                if (step == null) {
+                val nextTrail = if (starting) setOf(nextStep::class) else trail + nextStep::class
+                if (starting) {
                     notify(Resumed(sagaRun, nextStep))
                 } else {
                     notify(
                         Transitioned(
                             sagaRun,
-                            step,
+                            currentStep,
                             nextStep,
                             elapsedSince(stepStartedAt),
                         ),
@@ -189,15 +190,15 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
         return terminal
     }
 
-    private fun recordRestart(restarted: SagaRun<PRINCIPAL, PARAMS>, parentRunId: SagaRunId) {
-        sagaExecutionContext.recordRestart(restarted.sagaName)
+    private fun recordRestart(restartedSagaRun: SagaRun<PRINCIPAL, PARAMS>, parentRunId: SagaRunId) {
+        sagaExecutionContext.recordRestart(restartedSagaRun.sagaName)
         Span.current()
             .addEvent(
                 Events.RESTART,
                 Attributes.of(
-                    SAGA_RUN_ID, restarted.id.toString(),
+                    SAGA_RUN_ID, restartedSagaRun.id.toString(),
                     SAGA_PARENT_RUN_ID, parentRunId.toString(),
-                    SAGA_ATTEMPT, restarted.attempt.toLong(),
+                    SAGA_ATTEMPT, restartedSagaRun.attempt.toLong(),
                 ),
             )
     }
