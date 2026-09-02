@@ -168,13 +168,13 @@ class ProvingUnitOfWorkSpec : FunSpec({
             "in the result: the write would be silently dropped"
     }
 
-    test("Adoption via the proving.UnitOfWork alias is an import away, and Unit blocks end on noModelResult()") {
+    test("Adoption via the proving.UnitOfWork alias is an import away, and Unit blocks end on Unit") {
         val model0 = createdTestModel("MLG", 420)
 
         val uow = object : AliasedUnitOfWork<TestPrincipal, DummyProvingUow.Params, Unit>(executionContext) {
             override suspend fun tryPerform(principal: TestPrincipal, params: DummyProvingUow.Params) = changes {
                 add(model0)
-                noModelResult()
+                Unit
             }
         }
         val changes = uow.tryPerform(TestPrincipal, DummyProvingUow.Params)
@@ -200,18 +200,22 @@ class ProvingUnitOfWorkSpec : FunSpec({
         )
     }
 
-    test("An effect UoW whose block only discards a mutation fails loudly") {
+    test("An effect UoW block can end on the literal Unit after its registrations") {
         val model0 = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
+        val activated = model0.activate()
 
         val uow = object : EffectUnitOfWork<TestPrincipal, DummyProvingUow.Params>(executionContext) {
             override suspend fun tryPerform(principal: TestPrincipal, params: DummyProvingUow.Params) = changes {
-                model0.activate()
+                update(activated)
+                Unit
             }
         }
-        val exception = shouldThrow<IllegalArgumentException> {
-            uow.tryPerform(TestPrincipal, DummyProvingUow.Params)
-        }
-        exception.message shouldBe "No changes to persist"
+        val changes = uow.tryPerform(TestPrincipal, DummyProvingUow.Params)
+
+        changes.result shouldBe Unit
+        changes.modelChangesToPersist shouldBe listOf(
+            UpdateModel(activated, listOf(TestModelStatusChanged(model0.id(), CREATED, ACTIVE))),
+        )
     }
 
     test("An effect UoW composes as a child under a proving parent") {

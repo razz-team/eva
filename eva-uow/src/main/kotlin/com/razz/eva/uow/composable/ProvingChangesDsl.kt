@@ -51,8 +51,14 @@ class ProvingChangesDsl internal constructor(
      */
     fun <R> noModelResult(result: R): Accounted<R> = Accounted(result, this)
 
-    /** The stated exception for a block whose UoW result is [Unit]: the registrations happened above. */
-    fun noModelResult(): Accounted<Unit> = Accounted(Unit, this)
+    /**
+     * The stated exception for a block whose result is [kotlin.Unit]: the registrations happened above
+     * and there is no result to account for. Shadows [kotlin.Unit] inside a change block only, so the
+     * tail stays evidence while reading as the result the UoW declares. One spelling for one thing:
+     * this replaces a zero-argument `noModelResult()`.
+     */
+    @Suppress("VariableNaming")
+    val Unit: Accounted<kotlin.Unit> get() = Accounted(kotlin.Unit, this)
 
     @Deprecated(
         "A model result must be registered through add / update / notChanged, not stated as noModelResult",

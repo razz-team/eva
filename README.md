@@ -681,7 +681,7 @@ override suspend fun tryPerform(principal: ServicePrincipal, params: Params) = c
 }
 ```
 
-Extend `com.razz.eva.uow.composable.ProvingUnitOfWork` instead of `UnitOfWork` and that branch stops compiling. Adoption can be just an import: `com.razz.eva.uow.proving.UnitOfWork` aliases the proving base, so the declaration keeps reading `UnitOfWork<...>`. The block keeps the DSL's own names, but registrations return `Accounted<M>` instead of the model, and the block must end on an `Accounted<RESULT>`, which only the DSL mints. A `Unit`-result UoW declares `com.razz.eva.uow.proving.unit.UnitOfWork<PRINCIPAL, PARAMS>` instead: with no result to carry models, tail evidence certifies nothing, so its block is free-form and the `Unit` type argument disappears:
+Extend `com.razz.eva.uow.composable.ProvingUnitOfWork` instead of `UnitOfWork` and that branch stops compiling. Adoption can be just an import: `com.razz.eva.uow.proving.UnitOfWork` aliases the proving base, so the declaration keeps reading `UnitOfWork<...>`. The block keeps the DSL's own names, but registrations return `Accounted<M>` instead of the model, and the block must end on an `Accounted<RESULT>`, which only the DSL mints. A `Unit`-result UoW declares `com.razz.eva.uow.proving.unit.UnitOfWork<PRINCIPAL, PARAMS>` instead, which drops the `Unit` type argument: its block ends on evidence too, but any registration will do, so a registration tail needs nothing appended and a statement tail closes with `Unit`:
 
 ```kotlin
 class DepositUow(
@@ -708,7 +708,23 @@ For a result that genuinely is not a model, state the exception in the open with
     }
 ```
 
-Runtime verification backs the types up, and most of it guards every UoW family, not just the proving one. When any `changes { }` block completes, every model reachable from the result through iterables (nested to any depth), maps, arrays, pairs and triples is checked against the change set: an unregistered new or dirty model fails the UoW, and an unchanged registration vouches only for the exact instance it holds. `noChanges` applies the same rule; under composition, a model registered in the parent's inherited change set vouches for that exact instance only. On top of that, a proving block adds: the block must end on evidence (compile time), the evidence must have been minted by the executing block, and a model with a registered id must be the registered instance. A batch result like `noModelResult(listOf(m1, m2))` after `add(m1); add(m2)` is legal. What remains the author's responsibility: a mutation discarded mid-block, a secondary model never referenced again, and a model buried in a wrapper the walk cannot see (a data class, a `Sequence`).
+In a `Unit`-result block, `Unit` is that same claim in the shortest form the result allows. It is a member of the DSL, so it counts as evidence inside a change block and nowhere else:
+
+```kotlin
+    changes {
+        update(order.confirm())                              // a registration tail needs nothing
+    }
+    changes {
+        params.items.forEach { update(it.markSeen(now)) }     // a statement tail closes with Unit
+        Unit
+    }
+    changes {
+        update(order.confirm())
+        payout.reset(amount)  // does not compile: expected 'Accounted<*>', actual 'Payout'
+    }
+```
+
+Runtime verification backs the types up, and most of it guards every UoW family, not just the proving one. When any `changes { }` block completes, every model reachable from the result through iterables (nested to any depth), maps, arrays, pairs and triples is checked against the change set: an unregistered new or dirty model fails the UoW, and an unchanged registration vouches only for the exact instance it holds. `noChanges` applies the same rule; under composition, a model registered in the parent's inherited change set vouches for that exact instance only. On top of that, a proving block adds: the block must end on evidence (compile time), the evidence must have been minted by the executing block, and a model with a registered id must be the registered instance. A batch result like `noModelResult(listOf(m1, m2))` after `add(m1); add(m2)` is legal. What remains the author's responsibility: a mutation discarded mid-block (not at the tail, which does not compile), a secondary model never referenced again, and a model buried in a wrapper the walk cannot see (a data class, a `Sequence`). Kotlin's return value checker, enabled in the consuming build, covers the mid-block case in any position.
 
 Entity changes and `execute` hand back what they always did, and a proving UoW stays composable: it can execute children and be executed as a child, from plain and proving parents alike. Adopting it on an existing UoW means changing the base class and reworking the block's tail to end on evidence; the executor, callers and specs are untouched.
 

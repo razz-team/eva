@@ -7,15 +7,15 @@ import com.razz.eva.uow.ExecutionContext
 import com.razz.eva.uow.UowParams
 
 /**
- * The proving family's effect-shaped member: a UoW whose result is [Unit]. With no result to carry
- * models, tail evidence certifies nothing, so the change block is free-form; what guards an effect
- * UoW is what guards every block: an empty change set is refused, the completed block's result is
- * verified (vacuously here), and registrations go through the same [ProvingChangesDsl]. A block whose
- * only statement is a discarded mutation fails loudly on "No changes to persist"; a discarded
- * mutation next to real registrations remains the author's to spot, exactly as in every family.
+ * The proving family's effect-shaped member: a UoW whose result is [Unit]. Its block registers and
+ * ends on evidence like any proving block, but the evidence need not be `Accounted<Unit>`, so a
+ * registration is a legal tail on its own and a block that ends on a statement closes with `Unit`
+ * (see [ProvingChangesDsl.Unit]). A tail that is a bare mutation does not compile, in this family as
+ * in the others.
  *
- * Declared via `com.razz.eva.uow.proving.unit.UnitOfWork`, adoption drops the `Unit` type argument
- * along with the terminal `noModelResult()`.
+ * Declared via `com.razz.eva.uow.proving.unit.UnitOfWork`, so adoption drops the `Unit` type argument.
+ * A mutation discarded mid-block remains the author's to spot; downstream, Kotlin's return value
+ * checker covers that case in any position.
  */
 abstract class ProvingEffectUnitOfWork<PRINCIPAL, PARAMS>(
     private val executionContext: ExecutionContext,
@@ -24,9 +24,13 @@ abstract class ProvingEffectUnitOfWork<PRINCIPAL, PARAMS>(
     ComposableUow
     where PRINCIPAL : Principal<*>, PARAMS : UowParams<PARAMS> {
 
-    protected suspend fun changes(init: suspend ProvingChangesDsl.() -> Unit): Changes<Unit> {
+    protected suspend fun changes(init: suspend ProvingChangesDsl.() -> Accounted<*>): Changes<Unit> {
         return ChangesDsl.changes(executionContext) {
-            ProvingChangesDsl(this).init()
+            val proving = ProvingChangesDsl(this)
+            val accounted = proving.init()
+            check(accounted.origin === proving) {
+                "Accounted evidence was minted by another changes block"
+            }
         }
     }
 }
