@@ -61,6 +61,20 @@ open class UowSpecBase<R> private constructor(
         verification(result as RR)
     }
 
+    /**
+     * Asserts that the unit of work returned the very model instance it registered as a change.
+     * Identity, not equality: models override equals over their fields only, so an equal-but-stale
+     * instance (different version or unflushed events) would pass a value comparison.
+     */
+    @PublishedApi
+    internal fun verifyResultIsModel(model: Model<*, *>, changeKind: String) {
+        val actual: Any? = result
+        check(actual === model) {
+            val hint = if (actual == model) " (equal by value, but a different instance)" else ""
+            "Result is not the $changeKind model$hint. Expected [$model] but result was [$actual]"
+        }
+    }
+
     @PublishedApi
     internal fun <M : Model<*, *>> verifyAddedModel(verify: (M) -> Unit): M {
         val model = when (

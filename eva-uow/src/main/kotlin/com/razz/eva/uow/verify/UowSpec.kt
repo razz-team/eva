@@ -72,17 +72,18 @@ class UowSpec<R> internal constructor(
     }
 
     inline fun <reified M : Model<*, *>> addsAndReturns(noinline verify: M.() -> Unit): M {
-        verifyResultAsInternal(verify)
-        return verifyAddedModel(verify)
+        val verified = verifyAddedModel(verify)
+        verifyResultIsModel(verified, "added")
+        return verified
     }
 
     inline fun <reified M : Model<*, *>> EqualityVerifierAware.addsAndReturns(
         id: ModelId<*>,
         noinline verify: M.() -> Unit,
     ): M {
-        verifyResultAsInternal(verify)
         val verified = verifyAddedModel(verify)
         equalityVerifier.verify(verified.id(), id)
+        verifyResultIsModel(verified, "added")
         return verified
     }
 
@@ -115,17 +116,18 @@ class UowSpec<R> internal constructor(
     }
 
     inline fun <reified M : Model<*, *>> updatesAndReturns(noinline verify: M.() -> Unit): M {
-        verifyResultAsInternal(verify)
-        return verifyUpdatedModel(verify)
+        val verified = verifyUpdatedModel(verify)
+        verifyResultIsModel(verified, "updated")
+        return verified
     }
 
     inline fun <reified M : Model<*, *>> EqualityVerifierAware.updatesAndReturns(
         id: ModelId<*>,
         noinline verify: M.() -> Unit,
     ): M {
-        verifyResultAsInternal(verify)
         val verified = verifyUpdatedModel(verify)
         equalityVerifier.verify(verified.id(), id)
+        verifyResultIsModel(verified, "updated")
         return verified
     }
 
