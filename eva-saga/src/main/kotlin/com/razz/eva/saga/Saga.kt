@@ -4,16 +4,21 @@ import com.razz.eva.saga.Saga.Intermediary
 import com.razz.eva.saga.Saga.Terminal
 import com.razz.eva.domain.Principal
 import com.razz.eva.saga.OtelAttributes.SAGA_ATTEMPT
+import com.razz.eva.saga.OtelAttributes.SAGA_ATTEMPTS
 import com.razz.eva.saga.OtelAttributes.SAGA_PARENT_RUN_ID
 import com.razz.eva.saga.OtelAttributes.SAGA_RUN_ID
 import com.razz.eva.saga.OtelAttributes.SAGA_TERMINAL
 import com.razz.eva.saga.OtelAttributes.UNKNOWN_TERMINAL
+import com.razz.eva.saga.SagaNotification.Failed
+import com.razz.eva.saga.SagaNotification.Resumed
+import com.razz.eva.saga.SagaNotification.Terminated
+import com.razz.eva.saga.SagaNotification.Transitioned
 import com.razz.eva.saga.SagaOutcome.Ended
 import com.razz.eva.saga.SagaOutcome.Restart
 import com.razz.eva.tracing.getEvaTracer
 import com.razz.eva.tracing.use
+import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.trace.Span
-import io.opentelemetry.api.trace.StatusCode.ERROR
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
@@ -22,6 +27,7 @@ import kotlinx.coroutines.withTimeout
 import mu.KotlinLogging
 import java.time.Duration
 import kotlin.coroutines.cancellation.CancellationException
+import kotlin.reflect.KClass
 import kotlin.time.Duration.Companion.milliseconds
 
 abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
@@ -63,70 +69,113 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
         RESTART_BACKOFF.takeIf { attempt < MAX_RESTARTS }
 
     suspend fun resume(principal: PRINCIPAL, params: PARAMS): TS {
-        var currentId = SagaRunId.random()
-        var currentParentId: SagaRunId? = null
-        var attempt = 0
-        while (true) {
-            val name = sagaName
-            val sagaRun = SagaRun(currentId, currentParentId, name, principal, params)
-            val outcome = startSagaRunSpan(sagaRun, attempt).use { runOnce(sagaRun) }
-            when (outcome) {
-                is Ended -> {
-                    return outcome.terminal
-                }
+        val sagaRun = SagaRun(SagaRunId.random(), null, sagaName, principal, params)
+        return startSagaRunSpan(sagaRun).use { advance(sagaRun, 0, null, setOf(), System.nanoTime()) }
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private tailrec suspend fun advance(
+        sagaRun: SagaRun<PRINCIPAL, PARAMS>,
+        attempt: Int,
+        step: Step<SELF>?,
+        trail: Set<KClass<out Step<SELF>>>,
+        startedAt: Long,
+    ): TS {
+        if (step is Terminal<*>) {
+            return terminated(sagaRun, step as TS, startedAt)
+        }
+        val currentStep = step as IS?
+        val stepStartedAt = System.nanoTime()
+        val stepOutcome = if (currentStep == null) {
+            recordAttempt(attempt)
+            initialise(sagaRun)
+        } else {
+            resolveNext(sagaRun, currentStep, trail)
+        }
+        return when (stepOutcome) {
+            is StepOutcome.Threw -> when (val sagaOutcome = failed(sagaRun, currentStep, stepOutcome.ex)) {
+                is Ended -> recordTerminal(sagaOutcome.terminal)
                 is Restart -> {
-                    val backoff = restartAfter(attempt, outcome.cause) ?: throw outcome.cause
-                    sagaExecutionContext.recordRestart(name)
+                    val backoff = restartAfter(attempt, sagaOutcome.cause) ?: throw sagaOutcome.cause
+                    val restarted = sagaRun.copy(
+                        id = SagaRunId.random(),
+                        parentId = sagaRun.id,
+                        sagaName = sagaName,
+                    )
+                    recordRestart(restarted.sagaName, restarted.id, sagaRun.id, attempt + 1)
                     delay(backoff.toMillis().milliseconds)
-                    attempt += 1
-                    currentParentId = currentId
-                    currentId = SagaRunId.random()
+                    advance(restarted, attempt + 1, null, setOf(), System.nanoTime())
+                }
+            }
+            is StepOutcome.Resolved -> {
+                val nextStep = stepOutcome.step
+                if (currentStep == null) {
+                    notify(Resumed(sagaRun, nextStep))
+                    advance(sagaRun, attempt, nextStep, setOf(nextStep::class), startedAt)
+                } else {
+                    notify(Transitioned(sagaRun, currentStep, nextStep, elapsedSince(stepStartedAt)))
+                    advance(sagaRun, attempt, nextStep, trail + nextStep::class, startedAt)
                 }
             }
         }
     }
 
-    @Suppress("UNCHECKED_CAST")
-    private suspend fun runOnce(sagaRun: SagaRun<PRINCIPAL, PARAMS>): SagaOutcome<TS> {
-        val startedAt = System.nanoTime()
-        var step = try {
-            startSagaInitSpan(sagaRun.sagaName).use { init(sagaRun.principal, sagaRun.params) }
+    private suspend fun initialise(sagaRun: SagaRun<PRINCIPAL, PARAMS>): StepOutcome<Step<SELF>> =
+        try {
+            StepOutcome.Resolved(
+                startSagaInitSpan(sagaRun.sagaName).use { init(sagaRun.principal, sagaRun.params) },
+            )
         } catch (ex: Exception) {
-            return failed(sagaRun, null, ex)
+            StepOutcome.Threw(ex)
         }
-        emit(sagaRun.sagaName, Notification.RESUMED) { it.onResumed(sagaRun, step) }
-        var trail = setOf(step::class)
-        while (true) {
-            when (val current = step) {
-                is Intermediary<*> -> {
-                    val currentStep = current as IS
-                    val stepStartedAt = System.nanoTime()
-                    val nextStep = try {
-                        val resolved = startSagaIntermediateSpan(currentStep::class.simpleName).use {
-                            next(sagaRun.principal, currentStep)
-                        }
-                        if (resolved::class in trail) {
-                            throw SagaHaltException(resolved as Intermediary<*>)
-                        }
-                        resolved
-                    } catch (ex: Exception) {
-                        return failed(sagaRun, currentStep, ex)
-                    }
-                    emit(sagaRun.sagaName, Notification.TRANSITION) {
-                        it.onTransition(sagaRun, currentStep, nextStep, elapsedSince(stepStartedAt))
-                    }
-                    trail = trail + nextStep::class
-                    step = nextStep
-                }
-                is Terminal<*> -> {
-                    Span.current().setAttribute(SAGA_TERMINAL, current::class.simpleName ?: UNKNOWN_TERMINAL)
-                    emit(sagaRun.sagaName, Notification.TERMINATED) {
-                        it.onTerminated(sagaRun, current, elapsedSince(startedAt))
-                    }
-                    return Ended(current as TS)
-                }
+
+    private suspend fun resolveNext(
+        sagaRun: SagaRun<PRINCIPAL, PARAMS>,
+        currentStep: IS,
+        trail: Set<KClass<out Step<SELF>>>,
+    ): StepOutcome<Step<SELF>> =
+        try {
+            val resolved = startSagaIntermediateSpan(currentStep::class.simpleName).use {
+                next(sagaRun.principal, currentStep)
             }
+            if (resolved::class in trail) {
+                throw SagaHaltException(resolved as Intermediary<*>)
+            }
+            StepOutcome.Resolved(resolved)
+        } catch (ex: Exception) {
+            StepOutcome.Threw(ex)
         }
+
+    private suspend fun terminated(
+        sagaRun: SagaRun<PRINCIPAL, PARAMS>,
+        terminal: TS,
+        startedAt: Long,
+    ): TS {
+        recordTerminal(terminal)
+        notify(Terminated(sagaRun, terminal, elapsedSince(startedAt)))
+        return terminal
+    }
+
+    private fun recordAttempt(attempt: Int) {
+        Span.current().setAttribute(SAGA_ATTEMPTS, (attempt + 1).toLong())
+    }
+
+    private fun recordTerminal(terminal: TS): TS {
+        Span.current().setAttribute(SAGA_TERMINAL, terminal::class.simpleName ?: UNKNOWN_TERMINAL)
+        return terminal
+    }
+
+    private fun recordRestart(sagaName: String, runId: SagaRunId, parentRunId: SagaRunId, attempt: Int) {
+        sagaExecutionContext.recordRestart(sagaName)
+        Span.current()
+            .addEvent(
+                Events.RESTART,
+                Attributes.of(
+                    SAGA_RUN_ID, runId.toString(),
+                    SAGA_PARENT_RUN_ID, parentRunId.toString(),
+                    SAGA_ATTEMPT, attempt.toLong(),
+                ),
+            )
     }
 
     private suspend fun failed(
@@ -134,45 +183,37 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
         step: IS?,
         ex: Exception,
     ): SagaOutcome<TS> {
-        Span.current().recordException(ex).setStatus(ERROR)
+        Span.current().recordException(ex)
         val mapped = try {
             onException(ex, sagaRun.principal, sagaRun.params, step)
         } catch (rethrown: Exception) {
-            emit(sagaRun.sagaName, Notification.FAILED) { it.onFailed(sagaRun, step, ex, null) }
+            notify(Failed(sagaRun, step, ex, null))
             throw rethrown
         }
-        emit(sagaRun.sagaName, Notification.FAILED) { it.onFailed(sagaRun, step, ex, mapped) }
+        notify(Failed(sagaRun, step, ex, mapped))
         return if (mapped != null) Ended(mapped) else Restart(ex)
     }
 
-    private suspend fun emit(
-        sagaName: String,
-        notification: Notification,
-        notify: suspend (SagaObserver<PRINCIPAL, PARAMS>) -> Unit,
-    ) {
+    private suspend fun notify(notification: SagaNotification<PRINCIPAL, PARAMS>) {
         if (observers.isEmpty()) {
             return
         }
-        startNotifySpan(sagaName, notification).use {
-            notifyEach(sagaName, notify)
-        }
-    }
-
-    private suspend fun notifyEach(
-        sagaName: String,
-        notify: suspend (SagaObserver<PRINCIPAL, PARAMS>) -> Unit,
-    ) {
-        observers.forEach { observer ->
-            try {
-                withTimeout(sagaExecutionContext.observerTimeout.toMillis().milliseconds) { notify(observer) }
-            } catch (ex: TimeoutCancellationException) {
-                currentCoroutineContext().ensureActive()
-                countObserverFailure(sagaName, ex, ObserverOutcome.TIMED_OUT)
-            } catch (ex: CancellationException) {
-                throw ex
-            } catch (ex: Throwable) {
-                currentCoroutineContext().ensureActive()
-                countObserverFailure(sagaName, ex, ObserverOutcome.THREW)
+        val sagaName = notification.run.sagaName
+        startNotifySpan(notification).use {
+            observers.forEach { observer ->
+                try {
+                    withTimeout(sagaExecutionContext.observerTimeout.toMillis().milliseconds) {
+                        observer.onNotification(notification)
+                    }
+                } catch (ex: TimeoutCancellationException) {
+                    currentCoroutineContext().ensureActive()
+                    countObserverFailure(sagaName, ex, ObserverOutcome.TIMED_OUT)
+                } catch (ex: CancellationException) {
+                    throw ex
+                } catch (ex: Throwable) {
+                    currentCoroutineContext().ensureActive()
+                    countObserverFailure(sagaName, ex, ObserverOutcome.THREW)
+                }
             }
         }
     }
@@ -187,17 +228,15 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
     private fun elapsedSince(startedAtNanos: Long): Duration =
         Duration.ofNanos(System.nanoTime() - startedAtNanos)
 
-    private fun startSagaRunSpan(sagaRun: SagaRun<PRINCIPAL, PARAMS>, attempt: Int) =
+    private fun startSagaRunSpan(sagaRun: SagaRun<PRINCIPAL, PARAMS>) =
         sagaExecutionContext.otel.getEvaTracer()
             .spanBuilder(sagaRun.sagaName)
             .setAttribute(SAGA_RUN_ID, sagaRun.id.toString())
-            .setAttribute(SAGA_ATTEMPT, attempt.toLong())
-            .apply { sagaRun.parentId?.let { setAttribute(SAGA_PARENT_RUN_ID, it.toString()) } }
             .startSpan()
 
-    private fun startNotifySpan(sagaName: String, notification: Notification) =
+    private fun startNotifySpan(notification: SagaNotification<PRINCIPAL, PARAMS>) =
         sagaExecutionContext.otel.getEvaTracer()
-            .spanBuilder("$sagaName-${notification.suffix}")
+            .spanBuilder("${notification.run.sagaName}-${notification.suffix}")
             .startSpan()
 
     private fun startSagaInitSpan(sagaName: String) = sagaExecutionContext.otel.getEvaTracer()
@@ -214,4 +253,9 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
         private const val MAX_RESTARTS = 2
         private val RESTART_BACKOFF = Duration.ofMillis(100)
     }
+}
+
+private sealed interface StepOutcome<out STEP> {
+    class Resolved<STEP>(val step: STEP) : StepOutcome<STEP>
+    class Threw(val ex: Exception) : StepOutcome<Nothing>
 }

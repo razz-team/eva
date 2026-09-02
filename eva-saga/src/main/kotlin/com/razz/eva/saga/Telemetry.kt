@@ -7,11 +7,8 @@ internal object Metrics {
     const val RESTART = "saga.restart"
 }
 
-internal enum class Notification(val suffix: String) {
-    RESUMED("onResumed"),
-    TRANSITION("onTransition"),
-    TERMINATED("onTerminated"),
-    FAILED("onFailed"),
+internal object Events {
+    const val RESTART = "saga.restart"
 }
 
 internal enum class ObserverOutcome(val value: String) {
@@ -26,5 +23,6 @@ internal object OtelAttributes {
     val SAGA_RUN_ID = AttributeKey.stringKey("saga.run_id")
     val SAGA_PARENT_RUN_ID = AttributeKey.stringKey("saga.parent_run_id")
     val SAGA_ATTEMPT = AttributeKey.longKey("saga.attempt")
+    val SAGA_ATTEMPTS = AttributeKey.longKey("saga.attempts")
     val OBSERVER_OUTCOME = AttributeKey.stringKey("saga.observer.outcome")
 }

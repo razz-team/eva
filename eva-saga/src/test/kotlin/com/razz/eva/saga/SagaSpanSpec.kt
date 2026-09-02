@@ -8,21 +8,28 @@ import com.razz.eva.saga.TestSaga.Terminal.Finish0
 import com.razz.eva.saga.TestSaga.Terminal.Finish1
 import com.razz.eva.saga.TestSaga.TestPrincipal
 import com.razz.eva.tracing.use
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.ShouldSpec
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.trace.StatusCode.ERROR
+import io.opentelemetry.api.trace.StatusCode.UNSET
 import io.opentelemetry.sdk.OpenTelemetrySdk
 import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter
 import io.opentelemetry.sdk.trace.SdkTracerProvider
 import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
+import java.time.Duration
 
 internal class SagaSpanSpec : ShouldSpec({
 
     val principal = TestPrincipal(Principal.Id("cool-id"))
 
-    fun tracedSaga(name: String? = null): Triple<InMemorySpanExporter, TestSaga, OpenTelemetrySdk> {
+    fun tracedSaga(
+        name: String? = null,
+        restartPolicy: ((Int, Exception) -> Duration?)? = null,
+    ): Triple<InMemorySpanExporter, TestSaga, OpenTelemetrySdk> {
         val exporter = InMemorySpanExporter.create()
         val openTelemetry = OpenTelemetrySdk.builder()
             .setTracerProvider(
@@ -31,13 +38,31 @@ internal class SagaSpanSpec : ShouldSpec({
                     .build(),
             )
             .build()
-        val saga = TestSaga(listOf(), sagaExecutionContext(otel = openTelemetry), name)
+        val saga = TestSaga(listOf(), sagaExecutionContext(otel = openTelemetry), name, restartPolicy)
         return Triple(exporter, saga, openTelemetry)
     }
 
     fun exporterAndSaga(name: String? = null): Pair<InMemorySpanExporter, TestSaga> {
         val (exporter, saga, _) = tracedSaga(name)
         return exporter to saga
+    }
+
+    fun restartingParams(): Params {
+        var wasThrown = false
+        return Params(
+            { step ->
+                when (step) {
+                    is Step0 -> Step1("go go go!")
+                    else -> if (wasThrown) {
+                        Finish0("stop")
+                    } else {
+                        wasThrown = true
+                        throw IllegalArgumentException("can't touch this")
+                    }
+                }
+            },
+            { _, _, _, _ -> null },
+        )
     }
 
     should("span each notification so observer time is visible in the trace") {
@@ -86,7 +111,7 @@ internal class SagaSpanSpec : ShouldSpec({
         children.map { it.parentSpanId }.distinct() shouldBe listOf(run.spanId)
     }
 
-    should("record the failure on the run span") {
+    should("record a mapped failure on the run span without marking the run failed") {
         val (exporter, saga) = exporterAndSaga()
         val params = Params(
             { throw IllegalArgumentException("can't touch this") },
@@ -96,8 +121,24 @@ internal class SagaSpanSpec : ShouldSpec({
         saga.resume(principal, params)
 
         val run = exporter.finishedSpanItems.single { it.name == "TestSaga" }
+        run.events.map { it.name } shouldContain "exception"
+        run.status.statusCode shouldBe UNSET
+        run.attributes.get(AttributeKey.stringKey("saga.terminal")) shouldBe "Finish1"
+    }
+
+    should("mark the run failed when the saga gives up") {
+        val (exporter, saga, _) = tracedSaga(restartPolicy = { _, _ -> null })
+        val params = Params(
+            { throw IllegalArgumentException("can't touch this") },
+            { _, _, _, _ -> null },
+        )
+
+        shouldThrow<IllegalArgumentException> { saga.resume(principal, params) }
+
+        val run = exporter.finishedSpanItems.single { it.name == "TestSaga" }
         run.status.statusCode shouldBe ERROR
         run.events.map { it.name } shouldContain "exception"
+        run.attributes.get(AttributeKey.longKey("saga.attempts")) shouldBe 1L
     }
 
     should("record the terminal the run ended on as an attribute of the run span") {
@@ -109,83 +150,41 @@ internal class SagaSpanSpec : ShouldSpec({
         run.attributes.get(AttributeKey.stringKey("saga.terminal")) shouldBe "Finish0"
     }
 
-    should("start a fresh run span for a restarted run rather than nesting it under its predecessor") {
+    should("keep one run span for the whole resumption, restarts included") {
         val (exporter, saga) = exporterAndSaga()
-        var wasThrown = false
-        val params = Params(
-            { step ->
-                when (step) {
-                    is Step0 -> Step1("go go go!")
-                    else -> if (wasThrown) {
-                        Finish0("stop")
-                    } else {
-                        wasThrown = true
-                        throw IllegalArgumentException("can't touch this")
-                    }
-                }
-            },
-            { _, _, _, _ -> null },
-        )
 
-        saga.resume(principal, params)
+        saga.resume(principal, restartingParams())
 
         val runs = exporter.finishedSpanItems.filter { it.name == "TestSaga" }
-        runs.size shouldBe 2
-        runs.none { run -> runs.any { it.spanId == run.parentSpanId } } shouldBe true
+        runs.size shouldBe 1
+        runs.single().attributes.get(AttributeKey.longKey("saga.attempts")) shouldBe 2L
+        runs.single().attributes.get(AttributeKey.stringKey("saga.terminal")) shouldBe "Finish0"
     }
 
-    should("keep every run span, restarts included, a child of the caller's span") {
+    should("keep the run span a child of the caller's span") {
         val (exporter, saga, openTelemetry) = tracedSaga()
-        var wasThrown = false
-        val params = Params(
-            { step ->
-                when (step) {
-                    is Step0 -> Step1("go go go!")
-                    else -> if (wasThrown) {
-                        Finish0("stop")
-                    } else {
-                        wasThrown = true
-                        throw IllegalArgumentException("can't touch this")
-                    }
-                }
-            },
-            { _, _, _, _ -> null },
-        )
         val caller = openTelemetry.getTracer("test").spanBuilder("caller").startSpan()
 
-        caller.use { saga.resume(principal, params) }
+        caller.use { saga.resume(principal, restartingParams()) }
 
         val runs = exporter.finishedSpanItems.filter { it.name == "TestSaga" }
-        runs.size shouldBe 2
-        runs.map { it.parentSpanId }.distinct() shouldBe listOf(caller.spanContext.spanId)
+        runs.size shouldBe 1
+        runs.single().parentSpanId shouldBe caller.spanContext.spanId
     }
 
-    should("carry the run id on every run span and the parent run id on a restart") {
+    should("record each restart as an event chaining the new run id to its predecessor") {
         val (exporter, saga) = exporterAndSaga()
-        var wasThrown = false
-        val params = Params(
-            { step ->
-                when (step) {
-                    is Step0 -> Step1("go go go!")
-                    else -> if (wasThrown) {
-                        Finish0("stop")
-                    } else {
-                        wasThrown = true
-                        throw IllegalArgumentException("can't touch this")
-                    }
-                }
-            },
-            { _, _, _, _ -> null },
-        )
 
-        saga.resume(principal, params)
+        saga.resume(principal, restartingParams())
 
-        val runs = exporter.finishedSpanItems.filter { it.name == "TestSaga" }
-        val runIds = runs.map { it.attributes.get(AttributeKey.stringKey("saga.run_id")) }
-        runIds.filterNotNull().size shouldBe 2
-        runs[0].attributes.get(AttributeKey.stringKey("saga.parent_run_id")) shouldBe null
-        runs[1].attributes.get(AttributeKey.stringKey("saga.parent_run_id")) shouldBe runIds[0]
-        runs.map { it.attributes.get(AttributeKey.longKey("saga.attempt")) } shouldBe listOf(0L, 1L)
+        val run = exporter.finishedSpanItems.single { it.name == "TestSaga" }
+        val firstRunId = run.attributes.get(AttributeKey.stringKey("saga.run_id"))
+        firstRunId shouldNotBe null
+        val restarts = run.events.filter { it.name == "saga.restart" }
+        restarts.size shouldBe 1
+        restarts.single().attributes.get(AttributeKey.stringKey("saga.parent_run_id")) shouldBe firstRunId
+        restarts.single().attributes.get(AttributeKey.stringKey("saga.run_id")) shouldNotBe firstRunId
+        restarts.single().attributes.get(AttributeKey.longKey("saga.attempt")) shouldBe 1L
     }
 
     should("name the run span after the delegate when the saga renames itself") {

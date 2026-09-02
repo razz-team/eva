@@ -2,8 +2,10 @@ package com.razz.eva.saga
 
 import com.razz.eva.domain.Principal
 import com.razz.eva.saga.Saga.SagaHaltException
-import com.razz.eva.saga.Saga.Step
-import com.razz.eva.saga.Saga.Terminal
+import com.razz.eva.saga.SagaNotification.Failed
+import com.razz.eva.saga.SagaNotification.Resumed
+import com.razz.eva.saga.SagaNotification.Terminated
+import com.razz.eva.saga.SagaNotification.Transitioned
 import com.razz.eva.saga.TestSaga.Intermediary.Step0
 import com.razz.eva.saga.TestSaga.Intermediary.Step1
 import com.razz.eva.saga.TestSaga.Params
@@ -28,126 +30,50 @@ internal class RecordingObserver : SagaObserver<TestPrincipal, Params> {
     val parents = mutableListOf<Pair<SagaRunId, SagaRunId?>>()
     val sagaNames = mutableListOf<String>()
 
-    override suspend fun onResumed(run: SagaRun<TestPrincipal, Params>, first: Step<*>) {
+    override suspend fun onNotification(notification: SagaNotification<TestPrincipal, Params>) {
+        val run = notification.run
         runIds += run.id
-        parents += run.id to run.parentId
-        sagaNames += run.sagaName
-        events += "resumed:${first::class.simpleName}"
-    }
-
-    override suspend fun onTransition(
-        run: SagaRun<TestPrincipal, Params>,
-        from: Step<*>,
-        to: Step<*>,
-        elapsed: Duration,
-    ) {
-        runIds += run.id
-        events += "transition:${from::class.simpleName}->${to::class.simpleName}"
-    }
-
-    override suspend fun onTerminated(
-        run: SagaRun<TestPrincipal, Params>,
-        terminal: Terminal<*>,
-        elapsed: Duration,
-    ) {
-        runIds += run.id
-        events += "terminated:${terminal::class.simpleName}"
-    }
-
-    override suspend fun onFailed(
-        run: SagaRun<TestPrincipal, Params>,
-        step: Step<*>?,
-        ex: Exception,
-        mappedTo: Terminal<*>?,
-    ) {
-        runIds += run.id
-        val stepName = step?.let { it::class.simpleName }
-        val mappedName = mappedTo?.let { it::class.simpleName }
-        events += "failed:$stepName:${ex::class.simpleName}:$mappedName"
+        events += when (notification) {
+            is Resumed -> {
+                parents += run.id to run.parentId
+                sagaNames += run.sagaName
+                "resumed:${notification.first::class.simpleName}"
+            }
+            is Transitioned ->
+                "transition:${notification.from::class.simpleName}->${notification.to::class.simpleName}"
+            is Terminated -> "terminated:${notification.terminal::class.simpleName}"
+            is Failed -> {
+                val stepName = notification.step?.let { it::class.simpleName }
+                val mappedName = notification.mappedTo?.let { it::class.simpleName }
+                "failed:$stepName:${notification.ex::class.simpleName}:$mappedName"
+            }
+        }
     }
 }
 
 internal class ThrowingObserver(private val failure: () -> Throwable) : SagaObserver<TestPrincipal, Params> {
 
-    override suspend fun onResumed(run: SagaRun<TestPrincipal, Params>, first: Step<*>): Unit =
+    override suspend fun onNotification(notification: SagaNotification<TestPrincipal, Params>): Unit =
         throw failure()
-
-    override suspend fun onTransition(
-        run: SagaRun<TestPrincipal, Params>,
-        from: Step<*>,
-        to: Step<*>,
-        elapsed: Duration,
-    ): Unit = throw failure()
-
-    override suspend fun onTerminated(
-        run: SagaRun<TestPrincipal, Params>,
-        terminal: Terminal<*>,
-        elapsed: Duration,
-    ): Unit = throw failure()
-
-    override suspend fun onFailed(
-        run: SagaRun<TestPrincipal, Params>,
-        step: Step<*>?,
-        ex: Exception,
-        mappedTo: Terminal<*>?,
-    ): Unit = throw failure()
 }
 
 internal class SlowObserver(private val takes: Duration) : SagaObserver<TestPrincipal, Params> {
 
-    override suspend fun onResumed(run: SagaRun<TestPrincipal, Params>, first: Step<*>) =
+    override suspend fun onNotification(notification: SagaNotification<TestPrincipal, Params>) =
         delay(takes.toMillis())
-
-    override suspend fun onTransition(
-        run: SagaRun<TestPrincipal, Params>,
-        from: Step<*>,
-        to: Step<*>,
-        elapsed: Duration,
-    ) = delay(takes.toMillis())
-
-    override suspend fun onTerminated(
-        run: SagaRun<TestPrincipal, Params>,
-        terminal: Terminal<*>,
-        elapsed: Duration,
-    ) = delay(takes.toMillis())
-
-    override suspend fun onFailed(
-        run: SagaRun<TestPrincipal, Params>,
-        step: Step<*>?,
-        ex: Exception,
-        mappedTo: Terminal<*>?,
-    ) = delay(takes.toMillis())
 }
 
 internal class TwoStepObserver(private val stalls: Duration) : SagaObserver<TestPrincipal, Params> {
 
     val applied = mutableListOf<String>()
 
-    override suspend fun onResumed(run: SagaRun<TestPrincipal, Params>, first: Step<*>) {
-        applied += "before"
-        delay(stalls.toMillis())
-        applied += "after"
+    override suspend fun onNotification(notification: SagaNotification<TestPrincipal, Params>) {
+        if (notification is Resumed) {
+            applied += "before"
+            delay(stalls.toMillis())
+            applied += "after"
+        }
     }
-
-    override suspend fun onTransition(
-        run: SagaRun<TestPrincipal, Params>,
-        from: Step<*>,
-        to: Step<*>,
-        elapsed: Duration,
-    ) = Unit
-
-    override suspend fun onTerminated(
-        run: SagaRun<TestPrincipal, Params>,
-        terminal: Terminal<*>,
-        elapsed: Duration,
-    ) = Unit
-
-    override suspend fun onFailed(
-        run: SagaRun<TestPrincipal, Params>,
-        step: Step<*>?,
-        ex: Exception,
-        mappedTo: Terminal<*>?,
-    ) = Unit
 }
 
 private fun List<String>.endEvents() = count { it.startsWith("failed:") || it.startsWith("terminated:") }
