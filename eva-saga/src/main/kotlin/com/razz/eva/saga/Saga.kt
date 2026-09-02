@@ -13,8 +13,6 @@ import com.razz.eva.saga.SagaNotification.Failed
 import com.razz.eva.saga.SagaNotification.Resumed
 import com.razz.eva.saga.SagaNotification.Terminated
 import com.razz.eva.saga.SagaNotification.Transitioned
-import com.razz.eva.saga.SagaOutcome.Ended
-import com.razz.eva.saga.SagaOutcome.Restart
 import com.razz.eva.tracing.getEvaTracer
 import com.razz.eva.tracing.use
 import io.opentelemetry.api.common.Attributes
@@ -91,8 +89,8 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
         }
         return when (stepOutcome) {
             is StepOutcome.Threw -> when (val sagaOutcome = failed(sagaRun, step, stepOutcome.ex)) {
-                is Ended -> recordTerminal(sagaOutcome.terminal)
-                is Restart -> {
+                is SagaOutcome.Ended -> recordTerminal(sagaOutcome.terminal)
+                is SagaOutcome.Restart -> {
                     val backoff = restartAfter(sagaRun.attempt, sagaOutcome.cause) ?: throw sagaOutcome.cause
                     val restarted = sagaRun.copy(
                         id = SagaRunId.random(),
@@ -167,6 +165,22 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
         return terminal
     }
 
+    private suspend fun failed(
+        sagaRun: SagaRun<PRINCIPAL, PARAMS>,
+        step: IS?,
+        ex: Exception,
+    ): SagaOutcome<TS> {
+        Span.current().recordException(ex)
+        val mapped = try {
+            onException(ex, sagaRun.principal, sagaRun.params, step)
+        } catch (rethrown: Exception) {
+            notify(Failed(sagaRun, step, ex, null))
+            throw rethrown
+        }
+        notify(Failed(sagaRun, step, ex, mapped))
+        return if (mapped != null) SagaOutcome.Ended(mapped) else SagaOutcome.Restart(ex)
+    }
+
     private fun recordAttempt(sagaRun: SagaRun<PRINCIPAL, PARAMS>) {
         Span.current().setAttribute(SAGA_ATTEMPTS, (sagaRun.attempt + 1).toLong())
     }
@@ -187,22 +201,6 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
                     SAGA_ATTEMPT, restarted.attempt.toLong(),
                 ),
             )
-    }
-
-    private suspend fun failed(
-        sagaRun: SagaRun<PRINCIPAL, PARAMS>,
-        step: IS?,
-        ex: Exception,
-    ): SagaOutcome<TS> {
-        Span.current().recordException(ex)
-        val mapped = try {
-            onException(ex, sagaRun.principal, sagaRun.params, step)
-        } catch (rethrown: Exception) {
-            notify(Failed(sagaRun, step, ex, null))
-            throw rethrown
-        }
-        notify(Failed(sagaRun, step, ex, mapped))
-        return if (mapped != null) Ended(mapped) else Restart(ex)
     }
 
     private suspend fun notify(notification: SagaNotification<PRINCIPAL, PARAMS>) {

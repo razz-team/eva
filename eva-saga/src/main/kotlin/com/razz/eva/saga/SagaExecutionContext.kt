@@ -25,11 +25,25 @@ data class SagaExecutionContext internal constructor(
         .build()
 
     internal fun recordObserverFailure(sagaName: String, outcome: ObserverOutcome) {
-        observerFailures.add(1, Attributes.of(SAGA_NAME, sagaName, OBSERVER_OUTCOME, outcome.value))
+        observerFailures.add(
+            1,
+            Attributes.of(
+                SAGA_NAME,
+                sagaName,
+                OBSERVER_OUTCOME,
+                outcome.value,
+            ),
+        )
     }
 
     internal fun recordRestart(sagaName: String) {
-        restarts.add(1, Attributes.of(SAGA_NAME, sagaName))
+        restarts.add(
+            1,
+            Attributes.of(
+                SAGA_NAME,
+                sagaName,
+            ),
+        )
     }
 }
 
