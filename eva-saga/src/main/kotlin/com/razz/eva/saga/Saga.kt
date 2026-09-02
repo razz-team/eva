@@ -117,7 +117,6 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
                     trail = trail + nextStep::class
                     step = nextStep
                 }
-
                 is Terminal<*> -> {
                     Span.current().setAttribute(SAGA_TERMINAL, current::class.simpleName ?: UNKNOWN_TERMINAL)
                     emit(sagaRun.sagaName, Notification.TERMINATED) {
