@@ -99,20 +99,21 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
         while (true) {
             when (val current = step) {
                 is Intermediary<*> -> {
+                    val currentStep = current as IS
                     val stepStartedAt = System.nanoTime()
                     val nextStep = try {
-                        val resolved = startSagaIntermediateSpan(current::class.simpleName).use {
-                            next(sagaRun.principal, current as IS)
+                        val resolved = startSagaIntermediateSpan(currentStep::class.simpleName).use {
+                            next(sagaRun.principal, currentStep)
                         }
                         if (resolved::class in trail) {
-                            throw SagaHaltException(resolved as IS)
+                            throw SagaHaltException(resolved as Intermediary<*>)
                         }
                         resolved
                     } catch (ex: Exception) {
-                        return failed(sagaRun, current, ex)
+                        return failed(sagaRun, currentStep, ex)
                     }
                     emit(sagaRun.sagaName, Notification.TRANSITION) {
-                        it.onTransition(sagaRun, current, nextStep, elapsedSince(stepStartedAt))
+                        it.onTransition(sagaRun, currentStep, nextStep, elapsedSince(stepStartedAt))
                     }
                     trail = trail + nextStep::class
                     step = nextStep
@@ -128,15 +129,14 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
         }
     }
 
-    @Suppress("UNCHECKED_CAST")
     private suspend fun failed(
         sagaRun: SagaRun<PRINCIPAL, PARAMS>,
-        step: Step<SELF>?,
+        step: IS?,
         ex: Exception,
     ): SagaOutcome<TS> {
         Span.current().recordException(ex).setStatus(ERROR)
         val mapped = try {
-            onException(ex, sagaRun.principal, sagaRun.params, step as IS?)
+            onException(ex, sagaRun.principal, sagaRun.params, step)
         } catch (rethrown: Exception) {
             emit(sagaRun.sagaName, Notification.FAILED) { it.onFailed(sagaRun, step, ex, null) }
             throw rethrown
