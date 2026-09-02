@@ -69,16 +69,11 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
         while (true) {
             val name = sagaName
             val sagaRun = SagaRun(currentId, currentParentId, name, principal, params)
-            val runSpan = sagaRunSpan(sagaRun, attempt)
-            val outcome = runSpan.use {
-                runOnce(sagaRun).also { outcome ->
-                    if (outcome is Ended) {
-                        runSpan.setAttribute(SAGA_TERMINAL, outcome.terminal::class.simpleName ?: UNKNOWN_TERMINAL)
-                    }
-                }
-            }
+            val outcome = startSagaRunSpan(sagaRun, attempt).use { runOnce(sagaRun) }
             when (outcome) {
-                is Ended -> return outcome.terminal
+                is Ended -> {
+                    return outcome.terminal
+                }
                 is Restart -> {
                     val backoff = restartAfter(attempt, outcome.cause) ?: throw outcome.cause
                     sagaExecutionContext.recordRestart(name)
@@ -95,7 +90,7 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
     private suspend fun runOnce(sagaRun: SagaRun<PRINCIPAL, PARAMS>): SagaOutcome<TS> {
         val startedAt = System.nanoTime()
         var step = try {
-            sagaInitSpan(sagaRun.sagaName).use { init(sagaRun.principal, sagaRun.params) }
+            startSagaInitSpan(sagaRun.sagaName).use { init(sagaRun.principal, sagaRun.params) }
         } catch (ex: Exception) {
             return failed(sagaRun, null, ex)
         }
@@ -106,7 +101,7 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
                 is Intermediary<*> -> {
                     val stepStartedAt = System.nanoTime()
                     val nextStep = try {
-                        val resolved = sagaIntermediateSpan(current::class.simpleName).use {
+                        val resolved = startSagaIntermediateSpan(current::class.simpleName).use {
                             next(sagaRun.principal, current as IS)
                         }
                         if (resolved::class in trail) {
@@ -124,6 +119,7 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
                 }
 
                 is Terminal<*> -> {
+                    Span.current().setAttribute(SAGA_TERMINAL, current::class.simpleName ?: UNKNOWN_TERMINAL)
                     emit(sagaRun.sagaName, Notification.TERMINATED) {
                         it.onTerminated(sagaRun, current, elapsedSince(startedAt))
                     }
@@ -158,7 +154,7 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
         if (observers.isEmpty()) {
             return
         }
-        notifySpan(sagaName, notification).use {
+        startNotifySpan(sagaName, notification).use {
             notifyEach(sagaName, notify)
         }
     }
@@ -192,7 +188,7 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
     private fun elapsedSince(startedAtNanos: Long): Duration =
         Duration.ofNanos(System.nanoTime() - startedAtNanos)
 
-    private fun sagaRunSpan(sagaRun: SagaRun<PRINCIPAL, PARAMS>, attempt: Int) =
+    private fun startSagaRunSpan(sagaRun: SagaRun<PRINCIPAL, PARAMS>, attempt: Int) =
         sagaExecutionContext.otel.getEvaTracer()
             .spanBuilder(sagaRun.sagaName)
             .setAttribute(SAGA_RUN_ID, sagaRun.id.toString())
@@ -200,16 +196,16 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
             .apply { sagaRun.parentId?.let { setAttribute(SAGA_PARENT_RUN_ID, it.toString()) } }
             .startSpan()
 
-    private fun notifySpan(sagaName: String, notification: Notification) =
+    private fun startNotifySpan(sagaName: String, notification: Notification) =
         sagaExecutionContext.otel.getEvaTracer()
             .spanBuilder("$sagaName-${notification.suffix}")
             .startSpan()
 
-    private fun sagaInitSpan(sagaName: String) = sagaExecutionContext.otel.getEvaTracer()
+    private fun startSagaInitSpan(sagaName: String) = sagaExecutionContext.otel.getEvaTracer()
         .spanBuilder("$sagaName-init")
         .startSpan()
 
-    private fun sagaIntermediateSpan(stepName: String?) = sagaExecutionContext.otel.getEvaTracer()
+    private fun startSagaIntermediateSpan(stepName: String?) = sagaExecutionContext.otel.getEvaTracer()
         .spanBuilder(stepName?.let { "$it-intermediate" } ?: "SagaIntermediateStep")
         .startSpan()
 
