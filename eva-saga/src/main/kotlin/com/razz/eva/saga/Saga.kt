@@ -178,7 +178,7 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
             throw rethrown
         }
         notify(Failed(sagaRun, step, ex, mapped))
-        return if (mapped != null) SagaOutcome.Ended(mapped) else SagaOutcome.Restart(ex)
+        return if (mapped == null) SagaOutcome.Restart(ex) else SagaOutcome.Ended(mapped)
     }
 
     private fun recordAttempt(sagaRun: SagaRun<PRINCIPAL, PARAMS>) {
