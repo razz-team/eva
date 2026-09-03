@@ -4,7 +4,9 @@ import com.razz.eva.saga.OtelAttributes.OBSERVER_OUTCOME
 import com.razz.eva.saga.OtelAttributes.SAGA_ATTEMPT
 import com.razz.eva.saga.OtelAttributes.SAGA_EXCEPTION
 import com.razz.eva.saga.OtelAttributes.SAGA_NAME
+import com.razz.eva.saga.OtelAttributes.NONE
 import com.razz.eva.saga.OtelAttributes.SAGA_OUTCOME
+import com.razz.eva.saga.OtelAttributes.SAGA_TERMINAL
 import com.razz.eva.tracing.getEvaMeter
 import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.api.common.Attributes
@@ -35,7 +37,7 @@ data class SagaExecutionContext internal constructor(
         .setUnit(COUNT)
         .build()
 
-    internal fun recordOutcome(sagaName: String, outcome: RunOutcome) {
+    internal fun recordOutcome(sagaName: String, outcome: RunOutcome, terminal: String?) {
         outcomes.add(
             1,
             Attributes.of(
@@ -43,6 +45,8 @@ data class SagaExecutionContext internal constructor(
                 sagaName,
                 SAGA_OUTCOME,
                 outcome.value,
+                SAGA_TERMINAL,
+                terminal ?: NONE,
             ),
         )
     }

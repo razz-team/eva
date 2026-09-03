@@ -26,6 +26,7 @@ internal enum class ObserverOutcome(val value: String) {
 
 internal object OtelAttributes {
     const val UNKNOWN = "Unknown"
+    const val NONE = "none"
     val SAGA_NAME = AttributeKey.stringKey("saga.name")
     val SAGA_TERMINAL = AttributeKey.stringKey("saga.terminal")
     val SAGA_RUN_ID = AttributeKey.stringKey("saga.run_id")

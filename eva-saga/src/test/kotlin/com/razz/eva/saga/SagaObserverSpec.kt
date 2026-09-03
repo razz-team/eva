@@ -94,9 +94,12 @@ private fun InMemoryMetricReader.points(metric: String) =
         .filter { it.name == metric }
         .flatMap { it.longSumData.points }
 
-private fun InMemoryMetricReader.outcomes(): Map<String?, Long> =
-    points("saga.outcome")
-        .associate { it.attributes.get(AttributeKey.stringKey("saga.outcome")) to it.value }
+private fun InMemoryMetricReader.outcomes(): Map<Pair<String?, String?>, Long> =
+    points("saga.outcome").associate { point ->
+        val outcome = point.attributes.get(AttributeKey.stringKey("saga.outcome"))
+        val terminal = point.attributes.get(AttributeKey.stringKey("saga.terminal"))
+        (outcome to terminal) to point.value
+    }
 
 private fun InMemoryMetricReader.observerFailureSum(outcome: String? = null): Long =
     collectAllMetrics()
@@ -549,10 +552,10 @@ internal class SagaObserverSpec : ShouldSpec({
         }
 
         metricReader.outcomes() shouldBe mapOf(
-            "terminal" to 1L,
-            "mapped" to 1L,
-            "rethrew" to 1L,
-            "gave_up" to 1L,
+            ("terminal" to "Finish0") to 1L,
+            ("mapped" to "Finish1") to 1L,
+            ("rethrew" to "none") to 1L,
+            ("gave_up" to "none") to 1L,
         )
     }
 

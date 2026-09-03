@@ -163,7 +163,7 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
         startedAt: Long,
     ): TS {
         recordTerminal(terminal)
-        sagaExecutionContext.recordOutcome(sagaRun.sagaName, RunOutcome.TERMINAL)
+        sagaExecutionContext.recordOutcome(sagaRun.sagaName, RunOutcome.TERMINAL, terminalName(terminal))
         notify(Terminated(sagaRun, terminal, elapsedSince(startedAt)))
         return terminal
     }
@@ -178,19 +178,19 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
         val mapped = try {
             onException(ex, sagaRun.principal, sagaRun.params, step)
         } catch (rethrown: Exception) {
-            sagaExecutionContext.recordOutcome(sagaRun.sagaName, RunOutcome.RETHREW)
+            sagaExecutionContext.recordOutcome(sagaRun.sagaName, RunOutcome.RETHREW, null)
             notify(Failed(sagaRun, step, ex, null, willRestart = false, elapsedSince(startedAt)))
             throw rethrown
         }
         if (mapped != null) {
-            sagaExecutionContext.recordOutcome(sagaRun.sagaName, RunOutcome.MAPPED)
+            sagaExecutionContext.recordOutcome(sagaRun.sagaName, RunOutcome.MAPPED, terminalName(mapped))
             notify(Failed(sagaRun, step, ex, mapped, willRestart = false, elapsedSince(startedAt)))
             return SagaOutcome.Ended(mapped)
         }
         val backoff = restartAfter(sagaRun.attempt, ex)
         notify(Failed(sagaRun, step, ex, null, willRestart = backoff != null, elapsedSince(startedAt)))
         if (backoff == null) {
-            sagaExecutionContext.recordOutcome(sagaRun.sagaName, RunOutcome.GAVE_UP)
+            sagaExecutionContext.recordOutcome(sagaRun.sagaName, RunOutcome.GAVE_UP, null)
             throw ex
         }
         require(backoff.toMillis() > 0) {
@@ -204,9 +204,11 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
     }
 
     private fun recordTerminal(terminal: TS): TS {
-        Span.current().setAttribute(SAGA_TERMINAL, terminal::class.simpleName ?: UNKNOWN)
+        Span.current().setAttribute(SAGA_TERMINAL, terminalName(terminal))
         return terminal
     }
+
+    private fun terminalName(terminal: TS) = terminal::class.simpleName ?: UNKNOWN
 
     private fun recordRestart(
         restartedSagaRun: SagaRun<PRINCIPAL, PARAMS>,
