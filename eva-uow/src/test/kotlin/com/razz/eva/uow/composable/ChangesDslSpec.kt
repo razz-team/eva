@@ -99,11 +99,7 @@ class ChangesDslSpec : FunSpec({
 
         // the builder rebuilds from whatever the persisted lookup resolves
         val persisted = existingCreatedTestModel(model0.id(), "PERSISTED", 999, V1).activate()
-        val lookup = object : PersistedLookup {
-            @Suppress("UNCHECKED_CAST")
-            override fun <M : com.razz.eva.domain.Model<*, *>> invoke(model: M): M =
-                (if (model.id() == model0.id()) persisted else model) as M
-        }
+        val lookup = PersistedLookup { id -> if (id == model0.id()) persisted else null }
         changes.resultBuilder.shouldNotBeNull().invoke(lookup) shouldBe RoundtripResult(persisted, "label")
     }
 
@@ -120,9 +116,7 @@ class ChangesDslSpec : FunSpec({
         val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
 
         // unrelated was never added; an empty persisted lookup returns it unchanged
-        val emptyLookup = object : PersistedLookup {
-            override fun <M : com.razz.eva.domain.Model<*, *>> invoke(model: M): M = model
-        }
+        val emptyLookup = PersistedLookup { null }
         changes.resultBuilder.shouldNotBeNull().invoke(emptyLookup) shouldBe RoundtripResult(unrelated, "label")
     }
 
