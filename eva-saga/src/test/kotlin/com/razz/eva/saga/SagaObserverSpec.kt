@@ -14,13 +14,19 @@ import com.razz.eva.saga.TestSaga.Terminal.Finish1
 import com.razz.eva.saga.TestSaga.TestPrincipal
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.ShouldSpec
+import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.longs.shouldBeLessThan
 import io.kotest.matchers.shouldBe
 import io.opentelemetry.api.common.AttributeKey
+import io.opentelemetry.api.trace.StatusCode.ERROR
 import io.opentelemetry.sdk.OpenTelemetrySdk
 import io.opentelemetry.sdk.metrics.SdkMeterProvider
 import io.opentelemetry.sdk.testing.exporter.InMemoryMetricReader
+import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter
+import io.opentelemetry.sdk.trace.SdkTracerProvider
+import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
 import kotlinx.coroutines.delay
+import kotlin.coroutines.cancellation.CancellationException
 import java.time.Duration
 
 internal class RecordingObserver : SagaObserver<TestPrincipal, Params> {
@@ -199,15 +205,49 @@ internal class SagaObserverSpec : ShouldSpec({
         observer.events shouldBe listOf("resumed:Finish0", "terminated:Finish0")
     }
 
-    should("keep the saga on course when an observer throws an Error") {
+    should("let an Error from an observer abort the saga rather than swallow it") {
         val observer = RecordingObserver()
-        val params = Params({ Finish0("it's time to stop") })
-
+        val metricReader = InMemoryMetricReader.create()
+        val spanExporter = InMemorySpanExporter.create()
+        val openTelemetry = OpenTelemetrySdk.builder()
+            .setMeterProvider(SdkMeterProvider.builder().registerMetricReader(metricReader).build())
+            .setTracerProvider(
+                SdkTracerProvider.builder().addSpanProcessor(SimpleSpanProcessor.create(spanExporter)).build(),
+            )
+            .build()
         val broken = ThrowingObserver { AssertionError("observer is not implemented") }
-        val state = TestSaga(listOf(broken, observer)).resume(principal, params)
+
+        shouldThrow<AssertionError> {
+            TestSaga(
+                listOf(broken, observer),
+                sagaExecutionContext(otel = openTelemetry),
+            ).resume(principal, Params({ Finish0("it's time to stop") }))
+        }
+
+        observer.events shouldBe listOf()
+        metricReader.observerFailureSum() shouldBe 0
+        val notifySpan = spanExporter.finishedSpanItems.single { it.name == "TestSaga-onResumed" }
+        notifySpan.events.map { it.name } shouldContain "exception"
+        notifySpan.status.statusCode shouldBe ERROR
+    }
+
+    should("keep the saga on course when an observer leaks a cancellation of its own") {
+        val observer = RecordingObserver()
+        val metricReader = InMemoryMetricReader.create()
+        val openTelemetry = OpenTelemetrySdk.builder()
+            .setMeterProvider(SdkMeterProvider.builder().registerMetricReader(metricReader).build())
+            .build()
+        val leaking = ThrowingObserver { CancellationException("the observer's own child was cancelled") }
+
+        val state = TestSaga(
+            listOf(leaking, observer),
+            sagaExecutionContext(otel = openTelemetry),
+        ).resume(principal, Params({ Finish0("it's time to stop") }))
 
         state shouldBe Finish0("it's time to stop")
         observer.events shouldBe listOf("resumed:Finish0", "terminated:Finish0")
+        metricReader.observerFailureSum(outcome = "threw") shouldBe 2
+        metricReader.observerFailureSum(outcome = "timed_out") shouldBe 0
     }
 
     should("record exactly one failure for a run that fails two steps deep") {

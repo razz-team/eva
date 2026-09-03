@@ -3,6 +3,8 @@ package com.razz.eva.saga
 import com.razz.eva.saga.Saga.Intermediary
 import com.razz.eva.saga.Saga.Terminal
 import com.razz.eva.domain.Principal
+import com.razz.eva.saga.ObserverOutcome.THREW
+import com.razz.eva.saga.ObserverOutcome.TIMED_OUT
 import com.razz.eva.saga.OtelAttributes.SAGA_ATTEMPT
 import com.razz.eva.saga.OtelAttributes.SAGA_ATTEMPTS
 import com.razz.eva.saga.OtelAttributes.SAGA_PARENT_RUN_ID
@@ -17,6 +19,7 @@ import com.razz.eva.tracing.getEvaTracer
 import com.razz.eva.tracing.use
 import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.trace.Span
+import io.opentelemetry.api.trace.StatusCode.ERROR
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
@@ -24,7 +27,6 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withTimeout
 import mu.KotlinLogging
 import java.time.Duration
-import kotlin.coroutines.cancellation.CancellationException
 import kotlin.reflect.KClass
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -214,20 +216,20 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
                     withTimeout(sagaExecutionContext.observerTimeout.toMillis().milliseconds) {
                         observer.onNotification(notification)
                     }
-                } catch (ex: TimeoutCancellationException) {
-                    currentCoroutineContext().ensureActive()
-                    countObserverFailure(sagaName, ex, ObserverOutcome.TIMED_OUT)
-                } catch (ex: CancellationException) {
-                    throw ex
                 } catch (ex: Throwable) {
                     currentCoroutineContext().ensureActive()
-                    countObserverFailure(sagaName, ex, ObserverOutcome.THREW)
+                    if (ex !is Exception) {
+                        Span.current().recordException(ex).setStatus(ERROR)
+                        throw ex
+                    }
+                    countObserverFailure(sagaName, ex)
                 }
             }
         }
     }
 
-    private fun countObserverFailure(sagaName: String, ex: Throwable, outcome: ObserverOutcome) {
+    private fun countObserverFailure(sagaName: String, ex: Exception) {
+        val outcome = if (ex is TimeoutCancellationException) TIMED_OUT else THREW
         runCatching {
             sagaExecutionContext.recordObserverFailure(sagaName, outcome)
             logger.warn(ex) { "Saga observer failed [$sagaName] [${outcome.value}]" }
