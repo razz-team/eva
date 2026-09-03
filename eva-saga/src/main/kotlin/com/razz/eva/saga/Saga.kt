@@ -187,6 +187,9 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
         if (backoff == null) {
             throw ex
         }
+        require(backoff.toMillis() > 0) {
+            "Saga restart backoff must be at least a millisecond, but was [$backoff]"
+        }
         return SagaOutcome.Restart(backoff)
     }
 

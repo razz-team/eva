@@ -290,6 +290,28 @@ internal class SagaObserverSpec : ShouldSpec({
         observer.failureWillRestart shouldBe listOf(true)
     }
 
+    should("refuse a restart backoff that truncates to no delay") {
+        val params = Params(
+            { throw IllegalStateException("can't touch this") },
+            { _, _, _, _ -> null },
+        )
+
+        shouldThrow<IllegalArgumentException> {
+            TestSaga(restartPolicy = { _, _ -> Duration.ofNanos(500_000) }).resume(principal, params)
+        }.message shouldBe "Saga restart backoff must be at least a millisecond, but was [PT0.0005S]"
+    }
+
+    should("refuse a negative restart backoff") {
+        val params = Params(
+            { throw IllegalStateException("can't touch this") },
+            { _, _, _, _ -> null },
+        )
+
+        shouldThrow<IllegalArgumentException> {
+            TestSaga(restartPolicy = { _, _ -> Duration.ofMillis(-5) }).resume(principal, params)
+        }
+    }
+
     should("tell observers when it has given up instead of retrying") {
         val observer = RecordingObserver()
         val saga = TestSaga(listOf(observer), restartPolicy = { _, _ -> null })
@@ -421,7 +443,7 @@ internal class SagaObserverSpec : ShouldSpec({
         shouldThrow<IllegalArgumentException> {
             TestSaga(
                 listOf(observer),
-                restartPolicy = { attempt, _ -> Duration.ZERO.takeIf { attempt < 2 } },
+                restartPolicy = { attempt, _ -> Duration.ofMillis(1).takeIf { attempt < 2 } },
             ).resume(principal, params)
         }
 
@@ -455,7 +477,7 @@ internal class SagaObserverSpec : ShouldSpec({
             TestSaga(
                 restartPolicy = { attempt, ex ->
                     seen += attempt to (ex::class.simpleName ?: "")
-                    Duration.ZERO.takeIf { attempt < 1 }
+                    Duration.ofMillis(1).takeIf { attempt < 1 }
                 },
             ).resume(principal, params)
         }
