@@ -275,3 +275,10 @@ private sealed interface StepOutcome<out STEP> {
     class Resolved<STEP>(val step: STEP) : StepOutcome<STEP>
     class Threw(val ex: Exception) : StepOutcome<Nothing>
 }
+
+private sealed interface SagaOutcome<out TERMINAL> {
+
+    class Ended<TERMINAL>(val terminal: TERMINAL) : SagaOutcome<TERMINAL>
+
+    class Restart(val backoff: Duration) : SagaOutcome<Nothing>
+}

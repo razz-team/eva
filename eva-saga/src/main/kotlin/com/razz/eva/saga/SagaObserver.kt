@@ -4,37 +4,6 @@ import com.razz.eva.domain.Principal
 import com.razz.eva.saga.Saga.Step
 import com.razz.eva.saga.Saga.Terminal
 import java.time.Duration
-import java.util.UUID
-import java.util.UUID.randomUUID
-
-internal sealed interface SagaOutcome<out TERMINAL> {
-
-    class Ended<TERMINAL>(val terminal: TERMINAL) : SagaOutcome<TERMINAL>
-
-    class Restart(val backoff: Duration) : SagaOutcome<Nothing>
-}
-
-@JvmInline
-value class SagaRunId(private val id: UUID) {
-    override fun toString() = id.toString()
-    fun uuidValue() = id
-
-    companion object {
-        fun random() = SagaRunId(randomUUID())
-    }
-}
-
-data class SagaRun<PRINCIPAL, PARAMS>(
-    val id: SagaRunId,
-    val parentId: SagaRunId?,
-    val attempt: Int,
-    val sagaName: String,
-    val principal: PRINCIPAL,
-    val params: PARAMS,
-) where PRINCIPAL : Principal<*> {
-
-    override fun toString() = "SagaRun[sagaName=$sagaName, id=$id, parentId=$parentId, attempt=$attempt]"
-}
 
 sealed interface SagaNotification<PRINCIPAL, PARAMS> where PRINCIPAL : Principal<*> {
 
