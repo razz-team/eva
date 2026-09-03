@@ -89,6 +89,15 @@ internal class TwoStepObserver(private val stalls: Duration) : SagaObserver<Test
 
 private fun List<String>.endEvents() = count { it.startsWith("failed:") || it.startsWith("terminated:") }
 
+private fun InMemoryMetricReader.points(metric: String) =
+    collectAllMetrics()
+        .filter { it.name == metric }
+        .flatMap { it.longSumData.points }
+
+private fun InMemoryMetricReader.outcomes(): Map<String?, Long> =
+    points("saga.outcome")
+        .associate { it.attributes.get(AttributeKey.stringKey("saga.outcome")) to it.value }
+
 private fun InMemoryMetricReader.observerFailureSum(outcome: String? = null): Long =
     collectAllMetrics()
         .filter { it.name == "saga.observer.failure" }
@@ -517,6 +526,64 @@ internal class SagaObserverSpec : ShouldSpec({
 
         state shouldBe Finish0("it's time to stop")
         torn.applied shouldBe listOf("before")
+    }
+
+    should("count every resumption by how it ended") {
+        val metricReader = InMemoryMetricReader.create()
+        val openTelemetry = OpenTelemetrySdk.builder()
+            .setMeterProvider(SdkMeterProvider.builder().registerMetricReader(metricReader).build())
+            .build()
+        val context = sagaExecutionContext(otel = openTelemetry)
+        val boom = IllegalStateException("can't touch this")
+
+        TestSaga(executionContext = context)
+            .resume(principal, Params({ Finish0("it's time to stop") }))
+        TestSaga(executionContext = context)
+            .resume(principal, Params({ throw boom }, { _, _, _, _ -> Finish1("swallowed") }))
+        shouldThrow<IllegalStateException> {
+            TestSaga(executionContext = context).resume(principal, Params({ throw boom }))
+        }
+        shouldThrow<IllegalStateException> {
+            TestSaga(executionContext = context, restartPolicy = { _, _ -> null })
+                .resume(principal, Params({ throw boom }, { _, _, _, _ -> null }))
+        }
+
+        metricReader.outcomes() shouldBe mapOf(
+            "terminal" to 1L,
+            "mapped" to 1L,
+            "rethrew" to 1L,
+            "gave_up" to 1L,
+        )
+    }
+
+    should("attribute a restart to its attempt and the exception that caused it") {
+        val metricReader = InMemoryMetricReader.create()
+        val openTelemetry = OpenTelemetrySdk.builder()
+            .setMeterProvider(SdkMeterProvider.builder().registerMetricReader(metricReader).build())
+            .build()
+        var wasThrown = false
+        val params = Params(
+            { step ->
+                when {
+                    step is Step0 -> Step1("go go go!")
+                    wasThrown -> Finish0("it's time to stop")
+                    else -> {
+                        wasThrown = true
+                        throw IllegalStateException("can't touch this")
+                    }
+                }
+            },
+            { _, _, _, _ -> null },
+        )
+
+        TestSaga(executionContext = sagaExecutionContext(otel = openTelemetry))
+            .resume(principal, params) shouldBe Finish0("it's time to stop")
+
+        val restart = metricReader.points("saga.restart").single()
+        restart.value shouldBe 1L
+        restart.attributes.get(AttributeKey.stringKey("saga.name")) shouldBe "TestSaga"
+        restart.attributes.get(AttributeKey.longKey("saga.attempt")) shouldBe 1L
+        restart.attributes.get(AttributeKey.stringKey("saga.exception")) shouldBe "IllegalStateException"
     }
 
     should("refuse an observer timeout that is not positive") {

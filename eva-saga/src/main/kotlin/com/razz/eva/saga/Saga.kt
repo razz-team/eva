@@ -10,7 +10,7 @@ import com.razz.eva.saga.OtelAttributes.SAGA_ATTEMPTS
 import com.razz.eva.saga.OtelAttributes.SAGA_PARENT_RUN_ID
 import com.razz.eva.saga.OtelAttributes.SAGA_RUN_ID
 import com.razz.eva.saga.OtelAttributes.SAGA_TERMINAL
-import com.razz.eva.saga.OtelAttributes.UNKNOWN_TERMINAL
+import com.razz.eva.saga.OtelAttributes.UNKNOWN
 import com.razz.eva.saga.SagaNotification.Failed
 import com.razz.eva.saga.SagaNotification.Resumed
 import com.razz.eva.saga.SagaNotification.Terminated
@@ -101,7 +101,7 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
                         parentId = sagaRun.id,
                         attempt = sagaRun.attempt + 1,
                     )
-                    recordRestart(restartedSagaRun, sagaRun.id)
+                    recordRestart(restartedSagaRun, sagaRun.id, stepOutcome.ex)
                     delay(sagaOutcome.backoff.toMillis().milliseconds)
                     advance(restartedSagaRun, null, setOf(), System.nanoTime())
                 }
@@ -165,6 +165,7 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
         startedAt: Long,
     ): TS {
         recordTerminal(terminal)
+        sagaExecutionContext.recordOutcome(sagaRun.sagaName, RunOutcome.TERMINAL)
         notify(Terminated(sagaRun, terminal, elapsedSince(startedAt)))
         return terminal
     }
@@ -179,16 +180,19 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
         val mapped = try {
             onException(ex, sagaRun.principal, sagaRun.params, step)
         } catch (rethrown: Exception) {
+            sagaExecutionContext.recordOutcome(sagaRun.sagaName, RunOutcome.RETHREW)
             notify(Failed(sagaRun, step, ex, null, willRestart = false, elapsedSince(startedAt)))
             throw rethrown
         }
         if (mapped != null) {
+            sagaExecutionContext.recordOutcome(sagaRun.sagaName, RunOutcome.MAPPED)
             notify(Failed(sagaRun, step, ex, mapped, willRestart = false, elapsedSince(startedAt)))
             return SagaOutcome.Ended(mapped)
         }
         val backoff = restartAfter(sagaRun.attempt, ex)
         notify(Failed(sagaRun, step, ex, null, willRestart = backoff != null, elapsedSince(startedAt)))
         if (backoff == null) {
+            sagaExecutionContext.recordOutcome(sagaRun.sagaName, RunOutcome.GAVE_UP)
             throw ex
         }
         require(backoff.toMillis() > 0) {
@@ -202,12 +206,20 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
     }
 
     private fun recordTerminal(terminal: TS): TS {
-        Span.current().setAttribute(SAGA_TERMINAL, terminal::class.simpleName ?: UNKNOWN_TERMINAL)
+        Span.current().setAttribute(SAGA_TERMINAL, terminal::class.simpleName ?: UNKNOWN)
         return terminal
     }
 
-    private fun recordRestart(restartedSagaRun: SagaRun<PRINCIPAL, PARAMS>, parentRunId: SagaRunId) {
-        sagaExecutionContext.recordRestart(restartedSagaRun.sagaName)
+    private fun recordRestart(
+        restartedSagaRun: SagaRun<PRINCIPAL, PARAMS>,
+        parentRunId: SagaRunId,
+        cause: Exception,
+    ) {
+        sagaExecutionContext.recordRestart(
+            restartedSagaRun.sagaName,
+            restartedSagaRun.attempt,
+            cause::class.simpleName ?: UNKNOWN,
+        )
         Span.current()
             .addEvent(
                 Events.RESTART,
