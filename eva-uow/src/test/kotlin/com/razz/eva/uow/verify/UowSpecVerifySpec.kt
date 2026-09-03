@@ -1,61 +1,46 @@
 package com.razz.eva.uow.verify
 
-import com.razz.eva.domain.Department.OwnedDepartment
-import com.razz.eva.domain.DepartmentId.Companion.randomDepartmentId
-import com.razz.eva.domain.Employee
-import com.razz.eva.domain.EmployeeEvent.DepartmentChanged
-import com.razz.eva.domain.EmployeeEvent.EmployeeCreated
-import com.razz.eva.domain.EmployeeId
-import com.razz.eva.domain.ModelState.NewState.Companion.newState
-import com.razz.eva.domain.Name
-import com.razz.eva.domain.Ration.BUBALEH
-import com.razz.eva.test.domain.persistentStateV1
-import com.razz.eva.test.uow.UowBehaviorSpec
+import com.razz.eva.domain.TestModel
+import com.razz.eva.domain.TestModel.Factory.createdTestModel
+import com.razz.eva.domain.TestModel.Factory.existingCreatedTestModel
+import com.razz.eva.domain.TestModelEvent.TestModelCreated
+import com.razz.eva.domain.TestModelEvent.TestModelStatusChanged
+import com.razz.eva.domain.TestModelId.Companion.randomTestModelId
+import com.razz.eva.domain.Version.Companion.V1
 import com.razz.eva.uow.ChangesAccumulator
+import com.razz.eva.uow.Clocks.fixedUTC
+import com.razz.eva.uow.Clocks.millisUTC
+import com.razz.eva.uow.ExecutionContext
+import com.razz.eva.uow.TestPrincipal
+import com.razz.eva.uow.composable.DummyUow
 import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
-import java.util.UUID.randomUUID
+import io.opentelemetry.api.OpenTelemetry
+import com.razz.eva.uow.composable.UnitOfWork as ComposableUnitOfWork
 
-class UowSpecVerifySpec : UowBehaviorSpec({
+class UowSpecVerifySpec : BehaviorSpec({
 
-    val name = Name("Ivan", "Ivanov")
-    val oldDepId = randomDepartmentId()
-    val newDepId = randomDepartmentId()
-    val newDep = OwnedDepartment(
-        newDepId, "new and cool", EmployeeId(randomUUID()), 1, BUBALEH,
-        persistentStateV1(),
-    )
+    val executionContext = ExecutionContext(fixedUTC(millisUTC().instant()), OpenTelemetry.noop())
 
-    fun newEmployee(id: EmployeeId) = Employee(
-        id = id,
-        name = name,
-        departmentId = oldDepId,
-        email = "ivan.ivanov@lame.dep",
-        ration = BUBALEH,
-        modelState = newState(EmployeeCreated(id, name, oldDepId, "ivan.ivanov@lame.dep", BUBALEH)),
-    )
+    val equalityAware = object : EqualityVerifierAware {
+        override val equalityVerifier = object : EqualityVerifier {
+            override fun <T> verify(expected: T, actual: T) {
+                expected shouldBe actual
+            }
+        }
+    }
 
-    fun existingEmployee(id: EmployeeId) = Employee(
-        id = id,
-        name = name,
-        departmentId = oldDepId,
-        email = "ivan.ivanov@lame.dep",
-        ration = BUBALEH,
-        modelState = persistentStateV1(),
-    )
-
-    Given("Changes adding a model and returning the very same instance") {
-        val employeeId = EmployeeId(randomUUID())
-        val employee = newEmployee(employeeId)
-        val changes = ChangesAccumulator().withAddedModel(employee).withResult(employee)
+    Given("A change adding a new model, returned by the unit of work") {
+        val added = createdTestModel("MLG", 420)
+        val changes = ChangesAccumulator().withAddedModel(added).withResult(added)
 
         When("addsAndReturns verifies with a block that counts its own invocations") {
             var invocations = 0
-
             changes verifyInOrder {
-                addsAndReturns<Employee> { invocations++ }
-                emits<EmployeeCreated> { }
+                addsAndReturns<TestModel> { invocations++ }
+                emits<TestModelCreated> { }
             }
 
             Then("The block ran exactly once") {
@@ -63,28 +48,41 @@ class UowSpecVerifySpec : UowBehaviorSpec({
             }
         }
 
-        When("addsAndReturns verifies with a block that nests emits") {
+        When("addsAndReturns is given an id and a block that counts its own invocations") {
+            var invocations = 0
+            with(equalityAware) {
+                changes verifyInOrder {
+                    addsAndReturns<TestModel>(added.id()) { invocations++ }
+                    emits<TestModelCreated> { }
+                }
+            }
+
+            Then("The block ran exactly once") {
+                invocations shouldBe 1
+            }
+        }
+
+        When("The verify block nests emits and the change raises a single event") {
             val verifying = {
                 changes verifyInOrder {
-                    addsAndReturns<Employee> {
-                        departmentId shouldBe oldDepId
-                        emits<EmployeeCreated> {
-                            employeeId shouldBe employee.id()
+                    addsAndReturns<TestModel> {
+                        emits<TestModelCreated> {
+                            testModelId shouldBe added.id()
                         }
                     }
                 }
             }
 
-            Then("Nested emits consumes the single event and the spec ends clean") {
+            Then("Nested emits consumes the event and the spec ends clean") {
                 verifying()
             }
         }
 
-        When("addsAndReturns verifies with a block that does not hold") {
+        When("The verify block does not hold") {
             val verifying = {
                 changes verifyInOrder {
-                    addsAndReturns<Employee> { departmentId shouldBe newDepId }
-                    emits<EmployeeCreated> { }
+                    addsAndReturns<TestModel> { status() shouldBe null }
+                    emits<TestModelCreated> { }
                 }
             }
 
@@ -93,24 +91,13 @@ class UowSpecVerifySpec : UowBehaviorSpec({
             }
         }
 
-        When("addsAndReturns is given an id via the equality verifier") {
-            var invocations = 0
-
-            changes verifyInOrder {
-                addsAndReturns<Employee>(employeeId) { invocations++ }
-                emits<EmployeeCreated> { }
-            }
-
-            Then("The block ran exactly once") {
-                invocations shouldBe 1
-            }
-        }
-
         When("addsAndReturns is given an id that does not match") {
             val verifying = {
-                changes verifyInOrder {
-                    addsAndReturns<Employee>(EmployeeId(randomUUID())) { }
-                    emits<EmployeeCreated> { }
+                with(equalityAware) {
+                    changes verifyInOrder {
+                        addsAndReturns<TestModel>(randomTestModelId()) { }
+                        emits<TestModelCreated> { }
+                    }
                 }
             }
 
@@ -120,39 +107,50 @@ class UowSpecVerifySpec : UowBehaviorSpec({
         }
     }
 
-    Given("Changes adding a model and returning an equal but different instance") {
-        val employeeId = EmployeeId(randomUUID())
-        val added = newEmployee(employeeId)
-        val twin = newEmployee(employeeId)
-        val changes = ChangesAccumulator().withAddedModel(added).withResult(twin)
+    Given("A change raising two events, verified with a single nested emits") {
+        val added = createdTestModel("MLG", 420).activate()
+        val changes = ChangesAccumulator().withAddedModel(added).withResult(added)
 
-        When("addsAndReturns verifies the added model") {
+        When("The verify block asserts only the first of the two events") {
             val verifying = {
                 changes verifyInOrder {
-                    addsAndReturns<Employee> { }
-                    emits<EmployeeCreated> { }
+                    addsAndReturns<TestModel> { emits<TestModelCreated> { } }
                 }
             }
 
-            Then("The result is reported as not being the added model") {
+            Then("The unasserted event is reported, naming it and the one-emits-per-event rule") {
                 val exception = shouldThrow<IllegalStateException>(verifying)
-                exception.message shouldContain "Result is not the added model"
-                exception.message shouldContain "equal by value, but a different instance"
+                exception.message shouldContain "No more events expected"
+                exception.message shouldContain "TestModelStatusChanged"
+                exception.message shouldContain "its own emits call"
+            }
+        }
+
+        When("The verify block asserts both events") {
+            val verifying = {
+                changes verifyInOrder {
+                    addsAndReturns<TestModel> {
+                        emits<TestModelCreated> { }
+                        emits<TestModelStatusChanged> { }
+                    }
+                }
+            }
+
+            Then("The spec ends clean") {
+                verifying()
             }
         }
     }
 
-    Given("Changes updating a model and returning the very same instance") {
-        val employeeId = EmployeeId(randomUUID())
-        val employee = existingEmployee(employeeId).changeDepartment(newDep)
-        val changes = ChangesAccumulator().withUpdatedModel(employee).withResult(employee)
+    Given("A change updating a model, returned by the unit of work") {
+        val updated = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1).activate()
+        val changes = ChangesAccumulator().withUpdatedModel(updated).withResult(updated)
 
         When("updatesAndReturns verifies with a block that counts its own invocations") {
             var invocations = 0
-
             changes verifyInOrder {
-                updatesAndReturns<Employee> { invocations++ }
-                emits<DepartmentChanged> { }
+                updatesAndReturns<TestModel> { invocations++ }
+                emits<TestModelStatusChanged> { }
             }
 
             Then("The block ran exactly once") {
@@ -160,53 +158,260 @@ class UowSpecVerifySpec : UowBehaviorSpec({
             }
         }
 
-        When("updatesAndReturns verifies with a block that nests emits") {
+        When("updatesAndReturns is given an id and a block that counts its own invocations") {
+            var invocations = 0
+            with(equalityAware) {
+                changes verifyInOrder {
+                    updatesAndReturns<TestModel>(updated.id()) { invocations++ }
+                    emits<TestModelStatusChanged> { }
+                }
+            }
+
+            Then("The block ran exactly once") {
+                invocations shouldBe 1
+            }
+        }
+
+        When("The verify block nests emits and the change raises a single event") {
             val verifying = {
                 changes verifyInOrder {
-                    updatesAndReturns<Employee> {
-                        departmentId shouldBe newDepId
-                        emits<DepartmentChanged> {
-                            newDepartmentId shouldBe newDepId
+                    updatesAndReturns<TestModel> {
+                        emits<TestModelStatusChanged> {
+                            testModelId shouldBe updated.id()
                         }
                     }
                 }
             }
 
-            Then("Nested emits consumes the single event and the spec ends clean") {
+            Then("Nested emits consumes the event and the spec ends clean") {
                 verifying()
             }
         }
 
-        When("updatesAndReturns is given an id via the equality verifier") {
-            var invocations = 0
-
-            changes verifyInOrder {
-                updatesAndReturns<Employee>(employeeId) { invocations++ }
-                emits<DepartmentChanged> { }
+        When("The verify block does not hold") {
+            val verifying = {
+                changes verifyInOrder {
+                    updatesAndReturns<TestModel> { status() shouldBe null }
+                    emits<TestModelStatusChanged> { }
+                }
             }
 
-            Then("The block ran exactly once") {
-                invocations shouldBe 1
+            Then("The block failure surfaces") {
+                shouldThrow<AssertionError>(verifying)
+            }
+        }
+
+        When("updatesAndReturns is given an id that does not match") {
+            val verifying = {
+                with(equalityAware) {
+                    changes verifyInOrder {
+                        updatesAndReturns<TestModel>(randomTestModelId()) { }
+                        emits<TestModelStatusChanged> { }
+                    }
+                }
+            }
+
+            Then("The id mismatch surfaces") {
+                shouldThrow<AssertionError>(verifying)
             }
         }
     }
 
-    Given("Changes updating a model and returning an unrelated value") {
-        val employeeId = EmployeeId(randomUUID())
-        val employee = existingEmployee(employeeId).changeDepartment(newDep)
-        val changes = ChangesAccumulator().withUpdatedModel(employee).withResult(employeeId)
+    Given("A composed unit of work whose parent merges a newer instance over the child's change") {
+        val seed = createdTestModel("MLG", 420)
+        val child = { exCtx: ExecutionContext ->
+            object : ComposableUnitOfWork<TestPrincipal, DummyUow.Params, TestModel>(exCtx) {
+                override suspend fun tryPerform(principal: TestPrincipal, params: DummyUow.Params) = changes {
+                    add(seed)
+                }
+            }
+        }
 
-        When("updatesAndReturns verifies the updated model") {
-            val verifying = {
-                changes verifyInOrder {
-                    updatesAndReturns<Employee> { }
-                    emits<DepartmentChanged> { }
+        When("The parent returns the instance the child registered, superseded by the merge") {
+            val parent = object : DummyUow<TestModel>(executionContext) {
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                    val added = execute(child, principal) { DummyUow.Params }
+                    update((added as TestModel.CreatedTestModel).activate())
+                    added
                 }
             }
 
-            Then("The result is reported as not being the updated model") {
+            Then("The result is accepted: same id, and the change carries the result's events") {
+                val changes = parent.tryPerform(TestPrincipal, DummyUow.Params)
+                changes verifyInOrder {
+                    addsAndReturns<TestModel> { id() shouldBe seed.id() }
+                    emits<TestModelCreated> { }
+                    emits<TestModelStatusChanged> { }
+                }
+            }
+        }
+
+        When("The parent seeds its result with roundtrip before the merge") {
+            val parent = object : DummyUow<TestModel>(executionContext) {
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                    val added = execute(child, principal) { DummyUow.Params }
+                    val roundtripped = roundtrip { p -> p(added) }
+                    update((added as TestModel.CreatedTestModel).activate())
+                    roundtripped
+                }
+            }
+
+            Then("The stale roundtrip seed is accepted") {
+                val changes = parent.tryPerform(TestPrincipal, DummyUow.Params)
+                changes verifyInOrder {
+                    addsAndReturns<TestModel> { id() shouldBe seed.id() }
+                    emits<TestModelCreated> { }
+                    emits<TestModelStatusChanged> { }
+                }
+            }
+        }
+    }
+
+    Given("A unit of work adding a model and returning it through roundtrip") {
+        val added = createdTestModel("MLG", 420)
+        val uow = object : DummyUow<TestModel>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                add(added)
+                roundtrip { p -> p(added) }
+            }
+        }
+
+        When("addsAndReturns verifies the change") {
+            Then("The roundtrip seed is accepted") {
+                val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
+                changes verifyInOrder {
+                    addsAndReturns<TestModel> { id() shouldBe added.id() }
+                    emits<TestModelCreated> { }
+                }
+            }
+        }
+    }
+
+    Given("A change whose result carries a mutation that was never registered") {
+        val added = createdTestModel("MLG", 420)
+        val changes = ChangesAccumulator()
+            .withAddedModel(added)
+            .withResult(added.changeParam1("NOT REGISTERED"))
+
+        When("addsAndReturns verifies the change") {
+            val verifying = {
+                changes verifyInOrder {
+                    addsAndReturns<TestModel> { }
+                    emits<TestModelCreated> { }
+                }
+            }
+
+            Then("The unregistered events are named on both sides") {
                 val exception = shouldThrow<IllegalStateException>(verifying)
-                exception.message shouldContain "Result is not the updated model"
+                exception.message shouldContain "carries events the change does not"
+                exception.message shouldContain added.id().stringValue()
+                exception.message shouldContain "The change holds [TestModelCreated]"
+                exception.message shouldContain "the result holds [TestModelCreated, TestModelEvent1]"
+            }
+        }
+    }
+
+    Given("A change whose result has the same id but a different history") {
+        val id = randomTestModelId()
+        val updated = existingCreatedTestModel(id, "noscope", 360, V1).activate()
+        val divergent = existingCreatedTestModel(id, "noscope", 360, V1).activate()
+        val changes = ChangesAccumulator().withUpdatedModel(updated).withResult(divergent)
+
+        When("updatesAndReturns verifies the change") {
+            val verifying = {
+                changes verifyInOrder {
+                    updatesAndReturns<TestModel> { }
+                    emits<TestModelStatusChanged> { }
+                }
+            }
+
+            Then("The divergent history is reported") {
+                val exception = shouldThrow<IllegalStateException>(verifying)
+                exception.message shouldContain "carries a different history"
+                exception.message shouldContain id.stringValue()
+            }
+        }
+    }
+
+    Given("A change whose result is an unrelated model of the same type") {
+        val added = createdTestModel("MLG", 420)
+        val unrelated = createdTestModel("MLG", 420)
+        val changes = ChangesAccumulator().withAddedModel(added).withResult(unrelated)
+
+        When("addsAndReturns verifies the change") {
+            val verifying = {
+                changes verifyInOrder {
+                    addsAndReturns<TestModel> { }
+                    emits<TestModelCreated> { }
+                }
+            }
+
+            Then("Both ids and states are reported, pointing at verify order") {
+                val exception = shouldThrow<IllegalStateException>(verifying)
+                exception.message shouldContain "the ids differ"
+                exception.message shouldContain added.id().stringValue()
+                exception.message shouldContain unrelated.id().stringValue()
+                exception.message shouldContain "CreatedTestModel[id = "
+                exception.message shouldContain "new, version = 0, events = [TestModelCreated]"
+                exception.message shouldContain "same order as the registered changes"
+            }
+        }
+    }
+
+    Given("A change whose result is null") {
+        val added = createdTestModel("MLG", 420)
+        val changes = ChangesAccumulator().withAddedModel(added).withResult<Any?>(null)
+
+        When("addsAndReturns verifies the change") {
+            val verifying = {
+                changes verifyInOrder {
+                    addsAndReturns<TestModel> { }
+                    emits<TestModelCreated> { }
+                }
+            }
+
+            Then("The result is reported as not being a model at all") {
+                val exception = shouldThrow<IllegalStateException>(verifying)
+                exception.message shouldContain "Result is not a model at all"
+                exception.message shouldContain added.id().stringValue()
+                exception.message shouldContain "Result was [null]"
+            }
+        }
+    }
+
+    Given("A change whose result is neither a model nor of the right id") {
+        val added = createdTestModel("MLG", 420)
+        val changes = ChangesAccumulator().withAddedModel(added).withResult(added.id())
+
+        When("addsAndReturns is given a mismatching id as well") {
+            val verifying = {
+                with(equalityAware) {
+                    changes verifyInOrder {
+                        addsAndReturns<TestModel>(randomTestModelId()) { }
+                        emits<TestModelCreated> { }
+                    }
+                }
+            }
+
+            Then("The id check runs first, so the id mismatch is what surfaces") {
+                shouldThrow<AssertionError>(verifying)
+            }
+        }
+
+        When("addsAndReturns is given the matching id") {
+            val verifying = {
+                with(equalityAware) {
+                    changes verifyInOrder {
+                        addsAndReturns<TestModel>(added.id()) { }
+                        emits<TestModelCreated> { }
+                    }
+                }
+            }
+
+            Then("The result is reported as not being a model at all, naming its type") {
+                val exception = shouldThrow<IllegalStateException>(verifying)
+                exception.message shouldContain "Result is not a model at all"
+                exception.message shouldContain "Result was [TestModelId:"
             }
         }
     }

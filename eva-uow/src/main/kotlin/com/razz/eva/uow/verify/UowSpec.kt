@@ -71,19 +71,31 @@ class UowSpec<R> internal constructor(
         return verified
     }
 
+    /**
+     * Verifies the next registered change as an added model, and asserts that the unit of work returned
+     * that model: same id, and the change carries every event the result carries. A unit of work that
+     * returns a model it never registered, or a mutation of one it registered, fails here -- verify the
+     * change and the result separately with `adds<M> { }` plus `returns { }` if that is really intended.
+     */
     inline fun <reified M : Model<*, *>> addsAndReturns(noinline verify: M.() -> Unit): M {
         val verified = verifyAddedModel(verify)
-        verifyResultIsModel(verified, "added")
+        verifyResultIsAddedModel(verified)
         return verified
     }
 
+    /**
+     * Verifies the next registered change as an added model, and asserts that the unit of work returned
+     * that model: same id, and the change carries every event the result carries. A unit of work that
+     * returns a model it never registered, or a mutation of one it registered, fails here -- verify the
+     * change and the result separately with `adds<M> { }` plus `returns { }` if that is really intended.
+     */
     inline fun <reified M : Model<*, *>> EqualityVerifierAware.addsAndReturns(
         id: ModelId<*>,
         noinline verify: M.() -> Unit,
     ): M {
         val verified = verifyAddedModel(verify)
         equalityVerifier.verify(verified.id(), id)
-        verifyResultIsModel(verified, "added")
+        verifyResultIsAddedModel(verified)
         return verified
     }
 
@@ -115,19 +127,31 @@ class UowSpec<R> internal constructor(
         return verified
     }
 
+    /**
+     * Verifies the next registered change as an updated model, and asserts that the unit of work returned
+     * that model: same id, and the change carries every event the result carries. A unit of work that
+     * returns a model it never registered, or a mutation of one it registered, fails here -- verify the
+     * change and the result separately with `updates<M> { }` plus `returns { }` if that is really intended.
+     */
     inline fun <reified M : Model<*, *>> updatesAndReturns(noinline verify: M.() -> Unit): M {
         val verified = verifyUpdatedModel(verify)
-        verifyResultIsModel(verified, "updated")
+        verifyResultIsUpdatedModel(verified)
         return verified
     }
 
+    /**
+     * Verifies the next registered change as an updated model, and asserts that the unit of work returned
+     * that model: same id, and the change carries every event the result carries. A unit of work that
+     * returns a model it never registered, or a mutation of one it registered, fails here -- verify the
+     * change and the result separately with `updates<M> { }` plus `returns { }` if that is really intended.
+     */
     inline fun <reified M : Model<*, *>> EqualityVerifierAware.updatesAndReturns(
         id: ModelId<*>,
         noinline verify: M.() -> Unit,
     ): M {
         val verified = verifyUpdatedModel(verify)
         equalityVerifier.verify(verified.id(), id)
-        verifyResultIsModel(verified, "updated")
+        verifyResultIsUpdatedModel(verified)
         return verified
     }
 
