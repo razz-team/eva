@@ -15,8 +15,7 @@ import com.razz.eva.saga.SagaNotification.Failed
 import com.razz.eva.saga.SagaNotification.Resumed
 import com.razz.eva.saga.SagaNotification.Terminated
 import com.razz.eva.saga.SagaNotification.Transitioned
-import com.razz.eva.tracing.getEvaTracer
-import com.razz.eva.tracing.use
+import com.razz.eva.tracing.withSpan
 import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.trace.Span
 import io.opentelemetry.api.trace.StatusCode.ERROR
@@ -70,7 +69,10 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
 
     suspend fun resume(principal: PRINCIPAL, params: PARAMS): TS {
         val sagaRun = SagaRun(SagaRunId.random(), null, 0, sagaName, principal, params)
-        return startSagaRunSpan(sagaRun).use {
+        return sagaExecutionContext.otel.withSpan(
+            spanName = sagaRun.sagaName,
+            parameters = { setAttribute(SAGA_RUN_ID, sagaRun.id.toString()) },
+        ) {
             advance(sagaRun, null, setOf(), System.nanoTime())
         }
     }
@@ -130,7 +132,7 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
     private suspend fun resolveFirst(sagaRun: SagaRun<PRINCIPAL, PARAMS>): StepOutcome<Step<SELF>> =
         try {
             StepOutcome.Resolved(
-                startSagaInitSpan(sagaRun.sagaName).use {
+                sagaExecutionContext.otel.withSpan("${sagaRun.sagaName}-init") {
                     init(sagaRun.principal, sagaRun.params)
                 },
             )
@@ -144,7 +146,9 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
         trail: Set<KClass<out Step<SELF>>>,
     ): StepOutcome<Step<SELF>> =
         try {
-            val resolved = startSagaIntermediateSpan(currentStep::class.simpleName).use {
+            val resolved = sagaExecutionContext.otel.withSpan(
+                currentStep::class.simpleName?.let { "$it-intermediate" } ?: "SagaIntermediateStep",
+            ) {
                 next(sagaRun.principal, currentStep)
             }
             if (resolved::class in trail) {
@@ -220,7 +224,7 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
             return
         }
         val sagaName = notification.run.sagaName
-        startNotifySpan(notification).use {
+        sagaExecutionContext.otel.withSpan("${notification.run.sagaName}-${notification.suffix}") {
             observers.forEach { observer ->
                 try {
                     withTimeout(sagaExecutionContext.observerTimeout.toMillis().milliseconds) {
@@ -248,25 +252,6 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
 
     private fun elapsedSince(startedAtNanos: Long): Duration =
         Duration.ofNanos(System.nanoTime() - startedAtNanos)
-
-    private fun startSagaRunSpan(sagaRun: SagaRun<PRINCIPAL, PARAMS>) =
-        sagaExecutionContext.otel.getEvaTracer()
-            .spanBuilder(sagaRun.sagaName)
-            .setAttribute(SAGA_RUN_ID, sagaRun.id.toString())
-            .startSpan()
-
-    private fun startNotifySpan(notification: SagaNotification<PRINCIPAL, PARAMS>) =
-        sagaExecutionContext.otel.getEvaTracer()
-            .spanBuilder("${notification.run.sagaName}-${notification.suffix}")
-            .startSpan()
-
-    private fun startSagaInitSpan(sagaName: String) = sagaExecutionContext.otel.getEvaTracer()
-        .spanBuilder("$sagaName-init")
-        .startSpan()
-
-    private fun startSagaIntermediateSpan(stepName: String?) = sagaExecutionContext.otel.getEvaTracer()
-        .spanBuilder(stepName?.let { "$it-intermediate" } ?: "SagaIntermediateStep")
-        .startSpan()
 
     private val logger = KotlinLogging.logger {}
 
