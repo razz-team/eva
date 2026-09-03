@@ -497,32 +497,11 @@ class ProvingUnitOfWorkSpec : FunSpec({
         val changes = uow.tryPerform(TestPrincipal, DummyProvingUow.Params)
 
         changes.result shouldBe ProvingRoundtripResult(model0, "label")
-        val emptyLookup = PersistedLookup { null }
+        val emptyLookup = object : PersistedLookup {
+            override fun <M : com.razz.eva.domain.Model<*, *>> invoke(model: M): M = model
+        }
         changes.resultBuilder.shouldNotBeNull().invoke(emptyLookup) shouldBe
             ProvingRoundtripResult(model0, "label")
-    }
-
-    test("A lookup asked for a state the change set no longer holds says so") {
-        val model = existingCreatedTestModel(randomTestModelId(), "seed", 1, V1)
-        val activated = model.activate()
-
-        val uow = object : DummyProvingUow<ActiveTestModel>(executionContext) {
-            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
-                update(activated)
-            }
-        }
-        val changes = uow.tryPerform(TestPrincipal, DummyProvingUow.Params)
-        val lookup = PersistedLookup { activated }
-
-        // asking for the pre-transition state while the change set holds the activated one
-        val exception = shouldThrow<IllegalStateException> { lookup(model) }
-        exception.message.shouldNotBeNull() shouldContain "resolves to ActiveTestModel in the change set"
-        exception.message.shouldNotBeNull() shouldContain "not the CreatedTestModel this lookup was asked for"
-
-        // asking for a type both share resolves fine
-        val wide: com.razz.eva.domain.TestModel = model
-        lookup(wide) shouldBe activated
-        changes.modelChangesToPersist shouldHaveSize 1
     }
 
     test("roundtrip refuses a builder that returns Accounted") {

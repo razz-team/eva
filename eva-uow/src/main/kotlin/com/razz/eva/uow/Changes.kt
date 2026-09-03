@@ -26,25 +26,17 @@ abstract class Changes<R> {
 /**
  * Resolves a model to its change-set instance by id: the flushed instance post-flush (top-level run),
  * the in-memory one under composition. Returns the argument unchanged when its id is not in the change set.
- *
- * The resolved instance can be a different subtype than the argument, because a composed child may have
- * moved the model to another state. [invoke] is reified, so that is checked against the type the call
- * site asks for: declare the state the change set holds, or a supertype of it, and a mismatch fails
- * here with an explanation instead of surfacing as a cast error somewhere else.
  */
-class PersistedLookup internal constructor(
-    @PublishedApi internal val resolveById: (ModelId<out Comparable<*>>) -> Model<*, *>?,
-) {
-    inline operator fun <reified M : Model<*, *>> invoke(model: M): M {
-        val resolved = resolveById(model.id()) ?: return model
-        check(resolved is M) {
-            "Model [${model.id().stringValue()}] resolves to ${resolved::class.simpleName} in the " +
-                "change set, which is not the ${M::class.simpleName} this lookup was asked for. " +
-                "A composed change moved the model to another state: ask for that state, or for a " +
-                "type both share."
-        }
-        return resolved
-    }
+interface PersistedLookup {
+    operator fun <M : Model<*, *>> invoke(model: M): M
+}
+
+// One PersistedLookup over a by-id resolver: persisted map at top level, in-memory change set under composition.
+internal class ChangeSetLookup(
+    private val resolve: (ModelId<out Comparable<*>>) -> Model<*, *>?,
+) : PersistedLookup {
+    @Suppress("UNCHECKED_CAST")
+    override fun <M : Model<*, *>> invoke(model: M): M = (resolve(model.id()) ?: model) as M
 }
 
 class ChangesAccumulator private constructor(

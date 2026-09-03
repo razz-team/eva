@@ -13,6 +13,7 @@ import com.razz.eva.tracing.getEvaTracer
 import com.razz.eva.tracing.use
 import com.razz.eva.uow.AddModel
 import com.razz.eva.uow.BaseUnitOfWork
+import com.razz.eva.uow.ChangeSetLookup
 import com.razz.eva.uow.Changes
 import com.razz.eva.uow.ChangesAccumulator
 import com.razz.eva.uow.ExecutionContext
@@ -44,7 +45,7 @@ class ChangesDsl internal constructor(
      */
     fun <R> roundtrip(build: (p: PersistedLookup) -> R): R {
         resultBuilder = build
-        return build(PersistedLookup { changes.changeFor(it)?.model })
+        return build(ChangeSetLookup { changes.changeFor(it)?.model })
     }
 
     fun <MID, E, M> add(model: M): M
