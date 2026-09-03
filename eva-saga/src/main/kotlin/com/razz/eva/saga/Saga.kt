@@ -91,18 +91,16 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
             resolveNext(sagaRun, currentStep, trail)
         }
         return when (stepOutcome) {
-            is StepOutcome.Threw -> when (val sagaOutcome = failed(sagaRun, currentStep, stepOutcome.ex)) {
+            is StepOutcome.Threw -> when (val sagaOutcome = failed(sagaRun, currentStep, stepOutcome.ex, startedAt)) {
                 is SagaOutcome.Ended -> recordTerminal(sagaOutcome.terminal)
                 is SagaOutcome.Restart -> {
-                    val backoff = restartAfter(sagaRun.attempt, sagaOutcome.cause) ?: throw sagaOutcome.cause
                     val restartedSagaRun = sagaRun.copy(
                         id = SagaRunId.random(),
                         parentId = sagaRun.id,
                         attempt = sagaRun.attempt + 1,
-                        sagaName = sagaName,
                     )
                     recordRestart(restartedSagaRun, sagaRun.id)
-                    delay(backoff.toMillis().milliseconds)
+                    delay(sagaOutcome.backoff.toMillis().milliseconds)
                     advance(restartedSagaRun, null, setOf(), System.nanoTime())
                 }
             }
@@ -171,16 +169,25 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
         sagaRun: SagaRun<PRINCIPAL, PARAMS>,
         step: IS?,
         ex: Exception,
+        startedAt: Long,
     ): SagaOutcome<TS> {
         Span.current().recordException(ex)
         val mapped = try {
             onException(ex, sagaRun.principal, sagaRun.params, step)
         } catch (rethrown: Exception) {
-            notify(Failed(sagaRun, step, ex, null))
+            notify(Failed(sagaRun, step, ex, null, willRestart = false, elapsedSince(startedAt)))
             throw rethrown
         }
-        notify(Failed(sagaRun, step, ex, mapped))
-        return if (mapped == null) SagaOutcome.Restart(ex) else SagaOutcome.Ended(mapped)
+        if (mapped != null) {
+            notify(Failed(sagaRun, step, ex, mapped, willRestart = false, elapsedSince(startedAt)))
+            return SagaOutcome.Ended(mapped)
+        }
+        val backoff = restartAfter(sagaRun.attempt, ex)
+        notify(Failed(sagaRun, step, ex, null, willRestart = backoff != null, elapsedSince(startedAt)))
+        if (backoff == null) {
+            throw ex
+        }
+        return SagaOutcome.Restart(backoff)
     }
 
     private fun recordAttempt(sagaRun: SagaRun<PRINCIPAL, PARAMS>) {

@@ -15,6 +15,7 @@ import com.razz.eva.saga.TestSaga.TestPrincipal
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.ShouldSpec
 import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.longs.shouldBeLessThan
 import io.kotest.matchers.shouldBe
 import io.opentelemetry.api.common.AttributeKey
@@ -35,6 +36,8 @@ internal class RecordingObserver : SagaObserver<TestPrincipal, Params> {
     val runIds = mutableListOf<SagaRunId>()
     val parents = mutableListOf<Pair<SagaRunId, SagaRunId?>>()
     val sagaNames = mutableListOf<String>()
+    val failureElapsed = mutableListOf<Duration>()
+    val failureWillRestart = mutableListOf<Boolean>()
 
     override suspend fun onNotification(notification: SagaNotification<TestPrincipal, Params>) {
         val run = notification.run
@@ -49,6 +52,8 @@ internal class RecordingObserver : SagaObserver<TestPrincipal, Params> {
                 "transition:${notification.from::class.simpleName}->${notification.to::class.simpleName}"
             is Terminated -> "terminated:${notification.terminal::class.simpleName}"
             is Failed -> {
+                failureElapsed += notification.elapsed
+                failureWillRestart += notification.willRestart
                 val stepName = notification.step?.let { it::class.simpleName }
                 val mappedName = notification.mappedTo?.let { it::class.simpleName }
                 "failed:$stepName:${notification.ex::class.simpleName}:$mappedName"
@@ -248,6 +253,54 @@ internal class SagaObserverSpec : ShouldSpec({
         observer.events shouldBe listOf("resumed:Finish0", "terminated:Finish0")
         metricReader.observerFailureSum(outcome = "threw") shouldBe 2
         metricReader.observerFailureSum(outcome = "timed_out") shouldBe 0
+    }
+
+    should("report how long the run took when it ends in a mapped failure") {
+        val observer = RecordingObserver()
+        val params = Params(
+            { throw IllegalArgumentException("can't touch this") },
+            { _, _, _, _ -> Finish1("swallowed") },
+        )
+
+        TestSaga(listOf(observer)).resume(principal, params) shouldBe Finish1("swallowed")
+
+        observer.events shouldBe listOf("failed:null:IllegalArgumentException:Finish1")
+        observer.failureElapsed.single() shouldBeGreaterThan Duration.ZERO
+    }
+
+    should("tell observers that a failure is about to be retried") {
+        val observer = RecordingObserver()
+        var wasThrown = false
+        val params = Params(
+            { step ->
+                when {
+                    step is Step0 -> Step1("go go go!")
+                    wasThrown -> Finish0("it's time to stop")
+                    else -> {
+                        wasThrown = true
+                        throw IllegalArgumentException("can't touch this")
+                    }
+                }
+            },
+            { _, _, _, _ -> null },
+        )
+
+        TestSaga(listOf(observer)).resume(principal, params) shouldBe Finish0("it's time to stop")
+
+        observer.failureWillRestart shouldBe listOf(true)
+    }
+
+    should("tell observers when it has given up instead of retrying") {
+        val observer = RecordingObserver()
+        val saga = TestSaga(listOf(observer), restartPolicy = { _, _ -> null })
+        val params = Params(
+            { throw IllegalArgumentException("can't touch this") },
+            { _, _, _, _ -> null },
+        )
+
+        shouldThrow<IllegalArgumentException> { saga.resume(principal, params) }
+
+        observer.failureWillRestart shouldBe listOf(false)
     }
 
     should("record exactly one failure for a run that fails two steps deep") {

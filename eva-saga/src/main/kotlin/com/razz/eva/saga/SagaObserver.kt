@@ -11,7 +11,7 @@ internal sealed interface SagaOutcome<out TERMINAL> {
 
     class Ended<TERMINAL>(val terminal: TERMINAL) : SagaOutcome<TERMINAL>
 
-    class Restart(val cause: Exception) : SagaOutcome<Nothing>
+    class Restart(val backoff: Duration) : SagaOutcome<Nothing>
 }
 
 @JvmInline
@@ -71,6 +71,8 @@ sealed interface SagaNotification<PRINCIPAL, PARAMS> where PRINCIPAL : Principal
         val step: Step<*>?,
         val ex: Exception,
         val mappedTo: Terminal<*>?,
+        val willRestart: Boolean,
+        val elapsed: Duration,
     ) : SagaNotification<PRINCIPAL, PARAMS> where PRINCIPAL : Principal<*> {
         override val suffix = "onFailed"
     }

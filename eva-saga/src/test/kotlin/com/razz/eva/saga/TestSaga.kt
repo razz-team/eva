@@ -13,12 +13,16 @@ import java.time.Duration
 internal class TestSaga(
     observers: List<SagaObserver<TestPrincipal, Params>> = listOf(),
     executionContext: SagaExecutionContext = sagaExecutionContext(),
-    private val name: String? = null,
+    private var name: String? = null,
     private val restartPolicy: ((Int, Exception) -> Duration?)? = null,
 ) : Saga<TestPrincipal, Params, Intermediary, Terminal, TestSaga>(executionContext, observers) {
 
     override val sagaName: String
         get() = name ?: super.sagaName
+
+    fun rename(to: String) {
+        name = to
+    }
 
     override suspend fun restartAfter(attempt: Int, ex: Exception): Duration? {
         val policy = restartPolicy ?: return super.restartAfter(attempt, ex)

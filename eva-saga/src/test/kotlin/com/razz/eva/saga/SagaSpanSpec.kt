@@ -187,6 +187,41 @@ internal class SagaSpanSpec : ShouldSpec({
         restarts.single().attributes.get(AttributeKey.longKey("saga.attempt")) shouldBe 1L
     }
 
+    should("hold the name captured at resume when the saga renames itself across a restart") {
+        val observer = RecordingObserver()
+        val exporter = InMemorySpanExporter.create()
+        val openTelemetry = OpenTelemetrySdk.builder()
+            .setTracerProvider(
+                SdkTracerProvider.builder()
+                    .addSpanProcessor(SimpleSpanProcessor.create(exporter))
+                    .build(),
+            )
+            .build()
+        val saga = TestSaga(listOf(observer), sagaExecutionContext(otel = openTelemetry), "FirstName")
+        var wasThrown = false
+        val params = Params(
+            { step ->
+                when {
+                    step is Step0 -> Step1("go go go!")
+                    wasThrown -> Finish0("stop")
+                    else -> {
+                        wasThrown = true
+                        saga.rename("SecondName")
+                        throw IllegalArgumentException("can't touch this")
+                    }
+                }
+            },
+            { _, _, _, _ -> null },
+        )
+
+        saga.resume(principal, params)
+
+        exporter.finishedSpanItems.filter { it.name.startsWith("SecondName") } shouldBe listOf()
+        exporter.finishedSpanItems.single { it.name == "FirstName" }
+            .attributes.get(AttributeKey.longKey("saga.attempts")) shouldBe 2L
+        observer.sagaNames shouldBe listOf("FirstName", "FirstName")
+    }
+
     should("name the run span after the delegate when the saga renames itself") {
         val (exporter, saga) = exporterAndSaga(name = "DelegateSaga")
 
