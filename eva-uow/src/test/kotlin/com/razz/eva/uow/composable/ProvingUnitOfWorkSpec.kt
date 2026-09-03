@@ -262,7 +262,7 @@ class ProvingUnitOfWorkSpec : FunSpec({
             parent.tryPerform(TestPrincipal, DummyProvingUow.Params)
         }
         exception.message.shouldNotBeNull() shouldContain "is not the instance that was registered"
-        exception.message.shouldNotBeNull() shouldContain "Return what the registration handed back"
+        exception.message.shouldNotBeNull() shouldContain "Return the value add or update handed back"
     }
 
     test("The same parent returning its own registration is accepted") {
@@ -303,7 +303,7 @@ class ProvingUnitOfWorkSpec : FunSpec({
         val exception = shouldThrow<IllegalStateException> {
             uow.tryPerform(TestPrincipal, DummyProvingUow.Params)
         }
-        exception.message.shouldNotBeNull() shouldContain "move roundtrip { } after the registrations"
+        exception.message.shouldNotBeNull() shouldContain "resolve the registered instance with roundtrip"
     }
 
     test("map cannot swap in an instance with the same id and events but different state") {

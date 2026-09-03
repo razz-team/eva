@@ -18,11 +18,19 @@ import com.razz.eva.uow.modelsIn
  * The compile-time check covers the block's tail. It is backed at runtime once the block completes:
  * the evidence must have been minted by this block's own DSL, and every model reachable from the
  * result through iterables, maps, arrays, pairs and triples must be the registered instance or clean.
- * Registered means the same instance, not merely the same id and events: a mutator can copy a field
- * without raising an event, so two instances with one event list can still disagree on what gets
- * persisted. This is stricter than what the framework itself guarantees, where a model result is
- * resolved by id, and it is stricter than [com.razz.eva.uow.verify.UowSpec]'s `addsAndReturns`, which
- * serves the plain family too and so can only assert the framework's contract.
+ * Registered means the same instance, not merely the same id and events. Two clean instances of one
+ * id always share an event list, since [com.razz.eva.domain.ModelState.PersistentState] starts empty
+ * and stays empty, so an id-and-events rule cannot tell them apart at all; and a model declared as a
+ * `data class` exposes a synthesized `copy` that carries the same state, so a dirty instance can
+ * diverge in its fields while sharing its events.
+ *
+ * This is stricter than the framework's own contract, where a model result is resolved by id, and
+ * stricter than [com.razz.eva.uow.verify.UowSpec]'s `addsAndReturns`, which serves the plain family
+ * too and so can only assert that contract. The extra strictness costs one false positive: at top
+ * level, with `returnRoundtrippedModels` on and a bare model or collection result, the executor would
+ * have replaced a superseded instance by id anyway. It is exact everywhere else, including composed
+ * children, results wrapped in a map, pair, triple or array, which the executor does not roundtrip,
+ * and `returnRoundtrippedModels = false`.
  * A mutation discarded mid-block, a secondary model that is never referenced again, or a model buried
  * in a wrapper the walk cannot see (a data class, a Sequence) remains the author's to register.
  *
@@ -57,9 +65,9 @@ abstract class ProvingUnitOfWork<PRINCIPAL, PARAMS, RESULT>(
     // The proving family's strict addition on top of the universal withResult net (which already
     // rejected unregistered new or dirty models): a model with a registered id must be the registered
     // instance, so stale or smuggled instances cannot pose as the persisted state. Identity, not id
-    // and events: a model can differ in state without differing in events (a mutator that copies a
-    // field without raising one), so two instances sharing an event list can still disagree on what
-    // was persisted. Verified against the built change set: modelChangesToPersist is the flattened
+    // and events: clean instances of one id share an empty event list by construction, so that rule
+    // is vacuous for them, and a data-class model's synthesized copy keeps the same state while its
+    // fields diverge. Verified against the built change set: modelChangesToPersist is the flattened
     // list that will actually be persisted, so owned children of a registered Aggregate count as
     // registered.
     private fun verifyResultModels(changes: Changes<RESULT>) {
@@ -69,9 +77,8 @@ abstract class ProvingUnitOfWork<PRINCIPAL, PARAMS, RESULT>(
             check(change.model === model) {
                 "Model [${model.id().stringValue()}] in the result is not the instance that was " +
                     "registered: the change holds ${describe(change.model)}, the result holds " +
-                    "${describe(model)}. Return what the registration handed back (add, update and " +
-                    "notChanged all return it), or move roundtrip { } after the registrations its " +
-                    "models depend on."
+                    "${describe(model)}. Return the value add or update handed back, or resolve the " +
+                    "registered instance with roundtrip { p -> p(model) }."
             }
         }
     }
@@ -83,6 +90,9 @@ abstract class ProvingUnitOfWork<PRINCIPAL, PARAMS, RESULT>(
             else -> "unchanged"
         }
         val events = model.modelEvents().map { it.eventName() }
-        return "${model::class.simpleName}[$state, events = $events]"
+        // identity and value both matter here: the two instances often agree on class, state and
+        // events, which is exactly the case this check exists for
+        return "${model::class.simpleName}[$state, events = $events, " +
+            "instance = ${System.identityHashCode(model)}, value = $model]"
     }
 }
