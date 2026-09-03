@@ -46,7 +46,9 @@ open class UowSpecBase<R> private constructor(
             "No more entity changes expected, but still present: $entityChangeHistory"
         }
         check(publishedEvents.isEmpty()) {
-            "No more events expected, but still present: $publishedEvents"
+            "No more events expected, but still present: ${publishedEvents.joinToString { describeEvent(it) }}. " +
+                "Every event a change raises has to be asserted by its own emits call, so a change raising " +
+                "two events needs two of them"
         }
     }
 
@@ -59,6 +61,58 @@ open class UowSpecBase<R> private constructor(
     internal fun <RR : R> verifyResultAsInternal(verification: (RR) -> Unit) {
         @Suppress("UNCHECKED_CAST")
         verification(result as RR)
+    }
+
+    /**
+     * Asserts that the unit of work result denotes the model registered as this change: same id, and the
+     * change carries every event the result carries.
+     *
+     * Not identity. [com.razz.eva.uow.UnitOfWorkExecutor] resolves a model result against the flushed set
+     * by id (`returnRoundtrippedModels` defaults to true), so the id is what the framework guarantees the
+     * caller receives. A composed parent may legitimately return the instance a child registered after
+     * merging a newer one over it, and `roundtrip { p -> p(model) }` seeds its value from the change set as
+     * of that moment, which a later merge supersedes -- both return an earlier instance of the same model,
+     * and both are correct at runtime.
+     *
+     * The event check is what an id alone cannot do: it rejects a result carrying state that was never
+     * registered, so it will not be persisted. It is the same rule the composable
+     * [com.razz.eva.uow.composable.ChangesDsl] merge applies (`isSameAs` / `isSuccessorOf`): the change's
+     * events have to hold the result's events by identity, in order, from the same start. Identity, because
+     * raising an event appends to the existing instances rather than rebuilding them, so a genuine earlier
+     * instance of the same model shares its event objects with the change.
+     */
+    @PublishedApi
+    internal fun verifyResultIsAddedModel(change: Model<*, *>) = verifyResultIsModel(change, "added")
+
+    @PublishedApi
+    internal fun verifyResultIsUpdatedModel(change: Model<*, *>) = verifyResultIsModel(change, "updated")
+
+    private fun verifyResultIsModel(change: Model<*, *>, changeKind: String) {
+        val actual: Any? = result
+        if (actual !is Model<*, *>) {
+            error(
+                "Result is not a model at all, so it cannot be the $changeKind model " +
+                    "${describe(change)}. Result was ${render(actual)}",
+            )
+        }
+        if (actual.id() != change.id()) {
+            error(
+                "Result is not the $changeKind model: the ids differ. The change at this position is " +
+                    "${describe(change)}, the result is ${describe(actual)}. Check that the verify calls " +
+                    "are in the same order as the registered changes.",
+            )
+        }
+        val changeEvents = eventsOf(change)
+        val resultEvents = eventsOf(actual)
+        check(changeEvents carriesAtLeast resultEvents) {
+            val reason = if (resultEvents.size > changeEvents.size) {
+                "the result carries events the change does not, so they would never be persisted"
+            } else {
+                "the result carries a different history, so it is not an instance of this change"
+            }
+            "Result is not the $changeKind model [${change.id().stringValue()}]: $reason. The change holds " +
+                "${eventNames(changeEvents)}, the result holds ${eventNames(resultEvents)}"
+        }
     }
 
     @PublishedApi
@@ -163,5 +217,43 @@ open class UowSpecBase<R> private constructor(
         @Suppress("UNCHECKED_CAST")
         verify(key as K)
         return key
+    }
+
+    private fun describe(model: Model<*, *>): String {
+        val state = when {
+            model.isNew() -> "new"
+            model.isDirty() -> "dirty"
+            model.isPersisted() -> "persisted"
+            else -> "unknown state"
+        }
+        return "${model::class.simpleName}[id = ${model.id().stringValue()}, $state, " +
+            "version = ${model.version().version}, events = ${eventNames(eventsOf(model))}]"
+    }
+
+    private fun render(value: Any?): String = when (value) {
+        null -> "[null]"
+        else -> "[${value::class.simpleName}: $value]"
+    }
+
+    private fun eventNames(events: List<ModelEvent<*>>): String =
+        events.joinToString(prefix = "[", postfix = "]") { it.eventName() }
+
+    private fun describeEvent(event: ModelEvent<*>): String =
+        "${event.eventName()}(${event.modelName} ${event.modelId.stringValue()})"
+
+    @Suppress("UNCHECKED_CAST")
+    private fun eventsOf(model: Model<*, *>): List<ModelEvent<*>> =
+        (model as Model<ModelId<out Comparable<*>>, ModelEvent<ModelId<out Comparable<*>>>>).modelEvents()
+
+    private infix fun List<ModelEvent<*>>.carriesAtLeast(events: List<ModelEvent<*>>): Boolean {
+        if (size < events.size) {
+            return false
+        }
+        events.forEachIndexed { i, e ->
+            if (this[i] !== e) {
+                return false
+            }
+        }
+        return true
     }
 }
