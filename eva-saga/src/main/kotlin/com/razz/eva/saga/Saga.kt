@@ -106,7 +106,7 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
             }
             is StepOutcome.Resolved -> {
                 val nextStep = stepOutcome.step
-                val nextTrail = if (starting) setOf(nextStep::class) else trail + nextStep::class
+                val nextTrail = trail + nextStep::class
                 if (starting) {
                     notify(Resumed(sagaRun, nextStep))
                 } else {
@@ -241,8 +241,8 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
     private fun countObserverFailure(sagaName: String, ex: Exception) {
         val outcome = if (ex is TimeoutCancellationException) TIMED_OUT else THREW
         runCatching {
-            sagaExecutionContext.recordObserverFailure(sagaName, outcome)
             logger.warn(ex) { "Saga observer failed [$sagaName] [${outcome.value}]" }
+            sagaExecutionContext.recordObserverFailure(sagaName, outcome)
         }
     }
 

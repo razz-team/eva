@@ -5,7 +5,6 @@ plugins {
 
 dependencies {
     implementation(project(eva.eva_domain))
-    implementation(libs.kotlin.coroutines)
     implementation(libs.kotlin.logging)
     api(project(eva.eva_tracing))
 
