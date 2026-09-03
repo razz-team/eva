@@ -497,9 +497,7 @@ class ProvingUnitOfWorkSpec : FunSpec({
         val changes = uow.tryPerform(TestPrincipal, DummyProvingUow.Params)
 
         changes.result shouldBe ProvingRoundtripResult(model0, "label")
-        val emptyLookup = object : PersistedLookup {
-            override fun <M : com.razz.eva.domain.Model<*, *>> invoke(model: M): M = model
-        }
+        val emptyLookup = PersistedLookup { null }
         changes.resultBuilder.shouldNotBeNull().invoke(emptyLookup) shouldBe
             ProvingRoundtripResult(model0, "label")
     }

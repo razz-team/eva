@@ -310,7 +310,7 @@ class UnitOfWorkExecutor(
         if (builder != null) {
             val byId = persisted.associateBy { it.id() }
             @Suppress("UNCHECKED_CAST")
-            return builder(ChangeSetLookup { byId[it] }) as RESULT
+            return builder(PersistedLookup { byId[it] }) as RESULT
         }
         return roundtrippedResult(changes, persisted)
     }
