@@ -36,6 +36,7 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeTypeOf
 import io.opentelemetry.api.OpenTelemetry
 import java.time.LocalDate
@@ -95,11 +96,7 @@ class ChangesDslSpec : FunSpec({
 
         // the builder rebuilds from whatever the persisted lookup resolves
         val persisted = existingCreatedTestModel(model0.id(), "PERSISTED", 999, V1).activate()
-        val lookup = object : PersistedLookup {
-            @Suppress("UNCHECKED_CAST")
-            override fun <M : com.razz.eva.domain.Model<*, *>> invoke(model: M): M =
-                (if (model.id() == model0.id()) persisted else model) as M
-        }
+        val lookup = PersistedLookup { id -> if (id == model0.id()) persisted else null }
         changes.resultBuilder.shouldNotBeNull().invoke(lookup) shouldBe RoundtripResult(persisted, "label")
     }
 
@@ -116,10 +113,22 @@ class ChangesDslSpec : FunSpec({
         val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
 
         // unrelated was never added; an empty persisted lookup returns it unchanged
-        val emptyLookup = object : PersistedLookup {
-            override fun <M : com.razz.eva.domain.Model<*, *>> invoke(model: M): M = model
-        }
+        val emptyLookup = PersistedLookup { null }
         changes.resultBuilder.shouldNotBeNull().invoke(emptyLookup) shouldBe RoundtripResult(unrelated, "label")
+    }
+
+    test("A lookup asked for a state the change set no longer holds says so") {
+        val model = existingCreatedTestModel(randomTestModelId(), "seed", 1, V1)
+        val activated = model.activate()
+        val lookup = PersistedLookup { activated }
+
+        val exception = shouldThrow<IllegalStateException> { lookup(model) }
+        exception.message.shouldNotBeNull() shouldContain "resolves to ActiveTestModel in the change set"
+        exception.message.shouldNotBeNull() shouldContain "not the CreatedTestModel this lookup was asked for"
+
+        // a type both states share resolves fine
+        val wide: com.razz.eva.domain.TestModel = model
+        lookup(wide) shouldBe activated
     }
 
     test("Should throw exception when new model updated without inherited change") {

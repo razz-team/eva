@@ -12,13 +12,12 @@ import com.razz.eva.uow.OtelAttributes.MODEL_ID
 import com.razz.eva.tracing.getEvaTracer
 import com.razz.eva.tracing.use
 import com.razz.eva.uow.AddModel
-import com.razz.eva.uow.ChangeSetLookup
+import com.razz.eva.uow.PersistedLookup
 import com.razz.eva.uow.Changes
 import com.razz.eva.uow.ChangesAccumulator
 import com.razz.eva.uow.ExecutionContext
 import com.razz.eva.uow.InstantiationContext
 import com.razz.eva.uow.NoopModel
-import com.razz.eva.uow.PersistedLookup
 import com.razz.eva.uow.UpdateModel
 import com.razz.eva.uow.UowParams
 import io.opentelemetry.api.trace.Span
@@ -42,7 +41,7 @@ class ChangesDsl internal constructor(
      */
     fun <R> roundtrip(build: (p: PersistedLookup) -> R): R {
         resultBuilder = build
-        return build(ChangeSetLookup { changes.changeFor(it)?.model })
+        return build(PersistedLookup { changes.changeFor(it)?.model })
     }
 
     fun <MID, E, M> add(model: M): M
