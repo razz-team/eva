@@ -32,6 +32,7 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeTypeOf
 import io.opentelemetry.api.OpenTelemetry
 
@@ -243,6 +244,84 @@ class ProvingUnitOfWorkSpec : FunSpec({
         changes.modelChangesToPersist shouldHaveSize 2
     }
 
+    test("A composed parent returning the child's superseded instance is rejected") {
+        val model = createdTestModel("MLG", 420)
+        val child = { ctx: ExecutionContext ->
+            object : DummyProvingUow<CreatedTestModel>(ctx) {
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes { add(model) }
+            }
+        }
+        val parent = object : DummyProvingUow<CreatedTestModel>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                val fromChild = execute(child, TestPrincipal) { DummyProvingUow.Params }
+                update(fromChild.activate())
+                notChanged(fromChild)
+            }
+        }
+        val exception = shouldThrow<IllegalStateException> {
+            parent.tryPerform(TestPrincipal, DummyProvingUow.Params)
+        }
+        exception.message.shouldNotBeNull() shouldContain "is not the instance that was registered"
+        exception.message.shouldNotBeNull() shouldContain "Return what the registration handed back"
+    }
+
+    test("The same parent returning its own registration is accepted") {
+        val model = createdTestModel("MLG", 420)
+        val child = { ctx: ExecutionContext ->
+            object : DummyProvingUow<CreatedTestModel>(ctx) {
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes { add(model) }
+            }
+        }
+        val parent = object : DummyProvingUow<ActiveTestModel>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                val fromChild = execute(child, TestPrincipal) { DummyProvingUow.Params }
+                update(fromChild.activate())
+            }
+        }
+        val changes = parent.tryPerform(TestPrincipal, DummyProvingUow.Params)
+
+        changes.modelChangesToPersist shouldHaveSize 1
+        changes.result.status() shouldBe ACTIVE
+    }
+
+    test("A roundtrip seed superseded by a composed child is rejected") {
+        val model = existingCreatedTestModel(randomTestModelId(), "seed", 1, V1)
+        val child = { ctx: ExecutionContext ->
+            object : DummyProvingUow<ActiveTestModel>(ctx) {
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params) =
+                    changes { update(model.activate()) }
+            }
+        }
+        val uow = object : DummyProvingUow<CreatedTestModel>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                notChanged(model)
+                val seed = roundtrip { p -> p(model) }
+                execute(child, TestPrincipal) { DummyProvingUow.Params }
+                notChanged(seed)
+            }
+        }
+        val exception = shouldThrow<IllegalStateException> {
+            uow.tryPerform(TestPrincipal, DummyProvingUow.Params)
+        }
+        exception.message.shouldNotBeNull() shouldContain "move roundtrip { } after the registrations"
+    }
+
+    test("map cannot swap in an instance with the same id and events but different state") {
+        val id = randomTestModelId()
+        val registered = existingCreatedTestModel(id, "REGISTERED", 1, V1)
+        val other = existingCreatedTestModel(id, "DIFFERENT-STATE", 999, V1)
+
+        val uow = object : DummyProvingUow<CreatedTestModel>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                notChanged(registered).map { other }
+            }
+        }
+        val exception = shouldThrow<IllegalStateException> {
+            uow.tryPerform(TestPrincipal, DummyProvingUow.Params)
+        }
+        exception.message.shouldNotBeNull() shouldContain "is not the instance that was registered"
+    }
+
     test("A batch of registered models is a legal result") {
         val model0 = createdTestModel("MLG", 420)
         val model1 = createdTestModel("noscope", 360)
@@ -301,7 +380,8 @@ class ProvingUnitOfWorkSpec : FunSpec({
         val exception = shouldThrow<IllegalStateException> {
             uow.tryPerform(TestPrincipal, DummyProvingUow.Params)
         }
-        exception.message shouldBe "Model [${id.stringValue()}] in the result is not the registered instance"
+        exception.message.shouldNotBeNull() shouldContain
+            "Model [${id.stringValue()}] in the result is not the instance that was registered"
     }
 
     test("A clean unregistered model in a collection result passes: nothing to persist for it") {

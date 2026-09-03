@@ -1,5 +1,6 @@
 package com.razz.eva.uow.composable
 
+import com.razz.eva.domain.Model
 import com.razz.eva.domain.Principal
 import com.razz.eva.uow.BaseUnitOfWork
 import com.razz.eva.uow.Changes
@@ -17,6 +18,11 @@ import com.razz.eva.uow.modelsIn
  * The compile-time check covers the block's tail. It is backed at runtime once the block completes:
  * the evidence must have been minted by this block's own DSL, and every model reachable from the
  * result through iterables, maps, arrays, pairs and triples must be the registered instance or clean.
+ * Registered means the same instance, not merely the same id and events: a mutator can copy a field
+ * without raising an event, so two instances with one event list can still disagree on what gets
+ * persisted. This is stricter than what the framework itself guarantees, where a model result is
+ * resolved by id, and it is stricter than [com.razz.eva.uow.verify.UowSpec]'s `addsAndReturns`, which
+ * serves the plain family too and so can only assert the framework's contract.
  * A mutation discarded mid-block, a secondary model that is never referenced again, or a model buried
  * in a wrapper the walk cannot see (a data class, a Sequence) remains the author's to register.
  *
@@ -50,16 +56,33 @@ abstract class ProvingUnitOfWork<PRINCIPAL, PARAMS, RESULT>(
 
     // The proving family's strict addition on top of the universal withResult net (which already
     // rejected unregistered new or dirty models): a model with a registered id must be the registered
-    // instance, so stale or smuggled instances cannot pose as the persisted state. Verified against
-    // the built change set: modelChangesToPersist is the flattened list that will actually be
-    // persisted, so owned children of a registered Aggregate count as registered.
+    // instance, so stale or smuggled instances cannot pose as the persisted state. Identity, not id
+    // and events: a model can differ in state without differing in events (a mutator that copies a
+    // field without raising one), so two instances sharing an event list can still disagree on what
+    // was persisted. Verified against the built change set: modelChangesToPersist is the flattened
+    // list that will actually be persisted, so owned children of a registered Aggregate count as
+    // registered.
     private fun verifyResultModels(changes: Changes<RESULT>) {
         val registered = changes.modelChangesToPersist.associateBy { it.id }
         for (model in modelsIn(changes.result)) {
             val change = registered[model.id()] ?: continue
             check(change.model === model) {
-                "Model [${model.id().stringValue()}] in the result is not the registered instance"
+                "Model [${model.id().stringValue()}] in the result is not the instance that was " +
+                    "registered: the change holds ${describe(change.model)}, the result holds " +
+                    "${describe(model)}. Return what the registration handed back (add, update and " +
+                    "notChanged all return it), or move roundtrip { } after the registrations its " +
+                    "models depend on."
             }
         }
+    }
+
+    private fun describe(model: Model<*, *>): String {
+        val state = when {
+            model.isNew() -> "new"
+            model.isDirty() -> "changed"
+            else -> "unchanged"
+        }
+        val events = model.modelEvents().map { it.eventName() }
+        return "${model::class.simpleName}[$state, events = $events]"
     }
 }
