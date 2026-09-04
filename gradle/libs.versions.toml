@@ -21,7 +21,7 @@ kotlinx-serialization-bom = { module = "org.jetbrains.kotlinx:kotlinx-serializat
 
 jooq-bom = { module = "org.jooq:jooq-bom", version = "3.21.7" }
 jackson-bom = { module = "com.fasterxml.jackson:jackson-bom", version = "2.22.2" }
-vertx-bom = { module = "io.vertx:vertx-stack-depchain", version = "5.1.6" }
+vertx-bom = { module = "io.vertx:vertx-stack-depchain", version = "5.1.7" }
 
 micrometer-bom = { module = "io.micrometer:micrometer-bom", version = "1.17.1" }
 opentelemetry-instrumentation-bom = { module = "io.opentelemetry.instrumentation:opentelemetry-instrumentation-bom", version = "2.31.1" }
