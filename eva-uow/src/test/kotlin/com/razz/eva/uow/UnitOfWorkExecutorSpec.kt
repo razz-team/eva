@@ -6,9 +6,11 @@ import com.razz.eva.domain.DepartmentId
 import com.razz.eva.domain.DepartmentId.Companion.randomDepartmentId
 import com.razz.eva.domain.EmployeeId
 import com.razz.eva.domain.ModelState.NewState.Companion.newState
+import com.razz.eva.domain.ModelState.PersistentState.Companion.persistentState
 import com.razz.eva.domain.Ration
 import com.razz.eva.domain.RationAllocation
 import com.razz.eva.domain.Tag
+import com.razz.eva.domain.Version.Companion.V1
 import com.razz.eva.events.UowEvent
 import com.razz.eva.persistence.ConnectionMode.REQUIRE_EXISTING
 import com.razz.eva.persistence.ConnectionMode.REQUIRE_NEW
@@ -540,6 +542,16 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
         }
 
         And("UnitOfWorkExecutor and UnitOfWork are configured") {
+            // these doubles hand a result back with an empty change list, so the model has to be
+            // persisted: the executor refuses an unregistered new or dirty model in a result
+            val department = OwnedDepartment(
+                id = departmentId,
+                name = "KazahDepartment",
+                headcount = 1,
+                ration = Ration.BUBALEH,
+                boss = bossId,
+                modelState = persistentState(V1, null),
+            )
             val anotherId = randomDepartmentId()
             val anotherModel = OwnedDepartment(
                 id = anotherId,
@@ -867,6 +879,16 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
         }
 
         And("Persistence exception counter metric") {
+            // these doubles hand a result back with an empty change list, so the model has to be
+            // persisted: the executor refuses an unregistered new or dirty model in a result
+            val department = OwnedDepartment(
+                id = departmentId,
+                name = "KazahDepartment",
+                headcount = 1,
+                ration = Ration.BUBALEH,
+                boss = bossId,
+                modelState = persistentState(V1, null),
+            )
             val uowName = "MockOfCreateDepartmentUow"
             val unitOfWork = mockk<CreateDepartmentUow>()
             val rawUnitOfWork = unitOfWork as UnitOfWork<TestPrincipal, Params, OwnedDepartment>
@@ -1030,6 +1052,16 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
         }
 
         And("UnitOfWork with FULL_UOW write tx scope") {
+            // these doubles hand a result back with an empty change list, so the model has to be
+            // persisted: the executor refuses an unregistered new or dirty model in a result
+            val department = OwnedDepartment(
+                id = departmentId,
+                name = "KazahDepartment",
+                headcount = 1,
+                ration = Ration.BUBALEH,
+                boss = bossId,
+                modelState = persistentState(V1, null),
+            )
             val uowName = "MockOfCreateDepartmentUow"
             val unitOfWork = mockk<CreateDepartmentUow>()
             val rawUnitOfWork = unitOfWork as UnitOfWork<TestPrincipal, Params, OwnedDepartment>
@@ -1263,6 +1295,39 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
 
             Then("The builder is rerun over the flushed set and the result is bare, not Accounted") {
                 result shouldBe WrappedDepartment(flushedDepartment, "wrapped")
+            }
+        }
+    }
+
+    Given("A plain UnitOfWork that returns a model it never registered") {
+        val clock = fixedUTC(ofEpochMilli(0))
+        val persisting = mockk<Persisting>(relaxed = true)
+        val fresh = com.razz.eva.domain.TestModel.Factory.createdTestModel("MLG", 420)
+        @Suppress("UNCHECKED_CAST")
+        val uowClass = DummyUow::class as KClass<DummyUow<com.razz.eva.domain.TestModel.CreatedTestModel>>
+        val uowx = UnitOfWorkExecutor(
+            factories = listOf(
+                uowClass withFactory {
+                    object : DummyUow<com.razz.eva.domain.TestModel.CreatedTestModel>(it) {
+                        override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                            add(com.razz.eva.domain.TestModel.Factory.createdTestModel("registered", 1))
+                            fresh
+                        }
+                    }
+                },
+            ),
+            persisting = persisting,
+            clock = clock,
+            openTelemetry = OpenTelemetry.noop(),
+        )
+
+        When("Principal executes it") {
+            val attempt = suspend { uowx.execute(uowClass, TestPrincipal) { DummyUow.Params } }
+
+            Then("The executor refuses the unregistered result and nothing is persisted") {
+                val ex = shouldThrow<IllegalStateException> { attempt() }
+                checkNotNull(ex.message) shouldContainText "the write would be silently dropped"
+                verify { persisting wasNot Called }
             }
         }
     }

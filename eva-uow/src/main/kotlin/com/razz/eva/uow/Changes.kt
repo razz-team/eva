@@ -146,25 +146,7 @@ class ChangesAccumulator private constructor(
         resultBuilder: ((PersistedLookup) -> Any?)? = null,
     ): Changes<R> {
         require(modelChanges.isNotEmpty() || entityChanges.isNotEmpty()) { "No changes to persist" }
-        val flattened = flattenChildModels()
-        verifyResultAccounted(result, flattened)
-        return RealisedChanges(result, flattened, entityChanges, resultBuilder)
-    }
-
-    // The universal net under every changes block, whatever the UoW family: a new or dirty model in
-    // the result whose id is not in the change set carries a write that will never be persisted.
-    // A NoopModel claim vouches only for the claimed instance; a real change vouches for its id.
-    private fun verifyResultAccounted(result: Any?, flattened: List<ModelChange>) {
-        val registered = flattened.associateBy { it.id }
-        for (model in modelsIn(result)) {
-            val change = registered[model.id()]
-            val accounted = change != null && (change !is NoopModel || change.model === model)
-            if (accounted) continue
-            check(!model.isNew() && !model.isDirty()) {
-                "Unregistered ${if (model.isNew()) "new" else "changed"} " +
-                    "model [${model.id().stringValue()}] in the result: the write would be silently dropped"
-            }
-        }
+        return RealisedChanges(result, flattenChildModels(), entityChanges, resultBuilder)
     }
 
     @Suppress("UNCHECKED_CAST")
@@ -209,6 +191,26 @@ class ChangesAccumulator private constructor(
                 changes.modelChangesToPersist.associateByTo(LinkedHashMap()) { it.id },
                 changes.entityChangesToPersist,
             )
+        }
+    }
+}
+
+/**
+ * A new or dirty model reachable from a result whose id is not in [changes] carries a write that will
+ * never be persisted. A [NoopModel] claim vouches only for the claimed instance; a real change vouches
+ * for its id. Called at block completion by the proving families, where a block cannot even compile
+ * with an unregistered model as its tail, and by the executor over the final merged change set, which
+ * is where the plain families' hand-back pattern has finished and the answer is authoritative.
+ */
+internal fun verifyResultAccounted(result: Any?, changes: List<ModelChange>) {
+    val registered = changes.associateBy { it.id }
+    for (model in modelsIn(result)) {
+        val change = registered[model.id()]
+        val accounted = change != null && (change !is NoopModel || change.model === model)
+        if (accounted) continue
+        check(!model.isNew() && !model.isDirty()) {
+            "Unregistered ${if (model.isNew()) "new" else "changed"} " +
+                "model [${model.id().stringValue()}] in the result: the write would be silently dropped"
         }
     }
 }

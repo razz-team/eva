@@ -23,8 +23,10 @@ import com.razz.eva.uow.UowParams
  *
  * Entity changes and [execute] hand back what they always did. An entity is not the thing that gets
  * silently dropped, and a composed child UoW accounted for its own result rather than this block doing
- * it. [roundtrip] also passes through bare: its lookup falls back to the argument for models absent from
- * the change set, so wrapping its result would claim evidence the lookup does not give.
+ * it: end a block on such a result with [accountedByChild], not with a `notChanged` that would
+ * claim a registration this block never made. [roundtrip] also passes through bare: its lookup falls
+ * back to the argument for models absent from the change set, so wrapping its result would claim
+ * evidence the lookup does not give.
  */
 class ProvingChangesDsl internal constructor(
     @PublishedApi internal val dsl: ChangesDsl,
@@ -60,12 +62,23 @@ class ProvingChangesDsl internal constructor(
     @Suppress("VariableNaming")
     val Unit: Accounted<kotlin.Unit> get() = Accounted(kotlin.Unit, this)
 
+    /**
+     * A composed child registered this model, so this block is handing its result through rather than
+     * registering it again. The instance is still verified against the merged change set when the
+     * block completes, so this states a fact the runtime checks rather than taking anyone's word.
+     */
+    fun <M : Model<*, *>> accountedByChild(model: M): Accounted<M> = Accounted(model, this)
+
     @Deprecated(
-        "A model result must be registered through add / update / notChanged, not stated as noModelResult",
+        "A model result must be registered through add / update / notChanged, or handed through with " +
+            "accountedByChild when a composed child registered it, not stated as noModelResult",
         level = DeprecationLevel.ERROR,
     )
     fun <M : Model<*, *>> noModelResult(result: M): Accounted<M> =
-        throw UnsupportedOperationException("A model result must be registered, not stated as noModelResult")
+        throw UnsupportedOperationException(
+            "A model result must be registered, or handed through with accountedByChild when a " +
+                "composed child registered it",
+        )
 
     fun <E : CreatableEntity> add(entity: E): E = dsl.add(entity)
 

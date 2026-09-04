@@ -5,6 +5,7 @@ import com.razz.eva.uow.BaseUnitOfWork
 import com.razz.eva.uow.Changes
 import com.razz.eva.uow.ExecutionContext
 import com.razz.eva.uow.UowParams
+import com.razz.eva.uow.verifyResultAccounted
 
 /**
  * The proving family's effect-shaped member: a UoW whose result is [Unit]. Its block registers and
@@ -25,12 +26,14 @@ abstract class ProvingEffectUnitOfWork<PRINCIPAL, PARAMS>(
     where PRINCIPAL : Principal<*>, PARAMS : UowParams<PARAMS> {
 
     protected suspend fun changes(init: suspend ProvingChangesDsl.() -> Accounted<*>): Changes<Unit> {
-        return ChangesDsl.changes(executionContext) {
+        val changes = ChangesDsl.changes(executionContext) {
             val proving = ProvingChangesDsl(this)
             val accounted = proving.init()
             check(accounted.origin === proving) {
                 "Accounted evidence was minted by another changes block"
             }
         }
+        verifyResultAccounted(changes.result, changes.modelChangesToPersist)
+        return changes
     }
 }

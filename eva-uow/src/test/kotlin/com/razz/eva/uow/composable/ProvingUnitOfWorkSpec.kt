@@ -322,6 +322,56 @@ class ProvingUnitOfWorkSpec : FunSpec({
         exception.message.shouldNotBeNull() shouldContain "is not the instance that was registered"
     }
 
+    test("An unchanged registration vouches only for its instance, not its id") {
+        val model0 = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
+
+        val uow = object : DummyProvingUow<List<ActiveTestModel>>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                notChanged(model0)
+                noModelResult(listOf(model0.activate()))
+            }
+        }
+        val exception = shouldThrow<IllegalStateException> {
+            uow.tryPerform(TestPrincipal, DummyProvingUow.Params)
+        }
+        exception.message shouldBe "Unregistered changed model [${model0.id().stringValue()}] " +
+            "in the result: the write would be silently dropped"
+    }
+
+    test("accountedByChild hands a composed child's registration through as the result") {
+        val model = createdTestModel("MLG", 420)
+        val child = { ctx: ExecutionContext ->
+            object : DummyProvingUow<CreatedTestModel>(ctx) {
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes { add(model) }
+            }
+        }
+        val parent = object : DummyProvingUow<CreatedTestModel>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                accountedByChild(execute(child, TestPrincipal) { DummyProvingUow.Params })
+            }
+        }
+        val changes = parent.tryPerform(TestPrincipal, DummyProvingUow.Params)
+
+        changes.result shouldBe model
+        changes.modelChangesToPersist shouldBe listOf(AddModel(model, listOf(TestModelCreated(model.id()))))
+    }
+
+    test("accountedByChild still fails when no child registered the model") {
+        val registered = createdTestModel("MLG", 420)
+        val unregistered = createdTestModel("noscope", 360)
+
+        val uow = object : DummyProvingUow<CreatedTestModel>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                add(registered)
+                accountedByChild(unregistered)
+            }
+        }
+        val exception = shouldThrow<IllegalStateException> {
+            uow.tryPerform(TestPrincipal, DummyProvingUow.Params)
+        }
+        exception.message.shouldNotBeNull() shouldContain "Unregistered new model"
+    }
+
     test("A batch of registered models is a legal result") {
         val model0 = createdTestModel("MLG", 420)
         val model1 = createdTestModel("noscope", 360)

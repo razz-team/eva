@@ -488,7 +488,8 @@ class ChangesDslSpec : FunSpec({
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
         exception.message shouldBe "No-op update for model [${model.id().stringValue()}]: no new events on " +
-            "top of the existing change. Use notChanged(...) or guard update(...)."
+            "top of the existing change. Guard the update(...), or, if a composed child " +
+            "already registered this model, hand its result through instead of registering it again."
     }
 
     test("Should return properly built RealisedChanges when entity is added") {
@@ -1097,7 +1098,7 @@ class ChangesDslSpec : FunSpec({
         changes.result shouldBe "K P A C U B O"
     }
 
-    test("Should throw when an unregistered new model is the result") {
+    test("A plain block may hand an unregistered model back for its caller to register") {
         val model0 = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1).activate()
         val fresh = createdTestModel("MLG", 420)
 
@@ -1107,11 +1108,9 @@ class ChangesDslSpec : FunSpec({
                 fresh
             }
         }
-        val exception = shouldThrow<IllegalStateException> {
-            uow.tryPerform(TestPrincipal, DummyUow.Params)
-        }
-        exception.message shouldBe "Unregistered new model [${fresh.id().stringValue()}] " +
-            "in the result: the write would be silently dropped"
+        // legal at block level: the hand-back pattern lets a parent register what a child built.
+        // UnitOfWorkExecutorSpec pins the refusal at the executor, over the merged change set.
+        uow.tryPerform(TestPrincipal, DummyUow.Params).result shouldBe fresh
     }
 
     test("noChanges rejects a fresh mutation of a model the parent registered as unchanged") {
@@ -1135,22 +1134,6 @@ class ChangesDslSpec : FunSpec({
         }
         exception.message shouldBe "Attempted to pass changed model [${model0.id().stringValue()}] " +
             "to noChanges: the write would be silently dropped"
-    }
-
-    test("An unchanged registration vouches only for its instance, not its id") {
-        val model0 = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
-
-        val uow = object : DummyUow<List<ActiveTestModel>>(executionContext) {
-            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
-                notChanged(model0)
-                listOf(model0.activate())
-            }
-        }
-        val exception = shouldThrow<IllegalStateException> {
-            uow.tryPerform(TestPrincipal, DummyUow.Params)
-        }
-        exception.message shouldBe "Unregistered changed model [${model0.id().stringValue()}] " +
-            "in the result: the write would be silently dropped"
     }
 
     test("noChanges accepts a dirty model already registered in the parent's change set") {

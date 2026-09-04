@@ -7,6 +7,7 @@ import com.razz.eva.uow.Changes
 import com.razz.eva.uow.ExecutionContext
 import com.razz.eva.uow.UowParams
 import com.razz.eva.uow.modelsIn
+import com.razz.eva.uow.verifyResultAccounted
 
 /**
  * A composable [UnitOfWork] whose change block must end on an [Accounted] value. `changes { }` persists
@@ -58,6 +59,7 @@ abstract class ProvingUnitOfWork<PRINCIPAL, PARAMS, RESULT>(
             }
             accounted.result
         }
+        verifyResultAccounted(changes.result, changes.modelChangesToPersist)
         verifyResultModels(changes)
         return changes
     }

@@ -201,7 +201,7 @@ class ChangesDslSpec : FunSpec({
         changes.result shouldBe "K P A C U B O"
     }
 
-    test("Should throw when an unregistered changed model is the result") {
+    test("A plain block may hand an unregistered model back for its caller to register") {
         val model0 = createdTestModel("MLG", 420)
         val dirty = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1).activate()
 
@@ -211,10 +211,8 @@ class ChangesDslSpec : FunSpec({
                 dirty
             }
         }
-        val exception = shouldThrow<IllegalStateException> {
-            uow.tryPerform(TestPrincipal, DummyUow.Params)
-        }
-        exception.message shouldBe "Unregistered changed model [${dirty.id().stringValue()}] " +
-            "in the result: the write would be silently dropped"
+        // the executor refuses this over the merged change set; a block on its own does not,
+        // so a parent can still register what a child handed back
+        uow.tryPerform(TestPrincipal, DummyUow.Params).result shouldBe dirty
     }
 })
