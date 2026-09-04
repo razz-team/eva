@@ -335,7 +335,9 @@ class UowSpecVerifySpec : BehaviorSpec({
 
     Given("A change whose result is an unrelated model of the same type") {
         val added = createdTestModel("MLG", 420)
-        val unrelated = createdTestModel("MLG", 420)
+        // persisted, not new: an unregistered NEW model in a result is refused by withResult itself,
+        // so the id mismatch this pins would never reach the verify DSL
+        val unrelated = existingCreatedTestModel(randomTestModelId(), "MLG", 420, V1)
         val changes = ChangesAccumulator().withAddedModel(added).withResult(unrelated)
 
         When("addsAndReturns verifies the change") {

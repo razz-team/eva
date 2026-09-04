@@ -12,12 +12,15 @@ import com.razz.eva.uow.OtelAttributes.MODEL_ID
 import com.razz.eva.tracing.getEvaTracer
 import com.razz.eva.tracing.use
 import com.razz.eva.uow.AddModel
-import com.razz.eva.uow.PersistedLookup
+import com.razz.eva.uow.BaseUnitOfWork
 import com.razz.eva.uow.Changes
 import com.razz.eva.uow.ChangesAccumulator
 import com.razz.eva.uow.ExecutionContext
 import com.razz.eva.uow.InstantiationContext
 import com.razz.eva.uow.NoopModel
+import com.razz.eva.uow.PersistedLookup
+import com.razz.eva.uow.isSameAs
+import com.razz.eva.uow.isSuccessorOf
 import com.razz.eva.uow.UpdateModel
 import com.razz.eva.uow.UowParams
 import io.opentelemetry.api.trace.Span
@@ -62,7 +65,8 @@ class ChangesDsl internal constructor(
             check(newEvents isSuccessorOf existing.modelEvents) {
                 if (newEvents isSameAs existing.modelEvents) {
                     "No-op update for model [${model.id().stringValue()}]: no new events on top of the " +
-                        "existing change. Use notChanged(...) or guard update(...)."
+                        "existing change. Guard the update(...), or, if a composed child already " +
+                        "registered this model, hand its result through instead of registering it again."
                 } else {
                     "Failed to merge changes for model [${model.id().stringValue()}]"
                 }
@@ -129,7 +133,8 @@ class ChangesDsl internal constructor(
         where PRINCIPAL : Principal<*>,
               PARAMS : UowParams<PARAMS>,
               RESULT : Any,
-              UOW : UnitOfWork<PRINCIPAL, PARAMS, RESULT> {
+              UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *>,
+              UOW : ComposableUow {
         val uow = uowFactory(executionContext.withInheritedChanges(changes))
         val span = uowSpan(uow.name())
         return span.use {
@@ -141,7 +146,10 @@ class ChangesDsl internal constructor(
                 subChanges.modelChangesToPersist.map { it.id.stringValue() },
             )
             if (subChanges.modelChangesToPersist.isNotEmpty() || subChanges.entityChangesToPersist.isNotEmpty()) {
-                changes = ChangesAccumulator.from(subChanges)
+                // Additive merge: the accumulated changes always survive, so a child built with a
+                // context other than the one given to the factory can add changes but cannot make
+                // inherited ones vanish; a same-model conflict on diverged event streams fails loudly.
+                changes = changes.merging(uow.name(), subChanges)
                 inheritedModelIds.addAll(changes.modelIds())
             }
             // Under composition the caller gets this in-memory seed; the child's resultBuilder is not rerun.
@@ -168,30 +176,4 @@ class ChangesDsl internal constructor(
     private fun performingSpan(name: String): Span = executionContext.otel.getEvaTracer()
         .spanBuilder("$name-perform")
         .startSpan()
-
-    private infix fun List<ModelEvent<*>>
-        .isSuccessorOf(events: List<ModelEvent<*>>): Boolean {
-        if (size <= events.size) {
-            return false
-        }
-        events.forEachIndexed { i, e ->
-            if (this[i] !== e) {
-                return false
-            }
-        }
-        return true
-    }
-
-    private infix fun List<ModelEvent<*>>
-        .isSameAs(events: List<ModelEvent<*>>): Boolean {
-        if (size != events.size) {
-            return false
-        }
-        events.forEachIndexed { i, e ->
-            if (this[i] !== e) {
-                return false
-            }
-        }
-        return true
-    }
 }
