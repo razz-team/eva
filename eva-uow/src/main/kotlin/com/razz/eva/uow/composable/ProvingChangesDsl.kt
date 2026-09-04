@@ -23,10 +23,10 @@ import com.razz.eva.uow.UowParams
  *
  * Entity changes and [execute] hand back what they always did. An entity is not the thing that gets
  * silently dropped, and a composed child UoW accounted for its own result rather than this block doing
- * it: end a block on such a result with [accountedByChild], not with a `notChanged` that would
- * claim a registration this block never made. [roundtrip] also passes through bare: its lookup falls
- * back to the argument for models absent from the change set, so wrapping its result would claim
- * evidence the lookup does not give.
+ * it: hand such a result through with `notChanged`, which registers nothing once a child has already
+ * registered that id. [roundtrip] also passes through bare: its lookup falls back to the argument for
+ * models absent from the change set, so wrapping its result would claim evidence the lookup does not
+ * give.
  */
 class ProvingChangesDsl internal constructor(
     @PublishedApi internal val dsl: ChangesDsl,
@@ -40,6 +40,13 @@ class ProvingChangesDsl internal constructor(
         where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> =
         Accounted(dsl.update(model), this)
 
+    /**
+     * States that this block adds nothing to the model's change. For a model already in the change
+     * set, one a composed child or an ancestor registered, it registers nothing at all and hands the
+     * value straight back, which is how such a result becomes this block's tail: the claim is about
+     * this block's delta, not about the model's state. A new or dirty model that nothing registered
+     * is refused here, at the call rather than at the tail.
+     */
     fun <MID, E, M> notChanged(model: M): Accounted<M>
         where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> =
         Accounted(dsl.notChanged(model), this)
@@ -62,23 +69,12 @@ class ProvingChangesDsl internal constructor(
     @Suppress("VariableNaming")
     val Unit: Accounted<kotlin.Unit> get() = Accounted(kotlin.Unit, this)
 
-    /**
-     * A composed child registered this model, so this block is handing its result through rather than
-     * registering it again. The instance is still verified against the merged change set when the
-     * block completes, so this states a fact the runtime checks rather than taking anyone's word.
-     */
-    fun <M : Model<*, *>> accountedByChild(model: M): Accounted<M> = Accounted(model, this)
-
     @Deprecated(
-        "A model result must be registered through add / update / notChanged, or handed through with " +
-            "accountedByChild when a composed child registered it, not stated as noModelResult",
+        "A model result must be registered through add / update / notChanged, not stated as noModelResult",
         level = DeprecationLevel.ERROR,
     )
     fun <M : Model<*, *>> noModelResult(result: M): Accounted<M> =
-        throw UnsupportedOperationException(
-            "A model result must be registered, or handed through with accountedByChild when a " +
-                "composed child registered it",
-        )
+        throw UnsupportedOperationException("A model result must be registered, not stated as noModelResult")
 
     fun <E : CreatableEntity> add(entity: E): E = dsl.add(entity)
 

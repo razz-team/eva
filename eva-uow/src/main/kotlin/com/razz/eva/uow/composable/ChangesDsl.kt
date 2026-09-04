@@ -65,8 +65,7 @@ class ChangesDsl internal constructor(
             check(newEvents isSuccessorOf existing.modelEvents) {
                 if (newEvents isSameAs existing.modelEvents) {
                     "No-op update for model [${model.id().stringValue()}]: no new events on top of the " +
-                        "existing change. Guard the update(...), or, if a composed child already " +
-                        "registered this model, hand its result through instead of registering it again."
+                        "existing change. Use notChanged(...) or guard update(...)."
                 } else {
                     "Failed to merge changes for model [${model.id().stringValue()}]"
                 }

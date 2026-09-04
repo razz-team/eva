@@ -338,7 +338,7 @@ class ProvingUnitOfWorkSpec : FunSpec({
             "in the result: the write would be silently dropped"
     }
 
-    test("accountedByChild hands a composed child's registration through as the result") {
+    test("notChanged hands a composed child's registration through without registering it again") {
         val model = createdTestModel("MLG", 420)
         val child = { ctx: ExecutionContext ->
             object : DummyProvingUow<CreatedTestModel>(ctx) {
@@ -347,7 +347,7 @@ class ProvingUnitOfWorkSpec : FunSpec({
         }
         val parent = object : DummyProvingUow<CreatedTestModel>(executionContext) {
             override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
-                accountedByChild(execute(child, TestPrincipal) { DummyProvingUow.Params })
+                notChanged(execute(child, TestPrincipal) { DummyProvingUow.Params })
             }
         }
         val changes = parent.tryPerform(TestPrincipal, DummyProvingUow.Params)
@@ -356,20 +356,21 @@ class ProvingUnitOfWorkSpec : FunSpec({
         changes.modelChangesToPersist shouldBe listOf(AddModel(model, listOf(TestModelCreated(model.id()))))
     }
 
-    test("accountedByChild still fails when no child registered the model") {
+    test("notChanged still fails when no child registered the model") {
         val registered = createdTestModel("MLG", 420)
         val unregistered = createdTestModel("noscope", 360)
 
         val uow = object : DummyProvingUow<CreatedTestModel>(executionContext) {
             override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
                 add(registered)
-                accountedByChild(unregistered)
+                notChanged(unregistered)
             }
         }
-        val exception = shouldThrow<IllegalStateException> {
+        val exception = shouldThrow<IllegalArgumentException> {
             uow.tryPerform(TestPrincipal, DummyProvingUow.Params)
         }
-        exception.message.shouldNotBeNull() shouldContain "Unregistered new model"
+        exception.message shouldBe "Attempted to register new model " +
+            "[${unregistered.id().stringValue()}] as unchanged"
     }
 
     test("A batch of registered models is a legal result") {

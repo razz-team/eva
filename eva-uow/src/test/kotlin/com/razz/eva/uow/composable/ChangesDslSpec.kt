@@ -488,8 +488,7 @@ class ChangesDslSpec : FunSpec({
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
         exception.message shouldBe "No-op update for model [${model.id().stringValue()}]: no new events on " +
-            "top of the existing change. Guard the update(...), or, if a composed child " +
-            "already registered this model, hand its result through instead of registering it again."
+            "top of the existing change. Use notChanged(...) or guard update(...)."
     }
 
     test("Should return properly built RealisedChanges when entity is added") {
