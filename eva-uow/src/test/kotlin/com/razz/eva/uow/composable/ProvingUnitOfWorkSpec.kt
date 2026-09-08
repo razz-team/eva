@@ -201,6 +201,23 @@ class ProvingUnitOfWorkSpec : FunSpec({
         )
     }
 
+    test("An effect UoW refuses evidence laundered onto an unregistered model") {
+        val registered = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
+        val activated = registered.activate()
+        val smuggled = existingCreatedTestModel(randomTestModelId(), "MLG", 420, V1).activate()
+
+        val uow = object : EffectUnitOfWork<TestPrincipal, DummyProvingUow.Params>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: DummyProvingUow.Params) = changes {
+                update(activated).map { smuggled }
+            }
+        }
+        val exception = shouldThrow<IllegalStateException> {
+            uow.tryPerform(TestPrincipal, DummyProvingUow.Params)
+        }
+        exception.message shouldBe "Unregistered changed model [${smuggled.id().stringValue()}] " +
+            "in the result: the write would be silently dropped"
+    }
+
     test("An effect UoW block can end on the literal Unit after its registrations") {
         val model0 = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
         val activated = model0.activate()

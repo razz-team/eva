@@ -26,14 +26,17 @@ abstract class ProvingEffectUnitOfWork<PRINCIPAL, PARAMS>(
     where PRINCIPAL : Principal<*>, PARAMS : UowParams<PARAMS> {
 
     protected suspend fun changes(init: suspend ProvingChangesDsl.() -> Accounted<*>): Changes<Unit> {
+        var evidence: Any? = null
         val changes = ChangesDsl.changes(executionContext) {
             val proving = ProvingChangesDsl(this)
             val accounted = proving.init()
             check(accounted.origin === proving) {
                 "Accounted evidence was minted by another changes block"
             }
+            evidence = accounted.result
         }
-        verifyResultAccounted(changes.result, changes.modelChangesToPersist)
+        // the declared result is Unit, so the models worth checking are the ones the evidence holds
+        verifyResultAccounted(evidence, changes.modelChangesToPersist)
         return changes
     }
 }
