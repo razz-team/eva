@@ -23,9 +23,12 @@ class Accounted<out R> internal constructor(
 ) {
 
     /**
-     * Shapes the accounted result into a projection (an id, a DTO, a response). A new or dirty model
-     * that was never registered cannot hide in the projection: the models reachable from the block's
-     * final value are verified against the change set when the block completes.
+     * Shapes the accounted result into a projection (an id, a DTO, a response). The evidence says
+     * this block registered something, not that it registered the value being returned, so what
+     * catches a mistake here is the runtime walk: models reachable through iterables, maps, arrays,
+     * pairs and triples are checked against the change set when the block completes. A model held by
+     * a data class or a `Sequence` is past that walk, so an unregistered one buried there is the
+     * author's responsibility.
      */
     fun <T> map(transform: (R) -> T): Accounted<T> = Accounted(transform(result), origin)
 }
