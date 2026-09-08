@@ -8,10 +8,20 @@ import org.jetbrains.kotlin.compiler.plugin.ExperimentalCompilerApi
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.string.shouldNotContain
 import java.io.OutputStream
 
 // Pins the feature's actual guarantee in CI: a proving block whose last expression is an unregistered
 // model must not compile. Without this, the guarantee could be refactored away with every test green.
+// Asserts the probe was rejected for the stated reason. Without the jvmTarget above, a probe whose
+// tail touches an eva inline function fails with "Cannot inline bytecode built with JVM target 21",
+// whose text contains the tokens these tests look for: that would be a green run for a broken probe.
+fun com.tschuchort.compiletesting.JvmCompilationResult.shouldRejectWith(diagnostic: String) {
+    messages shouldNotContain "Cannot inline bytecode"
+    exitCode shouldBe KotlinCompilation.ExitCode.COMPILATION_ERROR
+    messages shouldContain diagnostic
+}
+
 class ProvingCompileRejectionSpec : FunSpec({
 
     fun probe(blockTail: String) = SourceFile.kotlin(
@@ -46,14 +56,17 @@ class ProvingCompileRejectionSpec : FunSpec({
     fun compile(blockTail: String) = KotlinCompilation().apply {
         sources = listOf(probe(blockTail))
         inheritClassPath = true
+        jvmTarget = "21"
         verbose = false
         messageOutputStream = OutputStream.nullOutputStream()
     }.compile()
 
     test("A block ending on an unregistered model does not compile") {
         val result = compile("createdTestModel(\"MLG\", 420)")
-        result.exitCode shouldBe KotlinCompilation.ExitCode.COMPILATION_ERROR
-        result.messages shouldContain "Accounted"
+        result.shouldRejectWith(
+            "Return type mismatch: expected 'Accounted<TestModel.CreatedTestModel>', " +
+                "actual 'TestModel.CreatedTestModel'.",
+        )
     }
 
     test("The same block ending on a registration compiles") {
@@ -63,8 +76,10 @@ class ProvingCompileRejectionSpec : FunSpec({
 
     test("noModelResult refuses a bare model at compile time") {
         val result = compile("noModelResult(createdTestModel(\"MLG\", 420))")
-        result.exitCode shouldBe KotlinCompilation.ExitCode.COMPILATION_ERROR
-        result.messages shouldContain "must be registered"
+        result.shouldRejectWith(
+            "A model result must be registered through add / update / notChanged, " +
+                "not stated as noModelResult.",
+        )
     }
 
     test("An effect block ending on a bare mutation does not compile") {
@@ -103,11 +118,11 @@ class ProvingCompileRejectionSpec : FunSpec({
         val result = KotlinCompilation().apply {
             sources = listOf(probe)
             inheritClassPath = true
+            jvmTarget = "21"
             verbose = false
             messageOutputStream = OutputStream.nullOutputStream()
         }.compile()
-        result.exitCode shouldBe KotlinCompilation.ExitCode.COMPILATION_ERROR
-        result.messages shouldContain "Accounted"
+        result.shouldRejectWith("Return type mismatch: expected 'Accounted<*>', actual 'TestModel.ActiveTestModel'.")
     }
 
     test("stubChanges is opt-in only: a tryPerform returning it does not compile without the marker") {
@@ -141,10 +156,12 @@ class ProvingCompileRejectionSpec : FunSpec({
         val result = KotlinCompilation().apply {
             sources = listOf(probe)
             inheritClassPath = true
+            jvmTarget = "21"
             verbose = false
             messageOutputStream = OutputStream.nullOutputStream()
         }.compile()
-        result.exitCode shouldBe KotlinCompilation.ExitCode.COMPILATION_ERROR
-        result.messages shouldContain "test doubles"
+        result.shouldRejectWith(
+            "stubChanges builds Changes for test doubles; production code must go through changes { }",
+        )
     }
 })

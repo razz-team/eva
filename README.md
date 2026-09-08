@@ -728,6 +728,8 @@ Runtime verification backs the types up, and most of it guards every UoW family,
 
 Entity changes and `execute` hand back what they always did, and a proving UoW stays composable: it can execute children and be executed as a child, from plain and proving parents alike. Adopting it on an existing UoW means changing the base class and reworking the block's tail to end on evidence; the executor, callers and specs are untouched.
 
+Upgrading a custom UoW family: `BaseUnitOfWork` no longer declares an abstract `changes`, because each family now shapes that function itself (the proving families constrain the block's return type; the plain ones do not). A family outside eva that declared `final override suspend fun changes` fails to compile with `'changes' overrides nothing`; drop the `override` and keep the body. `ComposableUow` is sealed, so only the bases eva ships can be composed as children. Both are deliberate.
+
 #### Returning persisted models with `roundtrip { }`
 
 When a UoW result is a single model or a collection of models, it is roundtripped through the database for you, so callers receive the flushed (version-bumped) instances. A data class that wraps several models is not roundtripped automatically. Use `roundtrip { p -> ... }` to build such a result: the lookup `p` resolves each model to its persisted instance by id.

@@ -15,7 +15,9 @@ import com.razz.eva.domain.ModelId
  * automatically; [alsoRegistered] adds models the double claims the child registered without
  * returning. Under composition the merge treats these claims as claims only: they never demote
  * changes the parent already accumulated, and they vouch for exactly the claimed instances. The
- * executor rejects a stub returned by a real UoW's `tryPerform`.
+ * executor rejects a stub returned by a real UoW's `tryPerform`. Under composition a stub is
+ * accepted, since standing in for a composed child is what this exists for; what keeps a stub out of
+ * production is this source set, which ships in the test-fixtures jar and not in the main one.
  */
 @TestDoubleApi
 fun <R> stubChanges(result: R, vararg alsoRegistered: Model<*, *>): Changes<R> {

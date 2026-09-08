@@ -23,6 +23,13 @@ import com.razz.eva.domain.TestModelStatus.CREATED
 import com.razz.eva.domain.Version.Companion.V1
 import com.razz.eva.uow.AddEntity
 import com.razz.eva.uow.AddModel
+import com.razz.eva.domain.DeptAggregate
+import com.razz.eva.domain.Employee
+import com.razz.eva.domain.Employee.Companion.newEmployee
+import com.razz.eva.domain.Name
+import com.razz.eva.domain.Ration.BUBALEH
+import com.razz.eva.domain.ModelState.PersistentState.Companion.persistentState
+import com.razz.eva.uow.ChangesAccumulator
 import com.razz.eva.uow.Clocks.fixedUTC
 import com.razz.eva.uow.Clocks.millisUTC
 import com.razz.eva.uow.DeleteEntity
@@ -995,6 +1002,50 @@ class ChangesDslSpec : FunSpec({
         exception.message shouldBe "Change for a given model [${model.id().stringValue()}] was already registered"
     }
 
+    test("noChanges accepts an owned child of an aggregate the parent registered") {
+        val emp = newEmployee(Name("Grace", "Hopper"), randomDepartmentId(), "g@test.com", BUBALEH)
+        val dept = DeptAggregate(
+            id = emp.departmentId,
+            name = "Engineering",
+            boss = randomEmployeeId(),
+            headcount = 2,
+            ration = BUBALEH,
+            employees = listOf(emp),
+            modelState = persistentState(V1, null),
+        ).rename("Eng v5")
+        // the parent registers the aggregate, so the child's write is carried by the flattened set
+        val inherited = ChangesAccumulator().withUpdatedModel(dept)
+
+        val child = object : DummyUow<Employee>(executionContext.withInheritedChanges(inherited)) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = noChanges(emp)
+        }
+        child.tryPerform(TestPrincipal, DummyUow.Params).result shouldBe emp
+    }
+
+    test("A claim-only child built with a substituted context is refused too") {
+        val model0 = createdTestModel("MLG", 420)
+        val persisted = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
+
+        val rogueClaimChild = { _: ExecutionContext ->
+            object : DummyUow<CreatedTestModel>(ExecutionContext(clock, OpenTelemetry.noop())) {
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                    notChanged(persisted)
+                }
+            }
+        }
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                add(model0)
+                execute(rogueClaimChild, TestPrincipal) { Params }
+                "K P A C U B O"
+            }
+        }
+        val exception = shouldThrow<IllegalStateException> {
+            uow.tryPerform(TestPrincipal, DummyUow.Params)
+        }
+        exception.message.shouldNotBeNull() shouldContain "dropped inherited changes"
+    }
+
     test("Should throw when a child with real changes was built with a substituted context") {
         val model0 = createdTestModel("MLG", 420)
         val model1 = createdTestModel("noscope", 360)
@@ -1128,7 +1179,7 @@ class ChangesDslSpec : FunSpec({
                 "K P A C U B O"
             }
         }
-        val exception = shouldThrow<IllegalArgumentException> {
+        val exception = shouldThrow<IllegalStateException> {
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
         exception.message shouldBe "Attempted to pass changed model [${model0.id().stringValue()}] " +

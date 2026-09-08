@@ -39,8 +39,8 @@ abstract class BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, C>(
     // the parent. Only the registered instance vouches; a divergent instance under the same id
     // carries events of its own that would be silently dropped.
     protected fun <R> noChanges(result: R): Changes<R> {
-        requireNoDroppedWrite(result, "noChanges") { model ->
-            executionContext.inheritedChanges?.changeFor(model.id())?.model === model
+        checkNoDroppedWrite(result, "noChanges") { model ->
+            executionContext.inheritedChanges?.flattenedChangeFor(model.id())?.model === model
         }
         return RealisedChanges(result, listOf(), listOf())
     }
@@ -63,7 +63,9 @@ abstract class BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, C>(
  * Every model reachable from [value] through the containers the guards understand: bare models,
  * [Iterable]s (nested to any depth), [Map] keys and values, [Array]s, [Pair]s and [Triple]s.
  * A model inside any other wrapper (a data class, a sealed outcome, a [Sequence], which cannot be
- * walked without consuming it) is invisible to the guards; the docs state that as the boundary.
+ * walked without consuming it) is invisible to the guards; the docs state that as the boundary. An
+ * [com.razz.eva.uow.composable.Accounted] is such a wrapper too, so models held by one are not
+ * walked: harmless, since a block can only obtain one by registering, but it is not a hole to widen.
  */
 internal fun modelsIn(value: Any?): List<Model<*, *>> {
     val found = mutableListOf<Model<*, *>>()
@@ -98,14 +100,14 @@ internal fun modelsIn(value: Any?): List<Model<*, *>> {
  * already vouches for that exact instance. Rejecting it here turns the silent write drop into a loud
  * failure at the site that dropped it.
  */
-internal fun requireNoDroppedWrite(
+internal fun checkNoDroppedWrite(
     result: Any?,
     site: String,
     isAccounted: (Model<*, *>) -> Boolean,
 ) {
     for (model in modelsIn(result)) {
         if (isAccounted(model)) continue
-        require(!model.isNew() && !model.isDirty()) {
+        check(!model.isNew() && !model.isDirty()) {
             "Attempted to pass ${if (model.isNew()) "new" else "changed"} " +
                 "model [${model.id().stringValue()}] to $site: the write would be silently dropped"
         }

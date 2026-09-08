@@ -705,6 +705,39 @@ class ChangesSpec : BehaviorSpec({
             }
         }
 
+        When("An owned child's write is claimed as unchanged by the block") {
+            val emp = newEmployee(Name("Frank", "Black"), DepartmentId.randomDepartmentId(), "f@test.com", BUBALEH)
+            val claimed = Employee(
+                id = emp.id(),
+                name = emp.name,
+                departmentId = emp.departmentId,
+                email = emp.email,
+                ration = BUBALEH,
+                modelState = persistentState(V1, null),
+            )
+            val dept = DeptAggregate(
+                id = emp.departmentId,
+                name = "Engineering",
+                boss = bossId,
+                headcount = 2,
+                ration = BUBALEH,
+                employees = listOf(emp),
+                modelState = persistentState(V1, null),
+            ).rename("Eng v4")
+
+            Then("The contradiction fails loudly instead of dropping the child's write") {
+                val exception = shouldThrow<IllegalStateException> {
+                    ChangesAccumulator()
+                        .withUnchangedModel(claimed)
+                        .withUpdatedModel(dept)
+                        .withResult("claim hides the child")
+                }
+                exception.message shouldBe "Model [${emp.id().stringValue()}] is registered as " +
+                    "unchanged, but aggregate [${dept.id().stringValue()}] owns a new instance of " +
+                    "it: the write would be silently dropped"
+            }
+        }
+
         When("Nested aggregates (2-level deep) are added") {
             val deptWithEmployee = newDeptAggregate(
                 name = "Inner Dept",

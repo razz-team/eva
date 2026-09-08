@@ -53,7 +53,10 @@ class ProvingChangesDsl internal constructor(
 
     /**
      * The stated exception: a result that is not a bare model, such as a computed value, a report, or
-     * a collection assembled from registered models. Spelling it at the return site is the point; a
+     * a collection assembled from registered models. The bare-model refusal below is type-directed,
+     * so it is best-effort: it wins overload resolution only when the expression's static type is a
+     * [Model], and a model behind a wider static type falls through to the runtime net instead.
+     * Spelling it at the return site is the point; a
      * reviewer sees the claim "no model here needed registering" instead of an absence. The models
      * reachable from the block's final value are verified against the change set when the block
      * completes: an unregistered new or dirty one fails the UoW.

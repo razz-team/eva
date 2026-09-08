@@ -91,7 +91,7 @@ class ProvingUnitOfWorkSpec : FunSpec({
             override suspend fun tryPerform(principal: TestPrincipal, params: Params) =
                 noChanges(model0.activate())
         }
-        val exception = shouldThrow<IllegalArgumentException> {
+        val exception = shouldThrow<IllegalStateException> {
             uow.tryPerform(TestPrincipal, DummyProvingUow.Params)
         }
         exception.message shouldBe "Attempted to pass changed model [${model0.id().stringValue()}] " +

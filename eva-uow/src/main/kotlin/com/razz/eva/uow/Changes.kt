@@ -90,6 +90,14 @@ class ChangesAccumulator private constructor(
 
     internal fun changeFor(modelId: ModelId<out Comparable<*>>): ModelChange? = modelChanges[modelId]
 
+    /**
+     * [changeFor] over the same flattened view [withResult] persists, so an owned child of a
+     * registered [Aggregate] counts as accounted. The two guards must agree: resolving a child
+     * through the raw map alone reports a dropped write for a model the aggregate will persist.
+     */
+    internal fun flattenedChangeFor(modelId: ModelId<out Comparable<*>>): ModelChange? =
+        flattenChildModels().firstOrNull { it.id == modelId }
+
     internal fun withReplacedModelChange(
         modelId: ModelId<out Comparable<*>>,
         change: ModelChange,
@@ -103,18 +111,18 @@ class ChangesAccumulator private constructor(
     internal fun modelIds(): Set<ModelId<out Comparable<*>>> = modelChanges.keys
 
     /**
-     * Folds a composed child's outcome into the accumulated changes. A claim-only child (every change
-     * a [NoopModel] and no entity changes, the shape of a stubbed test double) merges additively:
-     * claims for new ids join the set, claims for known ids never demote the accumulated change. A
+     * Folds a composed child's outcome into the accumulated changes. A stubbed child merges
+     * additively: its claims for new ids join the set, and claims for known ids never demote the
+     * accumulated change. Stubbing is read from the flag [Changes.stubbed] records rather than
+     * inferred from the shape, so a real child whose only registration happens to be a claim is
+     * still held to the seeding check below. A
      * child that made real changes must have seeded from this accumulator, so every accumulated model
      * change must come back with its events preserved as a prefix and every accumulated entity change
      * must survive; the child's set is then the continuation of this one and replaces it wholesale,
      * preserving order.
      */
     internal fun merging(uowName: String, subChanges: Changes<*>): ChangesAccumulator {
-        val claimOnly = subChanges.entityChangesToPersist.isEmpty() &&
-            subChanges.modelChangesToPersist.all { it is NoopModel }
-        if (claimOnly) {
+        if (subChanges.stubbed) {
             val mergedModels = LinkedHashMap(modelChanges)
             for (change in subChanges.modelChangesToPersist) {
                 mergedModels.putIfAbsent(change.id, change)
@@ -150,12 +158,18 @@ class ChangesAccumulator private constructor(
     }
 
     @Suppress("UNCHECKED_CAST")
-    private fun flattenChildModels(): List<ModelChange> {
+    internal fun flattenChildModels(): List<ModelChange> {
         val result = mutableListOf<ModelChange>()
         val seen = modelChanges.keys.toMutableSet()
         fun flatten(model: Model<*, *>) {
             if (model !is Aggregate<*, *>) return
             for (child in model.ownedModels()) {
+                val claimed = modelChanges[child.id()]
+                check(claimed !is NoopModel || !(child.isNew() || child.isDirty())) {
+                    "Model [${child.id().stringValue()}] is registered as unchanged, but aggregate " +
+                        "[${model.id().stringValue()}] owns a ${if (child.isNew()) "new" else "changed"} " +
+                        "instance of it: the write would be silently dropped"
+                }
                 if (!seen.add(child.id())) continue
                 val m = child as Model<ModelId<out Comparable<*>>, ModelEvent<ModelId<out Comparable<*>>>>
                 when {
