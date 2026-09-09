@@ -681,7 +681,7 @@ override suspend fun tryPerform(principal: ServicePrincipal, params: Params) = c
 }
 ```
 
-Extend `com.razz.eva.uow.composable.ProvingUnitOfWork` instead of `UnitOfWork` and that branch stops compiling. Adoption can be just an import: `com.razz.eva.uow.proving.UnitOfWork` aliases the proving base, so the declaration keeps reading `UnitOfWork<...>`. The block keeps the DSL's own names, but registrations return `Accounted<M>` instead of the model, and the block must end on an `Accounted<RESULT>`, which only the DSL mints. A `Unit`-result UoW declares `com.razz.eva.uow.proving.unit.UnitOfWork<PRINCIPAL, PARAMS>` instead, which drops the `Unit` type argument: its block ends on evidence too, but any registration will do, so a registration tail needs nothing appended and a statement tail closes with `Unit`:
+Extend `com.razz.eva.uow.composable.ProvingUnitOfWork` instead of `UnitOfWork` and that branch stops compiling. Adoption can be just an import: `com.razz.eva.uow.proving.UnitOfWork` aliases the proving base, so the declaration keeps reading `UnitOfWork<...>`. The block keeps the DSL's own names, but registrations return `Accounted<M>` instead of the model, and the block must end on an `Accounted<RESULT>`, which only the DSL mints. A `Unit`-result UoW declares `com.razz.eva.uow.proving.unit.UnitOfWork<PRINCIPAL, PARAMS>` instead, which drops the `Unit` type argument: its block ends on evidence too, but any registration will do, of a model or an entity, so a registration tail needs nothing appended and a statement tail ends on what the statement registered:
 
 ```kotlin
 class DepositUow(
@@ -708,15 +708,17 @@ For a result that genuinely is not a model, state the exception in the open with
     }
 ```
 
-In a `Unit`-result block, `Unit` is that same claim in the shortest form the result allows. It is a member of the DSL, so it counts as evidence inside a change block and nowhere else:
+In a `Unit`-result block there is no result to account for, so the block ends on a registration: any registration, of a model or an entity, is evidence on its own. A block whose last statement is a loop or a branch ends on what that statement registered:
 
 ```kotlin
     changes {
         update(order.confirm())                              // a registration tail needs nothing
     }
     changes {
-        params.items.forEach { update(it.markSeen(now)) }     // a statement tail closes with Unit
-        Unit
+        noModelResult(params.items.map { update(it.markSeen(now)).result })   // a loop's registrations
+    }
+    changes {
+        if (existing == null) add(newDay) else update(existing.merge(day))   // a branch, as an expression
     }
     changes {
         update(order.confirm())

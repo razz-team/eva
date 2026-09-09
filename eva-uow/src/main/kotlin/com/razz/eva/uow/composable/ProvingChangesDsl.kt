@@ -15,18 +15,20 @@ import com.razz.eva.uow.PersistedLookup
 import com.razz.eva.uow.UowParams
 
 /**
- * [ChangesDsl] with the model registrations returning [Accounted] instead of the model.
+ * [ChangesDsl] with every registration returning [Accounted] instead of what it registered.
  *
  * The names are the DSL's own: `add`, `update`, `notChanged`, `delete`, `roundtrip`, `execute`, so a
  * block reads exactly as it did. What changes is only the type at the return site: a block that has to
  * produce an `Accounted<RESULT>` cannot end on an unregistered model.
  *
- * Entity changes and [execute] hand back what they always did. An entity is not the thing that gets
- * silently dropped, and a composed child UoW accounted for its own result rather than this block doing
- * it: hand such a result through with `notChanged`, which registers nothing once a child has already
- * registered that id. [roundtrip] also passes through bare: its lookup falls back to the argument for
- * models absent from the change set, so wrapping its result would claim evidence the lookup does not
- * give.
+ * Entity registrations mint too, so a block that persists only entities ends on its last one; an entity
+ * is not the thing that gets silently dropped, but a block has to end on evidence of something. A block
+ * whose tail is a statement (a loop, a branch) ends on the registrations that statement made, as an
+ * expression or as `noModelResult(<the registered results>)`. [execute] hands back what it always did: a
+ * composed child accounted for its own result rather than this block doing it, so hand such a result
+ * through with `notChanged`, which registers nothing once a child has already registered that id.
+ * [roundtrip] also passes through bare: its lookup falls back to the argument for models absent from the
+ * change set, so wrapping its result would claim evidence the lookup does not give.
  */
 class ProvingChangesDsl internal constructor(
     @PublishedApi internal val dsl: ChangesDsl,
@@ -63,15 +65,6 @@ class ProvingChangesDsl internal constructor(
      */
     fun <R> noModelResult(result: R): Accounted<R> = Accounted(result, this)
 
-    /**
-     * The stated exception for a block whose result is [kotlin.Unit]: the registrations happened above
-     * and there is no result to account for. Shadows [kotlin.Unit] inside a change block only, so the
-     * tail stays evidence while reading as the result the UoW declares. One spelling for one thing:
-     * this replaces a zero-argument `noModelResult()`.
-     */
-    @Suppress("VariableNaming")
-    val Unit: Accounted<kotlin.Unit> get() = Accounted(kotlin.Unit, this)
-
     @Deprecated(
         "A model result must be registered through add / update / notChanged, not stated as noModelResult",
         level = DeprecationLevel.ERROR,
@@ -79,13 +72,18 @@ class ProvingChangesDsl internal constructor(
     fun <M : Model<*, *>> noModelResult(result: M): Accounted<M> =
         throw UnsupportedOperationException("A model result must be registered, not stated as noModelResult")
 
-    fun <E : CreatableEntity> add(entity: E): E = dsl.add(entity)
+    fun <E : CreatableEntity> add(entity: E): Accounted<E> = Accounted(dsl.add(entity), this)
 
-    fun <E : UpdatableEntity> update(entity: E): E = dsl.update(entity)
+    fun <E : UpdatableEntity> update(entity: E): Accounted<E> = Accounted(dsl.update(entity), this)
 
-    fun <E : DeletableEntity> delete(entity: E): E = dsl.delete(entity)
+    fun <E : DeletableEntity> delete(entity: E): Accounted<E> = Accounted(dsl.delete(entity), this)
 
-    inline fun <reified E : DeletableEntity, K : EntityKey<E>> delete(key: K): K = dsl.delete<E, K>(key)
+    inline fun <reified E : DeletableEntity, K : EntityKey<E>> delete(key: K): Accounted<K> =
+        accounted(dsl.delete<E, K>(key))
+
+    // inline callers cannot reach the internal constructor directly
+    @PublishedApi
+    internal fun <T> accounted(value: T): Accounted<T> = Accounted(value, this)
 
     /**
      * Passes through bare: end the block with `noModelResult(roundtrip { ... })`. A builder returning

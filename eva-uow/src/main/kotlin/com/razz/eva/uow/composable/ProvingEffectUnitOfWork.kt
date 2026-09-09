@@ -9,10 +9,11 @@ import com.razz.eva.uow.verifyResultAccounted
 
 /**
  * The proving family's effect-shaped member: a UoW whose result is [Unit]. Its block registers and
- * ends on evidence like any proving block, but the evidence need not be `Accounted<Unit>`, so a
- * registration is a legal tail on its own and a block that ends on a statement closes with `Unit`
- * (see [ProvingChangesDsl.Unit]). A tail that is a bare mutation does not compile, in this family as
- * in the others.
+ * ends on evidence like any proving block, but the evidence need not be `Accounted<Unit>`, so any
+ * registration, of a model or an entity, is a legal tail on its own. A block whose last statement is a
+ * loop or a branch ends on what that statement registered, as an expression or as
+ * `noModelResult(<the registered results>)`. A tail that is a bare mutation does not compile, in this
+ * family as in the others.
  *
  * Declared via `com.razz.eva.uow.proving.unit.UnitOfWork`, so adoption drops the `Unit` type argument.
  * A mutation discarded mid-block remains the author's to spot; downstream, Kotlin's return value
