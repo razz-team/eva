@@ -6,9 +6,11 @@ import com.razz.eva.domain.DepartmentId
 import com.razz.eva.domain.DepartmentId.Companion.randomDepartmentId
 import com.razz.eva.domain.EmployeeId
 import com.razz.eva.domain.ModelState.NewState.Companion.newState
+import com.razz.eva.domain.ModelState.PersistentState.Companion.persistentState
 import com.razz.eva.domain.Ration
 import com.razz.eva.domain.RationAllocation
 import com.razz.eva.domain.Tag
+import com.razz.eva.domain.Version.Companion.V1
 import com.razz.eva.events.UowEvent
 import com.razz.eva.persistence.ConnectionMode.REQUIRE_EXISTING
 import com.razz.eva.persistence.ConnectionMode.REQUIRE_NEW
@@ -36,6 +38,7 @@ import io.kotest.core.spec.IsolationMode.InstancePerLeaf
 import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain as shouldContainText
 import io.mockk.Called
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -49,6 +52,7 @@ import io.opentelemetry.sdk.testing.exporter.InMemoryMetricReader
 import java.time.Duration.ofMillis
 import java.time.Instant.ofEpochMilli
 import java.util.*
+import com.razz.eva.uow.composable.DummyProvingUow
 import com.razz.eva.uow.composable.DummyUow
 import com.razz.eva.uow.composable.UnitOfWork as ComposableUnitOfWork
 import kotlin.reflect.KClass
@@ -538,6 +542,16 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
         }
 
         And("UnitOfWorkExecutor and UnitOfWork are configured") {
+            // these doubles hand a result back with an empty change list, so the model has to be
+            // persisted: the executor refuses an unregistered new or dirty model in a result
+            val department = OwnedDepartment(
+                id = departmentId,
+                name = "KazahDepartment",
+                headcount = 1,
+                ration = Ration.BUBALEH,
+                boss = bossId,
+                modelState = persistentState(V1, null),
+            )
             val anotherId = randomDepartmentId()
             val anotherModel = OwnedDepartment(
                 id = anotherId,
@@ -865,6 +879,16 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
         }
 
         And("Persistence exception counter metric") {
+            // these doubles hand a result back with an empty change list, so the model has to be
+            // persisted: the executor refuses an unregistered new or dirty model in a result
+            val department = OwnedDepartment(
+                id = departmentId,
+                name = "KazahDepartment",
+                headcount = 1,
+                ration = Ration.BUBALEH,
+                boss = bossId,
+                modelState = persistentState(V1, null),
+            )
             val uowName = "MockOfCreateDepartmentUow"
             val unitOfWork = mockk<CreateDepartmentUow>()
             val rawUnitOfWork = unitOfWork as UnitOfWork<TestPrincipal, Params, OwnedDepartment>
@@ -1028,6 +1052,16 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
         }
 
         And("UnitOfWork with FULL_UOW write tx scope") {
+            // these doubles hand a result back with an empty change list, so the model has to be
+            // persisted: the executor refuses an unregistered new or dirty model in a result
+            val department = OwnedDepartment(
+                id = departmentId,
+                name = "KazahDepartment",
+                headcount = 1,
+                ration = Ration.BUBALEH,
+                boss = bossId,
+                modelState = persistentState(V1, null),
+            )
             val uowName = "MockOfCreateDepartmentUow"
             val unitOfWork = mockk<CreateDepartmentUow>()
             val rawUnitOfWork = unitOfWork as UnitOfWork<TestPrincipal, Params, OwnedDepartment>
@@ -1114,7 +1148,225 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
             }
         }
     }
+
+    Given("A proving UnitOfWork registered in the executor") {
+        val clock = fixedUTC(ofEpochMilli(0))
+        val departmentId = randomDepartmentId()
+        val bossId = EmployeeId(UUID.randomUUID())
+        val department = OwnedDepartment(
+            id = departmentId,
+            name = "KazahDepartment",
+            headcount = 1,
+            ration = Ration.BUBALEH,
+            boss = bossId,
+            modelState = newState(
+                OwnedDepartmentCreated(
+                    departmentId = departmentId,
+                    name = "KazahDepartment",
+                    headcount = 1,
+                    ration = Ration.BUBALEH,
+                    boss = bossId,
+                ),
+            ),
+        )
+        val persisting = mockk<Persisting>(relaxed = true)
+        @Suppress("UNCHECKED_CAST")
+        val provingClass = DummyProvingUow::class as KClass<DummyProvingUow<OwnedDepartment>>
+        val uowx = UnitOfWorkExecutor(
+            factories = listOf(
+                provingClass withFactory {
+                    object : DummyProvingUow<OwnedDepartment>(it) {
+                        override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                            add(department)
+                        }
+                    }
+                },
+            ),
+            persisting = persisting,
+            clock = clock,
+            openTelemetry = OpenTelemetry.noop(),
+        )
+        coEvery {
+            persisting.persist(
+                uowName = any(),
+                params = DummyProvingUow.Params,
+                principal = TestPrincipal,
+                modelChanges = any(),
+                entityChanges = any(),
+                now = any(),
+                uowSupportsOutOfOrderPersisting = any(),
+                connectionMode = any(),
+            )
+        } returns Pair(uowEvent(), listOf(department))
+
+        When("Principal executes proving UnitOfWork") {
+            val result = uowx.execute(provingClass, TestPrincipal) { DummyProvingUow.Params }
+
+            Then("The registered model comes back bare as the result") {
+                result shouldBe department
+            }
+
+            And("Its add went to persisting") {
+                coVerify {
+                    persisting.persist(
+                        uowName = any(),
+                        params = DummyProvingUow.Params,
+                        principal = TestPrincipal,
+                        modelChanges = match { it.size == 1 && it.single().id == departmentId },
+                        entityChanges = listOf(),
+                        now = clock.instant(),
+                        uowSupportsOutOfOrderPersisting = any(),
+                        connectionMode = REQUIRE_NEW,
+                    )
+                }
+            }
+        }
+    }
+
+    Given("A proving UnitOfWork with a roundtrip result registered in the executor") {
+        val clock = fixedUTC(ofEpochMilli(0))
+        val departmentId = randomDepartmentId()
+        val bossId = EmployeeId(UUID.randomUUID())
+        val department = OwnedDepartment(
+            id = departmentId,
+            name = "KazahDepartment",
+            headcount = 1,
+            ration = Ration.BUBALEH,
+            boss = bossId,
+            modelState = newState(
+                OwnedDepartmentCreated(
+                    departmentId = departmentId,
+                    name = "KazahDepartment",
+                    headcount = 1,
+                    ration = Ration.BUBALEH,
+                    boss = bossId,
+                ),
+            ),
+        )
+        val flushedDepartment = OwnedDepartment(
+            id = departmentId,
+            name = "FlushedDepartment",
+            headcount = 1,
+            ration = Ration.BUBALEH,
+            boss = bossId,
+            modelState = newState(
+                OwnedDepartmentCreated(
+                    departmentId = departmentId,
+                    name = "FlushedDepartment",
+                    headcount = 1,
+                    ration = Ration.BUBALEH,
+                    boss = bossId,
+                ),
+            ),
+        )
+        val persisting = mockk<Persisting>(relaxed = true)
+        @Suppress("UNCHECKED_CAST")
+        val provingClass = DummyProvingUow::class as KClass<DummyProvingUow<WrappedDepartment>>
+        val uowx = UnitOfWorkExecutor(
+            factories = listOf(
+                provingClass withFactory {
+                    object : DummyProvingUow<WrappedDepartment>(it) {
+                        override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                            add(department)
+                            noModelResult(roundtrip { p -> WrappedDepartment(p(department), "wrapped") })
+                        }
+                    }
+                },
+            ),
+            persisting = persisting,
+            clock = clock,
+            openTelemetry = OpenTelemetry.noop(),
+        )
+        coEvery {
+            persisting.persist(
+                uowName = any(),
+                params = DummyProvingUow.Params,
+                principal = TestPrincipal,
+                modelChanges = any(),
+                entityChanges = any(),
+                now = any(),
+                uowSupportsOutOfOrderPersisting = any(),
+                connectionMode = any(),
+            )
+        } returns Pair(uowEvent(), listOf(flushedDepartment))
+
+        When("Principal executes proving UnitOfWork") {
+            val result = uowx.execute(provingClass, TestPrincipal) { DummyProvingUow.Params }
+
+            Then("The builder is rerun over the flushed set and the result is bare, not Accounted") {
+                result shouldBe WrappedDepartment(flushedDepartment, "wrapped")
+            }
+        }
+    }
+
+    Given("A plain UnitOfWork that returns a model it never registered") {
+        val clock = fixedUTC(ofEpochMilli(0))
+        val persisting = mockk<Persisting>(relaxed = true)
+        val fresh = com.razz.eva.domain.TestModel.Factory.createdTestModel("MLG", 420)
+        @Suppress("UNCHECKED_CAST")
+        val uowClass = DummyUow::class as KClass<DummyUow<com.razz.eva.domain.TestModel.CreatedTestModel>>
+        val uowx = UnitOfWorkExecutor(
+            factories = listOf(
+                uowClass withFactory {
+                    object : DummyUow<com.razz.eva.domain.TestModel.CreatedTestModel>(it) {
+                        override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                            add(com.razz.eva.domain.TestModel.Factory.createdTestModel("registered", 1))
+                            fresh
+                        }
+                    }
+                },
+            ),
+            persisting = persisting,
+            clock = clock,
+            openTelemetry = OpenTelemetry.noop(),
+        )
+
+        When("Principal executes it") {
+            val attempt = suspend { uowx.execute(uowClass, TestPrincipal) { DummyUow.Params } }
+
+            Then("The executor refuses the unregistered result and nothing is persisted") {
+                val ex = shouldThrow<IllegalStateException> { attempt() }
+                checkNotNull(ex.message) shouldContainText "the write would be silently dropped"
+                verify { persisting wasNot Called }
+            }
+        }
+    }
+
+    Given("A UnitOfWork whose tryPerform returns a stub") {
+        val clock = fixedUTC(ofEpochMilli(0))
+        val persisting = mockk<Persisting>(relaxed = true)
+        @Suppress("UNCHECKED_CAST")
+        val uowClass = DummyUow::class as KClass<DummyUow<String>>
+        val uowx = UnitOfWorkExecutor(
+            factories = listOf(
+                uowClass withFactory {
+                    object : DummyUow<String>(it) {
+                        @OptIn(TestDoubleApi::class)
+                        override suspend fun tryPerform(principal: TestPrincipal, params: Params) =
+                            stubChanges("NOT A REAL OUTCOME")
+                    }
+                },
+            ),
+            persisting = persisting,
+            clock = clock,
+            openTelemetry = OpenTelemetry.noop(),
+        )
+
+        When("Principal executes it") {
+            val attempt = suspend {
+                uowx.execute(uowClass, TestPrincipal) { DummyUow.Params }
+            }
+
+            Then("The executor refuses the stub and nothing is persisted") {
+                val ex = shouldThrow<IllegalStateException> { attempt() }
+                checkNotNull(ex.message) shouldContainText "test doubles"
+                verify { persisting wasNot Called }
+            }
+        }
+    }
 })
+
+private data class WrappedDepartment(val department: OwnedDepartment, val label: String)
 
 private fun uowEvent() = UowEvent(
     id = UowEvent.Id.random(),

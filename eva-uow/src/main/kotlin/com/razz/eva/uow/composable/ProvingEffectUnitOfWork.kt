@@ -1,0 +1,43 @@
+package com.razz.eva.uow.composable
+
+import com.razz.eva.domain.Principal
+import com.razz.eva.uow.BaseUnitOfWork
+import com.razz.eva.uow.Changes
+import com.razz.eva.uow.ExecutionContext
+import com.razz.eva.uow.UowParams
+import com.razz.eva.uow.verifyResultAccounted
+
+/**
+ * The proving family's effect-shaped member: a UoW whose result is [Unit]. Its block registers and
+ * ends on evidence like any proving block, but the evidence need not be `Accounted<Unit>`, so any
+ * registration, of a model or an entity, is a legal tail on its own. A block whose last statement is a
+ * loop or a branch ends on what that statement registered, as an expression or as
+ * `noModelResult(<the registered results>)`. A tail that is a bare mutation does not compile, in this
+ * family as in the others.
+ *
+ * Declared via `com.razz.eva.uow.proving.unit.UnitOfWork`, so adoption drops the `Unit` type argument.
+ * A mutation discarded mid-block remains the author's to spot; downstream, Kotlin's return value
+ * checker covers that case in any position.
+ */
+abstract class ProvingEffectUnitOfWork<PRINCIPAL, PARAMS>(
+    private val executionContext: ExecutionContext,
+    configuration: Configuration = Configuration.default(),
+) : BaseUnitOfWork<PRINCIPAL, PARAMS, Unit, ProvingChangesDsl>(executionContext, configuration),
+    ComposableUow
+    where PRINCIPAL : Principal<*>, PARAMS : UowParams<PARAMS> {
+
+    protected suspend fun changes(init: suspend ProvingChangesDsl.() -> Accounted<*>): Changes<Unit> {
+        var evidence: Any? = null
+        val changes = ChangesDsl.changes(executionContext) {
+            val proving = ProvingChangesDsl(this)
+            val accounted = proving.init()
+            check(accounted.origin === proving) {
+                "Accounted evidence was minted by another changes block"
+            }
+            evidence = accounted.result
+        }
+        // the declared result is Unit, so the models worth checking are the ones the evidence holds
+        verifyResultAccounted(evidence, changes.modelChangesToPersist)
+        return changes
+    }
+}

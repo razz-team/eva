@@ -1,0 +1,113 @@
+package com.razz.eva.uow.composable
+
+import com.razz.eva.domain.CreatableEntity
+import com.razz.eva.domain.DeletableEntity
+import com.razz.eva.domain.EntityKey
+import com.razz.eva.domain.Model
+import com.razz.eva.domain.ModelEvent
+import com.razz.eva.domain.ModelId
+import com.razz.eva.domain.Principal
+import com.razz.eva.domain.UpdatableEntity
+import com.razz.eva.uow.BaseUnitOfWork
+import com.razz.eva.uow.ExecutionContext
+import com.razz.eva.uow.InstantiationContext
+import com.razz.eva.uow.PersistedLookup
+import com.razz.eva.uow.UowParams
+
+/**
+ * [ChangesDsl] with every registration returning [Accounted] instead of what it registered.
+ *
+ * The names are the DSL's own: `add`, `update`, `notChanged`, `delete`, `roundtrip`, `execute`, so a
+ * block reads exactly as it did. What changes is only the type at the return site: a block that has to
+ * produce an `Accounted<RESULT>` cannot end on an unregistered model.
+ *
+ * Entity registrations mint too, so a block that persists only entities ends on its last one; an entity
+ * is not the thing that gets silently dropped, but a block has to end on evidence of something. A block
+ * whose tail is a statement (a loop, a branch) ends on the registrations that statement made, as an
+ * expression or as `noModelResult(<the registered results>)`. [execute] hands back what it always did: a
+ * composed child accounted for its own result rather than this block doing it, so hand such a result
+ * through with `notChanged`, which registers nothing once a child has already registered that id.
+ * [roundtrip] also passes through bare: its lookup falls back to the argument for models absent from the
+ * change set, so wrapping its result would claim evidence the lookup does not give.
+ */
+class ProvingChangesDsl internal constructor(
+    @PublishedApi internal val dsl: ChangesDsl,
+) {
+
+    fun <MID, E, M> add(model: M): Accounted<M>
+        where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> =
+        Accounted(dsl.add(model), this)
+
+    fun <MID, E, M> update(model: M): Accounted<M>
+        where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> =
+        Accounted(dsl.update(model), this)
+
+    /**
+     * States that this block adds nothing to the model's change. For a model already in the change
+     * set, one a composed child or an ancestor registered, it registers nothing at all and hands the
+     * value straight back, which is how such a result becomes this block's tail: the claim is about
+     * this block's delta, not about the model's state. A new or dirty model that nothing registered
+     * is refused here, at the call rather than at the tail.
+     */
+    fun <MID, E, M> notChanged(model: M): Accounted<M>
+        where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> =
+        Accounted(dsl.notChanged(model), this)
+
+    /**
+     * The stated exception: a result that is not a bare model, such as a computed value, a report, or
+     * a collection assembled from registered models. The bare-model refusal below is type-directed,
+     * so it is best-effort: it wins overload resolution only when the expression's static type is a
+     * [Model], and a model behind a wider static type falls through to the runtime net instead.
+     * Spelling it at the return site is the point; a
+     * reviewer sees the claim "no model here needed registering" instead of an absence. The models
+     * reachable from the block's final value are verified against the change set when the block
+     * completes: an unregistered new or dirty one fails the UoW.
+     */
+    fun <R> noModelResult(result: R): Accounted<R> = Accounted(result, this)
+
+    @Deprecated(
+        "A model result must be registered through add / update / notChanged, not stated as noModelResult",
+        level = DeprecationLevel.ERROR,
+    )
+    fun <M : Model<*, *>> noModelResult(result: M): Accounted<M> =
+        throw UnsupportedOperationException("A model result must be registered, not stated as noModelResult")
+
+    fun <E : CreatableEntity> add(entity: E): Accounted<E> = Accounted(dsl.add(entity), this)
+
+    fun <E : UpdatableEntity> update(entity: E): Accounted<E> = Accounted(dsl.update(entity), this)
+
+    fun <E : DeletableEntity> delete(entity: E): Accounted<E> = Accounted(dsl.delete(entity), this)
+
+    inline fun <reified E : DeletableEntity, K : EntityKey<E>> delete(key: K): Accounted<K> =
+        accounted(dsl.delete<E, K>(key))
+
+    // inline callers cannot reach the internal constructor directly
+    @PublishedApi
+    internal fun <T> accounted(value: T): Accounted<T> = Accounted(value, this)
+
+    /**
+     * Passes through bare: end the block with `noModelResult(roundtrip { ... })`. A builder returning
+     * [Accounted] is refused, because the builder is rerun over the persisted set at top level and its
+     * value is handed to the caller as the UoW result; a wrapper there corrupts the declared result
+     * type. The refusal is wrapped around the builder itself, so it also fires on the executor's
+     * post-flush rerun, not only on the eager seed.
+     */
+    fun <R> roundtrip(build: (p: PersistedLookup) -> R): R = dsl.roundtrip { p ->
+        val built = build(p)
+        check(built !is Accounted<*>) {
+            "roundtrip builder must return the bare result; end the block with noModelResult(roundtrip { ... })"
+        }
+        built
+    }
+
+    suspend fun <PRINCIPAL, PARAMS, RESULT, UOW> execute(
+        uowFactory: (ExecutionContext) -> UOW,
+        principal: PRINCIPAL,
+        params: InstantiationContext.Internal.() -> PARAMS,
+    ): RESULT
+        where PRINCIPAL : Principal<*>,
+              PARAMS : UowParams<PARAMS>,
+              RESULT : Any,
+              UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *>,
+              UOW : ComposableUow = dsl.execute(uowFactory, principal, params)
+}

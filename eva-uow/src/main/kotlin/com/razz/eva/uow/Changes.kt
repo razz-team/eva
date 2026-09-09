@@ -19,6 +19,8 @@ abstract class Changes<R> {
     internal abstract val entityChangesToPersist: List<EntityChange>
     // Builder set by roundtrip { }; the executor runs it over persisted models. Any? since R is known only per call.
     internal open val resultBuilder: ((PersistedLookup) -> Any?)? get() = null
+    // Set by stubChanges: the executor refuses a stub as a real UoW's outcome.
+    internal open val stubbed: Boolean get() = false
 }
 
 /**
@@ -88,6 +90,14 @@ class ChangesAccumulator private constructor(
 
     internal fun changeFor(modelId: ModelId<out Comparable<*>>): ModelChange? = modelChanges[modelId]
 
+    /**
+     * [changeFor] over the same flattened view [withResult] persists, so an owned child of a
+     * registered [Aggregate] counts as accounted. The two guards must agree: resolving a child
+     * through the raw map alone reports a dropped write for a model the aggregate will persist.
+     */
+    internal fun flattenedChangeFor(modelId: ModelId<out Comparable<*>>): ModelChange? =
+        flattenChildModels().firstOrNull { it.id == modelId }
+
     internal fun withReplacedModelChange(
         modelId: ModelId<out Comparable<*>>,
         change: ModelChange,
@@ -100,6 +110,45 @@ class ChangesAccumulator private constructor(
 
     internal fun modelIds(): Set<ModelId<out Comparable<*>>> = modelChanges.keys
 
+    /**
+     * Folds a composed child's outcome into the accumulated changes. A stubbed child merges
+     * additively: its claims for new ids join the set, and claims for known ids never demote the
+     * accumulated change. Stubbing is read from the flag [Changes.stubbed] records rather than
+     * inferred from the shape, so a real child whose only registration happens to be a claim is
+     * still held to the seeding check below. A
+     * child that made real changes must have seeded from this accumulator, so every accumulated model
+     * change must come back with its events preserved as a prefix and every accumulated entity change
+     * must survive; the child's set is then the continuation of this one and replaces it wholesale,
+     * preserving order.
+     */
+    internal fun merging(uowName: String, subChanges: Changes<*>): ChangesAccumulator {
+        if (subChanges.stubbed) {
+            val mergedModels = LinkedHashMap(modelChanges)
+            for (change in subChanges.modelChangesToPersist) {
+                mergedModels.putIfAbsent(change.id, change)
+            }
+            return ChangesAccumulator(mergedModels, entityChanges)
+        }
+        val childModels = subChanges.modelChangesToPersist.associateBy { it.id }
+        for ((id, prev) in modelChanges) {
+            val next = childModels[id]
+            val intact = next != null &&
+                (next.modelEvents isSameAs prev.modelEvents || next.modelEvents isSuccessorOf prev.modelEvents)
+            check(intact) {
+                "Composed $uowName dropped inherited changes for model [${id.stringValue()}]; " +
+                    "construct the child with the ExecutionContext given to the factory"
+            }
+        }
+        check(subChanges.entityChangesToPersist.containsAll(entityChanges)) {
+            "Composed $uowName dropped inherited entity changes; " +
+                "construct the child with the ExecutionContext given to the factory"
+        }
+        return ChangesAccumulator(
+            subChanges.modelChangesToPersist.associateByTo(LinkedHashMap()) { it.id },
+            subChanges.entityChangesToPersist,
+        )
+    }
+
     fun <R> withResult(
         result: R,
         resultBuilder: ((PersistedLookup) -> Any?)? = null,
@@ -109,12 +158,18 @@ class ChangesAccumulator private constructor(
     }
 
     @Suppress("UNCHECKED_CAST")
-    private fun flattenChildModels(): List<ModelChange> {
+    internal fun flattenChildModels(): List<ModelChange> {
         val result = mutableListOf<ModelChange>()
         val seen = modelChanges.keys.toMutableSet()
         fun flatten(model: Model<*, *>) {
             if (model !is Aggregate<*, *>) return
             for (child in model.ownedModels()) {
+                val claimed = modelChanges[child.id()]
+                check(claimed !is NoopModel || !(child.isNew() || child.isDirty())) {
+                    "Model [${child.id().stringValue()}] is registered as unchanged, but aggregate " +
+                        "[${model.id().stringValue()}] owns a ${if (child.isNew()) "new" else "changed"} " +
+                        "instance of it: the write would be silently dropped"
+                }
                 if (!seen.add(child.id())) continue
                 val m = child as Model<ModelId<out Comparable<*>>, ModelEvent<ModelId<out Comparable<*>>>>
                 when {
@@ -154,9 +209,56 @@ class ChangesAccumulator private constructor(
     }
 }
 
+/**
+ * A new or dirty model reachable from a result whose id is not in [changes] carries a write that will
+ * never be persisted. A [NoopModel] claim vouches only for the claimed instance; a real change vouches
+ * for its id. Called at block completion by the proving families, where a block cannot even compile
+ * with an unregistered model as its tail, and by the executor over the final merged change set, which
+ * is where the plain families' hand-back pattern has finished and the answer is authoritative.
+ */
+internal fun verifyResultAccounted(result: Any?, changes: List<ModelChange>) {
+    val registered = changes.associateBy { it.id }
+    for (model in modelsIn(result)) {
+        val change = registered[model.id()]
+        val accounted = change != null && (change !is NoopModel || change.model === model)
+        if (accounted) continue
+        check(!model.isNew() && !model.isDirty()) {
+            "Unregistered ${if (model.isNew()) "new" else "changed"} " +
+                "model [${model.id().stringValue()}] in the result: the write would be silently dropped"
+        }
+    }
+}
+
 internal class RealisedChanges<R>(
     override val result: R,
     override val modelChangesToPersist: List<ModelChange>,
     override val entityChangesToPersist: List<EntityChange>,
     override val resultBuilder: ((PersistedLookup) -> Any?)? = null,
+    override val stubbed: Boolean = false,
 ) : Changes<R>()
+
+// Reference-identity prefix checks over event lists: composed changes to one model are reconcilable
+// only when one list literally extends the other, which is what the DSL's merge produces.
+internal infix fun List<ModelEvent<*>>.isSuccessorOf(events: List<ModelEvent<*>>): Boolean {
+    if (size <= events.size) {
+        return false
+    }
+    events.forEachIndexed { i, e ->
+        if (this[i] !== e) {
+            return false
+        }
+    }
+    return true
+}
+
+internal infix fun List<ModelEvent<*>>.isSameAs(events: List<ModelEvent<*>>): Boolean {
+    if (size != events.size) {
+        return false
+    }
+    events.forEachIndexed { i, e ->
+        if (this[i] !== e) {
+            return false
+        }
+    }
+    return true
+}

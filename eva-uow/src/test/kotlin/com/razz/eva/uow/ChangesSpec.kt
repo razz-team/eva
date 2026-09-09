@@ -248,8 +248,8 @@ class ChangesSpec : BehaviorSpec({
             val model1 = existingCreatedTestModel(randomTestModelId(), "name1", 1337, V1)
                 .activate()
             val model1Event = TestModelStatusChanged(model1.id(), CREATED, ACTIVE)
+            // clean on purpose: an unregistered dirty model as a result is rejected by withResult
             val model2 = existingCreatedTestModel(randomTestModelId(), "name2", 100500, V1)
-                .activate()
             val model3 = existingCreatedTestModel(randomTestModelId(), "name3", 0xBABE, V1)
                 .activate()
             val model3Event = TestModelStatusChanged(model3.id(), CREATED, ACTIVE)
@@ -702,6 +702,39 @@ class ChangesSpec : BehaviorSpec({
                 val parentChange = changes.modelChangesToPersist[0]
                 parentChange.shouldBeInstanceOf<UpdateModel<*, *, *>>()
                 parentChange.model shouldBe renamedDept
+            }
+        }
+
+        When("An owned child's write is claimed as unchanged by the block") {
+            val emp = newEmployee(Name("Frank", "Black"), DepartmentId.randomDepartmentId(), "f@test.com", BUBALEH)
+            val claimed = Employee(
+                id = emp.id(),
+                name = emp.name,
+                departmentId = emp.departmentId,
+                email = emp.email,
+                ration = BUBALEH,
+                modelState = persistentState(V1, null),
+            )
+            val dept = DeptAggregate(
+                id = emp.departmentId,
+                name = "Engineering",
+                boss = bossId,
+                headcount = 2,
+                ration = BUBALEH,
+                employees = listOf(emp),
+                modelState = persistentState(V1, null),
+            ).rename("Eng v4")
+
+            Then("The contradiction fails loudly instead of dropping the child's write") {
+                val exception = shouldThrow<IllegalStateException> {
+                    ChangesAccumulator()
+                        .withUnchangedModel(claimed)
+                        .withUpdatedModel(dept)
+                        .withResult("claim hides the child")
+                }
+                exception.message shouldBe "Model [${emp.id().stringValue()}] is registered as " +
+                    "unchanged, but aggregate [${dept.id().stringValue()}] owns a new instance of " +
+                    "it: the write would be silently dropped"
             }
         }
 
