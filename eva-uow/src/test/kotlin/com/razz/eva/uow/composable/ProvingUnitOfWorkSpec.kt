@@ -172,7 +172,9 @@ class ProvingUnitOfWorkSpec : FunSpec({
     test("Adoption via the proving.UnitOfWork alias is an import away") {
         val model0 = createdTestModel("MLG", 420)
 
-        val uow = object : AliasedUnitOfWork<TestPrincipal, DummyProvingUow.Params, CreatedTestModel>(executionContext) {
+        val uow = object : AliasedUnitOfWork<TestPrincipal, DummyProvingUow.Params, CreatedTestModel>(
+            executionContext,
+        ) {
             override suspend fun tryPerform(principal: TestPrincipal, params: DummyProvingUow.Params) = changes {
                 add(model0)
             }
