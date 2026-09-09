@@ -1,7 +1,7 @@
 [versions]
 flywaydb = "13.3.0"
 detekt = "1.23.8"
-kotlin = "2.4.10"
+kotlin = "2.4.20"
 kotlinx-serialization = "1.11.0"
 
 [libraries]
@@ -19,9 +19,9 @@ kotlin-bom = { module = "org.jetbrains.kotlin:kotlin-bom", version.ref = "kotlin
 kotlinx-coroutines-bom = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-bom", version = "1.11.0" }
 kotlinx-serialization-bom = { module = "org.jetbrains.kotlinx:kotlinx-serialization-bom", version.ref = "kotlinx-serialization" }
 
-jooq-bom = { module = "org.jooq:jooq-bom", version = "3.21.7" }
+jooq-bom = { module = "org.jooq:jooq-bom", version = "3.21.8" }
 jackson-bom = { module = "com.fasterxml.jackson:jackson-bom", version = "2.22.2" }
-vertx-bom = { module = "io.vertx:vertx-stack-depchain", version = "5.1.6" }
+vertx-bom = { module = "io.vertx:vertx-stack-depchain", version = "5.1.7" }
 
 micrometer-bom = { module = "io.micrometer:micrometer-bom", version = "1.17.1" }
 opentelemetry-instrumentation-bom = { module = "io.opentelemetry.instrumentation:opentelemetry-instrumentation-bom", version = "2.31.1" }
