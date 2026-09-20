@@ -18,13 +18,13 @@ internal class SagaSpec : ShouldSpec({
 
     should("stop after resume reached terminal state") {
         val params = TestSaga.Params({ Finish0("it's time to stop") })
-        val state = TestSaga.resume(principal, params)
+        val state = TestSaga().resume(principal, params)
         state shouldBe Finish0("it's time to stop")
     }
 
     should("throw SagaHaltException on duplicate state") {
         val params = TestSaga.Params({ Step0("What does the \"B\" Stand for in \"Benoit B. Mandelbrot\"?") })
-        val attempt = suspend { TestSaga.resume(principal, params) }
+        val attempt = suspend { TestSaga().resume(principal, params) }
         shouldThrow<SagaHaltException> { attempt() }
     }
 
@@ -33,7 +33,7 @@ internal class SagaSpec : ShouldSpec({
             { throw IllegalArgumentException("can't touch this") },
             { _, _, _, _ -> Finish1("swallowed") },
         )
-        val state = TestSaga.resume(principal, params)
+        val state = TestSaga().resume(principal, params)
         state shouldBe Finish1("swallowed")
     }
 
@@ -53,7 +53,7 @@ internal class SagaSpec : ShouldSpec({
                 Finish1("swallowed")
             },
         )
-        val state = TestSaga.resume(principal, params)
+        val state = TestSaga().resume(principal, params)
         observedE.shouldBeInstanceOf<IllegalArgumentException>()
         observedE?.message shouldBe "can't touch this"
         observedPrincipal shouldBe principal
@@ -83,7 +83,7 @@ internal class SagaSpec : ShouldSpec({
                 Finish1("swallowed")
             },
         )
-        val state = TestSaga.resume(principal, params)
+        val state = TestSaga().resume(principal, params)
         observedE.shouldBeInstanceOf<IllegalArgumentException>()
         observedE?.message shouldBe "can't touch this"
         observedPrincipal shouldBe principal
@@ -109,7 +109,7 @@ internal class SagaSpec : ShouldSpec({
             },
             { _, _, _, _ -> null },
         )
-        val state = TestSaga.resume(principal, params)
+        val state = TestSaga().resume(principal, params)
         state shouldBe Finish0("it's time to stop")
     }
 })

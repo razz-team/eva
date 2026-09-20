@@ -5,5 +5,8 @@ plugins {
 
 dependencies {
     implementation(project(eva.eva_domain))
+    implementation(libs.kotlin.logging)
     api(project(eva.eva_tracing))
+
+    testImplementation(libs.opentelemetry.sdk.testing)
 }
