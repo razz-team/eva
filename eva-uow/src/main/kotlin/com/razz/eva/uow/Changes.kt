@@ -262,3 +262,36 @@ internal infix fun List<ModelEvent<*>>.isSameAs(events: List<ModelEvent<*>>): Bo
     }
     return true
 }
+
+/**
+ * A model in the result whose id is registered must be the registered instance: a stale or smuggled
+ * instance cannot pose as the persisted state. Identity, not id and events: clean instances of one id
+ * share an empty event list by construction, and a data-class model's synthesized copy keeps the
+ * same state while its fields diverge. Checked over the flattened set, so an owned child of a
+ * registered Aggregate counts as registered.
+ */
+internal fun verifyResultInstances(result: Any?, changes: List<ModelChange>) {
+    val registered = changes.associateBy { it.id }
+    for (model in modelsIn(result)) {
+        val change = registered[model.id()] ?: continue
+        check(change.model === model) {
+            "Model [${model.id().stringValue()}] in the result is not the instance that was " +
+                "registered: the change holds ${describe(change.model)}, the result holds " +
+                "${describe(model)}. Return the value add or update handed back, or resolve the " +
+                "registered instance with roundtrip { p -> p(model) }."
+        }
+    }
+}
+
+private fun describe(model: Model<*, *>): String {
+    val state = when {
+        model.isNew() -> "new"
+        model.isDirty() -> "changed"
+        else -> "unchanged"
+    }
+    val events = model.modelEvents().map { it.eventName() }
+    // identity and value both matter here: the two instances often agree on class, state and
+    // events, which is exactly the case this check exists for
+    return "${model::class.simpleName}[$state, events = $events, " +
+        "instance = ${System.identityHashCode(model)}, value = $model]"
+}

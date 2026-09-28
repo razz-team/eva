@@ -6,7 +6,7 @@ import com.razz.eva.domain.EmployeeId
 import com.razz.eva.domain.Tag
 import com.razz.eva.repository.DepartmentRepository
 import com.razz.eva.repository.EmployeeRepository
-import com.razz.eva.uow.proving.unit.UnitOfWork
+import com.razz.eva.uow.composable.UnitOfWork as ComposableUnitOfWork
 import com.razz.eva.uow.params.kotlinx.UowParams
 import kotlinx.serialization.Serializable
 
@@ -14,7 +14,7 @@ class InternalMobilityUow(
     executionContext: ExecutionContext,
     private val employeeRepo: EmployeeRepository,
     private val departmentRepo: DepartmentRepository,
-) : UnitOfWork<TestPrincipal, InternalMobilityUow.Params>(executionContext) {
+) : ComposableUnitOfWork<TestPrincipal, InternalMobilityUow.Params, Unit>(executionContext) {
 
     @Serializable
     data class Params(
@@ -47,8 +47,8 @@ class InternalMobilityUow(
         }
         update(newDep)
         update(Tag.tag(newDep.id().id, "last-transfer", "batch-${params.employees.size}"))
-        val restaffed = oldDeps.values.map { oldDep ->
-            val change = update(oldDep)
+        for (oldDep in oldDeps.values) {
+            update(oldDep)
             delete(
                 Tag.tag(
                     oldDep.id().id,
@@ -56,8 +56,6 @@ class InternalMobilityUow(
                     "true",
                 ),
             )
-            change.result
         }
-        noModelResult(restaffed)
     }
 }

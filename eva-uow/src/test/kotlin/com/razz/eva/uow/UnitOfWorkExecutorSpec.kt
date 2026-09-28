@@ -52,7 +52,7 @@ import io.opentelemetry.sdk.testing.exporter.InMemoryMetricReader
 import java.time.Duration.ofMillis
 import java.time.Instant.ofEpochMilli
 import java.util.*
-import com.razz.eva.uow.composable.DummyProvingUow
+import com.razz.eva.uow.composable.DummyUow as ComposableDummyUow
 import com.razz.eva.uow.composable.DummyUow
 import com.razz.eva.uow.composable.UnitOfWork as ComposableUnitOfWork
 import kotlin.reflect.KClass
@@ -1149,7 +1149,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
         }
     }
 
-    Given("A proving UnitOfWork registered in the executor") {
+    Given("A composable UnitOfWork registered in the executor") {
         val clock = fixedUTC(ofEpochMilli(0))
         val departmentId = randomDepartmentId()
         val bossId = EmployeeId(UUID.randomUUID())
@@ -1171,11 +1171,11 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
         )
         val persisting = mockk<Persisting>(relaxed = true)
         @Suppress("UNCHECKED_CAST")
-        val provingClass = DummyProvingUow::class as KClass<DummyProvingUow<OwnedDepartment>>
+        val composableClass = ComposableDummyUow::class as KClass<ComposableDummyUow<OwnedDepartment>>
         val uowx = UnitOfWorkExecutor(
             factories = listOf(
-                provingClass withFactory {
-                    object : DummyProvingUow<OwnedDepartment>(it) {
+                composableClass withFactory {
+                    object : ComposableDummyUow<OwnedDepartment>(it) {
                         override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
                             add(department)
                         }
@@ -1189,7 +1189,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
         coEvery {
             persisting.persist(
                 uowName = any(),
-                params = DummyProvingUow.Params,
+                params = ComposableDummyUow.Params,
                 principal = TestPrincipal,
                 modelChanges = any(),
                 entityChanges = any(),
@@ -1199,8 +1199,8 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
             )
         } returns Pair(uowEvent(), listOf(department))
 
-        When("Principal executes proving UnitOfWork") {
-            val result = uowx.execute(provingClass, TestPrincipal) { DummyProvingUow.Params }
+        When("Principal executes composable UnitOfWork") {
+            val result = uowx.execute(composableClass, TestPrincipal) { ComposableDummyUow.Params }
 
             Then("The registered model comes back bare as the result") {
                 result shouldBe department
@@ -1210,7 +1210,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                 coVerify {
                     persisting.persist(
                         uowName = any(),
-                        params = DummyProvingUow.Params,
+                        params = ComposableDummyUow.Params,
                         principal = TestPrincipal,
                         modelChanges = match { it.size == 1 && it.single().id == departmentId },
                         entityChanges = listOf(),
@@ -1223,7 +1223,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
         }
     }
 
-    Given("A proving UnitOfWork with a roundtrip result registered in the executor") {
+    Given("A composable UnitOfWork with a roundtrip result registered in the executor") {
         val clock = fixedUTC(ofEpochMilli(0))
         val departmentId = randomDepartmentId()
         val bossId = EmployeeId(UUID.randomUUID())
@@ -1261,14 +1261,14 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
         )
         val persisting = mockk<Persisting>(relaxed = true)
         @Suppress("UNCHECKED_CAST")
-        val provingClass = DummyProvingUow::class as KClass<DummyProvingUow<WrappedDepartment>>
+        val composableClass = ComposableDummyUow::class as KClass<ComposableDummyUow<WrappedDepartment>>
         val uowx = UnitOfWorkExecutor(
             factories = listOf(
-                provingClass withFactory {
-                    object : DummyProvingUow<WrappedDepartment>(it) {
+                composableClass withFactory {
+                    object : ComposableDummyUow<WrappedDepartment>(it) {
                         override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
                             add(department)
-                            noModelResult(roundtrip { p -> WrappedDepartment(p(department), "wrapped") })
+                            roundtrip { p -> WrappedDepartment(p(department), "wrapped") }
                         }
                     }
                 },
@@ -1280,7 +1280,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
         coEvery {
             persisting.persist(
                 uowName = any(),
-                params = DummyProvingUow.Params,
+                params = ComposableDummyUow.Params,
                 principal = TestPrincipal,
                 modelChanges = any(),
                 entityChanges = any(),
@@ -1290,10 +1290,10 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
             )
         } returns Pair(uowEvent(), listOf(flushedDepartment))
 
-        When("Principal executes proving UnitOfWork") {
-            val result = uowx.execute(provingClass, TestPrincipal) { DummyProvingUow.Params }
+        When("Principal executes composable UnitOfWork") {
+            val result = uowx.execute(composableClass, TestPrincipal) { ComposableDummyUow.Params }
 
-            Then("The builder is rerun over the flushed set and the result is bare, not Accounted") {
+            Then("The builder is rerun over the flushed set and the result is bare") {
                 result shouldBe WrappedDepartment(flushedDepartment, "wrapped")
             }
         }

@@ -1,3 +1,6 @@
+// detekt's parser predates context parameters and misreads their colon
+@file:Suppress("SpacingAroundColon")
+
 package com.razz.eva.domain
 
 import com.razz.eva.domain.ModelState.DirtyState.Companion.dirtyState
@@ -113,6 +116,22 @@ sealed class ModelState<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>>(
                 @Suppress("UNCHECKED_CAST")
                 return NewState(listOf(createdEvent as E, *newEvents))
             }
+
+            /**
+             * [newState] under a [Witness]: a created event is a model's first mutation, so a factory built
+             * on it declares `context(_: Witness<ID>)` and is callable only inside the change block's
+             * `add { }`, where what it creates is registered, or a fixture's `mutating { }`.
+             */
+            context(_: Witness<ID>)
+            fun <ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>, C : ModelCreatedEvent<ID>> created(
+                createdEvent: C,
+            ): NewState<ID, E> = newState(createdEvent)
+
+            context(_: Witness<ID>)
+            fun <ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>, C : ModelCreatedEvent<ID>> created(
+                createdEvent: C,
+                vararg newEvents: E,
+            ): NewState<ID, E> = newState(createdEvent, *newEvents)
         }
     }
 }

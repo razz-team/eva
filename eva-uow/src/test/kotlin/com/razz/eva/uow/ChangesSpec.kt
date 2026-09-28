@@ -1,5 +1,6 @@
 package com.razz.eva.uow
 
+import com.razz.eva.domain.mutating
 import com.razz.eva.domain.Aggregate
 import com.razz.eva.domain.DepartmentEvent
 import com.razz.eva.domain.DepartmentEvent.OwnedDepartmentCreated
@@ -573,7 +574,7 @@ class ChangesSpec : BehaviorSpec({
                 boss = bossId,
                 ration = BUBALEH,
             ).let { d ->
-                val emp = newEmployee(Name("Alice", "Smith"), d.id(), "alice@test.com", BUBALEH)
+                val emp = mutating { newEmployee(Name("Alice", "Smith"), d.id(), "alice@test.com", BUBALEH) }
                 d.addEmployee(emp)
             }
             val changes = ChangesAccumulator()
@@ -627,7 +628,7 @@ class ChangesSpec : BehaviorSpec({
                 boss = bossId,
                 ration = BUBALEH,
             )
-            val emp = newEmployee(Name("Bob", "Jones"), dept.id(), "bob@test.com", BUBALEH)
+            val emp = mutating { newEmployee(Name("Bob", "Jones"), dept.id(), "bob@test.com", BUBALEH) }
             val deptWithEmp = dept.addEmployee(emp)
 
             val changes = ChangesAccumulator()
@@ -652,7 +653,7 @@ class ChangesSpec : BehaviorSpec({
                 employees = listOf(),
                 modelState = persistentState(V1, null),
             )
-            val emp = newEmployee(Name("Carol", "White"), existingDept.id(), "carol@test.com", BUBALEH)
+            val emp = mutating { newEmployee(Name("Carol", "White"), existingDept.id(), "carol@test.com", BUBALEH) }
             val renamedWithEmp = existingDept.rename("Eng v2").addEmployee(emp)
 
             val changes = ChangesAccumulator()
@@ -706,7 +707,9 @@ class ChangesSpec : BehaviorSpec({
         }
 
         When("An owned child's write is claimed as unchanged by the block") {
-            val emp = newEmployee(Name("Frank", "Black"), DepartmentId.randomDepartmentId(), "f@test.com", BUBALEH)
+            val emp = mutating {
+                newEmployee(Name("Frank", "Black"), DepartmentId.randomDepartmentId(), "f@test.com", BUBALEH)
+            }
             val claimed = Employee(
                 id = emp.id(),
                 name = emp.name,
@@ -744,7 +747,7 @@ class ChangesSpec : BehaviorSpec({
                 boss = bossId,
                 ration = BUBALEH,
             ).let { d ->
-                val emp = newEmployee(Name("Eve", "Green"), d.id(), "eve@test.com", BUBALEH)
+                val emp = mutating { newEmployee(Name("Eve", "Green"), d.id(), "eve@test.com", BUBALEH) }
                 d.addEmployee(emp)
             }
             val wrapperId = DepartmentId.randomDepartmentId()

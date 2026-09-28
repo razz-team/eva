@@ -5,6 +5,7 @@ import com.razz.eva.domain.DeletableEntity
 import com.razz.eva.domain.EntityKey
 import com.razz.eva.domain.Model
 import com.razz.eva.domain.UpdatableEntity
+import com.razz.eva.domain.Witness
 import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
 import com.razz.eva.domain.Principal
@@ -85,6 +86,36 @@ class ChangesDsl internal constructor(
         }
         return model
     }
+
+    /**
+     * Registration as a scope: mints a [Witness] for the model's id type, runs [mutate] on the model under
+     * it and registers what comes back, so a mutation and its registration cannot come apart. A mutator
+     * built on [com.razz.eva.domain.Model.raise] is callable only here or in a fixture's `mutating { }`.
+     * The lambda names the resulting state, so a transition is typed as its target; a mutation that
+     * declines hands the receiver back (`mutate() ?: this`) and the model is registered as unchanged.
+     */
+    fun <MID, E, M, R> update(model: M, mutate: context(Witness<MID>) M.() -> R): R
+        where M : Model<MID, E>, R : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
+        val mutated = context(Witness<MID>()) { model.mutate() }
+        if (mutated === model) {
+            notChanged(model)
+            return mutated
+        }
+        check(mutated.id() == model.id()) {
+            "update(model) { } returned model [${mutated.id().stringValue()}] instead of the mutated " +
+                "[${model.id().stringValue()}]"
+        }
+        return update(mutated)
+    }
+
+    /**
+     * Creation as a scope: a factory built on [com.razz.eva.domain.ModelState.NewState.Companion.created]
+     * needs a [Witness], and this is the only place in production that supplies one, so a model cannot be
+     * created without being added. The witness covers every id type, since the model does not exist yet.
+     */
+    fun <MID, E, M> add(create: context(Witness<ModelId<out Comparable<*>>>) () -> M): M
+        where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> =
+        add(context(Witness<ModelId<out Comparable<*>>>()) { create() })
 
     fun <MID, E, M> notChanged(model: M): M
         where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {

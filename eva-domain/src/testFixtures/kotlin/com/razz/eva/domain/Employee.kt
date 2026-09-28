@@ -2,7 +2,7 @@ package com.razz.eva.domain
 
 import com.razz.eva.domain.EmployeeEvent.DepartmentChanged
 import com.razz.eva.domain.EmployeeEvent.EmployeeCreated
-import com.razz.eva.domain.ModelState.NewState.Companion.newState
+import com.razz.eva.domain.ModelState.NewState.Companion.created
 import kotlinx.serialization.Contextual
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.buildJsonObject
@@ -76,6 +76,8 @@ class Employee(
     }
 
     companion object {
+        // the witnessed factory of the fixtures: callable only under a Witness<EmployeeId>
+        context(_: Witness<EmployeeId>)
         fun newEmployee(
             name: Name,
             departmentId: DepartmentId,
@@ -89,7 +91,7 @@ class Employee(
                 departmentId = departmentId,
                 email = email,
                 ration = ration,
-                modelState = newState(EmployeeCreated(empId, name, departmentId, email, ration))
+                modelState = created(EmployeeCreated(empId, name, departmentId, email, ration))
             )
         }
     }

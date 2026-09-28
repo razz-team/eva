@@ -259,6 +259,7 @@ class UnitOfWorkExecutor(
         }
         // over the merged set, so a plain family's child may hand a model back for its parent to register
         verifyResultAccounted(changes.result, changes.modelChangesToPersist)
+        verifyResultInstances(changes.result, changes.modelChangesToPersist)
         uowSpan.setAttribute(
             MODEL_ID,
             changes.modelChangesToPersist.map { it.id.stringValue() },

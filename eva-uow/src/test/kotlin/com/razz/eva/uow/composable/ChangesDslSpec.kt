@@ -2,6 +2,7 @@
 
 package com.razz.eva.uow.composable
 
+import com.razz.eva.domain.mutating
 import com.razz.eva.domain.DepartmentId.Companion.randomDepartmentId
 import com.razz.eva.domain.EmployeeId.Companion.randomEmployeeId
 import com.razz.eva.domain.Tag
@@ -1003,7 +1004,7 @@ class ChangesDslSpec : FunSpec({
     }
 
     test("noChanges accepts an owned child of an aggregate the parent registered") {
-        val emp = newEmployee(Name("Grace", "Hopper"), randomDepartmentId(), "g@test.com", BUBALEH)
+        val emp = mutating { newEmployee(Name("Grace", "Hopper"), randomDepartmentId(), "g@test.com", BUBALEH) }
         val dept = DeptAggregate(
             id = emp.departmentId,
             name = "Engineering",

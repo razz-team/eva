@@ -11,7 +11,7 @@ import java.time.InstantSource
  * The template every unit of work family instantiates. [C] documents the receiver of the change block
  * that the family's own `changes` builder accepts. The builder is deliberately not declared here:
  * block result types differ per family (a plain block ends on [RESULT], a proving block ends on
- * `Accounted<RESULT>`), a suspend block with receiver erases to the same JVM signature whatever its
+ * a witnessed one), a suspend block with receiver erases to the same JVM signature whatever its
  * return type, and nothing ever calls `changes` polymorphically, so a single overridable declaration
  * would buy nothing and force one shape on every family.
  */
@@ -64,8 +64,6 @@ abstract class BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, C>(
  * [Iterable]s (nested to any depth), [Map] keys and values, [Array]s, [Pair]s and [Triple]s.
  * A model inside any other wrapper (a data class, a sealed outcome, a [Sequence], which cannot be
  * walked without consuming it) is invisible to the guards; the docs state that as the boundary. An
- * [com.razz.eva.uow.composable.Accounted] is such a wrapper too, so models held by one are not
- * walked: harmless, since a block can only obtain one by registering, but it is not a hole to widen.
  */
 internal fun modelsIn(value: Any?): List<Model<*, *>> {
     val found = mutableListOf<Model<*, *>>()

@@ -650,7 +650,7 @@ class CheckoutUow(
 
 The `execute` function takes a UoW factory, a principal, and params. Child UoWs inherit accumulated changes from the parent, and their changes are merged back. All changes from parent and child UoWs are persisted in a single transaction.
 
-Child UoWs must also extend `com.razz.eva.uow.composable.UnitOfWork` (or [`ProvingUnitOfWork`](#making-the-block-end-on-accounted-evidence); proving and plain UoWs compose with each other in either direction). Construct the child with the `ExecutionContext` handed to the factory: a child that made real changes must carry every inherited change forward with its events preserved, or `execute` fails loudly. In tests, build a stubbed child's return value with `stubChanges(result, ...)` rather than hand-assembling accumulators; its claims merge without demoting the parent's changes. `stubChanges` is gated by `@TestDoubleApi` (opt-in from test sources only) and the executor refuses it as a real UoW's outcome:
+Child UoWs must also extend `com.razz.eva.uow.composable.UnitOfWork`. Construct the child with the `ExecutionContext` handed to the factory: a child that made real changes must carry every inherited change forward with its events preserved, or `execute` fails loudly. In tests, build a stubbed child's return value with `stubChanges(result, ...)` rather than hand-assembling accumulators; its claims merge without demoting the parent's changes. `stubChanges` is gated by `@TestDoubleApi` (opt-in from test sources only) and the executor refuses it as a real UoW's outcome:
 
 ```kotlin
 class DebitAccountUow(
@@ -671,73 +671,12 @@ class DebitAccountUow(
 }
 ```
 
-#### Making the block end on accounted evidence
+#### Witnessed mutations: `update(model) { }` and `add { }`
 
-`changes { }` persists only what was handed to `add` / `update` / `notChanged`. A UoW that mutates a model and returns it without one of those calls compiles, reports success, and writes nothing:
-
-```kotlin
-override suspend fun tryPerform(principal: ServicePrincipal, params: Params) = changes {
-    wallet.deposit(params.amount) // compiles, "succeeds", writes nothing
-}
-```
-
-Extend `com.razz.eva.uow.composable.ProvingUnitOfWork` instead of `UnitOfWork` and that branch stops compiling. Adoption can be just an import: `com.razz.eva.uow.proving.UnitOfWork` aliases the proving base, so the declaration keeps reading `UnitOfWork<...>`. The block keeps the DSL's own names, but registrations return `Accounted<M>` instead of the model, and the block must end on an `Accounted<RESULT>`, which only the DSL mints. A `Unit`-result UoW declares `com.razz.eva.uow.proving.unit.UnitOfWork<PRINCIPAL, PARAMS>` instead, which drops the `Unit` type argument: its block ends on evidence too, but any registration will do, of a model or an entity, so a registration tail needs nothing appended and a statement tail ends on what the statement registered:
+`changes { }` persists only what was handed to `add` / `update` / `notChanged`. A block that mutates a model and forgets to register it drops the write on the floor and reports success. The guard for that lives on the model side: a mutator built on `raise` instead of `raiseEvent`, and a factory built on `created` instead of `newState`, declare a `Witness` context parameter, and the only places that supply one are the registration lambdas. Such a mutator or factory is callable nowhere else.
 
 ```kotlin
-class DepositUow(
-    private val walletQueries: WalletQueries,
-    executionContext: ExecutionContext,
-) : ProvingUnitOfWork<ServicePrincipal, Params, Wallet>(executionContext) {
-
-    override suspend fun tryPerform(principal: ServicePrincipal, params: Params) = changes {
-        val wallet = walletQueries.get(params.walletId)
-        update(wallet.deposit(params.amount)) // Accounted<Wallet>, the block ends on it
-    }
-}
-```
-
-For a result that genuinely is not a model, state the exception in the open with `noModelResult`; a reviewer sees the claim "no model here needed registering" instead of an absence. Shape a registered result with `map`:
-
-```kotlin
-    changes {
-        update(wallet.deposit(amount)).map { it.id() }        // Accounted<Wallet.Id>
-    }
-    changes {
-        update(wallet.deposit(amount))
-        noModelResult(DepositReport(amount, clock.instant())) // stated: the report is not a model
-    }
-```
-
-In a `Unit`-result block there is no result to account for, so the block ends on a registration: any registration, of a model or an entity, is evidence on its own. A block whose last statement is a loop or a branch ends on what that statement registered:
-
-```kotlin
-    changes {
-        update(order.confirm())                              // a registration tail needs nothing
-    }
-    changes {
-        noModelResult(params.items.map { update(it.markSeen(now)).result })   // a loop's registrations
-    }
-    changes {
-        if (existing == null) add(newDay) else update(existing.merge(day))   // a branch, as an expression
-    }
-    changes {
-        update(order.confirm())
-        payout.reset(amount)  // does not compile: expected 'Accounted<*>', actual 'Payout'
-    }
-```
-
-Runtime verification backs the types up, and most of it guards every UoW family, not just the proving one. Every model reachable from a result through iterables (nested to any depth), maps, arrays, pairs and triples is checked against the change set: an unregistered new or dirty model fails the UoW, and an unchanged registration vouches only for the exact instance it holds. A proving block is checked as soon as it completes, since it cannot even compile with an unregistered model as its tail. Every other family is checked by the executor over the merged change set, so a child may still hand a model back for its parent to register. `noChanges` applies the same rule; under composition, a model registered in the parent's inherited change set vouches for that exact instance only. On top of that, a proving block adds: the block must end on evidence (compile time), the evidence must have been minted by the executing block, and a model with a registered id must be the registered instance. That last rule is identity, not id and events: two clean instances of one id share an empty event list by construction, so that rule cannot tell them apart. Return the value `add` or `update` handed back, or resolve the registered instance with `roundtrip { p -> p(model) }`. A batch result like `noModelResult(listOf(m1, m2))` after `add(m1); add(m2)` is legal. What remains the author's responsibility: a mutation discarded mid-block (not at the tail, which does not compile), a secondary model never referenced again, and a model buried in a wrapper the walk cannot see (a data class, a `Sequence`). Kotlin's return value checker, enabled in the consuming build, covers the mid-block case in any position.
-
-Entity changes and `execute` hand back what they always did, and a proving UoW stays composable: it can execute children and be executed as a child, from plain and proving parents alike. Adopting it on an existing UoW means changing the base class and reworking the block's tail to end on evidence; the executor, callers and specs are untouched.
-
-Upgrading a custom UoW family: `BaseUnitOfWork` no longer declares an abstract `changes`, because each family now shapes that function itself (the proving families constrain the block's return type; the plain ones do not). A family outside eva that declared `final override suspend fun changes` fails to compile with `'changes' overrides nothing`; drop the `override` and keep the body. `ComposableUow` is sealed, so only the bases eva ships can be composed as children. Both are deliberate.
-
-#### Tying a mutation to its registration with `update(model) { }`
-
-The tail check catches a mutated model that a block *returns* without registering. It cannot see a model that was mutated, used, and never returned. The model side can close that: a mutator built on `raise` instead of `raiseEvent` declares a `Witness` context parameter, and the only places that supply one are the registration lambdas, so such a mutator is callable nowhere else.
-
-```kotlin
-    // the model: one line per migrated mutator
+    // the model: one line per migrated mutator or factory
     context(_: Witness<EmployeeId>)
     fun changeDepartment(newDepartment: Department<*>): Employee = Employee(
         ...,
@@ -746,18 +685,23 @@ The tail check catches a mutated model that a block *returns* without registerin
 
     // the block: the registration is the scope the mutation runs in
     changes {
-        update(employee) { changeDepartment(department) }         // Accounted<Employee>
+        update(employee) { changeDepartment(department) }               // Employee
         update(invoice) { cycleId?.let { updateCycleId(it) } ?: this }   // declined: registered unchanged
-        add(newOrder()) { confirm() }                              // a new model mutated before it is added
+        update(filled) { score(check, principal) }                       // a transition, typed as ScoredKyb
+        add { newOrder(customer, clock.instant()) }                      // created and added, or not at all
     }
 
     changes {
-        val moved = employee.changeDepartment(department)          // does not compile: no Witness in context
+        val moved = employee.changeDepartment(department)              // does not compile: no Witness in context
         notChanged(employee)
     }
 ```
 
-`Witness` has an internal constructor, so a consumer cannot mint one; tests use `mutating { }` from the eva-domain test-fixtures artifact, which is the only mint outside a change block. Migration is one mutator at a time: `raiseEvent` stays for the rest, and a model with both kinds compiles. What this does not cover: a mutator that returns a model without raising an event (a data-class `copy`), and a result discarded *inside* the lambda, which is the return value checker's case. Needs `-Xcontext-parameters` below language version 2.4.
+`Witness` has an internal constructor, so a consumer cannot mint one; tests use `mutating { }` from the eva-domain test-fixtures artifact, which is the only mint outside a change block. Migration is one mutator at a time: `raiseEvent` and `newState` stay for the rest, and a model with both kinds compiles. Needs `-Xcontext-parameters` below language version 2.4.
+
+Runtime verification backs this up for every family: when the executor has the merged change set, every model reachable from the result through iterables (nested to any depth), maps, arrays, pairs and triples is checked against it. An unregistered new or dirty model fails the UoW, and a model with a registered id must be the registered instance, so a stale or superseded instance cannot pose as the persisted state. `noChanges` applies the same rule. What remains the author's responsibility: a mutation discarded inside a registration lambda (Kotlin's return value checker, enabled in the consuming build, covers that), a model that raises no event (a data-class `copy`), and a model buried in a wrapper the walk cannot see (a data class, a `Sequence`).
+
+Upgrading a custom UoW family: `BaseUnitOfWork` no longer declares an abstract `changes`, because each family shapes that function itself. A family outside eva that declared `final override suspend fun changes` fails to compile with `'changes' overrides nothing`; drop the `override` and keep the body. `ComposableUow` is sealed, so only the bases eva ships can be composed as children. Both are deliberate.
 
 #### Returning persisted models with `roundtrip { }`
 
