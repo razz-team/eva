@@ -1,5 +1,6 @@
 package com.razz.eva.uow.composable
 
+import com.razz.eva.domain.Department.OwnedDepartment
 import com.razz.eva.domain.Department.OrphanedDepartment
 import com.razz.eva.domain.DepartmentId.Companion.randomDepartmentId
 import com.razz.eva.domain.Employee
@@ -40,6 +41,7 @@ import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.types.shouldBeInstanceOf
 import io.kotest.matchers.types.shouldBeTypeOf
 import io.opentelemetry.api.OpenTelemetry
 
@@ -418,7 +420,26 @@ class ProvingUnitOfWorkSpec : FunSpec({
         )
     }
 
-    test("update(model) { } registers the model as unchanged when the mutation returns null") {
+    test("update(model) { } accepts a state transition and types the result as the target state") {
+        val employee = Employee(
+            EmployeeId(), Name("Ada", "Lovelace"), randomDepartmentId(), "ada@test.com", BUBALEH,
+            persistentState(V1, null),
+        )
+        val orphaned = OrphanedDepartment(employee.departmentId, "Engineering", 3, BUBALEH, persistentState(V1, null))
+
+        val uow = object : DummyProvingUow<OwnedDepartment>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: DummyProvingUow.Params) = changes {
+                update(orphaned) { addBoss(employee) }
+            }
+        }
+        val changes = uow.tryPerform(TestPrincipal, DummyProvingUow.Params)
+
+        changes.result.boss shouldBe employee.id()
+        val change = changes.modelChangesToPersist.single().shouldBeInstanceOf<UpdateModel<*, *, *>>()
+        change.model shouldBe changes.result
+    }
+
+    test("update(model) { } registers the model as unchanged when the mutation declines and hands it back") {
         val employee = Employee(
             EmployeeId(), Name("Ada", "Lovelace"), randomDepartmentId(), "ada@test.com", BUBALEH,
             persistentState(V1, null),
@@ -426,7 +447,7 @@ class ProvingUnitOfWorkSpec : FunSpec({
 
         val uow = object : DummyProvingUow<Employee>(executionContext) {
             override suspend fun tryPerform(principal: TestPrincipal, params: DummyProvingUow.Params) = changes {
-                update(employee) { null }
+                update(employee) { null ?: this }
             }
         }
         val changes = uow.tryPerform(TestPrincipal, DummyProvingUow.Params)

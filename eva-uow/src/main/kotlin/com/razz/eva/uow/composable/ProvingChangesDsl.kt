@@ -58,13 +58,15 @@ class ProvingChangesDsl internal constructor(
      * Registration as a scope: mints a [Witness] for the model's id type, runs [mutate] on the model under
      * it and registers what comes back, so a mutation and its registration cannot come apart. A mutator
      * built on [com.razz.eva.domain.Model.raise] is callable only here (or in [add]'s lambda), whichever
-     * order the author thinks of the two in. A null result means the mutator found nothing to change, and
-     * the model is registered as unchanged, so a chain of maybe-mutators reads as it always did.
+     * order the author thinks of the two in. The lambda names the resulting state, so a transition is typed
+     * as its target; a mutation that declines hands the receiver back (`mutate() ?: this`), and a clean
+     * model coming out of the lambda is registered as unchanged, as [update] always did.
      */
-    fun <MID, E, M> update(model: M, mutate: context(Witness<MID>) M.() -> M?): Accounted<M>
-        where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
+    fun <MID, E, M, R> update(model: M, mutate: context(Witness<MID>) M.() -> R): Accounted<R>
+        where M : Model<MID, E>, R : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
         val mutated = context(Witness<MID>()) { model.mutate() }
-        if (mutated == null) return Accounted(dsl.notChanged(model), this)
+        // the receiver handed back is the mutation declining; anything else must be its own instance
+        if (mutated === model) return Accounted(dsl.notChanged(model), this)
         check(mutated.id() == model.id()) {
             "update(model) { } returned model [${mutated.id().stringValue()}] instead of the mutated " +
                 "[${model.id().stringValue()}]"
@@ -73,8 +75,8 @@ class ProvingChangesDsl internal constructor(
     }
 
     /** [update]'s twin for a new model that is mutated further before it is added. */
-    fun <MID, E, M> add(model: M, mutate: context(Witness<MID>) M.() -> M): Accounted<M>
-        where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
+    fun <MID, E, M, R> add(model: M, mutate: context(Witness<MID>) M.() -> R): Accounted<R>
+        where M : Model<MID, E>, R : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
         val mutated = context(Witness<MID>()) { model.mutate() }
         check(mutated.id() == model.id()) {
             "add(model) { } returned model [${mutated.id().stringValue()}] instead of the mutated " +

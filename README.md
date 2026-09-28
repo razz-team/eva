@@ -747,7 +747,7 @@ The tail check catches a mutated model that a block *returns* without registerin
     // the block: the registration is the scope the mutation runs in
     changes {
         update(employee) { changeDepartment(department) }         // Accounted<Employee>
-        update(invoice) { cycleId?.let { updateCycleId(it) } }    // null: nothing to change, registered unchanged
+        update(invoice) { cycleId?.let { updateCycleId(it) } ?: this }   // declined: registered unchanged
         add(newOrder()) { confirm() }                              // a new model mutated before it is added
     }
 
