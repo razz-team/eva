@@ -32,6 +32,8 @@ class Employee(
     modelState: ModelState<EmployeeId, EmployeeEvent>
 ) : Model<EmployeeId, EmployeeEvent>(id, modelState) {
 
+    // the witnessed mutator of the fixtures: callable only under a Witness<EmployeeId>
+    context(_: Witness<EmployeeId>)
     fun changeDepartment(newDepartment: Department<*>): Employee {
         check(newDepartment.id() != departmentId) { "Same department" }
         check(ration == newDepartment.ration) { "Ration should match" }
@@ -41,7 +43,7 @@ class Employee(
             newDepartment.id(),
             email,
             ration,
-            raiseEvent(DepartmentChanged(id(), departmentId, newDepartment.id()))
+            raise(DepartmentChanged(id(), departmentId, newDepartment.id()))
         )
     }
 

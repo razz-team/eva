@@ -1,6 +1,13 @@
 package com.razz.eva.uow.composable
 
+import com.razz.eva.domain.Department.OrphanedDepartment
 import com.razz.eva.domain.DepartmentId.Companion.randomDepartmentId
+import com.razz.eva.domain.Employee
+import com.razz.eva.domain.EmployeeEvent.DepartmentChanged
+import com.razz.eva.domain.EmployeeId
+import com.razz.eva.domain.ModelState.PersistentState.Companion.persistentState
+import com.razz.eva.domain.Name
+import com.razz.eva.domain.Ration.BUBALEH
 import com.razz.eva.domain.Tag
 import com.razz.eva.domain.TestModel.ActiveTestModel
 import com.razz.eva.domain.TestModel.CreatedTestModel
@@ -386,6 +393,68 @@ class ProvingUnitOfWorkSpec : FunSpec({
         }
         exception.message shouldBe "Attempted to register new model " +
             "[${unregistered.id().stringValue()}] as unchanged"
+    }
+
+    test("update(model) { } mints the witness, runs the mutation under it and registers the result") {
+        val oldDepartmentId = randomDepartmentId()
+        val employee = Employee(
+            EmployeeId(), Name("Ada", "Lovelace"), oldDepartmentId, "ada@test.com", BUBALEH,
+            persistentState(V1, null),
+        )
+        val department = OrphanedDepartment(
+            randomDepartmentId(), "Engineering", 3, BUBALEH, persistentState(V1, null),
+        )
+
+        val uow = object : DummyProvingUow<Employee>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: DummyProvingUow.Params) = changes {
+                update(employee) { changeDepartment(department) }
+            }
+        }
+        val changes = uow.tryPerform(TestPrincipal, DummyProvingUow.Params)
+
+        changes.result.departmentId shouldBe department.id()
+        changes.modelChangesToPersist shouldBe listOf(
+            UpdateModel(changes.result, listOf(DepartmentChanged(employee.id(), oldDepartmentId, department.id()))),
+        )
+    }
+
+    test("update(model) { } registers the model as unchanged when the mutation returns null") {
+        val employee = Employee(
+            EmployeeId(), Name("Ada", "Lovelace"), randomDepartmentId(), "ada@test.com", BUBALEH,
+            persistentState(V1, null),
+        )
+
+        val uow = object : DummyProvingUow<Employee>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: DummyProvingUow.Params) = changes {
+                update(employee) { null }
+            }
+        }
+        val changes = uow.tryPerform(TestPrincipal, DummyProvingUow.Params)
+
+        changes.result shouldBe employee
+        changes.modelChangesToPersist shouldBe listOf(NoopModel(employee))
+    }
+
+    test("update(model) { } refuses a mutation that came back as a different model") {
+        val employee = Employee(
+            EmployeeId(), Name("Ada", "Lovelace"), randomDepartmentId(), "ada@test.com", BUBALEH,
+            persistentState(V1, null),
+        )
+        val other = Employee(
+            EmployeeId(), Name("Bob", "Ross"), randomDepartmentId(), "bob@test.com", BUBALEH,
+            persistentState(V1, null),
+        )
+
+        val uow = object : DummyProvingUow<Employee>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: DummyProvingUow.Params) = changes {
+                update(employee) { other }
+            }
+        }
+        val exception = shouldThrow<IllegalStateException> {
+            uow.tryPerform(TestPrincipal, DummyProvingUow.Params)
+        }
+        exception.message shouldBe "update(model) { } returned model [${other.id().stringValue()}] instead of " +
+            "the mutated [${employee.id().stringValue()}]"
     }
 
     test("A batch of registered models is a legal result") {

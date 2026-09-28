@@ -61,6 +61,58 @@ class ProvingCompileRejectionSpec : FunSpec({
         messageOutputStream = OutputStream.nullOutputStream()
     }.compile()
 
+    fun witnessProbe(body: String) = SourceFile.kotlin(
+        "WitnessProbe.kt",
+        """
+        package probe
+
+        import com.razz.eva.domain.Department
+        import com.razz.eva.domain.Employee
+        import com.razz.eva.uow.ExecutionContext
+        import com.razz.eva.uow.TestPrincipal
+        import com.razz.eva.uow.UowParams
+        import com.razz.eva.uow.composable.ProvingUnitOfWork
+
+        data class Params(val employee: Employee, val department: Department<*>) : UowParams<Params>
+
+        class WitnessProbeUow(
+            executionContext: ExecutionContext,
+        ) : ProvingUnitOfWork<TestPrincipal, Params, Employee>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                $body
+            }
+        }
+
+        fun outsideAnyBlock(employee: Employee, department: Department<*>) = employee.changeDepartment(department)
+        """.trimIndent(),
+    )
+
+    fun compileWitness(body: String) = KotlinCompilation().apply {
+        sources = listOf(witnessProbe(body))
+        inheritClassPath = true
+        jvmTarget = "21"
+        kotlincArguments = listOf("-Xcontext-parameters")
+        verbose = false
+        messageOutputStream = OutputStream.nullOutputStream()
+    }.compile()
+
+    test("A witnessed mutator cannot be called outside a registration, in or out of a block") {
+        val result = compileWitness("update(params.employee) { changeDepartment(params.department) }")
+        result.shouldRejectWith("No context argument for '_: Witness<EmployeeId>' found.")
+        // the only rejection left is the free function outside any block
+        result.messages.lines().count { it.startsWith("e: ") } shouldBe 1
+    }
+
+    test("A witnessed mutation inside the block that is not its own registration does not compile") {
+        val result = compileWitness(
+            """
+            val moved = params.employee.changeDepartment(params.department)
+            notChanged(params.employee)
+            """.trimIndent(),
+        )
+        result.shouldRejectWith("No context argument for '_: Witness<EmployeeId>' found.")
+    }
+
     test("A block ending on an unregistered model does not compile") {
         val result = compile("createdTestModel(\"MLG\", 420)")
         result.shouldRejectWith(

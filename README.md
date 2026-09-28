@@ -732,6 +732,33 @@ Entity changes and `execute` hand back what they always did, and a proving UoW s
 
 Upgrading a custom UoW family: `BaseUnitOfWork` no longer declares an abstract `changes`, because each family now shapes that function itself (the proving families constrain the block's return type; the plain ones do not). A family outside eva that declared `final override suspend fun changes` fails to compile with `'changes' overrides nothing`; drop the `override` and keep the body. `ComposableUow` is sealed, so only the bases eva ships can be composed as children. Both are deliberate.
 
+#### Tying a mutation to its registration with `update(model) { }`
+
+The tail check catches a mutated model that a block *returns* without registering. It cannot see a model that was mutated, used, and never returned. The model side can close that: a mutator built on `raise` instead of `raiseEvent` declares a `Witness` context parameter, and the only places that supply one are the registration lambdas, so such a mutator is callable nowhere else.
+
+```kotlin
+    // the model: one line per migrated mutator
+    context(_: Witness<EmployeeId>)
+    fun changeDepartment(newDepartment: Department<*>): Employee = Employee(
+        ...,
+        raise(DepartmentChanged(id(), departmentId, newDepartment.id())),
+    )
+
+    // the block: the registration is the scope the mutation runs in
+    changes {
+        update(employee) { changeDepartment(department) }         // Accounted<Employee>
+        update(invoice) { cycleId?.let { updateCycleId(it) } }    // null: nothing to change, registered unchanged
+        add(newOrder()) { confirm() }                              // a new model mutated before it is added
+    }
+
+    changes {
+        val moved = employee.changeDepartment(department)          // does not compile: no Witness in context
+        notChanged(employee)
+    }
+```
+
+`Witness` has an internal constructor, so a consumer cannot mint one; tests use `mutating { }` from the eva-domain test-fixtures artifact, which is the only mint outside a change block. Migration is one mutator at a time: `raiseEvent` stays for the rest, and a model with both kinds compiles. What this does not cover: a mutator that returns a model without raising an event (a data-class `copy`), and a result discarded *inside* the lambda, which is the return value checker's case. Needs `-Xcontext-parameters` below language version 2.4.
+
 #### Returning persisted models with `roundtrip { }`
 
 When a UoW result is a single model or a collection of models, it is roundtripped through the database for you, so callers receive the flushed (version-bumped) instances. A data class that wraps several models is not roundtripped automatically. Use `roundtrip { p -> ... }` to build such a result: the lookup `p` resolves each model to its persisted instance by id.

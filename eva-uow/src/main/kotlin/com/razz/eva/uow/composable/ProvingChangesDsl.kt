@@ -8,6 +8,7 @@ import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
 import com.razz.eva.domain.Principal
 import com.razz.eva.domain.UpdatableEntity
+import com.razz.eva.domain.Witness
 import com.razz.eva.uow.BaseUnitOfWork
 import com.razz.eva.uow.ExecutionContext
 import com.razz.eva.uow.InstantiationContext
@@ -52,6 +53,35 @@ class ProvingChangesDsl internal constructor(
     fun <MID, E, M> notChanged(model: M): Accounted<M>
         where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> =
         Accounted(dsl.notChanged(model), this)
+
+    /**
+     * Registration as a scope: mints a [Witness] for the model's id type, runs [mutate] on the model under
+     * it and registers what comes back, so a mutation and its registration cannot come apart. A mutator
+     * built on [com.razz.eva.domain.Model.raise] is callable only here (or in [add]'s lambda), whichever
+     * order the author thinks of the two in. A null result means the mutator found nothing to change, and
+     * the model is registered as unchanged, so a chain of maybe-mutators reads as it always did.
+     */
+    fun <MID, E, M> update(model: M, mutate: context(Witness<MID>) M.() -> M?): Accounted<M>
+        where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
+        val mutated = context(Witness<MID>()) { model.mutate() }
+        if (mutated == null) return Accounted(dsl.notChanged(model), this)
+        check(mutated.id() == model.id()) {
+            "update(model) { } returned model [${mutated.id().stringValue()}] instead of the mutated " +
+                "[${model.id().stringValue()}]"
+        }
+        return Accounted(dsl.update(mutated), this)
+    }
+
+    /** [update]'s twin for a new model that is mutated further before it is added. */
+    fun <MID, E, M> add(model: M, mutate: context(Witness<MID>) M.() -> M): Accounted<M>
+        where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
+        val mutated = context(Witness<MID>()) { model.mutate() }
+        check(mutated.id() == model.id()) {
+            "add(model) { } returned model [${mutated.id().stringValue()}] instead of the mutated " +
+                "[${model.id().stringValue()}]"
+        }
+        return Accounted(dsl.add(mutated), this)
+    }
 
     /**
      * The stated exception: a result that is not a bare model, such as a computed value, a report, or

@@ -6,7 +6,7 @@ import com.razz.eva.domain.EmployeeId
 import com.razz.eva.domain.Tag
 import com.razz.eva.repository.DepartmentRepository
 import com.razz.eva.repository.EmployeeRepository
-import com.razz.eva.uow.composable.UnitOfWork as ComposableUnitOfWork
+import com.razz.eva.uow.proving.unit.UnitOfWork
 import com.razz.eva.uow.params.kotlinx.UowParams
 import kotlinx.serialization.Serializable
 
@@ -14,7 +14,7 @@ class InternalMobilityUow(
     executionContext: ExecutionContext,
     private val employeeRepo: EmployeeRepository,
     private val departmentRepo: DepartmentRepository,
-) : ComposableUnitOfWork<TestPrincipal, InternalMobilityUow.Params, Unit>(executionContext) {
+) : UnitOfWork<TestPrincipal, InternalMobilityUow.Params>(executionContext) {
 
     @Serializable
     data class Params(
@@ -24,7 +24,7 @@ class InternalMobilityUow(
         override fun serialization() = serializer()
     }
 
-    override suspend fun tryPerform(principal: TestPrincipal, params: Params): Changes<Unit> = changes {
+    override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
         var newDep = checkNotNull(departmentRepo.find(params.departmentId))
         val oldDeps = mutableMapOf<DepartmentId, Department<*>>()
         for (empId in params.employees) {
@@ -34,7 +34,7 @@ class InternalMobilityUow(
                 null -> checkNotNull(departmentRepo.find(existingEmp.departmentId))
                 else -> dep
             }
-            update(existingEmp.changeDepartment(newDep))
+            update(existingEmp) { changeDepartment(newDep) }
             oldDeps[existingEmp.departmentId] = oldDep.removeEmployee(existingEmp)
             newDep = newDep.addEmployee(existingEmp)
             add(
@@ -47,8 +47,8 @@ class InternalMobilityUow(
         }
         update(newDep)
         update(Tag.tag(newDep.id().id, "last-transfer", "batch-${params.employees.size}"))
-        for (oldDep in oldDeps.values) {
-            update(oldDep)
+        val restaffed = oldDeps.values.map { oldDep ->
+            val change = update(oldDep)
             delete(
                 Tag.tag(
                     oldDep.id().id,
@@ -56,6 +56,8 @@ class InternalMobilityUow(
                     "true",
                 ),
             )
+            change.result
         }
+        noModelResult(restaffed)
     }
 }
