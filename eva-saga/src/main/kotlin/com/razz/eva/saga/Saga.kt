@@ -135,6 +135,7 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
                 },
             )
         } catch (ex: Exception) {
+            currentCoroutineContext().ensureActive()
             StepOutcome.Threw(ex)
         }
 
@@ -154,6 +155,7 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
             }
             StepOutcome.Resolved(resolved)
         } catch (ex: Exception) {
+            currentCoroutineContext().ensureActive()
             StepOutcome.Threw(ex)
         }
 
