@@ -80,7 +80,7 @@ data class SagaExecutionContext internal constructor(
 
 fun sagaExecutionContext(
     otel: OpenTelemetry = OpenTelemetry.noop(),
-    observerTimeout: Duration = Duration.ofSeconds(3),
+    observerTimeout: Duration = Duration.ofMillis(500),
 ): SagaExecutionContext {
     require(observerTimeout.toMillis() > 0) {
         "Saga observer timeout must be at least a millisecond, but was [$observerTimeout]"

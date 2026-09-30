@@ -302,8 +302,8 @@ internal class SagaObserverSpec : ShouldSpec({
         metricReader.observerFailureSum(outcome = "threw") shouldBe 0
         elapsed.seconds shouldBeLessThan 5
     }
-    should("bound an observer notification to three seconds unless told otherwise") {
-        sagaExecutionContext().observerTimeout shouldBe Duration.ofSeconds(3)
+    should("bound an observer notification to half a second unless told otherwise") {
+        sagaExecutionContext().observerTimeout shouldBe Duration.ofMillis(500)
     }
     should("abandon a timed out observer mid-flight, leaving whatever it had already done in place") {
         val torn = TwoStepObserver(Duration.ofSeconds(30))
