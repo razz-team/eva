@@ -69,7 +69,7 @@ internal class SagaCancellationSpec : ShouldSpec({
     suspend fun cancelOnceReached(
         saga: TestSaga,
         params: Params,
-        reached: CompletableDeferred<Unit>
+        reached: CompletableDeferred<Unit>,
     ): Throwable? {
         var thrown: Throwable? = null
         val scope = CoroutineScope(Dispatchers.Default)
@@ -144,8 +144,8 @@ internal class SagaCancellationSpec : ShouldSpec({
             principal,
             Params(
                 { withTimeout(50.milliseconds) { awaitCancellation() } },
-                { _, _, _, _ -> Finish1("mapped") }
-            )
+                { _, _, _, _ -> Finish1("mapped") },
+            ),
         )
         terminal shouldBe Finish1("mapped")
         observer.events shouldBe listOf("failed:null:TimeoutCancellationException:Finish1")
@@ -154,7 +154,7 @@ internal class SagaCancellationSpec : ShouldSpec({
         spanExporter.finishedSpanItems.map { it.name } shouldBe listOf(
             "TestSaga-init",
             "TestSaga-onFailed",
-            "TestSaga"
+            "TestSaga",
         )
     }
 
@@ -177,7 +177,7 @@ internal class SagaCancellationSpec : ShouldSpec({
                     }
                 },
                 { _, _, _, _ -> null },
-            )
+            ),
         )
         terminal shouldBe Finish0("finished")
         observer.events shouldBe listOf(
@@ -199,7 +199,7 @@ internal class SagaCancellationSpec : ShouldSpec({
             "Step1-intermediate",
             "TestSaga-onTransition",
             "TestSaga-onTerminated",
-            "TestSaga"
+            "TestSaga",
         )
     }
 })

@@ -202,7 +202,7 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
             ex = ex,
             mappedTo = null,
             willRestart = backoff != null,
-            elapsed = elapsedSince(startedAt)
+            elapsed = elapsedSince(startedAt),
         ))
         if (backoff == null) {
             sagaExecutionContext.recordOutcome(sagaRun.sagaName, RunOutcome.GAVE_UP, null)
