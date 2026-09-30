@@ -190,13 +190,23 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
             return SagaOutcome.Ended(mapped)
         }
         val backoff = restartAfter(sagaRun.attempt, ex)
-        notify(Failed(sagaRun, step, ex, null, willRestart = backoff != null, elapsedSince(startedAt)))
+        if (backoff != null && backoff.isNegative) {
+            throw IllegalArgumentException(
+                "Saga restart backoff cannot be negative but was ${backoff.toMillis()}",
+                ex,
+            )
+        }
+        notify(Failed(
+            run = sagaRun,
+            step = step,
+            ex = ex,
+            mappedTo = null,
+            willRestart = backoff != null,
+            elapsed = elapsedSince(startedAt)
+        ))
         if (backoff == null) {
             sagaExecutionContext.recordOutcome(sagaRun.sagaName, RunOutcome.GAVE_UP, null)
             throw ex
-        }
-        require(backoff.toMillis() > 0) {
-            "Saga restart backoff must be at least a millisecond, but was [$backoff]"
         }
         return SagaOutcome.Restart(backoff)
     }

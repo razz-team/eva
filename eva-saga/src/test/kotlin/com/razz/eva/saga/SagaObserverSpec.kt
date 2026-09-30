@@ -14,6 +14,7 @@ import com.razz.eva.saga.TestSaga.Terminal.Finish1
 import com.razz.eva.saga.TestSaga.TestPrincipal
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.ShouldSpec
+import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.longs.shouldBeLessThan
@@ -29,6 +30,7 @@ import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
 import kotlinx.coroutines.delay
 import kotlin.coroutines.cancellation.CancellationException
 import java.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 
 internal class RecordingObserver : SagaObserver<TestPrincipal, Params> {
 
@@ -71,7 +73,7 @@ internal class ThrowingObserver(private val failure: () -> Throwable) : SagaObse
 internal class SlowObserver(private val takes: Duration) : SagaObserver<TestPrincipal, Params> {
 
     override suspend fun onNotification(notification: SagaNotification<TestPrincipal, Params>) =
-        delay(takes.toMillis())
+        delay(takes.toMillis().milliseconds)
 }
 
 internal class TwoStepObserver(private val stalls: Duration) : SagaObserver<TestPrincipal, Params> {
@@ -81,7 +83,7 @@ internal class TwoStepObserver(private val stalls: Duration) : SagaObserver<Test
     override suspend fun onNotification(notification: SagaNotification<TestPrincipal, Params>) {
         if (notification is Resumed) {
             applied += "before"
-            delay(stalls.toMillis())
+            delay(stalls.toMillis().milliseconds)
             applied += "after"
         }
     }
@@ -109,6 +111,8 @@ private fun InMemoryMetricReader.observerFailureSum(outcome: String? = null): Lo
             outcome == null || point.attributes.get(AttributeKey.stringKey("saga.observer.outcome")) == outcome
         }
         .sumOf { it.value }
+
+private val Throwable.rootCause: Throwable get() = generateSequence(this) { it.cause }.last()
 
 internal class SagaObserverSpec : ShouldSpec({
 
@@ -302,26 +306,93 @@ internal class SagaObserverSpec : ShouldSpec({
         observer.failureWillRestart shouldBe listOf(true)
     }
 
-    should("refuse a restart backoff that truncates to no delay") {
+    should("refuse a negative restart backoff before notifying observers") {
+        val observer = RecordingObserver()
+        val failure = IllegalArgumentException("can't touch this")
         val params = Params(
-            { throw IllegalStateException("can't touch this") },
+            { throw failure },
             { _, _, _, _ -> null },
         )
-
-        shouldThrow<IllegalArgumentException> {
-            TestSaga(restartPolicy = { _, _ -> Duration.ofNanos(500_000) }).resume(principal, params)
-        }.message shouldBe "Saga restart backoff must be at least a millisecond, but was [PT0.0005S]"
-    }
-
-    should("refuse a negative restart backoff") {
-        val params = Params(
-            { throw IllegalStateException("can't touch this") },
-            { _, _, _, _ -> null },
-        )
-
-        shouldThrow<IllegalArgumentException> {
+        val rejection = shouldThrow<IllegalArgumentException> {
             TestSaga(restartPolicy = { _, _ -> Duration.ofMillis(-5) }).resume(principal, params)
         }
+        rejection.message shouldBe "Saga restart backoff cannot be negative but was -5"
+        rejection.rootCause shouldBe failure
+        observer.events.shouldBeEmpty()
+    }
+
+    should("refuse a negative restart backoff that truncates to no delay") {
+        val params = Params(
+            { throw IllegalStateException("can't touch this") },
+            { _, _, _, _ -> null },
+        )
+
+        shouldThrow<IllegalArgumentException> {
+            TestSaga(restartPolicy = { _, _ -> Duration.ofNanos(-500_000) }).resume(principal, params)
+        }
+    }
+
+    should("count a restart the policy asked to run with no delay") {
+        val metricReader = InMemoryMetricReader.create()
+        val spanExporter = InMemorySpanExporter.create()
+        val openTelemetry = OpenTelemetrySdk.builder()
+            .setMeterProvider(SdkMeterProvider.builder().registerMetricReader(metricReader).build())
+            .setTracerProvider(
+                SdkTracerProvider.builder().addSpanProcessor(SimpleSpanProcessor.create(spanExporter)).build(),
+            )
+            .build()
+        var thrown = false
+        val params = Params(
+            { if (thrown) Finish0("stop") else { thrown = true; throw IllegalStateException("can't touch this") } },
+            { _, _, _, _ -> null },
+        )
+
+        TestSaga(listOf(), sagaExecutionContext(otel = openTelemetry), null, { _, _ -> Duration.ZERO })
+            .resume(principal, params) shouldBe Finish0("stop")
+
+        metricReader.points("saga.restart").sumOf { it.value } shouldBe 1
+        metricReader.outcomes() shouldBe mapOf(("terminal" to "Finish0") to 1L)
+        spanExporter.finishedSpanItems.single { it.name == "TestSaga" }
+            .events.map { it.name } shouldContain "saga.restart"
+    }
+
+    should("record no outcome when a restart backoff is rejected") {
+        val metricReader = InMemoryMetricReader.create()
+        val openTelemetry = OpenTelemetrySdk.builder()
+            .setMeterProvider(SdkMeterProvider.builder().registerMetricReader(metricReader).build())
+            .build()
+        val params = Params(
+            { throw IllegalStateException("can't touch this") },
+            { _, _, _, _ -> null },
+        )
+
+        shouldThrow<IllegalArgumentException> {
+            TestSaga(
+                listOf(),
+                sagaExecutionContext(otel = openTelemetry),
+                null,
+                { _, _ -> Duration.ofMillis(-5) },
+            ).resume(principal, params)
+        }
+
+        metricReader.outcomes() shouldBe mapOf()
+        metricReader.points("saga.restart") shouldBe listOf()
+    }
+
+    should("still bound restarts when the policy asks for no delay") {
+        val observer = RecordingObserver()
+        val params = Params(
+            { throw IllegalStateException("can't touch this") },
+            { _, _, _, _ -> null },
+        )
+
+        shouldThrow<IllegalStateException> {
+            TestSaga(listOf(observer), restartPolicy = { attempt, _ ->
+                Duration.ZERO.takeIf { attempt < 2 }
+            }).resume(principal, params)
+        }
+
+        observer.failureWillRestart shouldBe listOf(true, true, false)
     }
 
     should("tell observers when it has given up instead of retrying") {
