@@ -10,6 +10,7 @@ import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.ShouldSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import io.opentelemetry.sdk.OpenTelemetrySdk
 import io.opentelemetry.sdk.metrics.SdkMeterProvider
@@ -177,5 +178,25 @@ internal class SagaRestartSpec : ShouldSpec({
         TestSaga(listOf(observer)).resume(principal, params) shouldBe Finish0("it's time to stop")
 
         observer.runIds.distinct().size shouldBe 2
+    }
+    should("report a run time that spans every attempt and the backoff between them") {
+        val observer = RecordingObserver()
+        var attempts = 0
+        val params = Params(
+            {
+                attempts++
+                if (attempts > 2) Finish0("stop") else throw IllegalStateException("can't touch this")
+            },
+            { _, _, _, _ -> null },
+        )
+
+        TestSaga(listOf(observer), restartPolicy = { _, _ -> Duration.ofMillis(120) })
+            .resume(principal, params) shouldBe Finish0("stop")
+
+        val (attemptElapsed, runElapsed) = observer.terminalElapsed.single()
+        runElapsed shouldBeGreaterThan attemptElapsed
+        runElapsed shouldBeGreaterThan Duration.ofMillis(240)
+        observer.failureRunElapsed.size shouldBe 2
+        observer.failureRunElapsed[1] shouldBeGreaterThan observer.failureRunElapsed[0]
     }
 })

@@ -14,6 +14,7 @@ sealed interface SagaNotification<PRINCIPAL, PARAMS> where PRINCIPAL : Principal
     class Resumed<PRINCIPAL, PARAMS>(
         override val run: SagaRun<PRINCIPAL, PARAMS>,
         val first: Step<*>,
+        val stepElapsed: Duration,
     ) : SagaNotification<PRINCIPAL, PARAMS> where PRINCIPAL : Principal<*> {
         override val suffix = "onResumed"
     }
@@ -22,7 +23,7 @@ sealed interface SagaNotification<PRINCIPAL, PARAMS> where PRINCIPAL : Principal
         override val run: SagaRun<PRINCIPAL, PARAMS>,
         val from: Step<*>,
         val to: Step<*>,
-        val elapsed: Duration,
+        val stepElapsed: Duration,
     ) : SagaNotification<PRINCIPAL, PARAMS> where PRINCIPAL : Principal<*> {
         override val suffix = "onTransition"
     }
@@ -30,7 +31,8 @@ sealed interface SagaNotification<PRINCIPAL, PARAMS> where PRINCIPAL : Principal
     class Terminated<PRINCIPAL, PARAMS>(
         override val run: SagaRun<PRINCIPAL, PARAMS>,
         val terminal: Terminal<*>,
-        val elapsed: Duration,
+        val attemptElapsed: Duration,
+        val runElapsed: Duration,
     ) : SagaNotification<PRINCIPAL, PARAMS> where PRINCIPAL : Principal<*> {
         override val suffix = "onTerminated"
     }
@@ -41,7 +43,8 @@ sealed interface SagaNotification<PRINCIPAL, PARAMS> where PRINCIPAL : Principal
         val ex: Exception,
         val mappedTo: Terminal<*>?,
         val willRestart: Boolean,
-        val elapsed: Duration,
+        val attemptElapsed: Duration,
+        val runElapsed: Duration,
     ) : SagaNotification<PRINCIPAL, PARAMS> where PRINCIPAL : Principal<*> {
         override val suffix = "onFailed"
     }

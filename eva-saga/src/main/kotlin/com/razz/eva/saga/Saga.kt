@@ -71,7 +71,8 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
             spanName = sagaRun.sagaName,
             parameters = { setAttribute(SAGA_RUN_ID, sagaRun.id.toString()) },
         ) {
-            advance(sagaRun, null, setOf(), System.nanoTime())
+            val runStartedAt = System.nanoTime()
+            advance(sagaRun, null, setOf(), runStartedAt, runStartedAt)
         }
     }
 
@@ -80,7 +81,8 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
         sagaRun: SagaRun<PRINCIPAL, PARAMS>,
         currentStep: IS?,
         trail: Set<KClass<out Step<SELF>>>,
-        startedAt: Long,
+        attemptStartedAt: Long,
+        runStartedAt: Long,
     ): TS {
         val stepStartedAt = System.nanoTime()
         val starting = currentStep == null
@@ -91,7 +93,9 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
             resolveNext(sagaRun, currentStep, trail)
         }
         return when (stepOutcome) {
-            is StepOutcome.Threw -> when (val sagaOutcome = failed(sagaRun, currentStep, stepOutcome.ex, startedAt)) {
+            is StepOutcome.Threw -> when (
+                val sagaOutcome = failed(sagaRun, currentStep, stepOutcome.ex, attemptStartedAt, runStartedAt)
+            ) {
                 is SagaOutcome.Ended -> recordTerminal(sagaOutcome.terminal)
                 is SagaOutcome.Restart -> {
                     val restartedSagaRun = sagaRun.copy(
@@ -101,14 +105,21 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
                     )
                     recordRestart(restartedSagaRun, sagaRun.id, stepOutcome.ex)
                     delay(sagaOutcome.backoff.toMillis().milliseconds)
-                    advance(restartedSagaRun, null, setOf(), System.nanoTime())
+                    advance(restartedSagaRun, null, setOf(), System.nanoTime(), runStartedAt)
                 }
             }
+
             is StepOutcome.Resolved -> {
                 val nextStep = stepOutcome.step
                 val nextTrail = trail + nextStep::class
                 if (starting) {
-                    notify(Resumed(sagaRun, nextStep))
+                    notify(
+                        Resumed(
+                            sagaRun,
+                            nextStep,
+                            elapsedSince(stepStartedAt),
+                        ),
+                    )
                 } else {
                     notify(
                         Transitioned(
@@ -120,8 +131,8 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
                     )
                 }
                 when (nextStep) {
-                    is Terminal<*> -> terminated(sagaRun, nextStep as TS, startedAt)
-                    is Intermediary<*> -> advance(sagaRun, nextStep as IS, nextTrail, startedAt)
+                    is Terminal<*> -> terminated(sagaRun, nextStep as TS, attemptStartedAt, runStartedAt)
+                    is Intermediary<*> -> advance(sagaRun, nextStep as IS, nextTrail, attemptStartedAt, runStartedAt)
                 }
             }
         }
@@ -162,11 +173,12 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
     private suspend fun terminated(
         sagaRun: SagaRun<PRINCIPAL, PARAMS>,
         terminal: TS,
-        startedAt: Long,
+        attemptStartedAt: Long,
+        runStartedAt: Long,
     ): TS {
         recordTerminal(terminal)
         sagaExecutionContext.recordOutcome(sagaRun.sagaName, RunOutcome.TERMINAL, terminalName(terminal))
-        notify(Terminated(sagaRun, terminal, elapsedSince(startedAt)))
+        notify(Terminated(sagaRun, terminal, elapsedSince(attemptStartedAt), elapsedSince(runStartedAt)))
         return terminal
     }
 
@@ -174,19 +186,40 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
         sagaRun: SagaRun<PRINCIPAL, PARAMS>,
         step: IS?,
         ex: Exception,
-        startedAt: Long,
+        attemptStartedAt: Long,
+        runStartedAt: Long,
     ): SagaOutcome<TS> {
         Span.current().recordException(ex)
         val mapped = try {
             onException(ex, sagaRun.principal, sagaRun.params, step)
         } catch (rethrown: Exception) {
             sagaExecutionContext.recordOutcome(sagaRun.sagaName, RunOutcome.RETHREW, null)
-            notify(Failed(sagaRun, step, ex, null, willRestart = false, elapsedSince(startedAt)))
+            notify(
+                Failed(
+                    run = sagaRun,
+                    step = step,
+                    ex = ex,
+                    mappedTo = null,
+                    willRestart = false,
+                    attemptElapsed = elapsedSince(attemptStartedAt),
+                    runElapsed = elapsedSince(runStartedAt),
+                ),
+            )
             throw rethrown
         }
         if (mapped != null) {
             sagaExecutionContext.recordOutcome(sagaRun.sagaName, RunOutcome.MAPPED, terminalName(mapped))
-            notify(Failed(sagaRun, step, ex, mapped, willRestart = false, elapsedSince(startedAt)))
+            notify(
+                Failed(
+                    run = sagaRun,
+                    step = step,
+                    ex = ex,
+                    mappedTo = mapped,
+                    willRestart = false,
+                    attemptElapsed = elapsedSince(attemptStartedAt),
+                    runElapsed = elapsedSince(runStartedAt),
+                ),
+            )
             return SagaOutcome.Ended(mapped)
         }
         val backoff = restartAfter(sagaRun.attempt, ex)
@@ -196,14 +229,17 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
                 ex,
             )
         }
-        notify(Failed(
-            run = sagaRun,
-            step = step,
-            ex = ex,
-            mappedTo = null,
-            willRestart = backoff != null,
-            elapsed = elapsedSince(startedAt),
-        ))
+        notify(
+            Failed(
+                run = sagaRun,
+                step = step,
+                ex = ex,
+                mappedTo = null,
+                willRestart = backoff != null,
+                attemptElapsed = elapsedSince(attemptStartedAt),
+                runElapsed = elapsedSince(runStartedAt),
+            ),
+        )
         if (backoff == null) {
             sagaExecutionContext.recordOutcome(sagaRun.sagaName, RunOutcome.GAVE_UP, null)
             throw ex

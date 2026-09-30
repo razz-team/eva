@@ -19,6 +19,8 @@ internal class RecordingObserver : SagaObserver<TestPrincipal, Params> {
     val parents = mutableListOf<Pair<SagaRunId, SagaRunId?>>()
     val sagaNames = mutableListOf<String>()
     val failureElapsed = mutableListOf<Duration>()
+    val failureRunElapsed = mutableListOf<Duration>()
+    val terminalElapsed = mutableListOf<Pair<Duration, Duration>>()
     val failureWillRestart = mutableListOf<Boolean>()
 
     override suspend fun onNotification(notification: SagaNotification<TestPrincipal, Params>) {
@@ -32,9 +34,13 @@ internal class RecordingObserver : SagaObserver<TestPrincipal, Params> {
             }
             is Transitioned ->
                 "transition:${notification.from::class.simpleName}->${notification.to::class.simpleName}"
-            is Terminated -> "terminated:${notification.terminal::class.simpleName}"
+            is Terminated -> {
+                terminalElapsed += notification.attemptElapsed to notification.runElapsed
+                "terminated:${notification.terminal::class.simpleName}"
+            }
             is Failed -> {
-                failureElapsed += notification.elapsed
+                failureElapsed += notification.attemptElapsed
+                failureRunElapsed += notification.runElapsed
                 failureWillRestart += notification.willRestart
                 val stepName = notification.step?.let { it::class.simpleName }
                 val mappedName = notification.mappedTo?.let { it::class.simpleName }
