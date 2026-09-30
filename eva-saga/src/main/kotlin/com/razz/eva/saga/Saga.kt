@@ -189,7 +189,6 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
         attemptStartedAt: Long,
         runStartedAt: Long,
     ): SagaOutcome<TS> {
-        Span.current().recordException(ex)
         val mapped = try {
             onException(ex, sagaRun.principal, sagaRun.params, step)
         } catch (rethrown: Exception) {
@@ -208,6 +207,7 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
             throw rethrown
         }
         if (mapped != null) {
+            Span.current().recordException(ex)
             sagaExecutionContext.recordOutcome(sagaRun.sagaName, RunOutcome.MAPPED, terminalName(mapped))
             notify(
                 Failed(
@@ -244,6 +244,7 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
             sagaExecutionContext.recordOutcome(sagaRun.sagaName, RunOutcome.GAVE_UP, null)
             throw ex
         }
+        Span.current().recordException(ex)
         return SagaOutcome.Restart(backoff)
     }
 
