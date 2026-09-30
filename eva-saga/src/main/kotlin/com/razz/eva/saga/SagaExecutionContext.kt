@@ -13,8 +13,6 @@ import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.metrics.LongCounter
 import java.time.Duration
 
-private const val COUNT = "count"
-
 data class SagaExecutionContext internal constructor(
     internal val otel: OpenTelemetry,
     internal val observerTimeout: Duration,
@@ -22,19 +20,19 @@ data class SagaExecutionContext internal constructor(
     private val observerFailures: LongCounter = otel.getEvaMeter()
         .counterBuilder(Metrics.OBSERVER_FAILURE)
         .setDescription("Saga observer invocations that failed or timed out")
-        .setUnit(COUNT)
+        .setUnit(Metrics.COUNT)
         .build()
 
     private val restarts: LongCounter = otel.getEvaMeter()
         .counterBuilder(Metrics.RESTART)
         .setDescription("Saga runs restarted from init after onException declined to map a failure")
-        .setUnit(COUNT)
+        .setUnit(Metrics.COUNT)
         .build()
 
     private val outcomes: LongCounter = otel.getEvaMeter()
         .counterBuilder(Metrics.OUTCOME)
         .setDescription("Saga resumptions counted by how they ended")
-        .setUnit(COUNT)
+        .setUnit(Metrics.COUNT)
         .build()
 
     internal fun recordOutcome(sagaName: String, outcome: RunOutcome, terminal: String?) {

@@ -18,6 +18,7 @@ internal class RecordingObserver : SagaObserver<TestPrincipal, Params> {
     val runIds = mutableListOf<SagaRunId>()
     val parents = mutableListOf<Pair<SagaRunId, SagaRunId?>>()
     val sagaNames = mutableListOf<String>()
+    val stepElapsed = mutableListOf<Duration>()
     val failureElapsed = mutableListOf<Duration>()
     val failureRunElapsed = mutableListOf<Duration>()
     val terminalElapsed = mutableListOf<Pair<Duration, Duration>>()
@@ -30,10 +31,13 @@ internal class RecordingObserver : SagaObserver<TestPrincipal, Params> {
             is Resumed -> {
                 parents += run.id to run.parentId
                 sagaNames += run.sagaName
+                stepElapsed += notification.stepElapsed
                 "resumed:${notification.first::class.simpleName}"
             }
-            is Transitioned ->
+            is Transitioned -> {
+                stepElapsed += notification.stepElapsed
                 "transition:${notification.from::class.simpleName}->${notification.to::class.simpleName}"
+            }
             is Terminated -> {
                 terminalElapsed += notification.attemptElapsed to notification.runElapsed
                 "terminated:${notification.terminal::class.simpleName}"

@@ -9,33 +9,25 @@ sealed interface SagaNotification<PRINCIPAL, PARAMS> where PRINCIPAL : Principal
 
     val run: SagaRun<PRINCIPAL, PARAMS>
 
-    val suffix: String
-
     class Resumed<PRINCIPAL, PARAMS>(
         override val run: SagaRun<PRINCIPAL, PARAMS>,
         val first: Step<*>,
         val stepElapsed: Duration,
-    ) : SagaNotification<PRINCIPAL, PARAMS> where PRINCIPAL : Principal<*> {
-        override val suffix = "onResumed"
-    }
+    ) : SagaNotification<PRINCIPAL, PARAMS> where PRINCIPAL : Principal<*>
 
     class Transitioned<PRINCIPAL, PARAMS>(
         override val run: SagaRun<PRINCIPAL, PARAMS>,
         val from: Step<*>,
         val to: Step<*>,
         val stepElapsed: Duration,
-    ) : SagaNotification<PRINCIPAL, PARAMS> where PRINCIPAL : Principal<*> {
-        override val suffix = "onTransition"
-    }
+    ) : SagaNotification<PRINCIPAL, PARAMS> where PRINCIPAL : Principal<*>
 
     class Terminated<PRINCIPAL, PARAMS>(
         override val run: SagaRun<PRINCIPAL, PARAMS>,
         val terminal: Terminal<*>,
         val attemptElapsed: Duration,
         val runElapsed: Duration,
-    ) : SagaNotification<PRINCIPAL, PARAMS> where PRINCIPAL : Principal<*> {
-        override val suffix = "onTerminated"
-    }
+    ) : SagaNotification<PRINCIPAL, PARAMS> where PRINCIPAL : Principal<*>
 
     class Failed<PRINCIPAL, PARAMS>(
         override val run: SagaRun<PRINCIPAL, PARAMS>,
@@ -45,10 +37,16 @@ sealed interface SagaNotification<PRINCIPAL, PARAMS> where PRINCIPAL : Principal
         val willRestart: Boolean,
         val attemptElapsed: Duration,
         val runElapsed: Duration,
-    ) : SagaNotification<PRINCIPAL, PARAMS> where PRINCIPAL : Principal<*> {
-        override val suffix = "onFailed"
-    }
+    ) : SagaNotification<PRINCIPAL, PARAMS> where PRINCIPAL : Principal<*>
 }
+
+internal val SagaNotification<*, *>.suffix: String
+    get() = when (this) {
+        is SagaNotification.Resumed -> "onResumed"
+        is SagaNotification.Transitioned -> "onTransition"
+        is SagaNotification.Terminated -> "onTerminated"
+        is SagaNotification.Failed -> "onFailed"
+    }
 
 interface SagaObserver<PRINCIPAL, PARAMS> where PRINCIPAL : Principal<*> {
 

@@ -6,7 +6,7 @@ import com.razz.eva.domain.Principal
 import com.razz.eva.saga.ObserverOutcome.THREW
 import com.razz.eva.saga.ObserverOutcome.TIMED_OUT
 import com.razz.eva.saga.OtelAttributes.SAGA_ATTEMPT
-import com.razz.eva.saga.OtelAttributes.SAGA_ATTEMPTS
+import com.razz.eva.saga.OtelAttributes.SAGA_ATTEMPT_COUNT
 import com.razz.eva.saga.OtelAttributes.SAGA_PARENT_RUN_ID
 import com.razz.eva.saga.OtelAttributes.SAGA_RUN_ID
 import com.razz.eva.saga.OtelAttributes.SAGA_TERMINAL
@@ -249,7 +249,7 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
     }
 
     private fun recordAttempt(sagaRun: SagaRun<PRINCIPAL, PARAMS>) {
-        Span.current().setAttribute(SAGA_ATTEMPTS, (sagaRun.attempt + 1).toLong())
+        Span.current().setAttribute(SAGA_ATTEMPT_COUNT, (sagaRun.attempt + 1).toLong())
     }
 
     private fun recordTerminal(terminal: TS): TS {
@@ -314,11 +314,10 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
     private fun elapsedSince(startedAtNanos: Long): Duration =
         Duration.ofNanos(System.nanoTime() - startedAtNanos)
 
-    private val logger = KotlinLogging.logger {}
-
     private companion object {
         private const val MAX_RESTARTS = 2
         private val RESTART_BACKOFF = Duration.ofMillis(100)
+        private val logger = KotlinLogging.logger {}
     }
 }
 

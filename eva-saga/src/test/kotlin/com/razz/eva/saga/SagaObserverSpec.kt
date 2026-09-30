@@ -12,6 +12,7 @@ import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.ShouldSpec
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.comparables.shouldBeGreaterThan
+import io.kotest.matchers.comparables.shouldBeLessThan
 import io.kotest.matchers.longs.shouldBeLessThan
 import io.kotest.matchers.shouldBe
 import io.opentelemetry.api.trace.StatusCode.ERROR
@@ -21,8 +22,10 @@ import io.opentelemetry.sdk.testing.exporter.InMemoryMetricReader
 import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter
 import io.opentelemetry.sdk.trace.SdkTracerProvider
 import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
+import kotlinx.coroutines.delay
 import kotlin.coroutines.cancellation.CancellationException
 import java.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 
 internal class SagaObserverSpec : ShouldSpec({
 
@@ -335,5 +338,26 @@ internal class SagaObserverSpec : ShouldSpec({
         TestSaga(listOf(observer), name = "DelegateSaga").resume(principal, Params({ Finish0("stop") }))
 
         observer.sagaNames shouldBe listOf("DelegateSaga")
+    }
+    should("time each step on its own clock rather than the attempt's") {
+        val observer = RecordingObserver()
+        var hops = 0
+        val params = Params(
+            {
+                delay(60.milliseconds)
+                hops++
+                when (hops) {
+                    1 -> Step1("go go go!")
+                    2 -> Step0("keep going")
+                    else -> Finish0("stop")
+                }
+            },
+        )
+
+        TestSaga(listOf(observer)).resume(principal, params) shouldBe Finish0("stop")
+
+        observer.stepElapsed.size shouldBe 3
+        observer.stepElapsed.forEach { it shouldBeLessThan Duration.ofMillis(150) }
+        observer.terminalElapsed.single().first shouldBeGreaterThan Duration.ofMillis(150)
     }
 })

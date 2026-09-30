@@ -138,7 +138,7 @@ internal class SagaSpanSpec : ShouldSpec({
         val run = exporter.finishedSpanItems.single { it.name == "TestSaga" }
         run.status.statusCode shouldBe ERROR
         run.events.map { it.name } shouldContain "exception"
-        run.attributes.get(AttributeKey.longKey("saga.attempts")) shouldBe 1L
+        run.attributes.get(AttributeKey.longKey("saga.attempt_count")) shouldBe 1L
     }
 
     should("record the terminal the run ended on as an attribute of the run span") {
@@ -157,7 +157,7 @@ internal class SagaSpanSpec : ShouldSpec({
 
         val runs = exporter.finishedSpanItems.filter { it.name == "TestSaga" }
         runs.size shouldBe 1
-        runs.single().attributes.get(AttributeKey.longKey("saga.attempts")) shouldBe 2L
+        runs.single().attributes.get(AttributeKey.longKey("saga.attempt_count")) shouldBe 2L
         runs.single().attributes.get(AttributeKey.stringKey("saga.terminal")) shouldBe "Finish0"
     }
 
@@ -218,7 +218,7 @@ internal class SagaSpanSpec : ShouldSpec({
 
         exporter.finishedSpanItems.filter { it.name.startsWith("SecondName") } shouldBe listOf()
         exporter.finishedSpanItems.single { it.name == "FirstName" }
-            .attributes.get(AttributeKey.longKey("saga.attempts")) shouldBe 2L
+            .attributes.get(AttributeKey.longKey("saga.attempt_count")) shouldBe 2L
         observer.sagaNames shouldBe listOf("FirstName", "FirstName")
     }
 
