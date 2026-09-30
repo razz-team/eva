@@ -89,12 +89,12 @@ internal class TwoStepObserver(private val stalls: Duration) : SagaObserver<Test
 
 private fun List<String>.endEvents() = count { it.startsWith("failed:") || it.startsWith("terminated:") }
 
-private fun InMemoryMetricReader.points(metric: String) =
+internal fun InMemoryMetricReader.points(metric: String) =
     collectAllMetrics()
         .filter { it.name == metric }
         .flatMap { it.longSumData.points }
 
-private fun InMemoryMetricReader.outcomes(): Map<Pair<String?, String?>, Long> =
+internal fun InMemoryMetricReader.outcomes(): Map<Pair<String?, String?>, Long> =
     points("saga.outcome").associate { point ->
         val outcome = point.attributes.get(AttributeKey.stringKey("saga.outcome"))
         val terminal = point.attributes.get(AttributeKey.stringKey("saga.terminal"))

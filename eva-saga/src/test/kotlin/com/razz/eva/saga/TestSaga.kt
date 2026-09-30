@@ -45,7 +45,7 @@ internal class TestSaga(
     }
 
     data class Params(
-        val succ: (Intermediary) -> Step<TestSaga>,
+        val succ: suspend (Intermediary) -> Step<TestSaga>,
         val onException: (Exception, TestPrincipal, Params, Intermediary?) -> Terminal? = { e, _, _, _ -> throw e },
     )
 
