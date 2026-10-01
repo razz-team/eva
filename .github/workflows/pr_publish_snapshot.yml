@@ -61,6 +61,7 @@ jobs:
           ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 0
           persist-credentials: false
+          allow-unsafe-pr-checkout: true # this workflow is only executed after a manual approval by one of the owners
 
       - uses: actions/setup-java@v5
         with:
