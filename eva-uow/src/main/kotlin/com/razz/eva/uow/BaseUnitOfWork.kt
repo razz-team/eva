@@ -106,8 +106,8 @@ internal fun modelsIn(value: Any?): List<Model<*, *>> {
 /**
  * A new or dirty model in [result] is about to leave a UoW without going through the changes DSL:
  * whatever mutation it carries will never be persisted, unless [isAccounted] says some change set
- * already vouches for that exact instance. Rejecting it here turns the silent write drop into a loud
- * failure at the site that dropped it.
+ * already persists it: the instance itself, or one that extends it. Rejecting it here turns the silent
+ * write drop into a loud failure at the site that dropped it.
  */
 internal fun checkNoDroppedWrite(
     result: Any?,

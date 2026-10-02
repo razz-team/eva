@@ -26,7 +26,7 @@ abstract class Model<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>>(
     /**
      * [raiseEvent] that can only be called under a [Witness] for this model's id type. A mutator built
      * on it declares `context(_: Witness<ID>)` and is thereby callable only inside the change block's
-     * `update(model) { }` or `add { }`, where its result is registered, or inside a fixture's
+     * `update(model) { }` or `add { }`, which register the receiver's result, or inside a fixture's
      * `mutating { }`; [Witness] states what this does not guard against. A model migrates one mutator
      * at a time; the ungated [raiseEvent] stays for the rest.
      */

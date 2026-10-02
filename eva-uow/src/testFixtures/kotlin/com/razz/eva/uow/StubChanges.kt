@@ -11,7 +11,7 @@ import com.razz.eva.domain.ModelId
  * double is supposed to have registered.
  *
  * A stub declares child behaviour instead of performing it, so every model reachable from [result]
- * (through iterables, maps, arrays, pairs and triples) is registered as an unchanged claim
+ * (through iterables, maps, arrays, pairs, triples and an aggregate's owned models) is registered as an unchanged claim
  * automatically; [alsoRegistered] adds models the double claims the child registered without
  * returning. Under composition the merge treats these claims as claims only: they never demote
  * changes the parent already accumulated, and they vouch for exactly the claimed instances. The
