@@ -100,8 +100,12 @@ class ChangesDsl internal constructor(
         where M : Model<MID, E>, R : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
         val mutated = context(Witness<MID>()) { model.mutate() }
         if (mutated === model) {
-            notChanged(model)
-            return mutated
+            check(!model.isNew()) {
+                "update(model) { } handed back new model [${model.id().stringValue()}] unchanged; register a " +
+                    "new model with add"
+            }
+            // a receiver already dirty from an unwitnessed mutator still carries its own write
+            return if (model.isDirty()) update(model) else notChanged(model)
         }
         check(mutated.id() == model.id()) {
             "update(model) { } returned model [${mutated.id().stringValue()}] instead of the mutated " +
@@ -112,9 +116,12 @@ class ChangesDsl internal constructor(
 
     /**
      * Creation as a scope: a factory built on [com.razz.eva.domain.ModelState.NewState.Companion.created]
-     * needs a [Witness], and this is the only place in production that supplies one, so a model cannot be
-     * created without being added. The witness covers the created model's id type, inferred from the
-     * lambda, so a stray mutation of another model type inside [create] does not compile.
+     * needs a [Witness] for its id type, and the model it returns here is added. The witness covers the
+     * created model's id type, inferred from the lambda, so a stray mutation of another model type inside
+     * [create] does not compile. [update] supplies the same witness for its own type, so a factory of
+     * that type also compiles inside `update(model) { }`, where nothing adds what it creates. When the
+     * expected type is wider than the model (`val x: Any = add { }`), inference fails: name the model's
+     * type on the receiving value.
      */
     fun <MID, E, M> add(create: context(Witness<MID>) () -> M): M
         where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> =

@@ -83,6 +83,20 @@ class WitnessSpec : FunSpec({
         changes.modelChangesToPersist shouldBe listOf(NoopModel(employee))
     }
 
+    test("update(model) { } registers a receiver dirty from an unwitnessed mutator when the mutation declines") {
+        val read = com.razz.eva.domain.TestModel.Factory.existingCreatedTestModel(param1 = "read", param2 = 1)
+        val dirty = read.changeParam1("legacy")
+        val uow = object : DummyUow<com.razz.eva.domain.TestModel>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                update(dirty) { this }
+            }
+        }
+        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
+
+        changes.result shouldBe dirty
+        changes.modelChangesToPersist.single().shouldBeInstanceOf<UpdateModel<*, *, *>>().model shouldBe dirty
+    }
+
     test("update(model) { } refuses a mutation that came back as a different model") {
         val employee = employee()
         val other = employee()
