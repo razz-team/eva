@@ -119,8 +119,9 @@ sealed class ModelState<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>>(
 
             /**
              * [newState] under a [Witness]: a created event is a model's first mutation, so a factory built
-             * on it declares `context(_: Witness<ID>)` and is callable only inside the change block's
-             * `add { }`, where what it creates is registered, or a fixture's `mutating { }`.
+             * on it declares `context(_: Witness<ID>)` and is callable only where a witness for its id type
+             * is in scope: the change block's `add { }`, which registers what it creates, a fixture's
+             * `mutating { }`, and `update(model) { }` on a model of the same id type, which does not.
              */
             context(_: Witness<ID>)
             fun <ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>, C : ModelCreatedEvent<ID>> created(
