@@ -249,7 +249,7 @@ class ChangesSpec : BehaviorSpec({
             val model1 = existingCreatedTestModel(randomTestModelId(), "name1", 1337, V1)
                 .activate()
             val model1Event = TestModelStatusChanged(model1.id(), CREATED, ACTIVE)
-            // clean on purpose: an unregistered dirty model as a result is rejected by withResult
+            // clean on purpose: an unregistered dirty model in a result fails at the executor
             val model2 = existingCreatedTestModel(randomTestModelId(), "name2", 100500, V1)
             val model3 = existingCreatedTestModel(randomTestModelId(), "name3", 0xBABE, V1)
                 .activate()
