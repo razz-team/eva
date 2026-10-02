@@ -652,13 +652,62 @@ class ChangesSpec : BehaviorSpec({
                 DepartmentId.randomDepartmentId(), "Other", bossId, 1, BUBALEH, persistentState(V1, null),
             )
             val moved = mutating { emp.changeDepartment(otherDept) }
-            val accumulator = ChangesAccumulator()
+            val owner = dept.addEmployee(moved)
+            val changes = ChangesAccumulator()
                 .withAddedModel(emp)
-                .withAddedModel(dept.addEmployee(moved))
+                .withAddedModel(owner)
+                .withResult("later")
 
-            Then("Flattening fails instead of dropping the events only the owned instance carries") {
-                val ex = shouldThrow<IllegalStateException> { accumulator.withResult("dropped") }
-                checkNotNull(ex.message) shouldContain "is persisted as another instance"
+            Then("The later instance persists once, in the earlier registration's place") {
+                changes.modelChangesToPersist.map { it.model } shouldBe listOf(moved, owner)
+                changes.modelChangesToPersist[0].shouldBeInstanceOf<AddModel<*, *, *>>()
+                changes.modelChangesToPersist[0].modelEvents shouldHaveSize 2
+            }
+        }
+
+        When("An aggregate owns an instance that diverges from the registered one") {
+            val dept = newDeptAggregate(name = "Engineering", boss = bossId, ration = BUBALEH)
+            val emp = mutating { newEmployee(Name("Fay", "Black"), dept.id(), "fay@test.com", BUBALEH) }
+            fun elsewhere(name: String) = OwnedDepartment(
+                DepartmentId.randomDepartmentId(), name, bossId, 1, BUBALEH, persistentState(V1, null),
+            )
+            val registered = mutating { emp.changeDepartment(elsewhere("One")) }
+            val owned = mutating { emp.changeDepartment(elsewhere("Two")) }
+            val accumulator = ChangesAccumulator()
+                .withAddedModel(registered)
+                .withAddedModel(dept.addEmployee(owned))
+
+            Then("Flattening fails instead of dropping one of the two writes") {
+                val ex = shouldThrow<IllegalStateException> { accumulator.withResult("diverged") }
+                checkNotNull(ex.message) shouldContain "that diverges from the one it persists as"
+            }
+        }
+
+        When("Two aggregates own one employee, one clean and one moved") {
+            val employee = Employee(
+                EmployeeId(), Name("Gus", "Grey"), DepartmentId.randomDepartmentId(), "gus@test.com", BUBALEH,
+                persistentState(V1, null),
+            )
+            val otherDept = OwnedDepartment(
+                DepartmentId.randomDepartmentId(), "Other", bossId, 1, BUBALEH, persistentState(V1, null),
+            )
+            val moved = mutating { employee.changeDepartment(otherDept) }
+            fun owning(owned: Employee, name: String) = DeptAggregate(
+                DepartmentId.randomDepartmentId(), name, bossId, 1, BUBALEH, listOf(owned), persistentState(V1, null),
+            )
+            val keeper = owning(employee, "Keeper")
+            val mover = owning(moved, "Mover").rename("Mover v2")
+
+            Then("The move persists once whichever owner is registered first") {
+                listOf(
+                    ChangesAccumulator().withUnchangedModel(keeper).withUpdatedModel(mover),
+                    ChangesAccumulator().withUpdatedModel(mover).withUnchangedModel(keeper),
+                ).forEach { accumulator ->
+                    val employeeChanges = accumulator.withResult("both").modelChangesToPersist
+                        .filter { it.id == employee.id() }
+                    employeeChanges.map { it.model } shouldBe listOf(moved)
+                    employeeChanges.single().shouldBeInstanceOf<UpdateModel<*, *, *>>()
+                }
             }
         }
 

@@ -159,40 +159,53 @@ class ChangesAccumulator private constructor(
         return RealisedChanges(result, flattenChildModels(), entityChanges, resultBuilder)
     }
 
-    @Suppress("UNCHECKED_CAST")
     internal fun flattenChildModels(): List<ModelChange> {
-        val result = mutableListOf<ModelChange>()
-        // the instance each id persists as: a registration, or the first owned child flattened for it
+        val result = LinkedHashMap<ModelId<out Comparable<*>>, ModelChange>()
+        // the instance each id persists as: a registration, or an owned child flattened for it
         val known: MutableMap<ModelId<out Comparable<*>>, Model<*, *>> =
             modelChanges.mapValuesTo(LinkedHashMap()) { (_, change) -> change.model }
         fun flatten(model: Model<*, *>) {
             if (model !is Aggregate<*, *>) return
             for (child in model.ownedModels()) {
                 val persistsAs = known[child.id()]
-                if (persistsAs != null) {
-                    check(child.isCoveredBy(persistsAs)) {
-                        val claim = if (modelChanges[child.id()] is NoopModel) "registered as unchanged" else
-                            "persisted as another instance"
-                        "Model [${child.id().stringValue()}] is $claim, but aggregate " +
+                if (persistsAs != null && child.isCoveredBy(persistsAs)) continue
+                val claimedUnchanged = modelChanges[child.id()] is NoopModel
+                // An owned instance that is the later state of what its id persists as takes that entry's
+                // place, as a root does under composition: a child extended after a composed merge, or one
+                // owned by two aggregates, persists once, whichever owner comes first.
+                check(persistsAs == null || persistsAs.isCoveredBy(child) && !claimedUnchanged) {
+                    if (claimedUnchanged) {
+                        "Model [${child.id().stringValue()}] is registered as unchanged, but aggregate " +
                             "[${model.id().stringValue()}] owns a ${if (child.isNew()) "new" else "changed"} " +
                             "instance of it: the write would be silently dropped"
+                    } else {
+                        "Aggregate [${model.id().stringValue()}] owns an instance of model " +
+                            "[${child.id().stringValue()}] that diverges from the one it persists as: neither " +
+                            "carries the other's events, so one write would be silently dropped"
                     }
-                    continue
                 }
                 known[child.id()] = child
-                val m = child as Model<ModelId<out Comparable<*>>, ModelEvent<ModelId<out Comparable<*>>>>
-                when {
-                    child.isNew() -> result.add(AddModel(m, m.modelEvents()))
-                    child.isDirty() -> result.add(UpdateModel(m, m.modelEvents()))
-                }
+                changeOf(child)?.let { result[child.id()] = it }
                 flatten(child)
             }
         }
         for (change in modelChanges.values) {
-            result.add(change)
+            // already replaced by a later owned instance flattened from an earlier registration
+            if (change.id in result) continue
+            result[change.id] = change
             flatten(change.model)
         }
-        return result
+        return result.values.toList()
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun changeOf(model: Model<*, *>): ModelChange? {
+        val m = model as Model<ModelId<out Comparable<*>>, ModelEvent<ModelId<out Comparable<*>>>>
+        return when {
+            m.isNew() -> AddModel(m, m.modelEvents())
+            m.isDirty() -> UpdateModel(m, m.modelEvents())
+            else -> null
+        }
     }
 
     private fun <E : ModelEvent<MID>, M : Model<MID, E>, MID : ModelId<out Comparable<*>>>

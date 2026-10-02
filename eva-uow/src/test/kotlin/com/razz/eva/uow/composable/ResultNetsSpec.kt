@@ -1,5 +1,26 @@
 package com.razz.eva.uow.composable
 
+import com.razz.eva.domain.Model
+import com.razz.eva.domain.TestModel.Factory.createdTestModel
+import com.razz.eva.domain.DeptAggregate
+import com.razz.eva.domain.DeptAggregate.Companion.newDeptAggregate
+import com.razz.eva.domain.Department.OwnedDepartment
+import com.razz.eva.domain.DepartmentEvent
+import com.razz.eva.domain.DepartmentId.Companion.randomDepartmentId
+import com.razz.eva.domain.Employee
+import com.razz.eva.domain.Employee.Companion.newEmployee
+import com.razz.eva.domain.EmployeeId
+import com.razz.eva.domain.ModelState.PersistentState.Companion.persistentState
+import com.razz.eva.domain.Name
+import com.razz.eva.domain.Ration.BUBALEH
+import com.razz.eva.domain.Version.Companion.V1
+import com.razz.eva.domain.mutating
+import com.razz.eva.uow.AddModel
+import com.razz.eva.uow.ModelChange
+import com.razz.eva.uow.UpdateModel
+import io.kotest.matchers.types.shouldBeInstanceOf
+import io.mockk.CapturingSlot
+import io.mockk.slot
 import com.razz.eva.domain.TestModel
 import com.razz.eva.domain.TestModel.CreatedTestModel
 import com.razz.eva.domain.TestModel.Factory.existingCreatedTestModel
@@ -25,7 +46,7 @@ import java.time.Instant.ofEpochMilli
 // fails, and a registered id in the result must not carry a write its registered instance lacks.
 class ResultNetsSpec : FunSpec({
 
-    fun persistingReturning(vararg flushed: TestModel): Persisting {
+    fun persistingReturning(vararg flushed: Model<*, *>): Persisting {
         val persisting = mockk<Persisting>(relaxed = true)
         coEvery {
             persisting.persist(
@@ -40,6 +61,25 @@ class ResultNetsSpec : FunSpec({
             )
         } returns Pair(uowEvent(), flushed.toList())
         return persisting
+    }
+
+    // a Persisting that records the model changes the executor hands it
+    fun capturing(): Pair<Persisting, CapturingSlot<List<ModelChange>>> {
+        val persisting = mockk<Persisting>(relaxed = true)
+        val persisted = slot<List<ModelChange>>()
+        coEvery {
+            persisting.persist(
+                uowName = any(),
+                params = DummyUow.Params,
+                principal = TestPrincipal,
+                modelChanges = capture(persisted),
+                entityChanges = any(),
+                now = any(),
+                uowSupportsOutOfOrderPersisting = any(),
+                connectionMode = any(),
+            )
+        } returns Pair(uowEvent(), listOf())
+        return persisting to persisted
     }
 
     fun executor(persisting: Persisting) =
@@ -256,6 +296,98 @@ class ResultNetsSpec : FunSpec({
             }
         }
         checkNotNull(ex.message) shouldContain "carries a write its registered instance does not"
+    }
+
+    test("A composed child declining on a model its parent registered leaves the parent's change standing") {
+        val read = existingCreatedTestModel(param1 = "read", param2 = 1)
+        val first = read.changeParam1("parent")
+        val (persisting, persisted) = capturing()
+        executor(persisting).execute(
+            TestPrincipal,
+            uow<TestModel> {
+                update(first)
+                execute(uow<TestModel> { update(first) { this } }, TestPrincipal) { DummyUow.Params }
+            },
+        ) { DummyUow.Params }
+        persisted.captured.single().model shouldBeSameInstanceAs first
+    }
+
+    test("A composed child declining on a model its parent added leaves it added") {
+        val created = createdTestModel("new", 1)
+        val (persisting, persisted) = capturing()
+        executor(persisting).execute(
+            TestPrincipal,
+            uow<TestModel> {
+                add(created)
+                execute(uow<TestModel> { update(created) { this } }, TestPrincipal) { DummyUow.Params }
+            },
+        ) { DummyUow.Params }
+        persisted.captured.single().shouldBeInstanceOf<AddModel<*, *, *>>().model shouldBeSameInstanceAs created
+    }
+
+    test("A composed child declining on its own mutation of a model its parent claimed unchanged registers it") {
+        val read = existingCreatedTestModel(param1 = "read", param2 = 1)
+        val dirtied = read.changeParam1("child")
+        val (persisting, persisted) = capturing()
+        executor(persisting).execute(
+            TestPrincipal,
+            uow<TestModel> {
+                notChanged(read)
+                execute(uow<TestModel> { update(dirtied) { this } }, TestPrincipal) { DummyUow.Params }
+            },
+        ) { DummyUow.Params }
+        persisted.captured.single().shouldBeInstanceOf<UpdateModel<*, *, *>>().model shouldBeSameInstanceAs dirtied
+    }
+
+    test("update(model) { } on a new model that comes back unchanged names add") {
+        val ex = shouldThrow<IllegalStateException> {
+            executor(persistingReturning()).execute(
+                TestPrincipal,
+                uow<TestModel> { update(createdTestModel("new", 1)) { this } },
+            ) { DummyUow.Params }
+        }
+        checkNotNull(ex.message) shouldContain "register a new model with add"
+    }
+
+    test("A new employee owned by an unregistered aggregate in the result fails") {
+        val bossId = EmployeeId()
+        val hire = mutating { newEmployee(Name("Ida", "Wells"), randomDepartmentId(), "ida@test.com", BUBALEH) }
+        val dept = DeptAggregate(
+            randomDepartmentId(), "Unregistered", bossId, 1, BUBALEH, listOf(hire), persistentState(V1, null),
+        )
+        val other = existingCreatedTestModel(param1 = "other", param2 = 1)
+        val ex = shouldThrow<IllegalStateException> {
+            executor(persistingReturning()).execute(
+                TestPrincipal,
+                uow {
+                    update(other.changeParam1("registered"))
+                    dept
+                },
+            ) { DummyUow.Params }
+        }
+        checkNotNull(ex.message) shouldContain "Unregistered new model [${hire.id().stringValue()}]"
+    }
+
+    test("A parent that moves an employee owned by an aggregate its child added persists the move") {
+        val bossId = EmployeeId()
+        val hire = mutating { newEmployee(Name("Jo", "March"), randomDepartmentId(), "jo@test.com", BUBALEH) }
+        val dept = newDeptAggregate(name = "Engineering", boss = bossId, ration = BUBALEH, employees = listOf(hire))
+        val otherDept = OwnedDepartment(randomDepartmentId(), "Other", bossId, 1, BUBALEH, persistentState(V1, null))
+        val moved = mutating { hire.changeDepartment(otherDept) }
+        val renamed = DeptAggregate(
+            dept.id(), "Renamed", bossId, 1, BUBALEH, listOf(moved),
+            dept.raise(DepartmentEvent.NameChanged(dept.id(), dept.name, "Renamed")),
+        )
+        val (persisting, persisted) = capturing()
+        executor(persisting).execute(
+            TestPrincipal,
+            uow<DeptAggregate<List<Employee>>> {
+                execute(uow<DeptAggregate<List<Employee>>> { add(dept) }, TestPrincipal) { DummyUow.Params }
+                update(renamed)
+            },
+        ) { DummyUow.Params }
+        persisted.captured.single { it.id == hire.id() }.model shouldBeSameInstanceAs moved
+        persisted.captured.single { it.id == dept.id() }.model shouldBeSameInstanceAs renamed
     }
 })
 
