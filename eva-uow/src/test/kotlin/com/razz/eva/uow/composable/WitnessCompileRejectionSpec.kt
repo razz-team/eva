@@ -35,6 +35,14 @@ class WitnessCompileRejectionSpec : FunSpec({
 import com.razz.eva.domain.Department
         import com.razz.eva.domain.DepartmentId
         import com.razz.eva.domain.Employee
+        import com.razz.eva.domain.EmployeeEvent
+        import com.razz.eva.domain.EmployeeId
+        import com.razz.eva.domain.Model
+        import com.razz.eva.domain.ModelEvent
+        import com.razz.eva.domain.ModelId
+        import com.razz.eva.domain.ModelState
+        import com.razz.eva.domain.ModelState.NewState.Companion.created
+        import com.razz.eva.domain.Witness
         import com.razz.eva.domain.Employee.Companion.newEmployee
         import com.razz.eva.domain.Name
         import com.razz.eva.domain.Ration.BUBALEH
@@ -61,6 +69,8 @@ import com.razz.eva.domain.Department
         sources = listOf(probe(blockTail, outside))
         inheritClassPath = true
         jvmTarget = "21"
+        // eva builds at 2.2 and its consumers at 2.2 and 2.3, where context parameters need the flag
+        languageVersion = "2.2"
         kotlincArguments = listOf("-Xcontext-parameters")
         verbose = false
         messageOutputStream = OutputStream.nullOutputStream()
@@ -108,5 +118,67 @@ import com.razz.eva.domain.Department
         )
         result.shouldRejectWith("Return type mismatch: expected 'Model<EmployeeId, ModelEvent<EmployeeId>>'")
         result.errorCount() shouldBe 1
+    }
+
+    // The fixtures declare the context themselves; these pin that eva's own raise and created demand it.
+    test("A mutator built on raise that does not declare the witness does not compile") {
+        val result = compile(
+            "notChanged(params.employee)",
+            """
+            class Bare(id: EmployeeId, state: ModelState<EmployeeId, EmployeeEvent>) :
+                Model<EmployeeId, EmployeeEvent>(id, state) {
+                fun bump(event: EmployeeEvent) = raise(event)
+            }
+            """.trimIndent(),
+        )
+        result.shouldRejectWith("No context argument for '_: Witness<EmployeeId>' found.")
+        result.errorCount() shouldBe 1
+    }
+
+    test("A factory built on created that does not declare the witness does not compile") {
+        val result = compile(
+            "notChanged(params.employee)",
+            "fun bare(event: EmployeeEvent.EmployeeCreated) = created<EmployeeId, EmployeeEvent, " +
+                "EmployeeEvent.EmployeeCreated>(event)",
+        )
+        // reported against created's own declaration, so the type parameter is not substituted
+        result.shouldRejectWith("No context argument for '_: Witness<ID>' found.")
+        result.errorCount() shouldBe 1
+    }
+
+    test("update(a) { } witnesses a's id type only; a mutation of another model type inside it does not compile") {
+        val result = compile(
+            """
+            update(params.employee) {
+                val bumped = probe.bump()
+                changeDepartment(params.department)
+            }
+            """.trimIndent(),
+            """
+            data class ProbeId(override val id: java.util.UUID) : ModelId<java.util.UUID>
+            class ProbeEvent(override val modelId: ProbeId) : ModelEvent<ProbeId> {
+                override val modelName = "Probe"
+            }
+            class Probe(id: ProbeId, state: ModelState<ProbeId, ProbeEvent>) : Model<ProbeId, ProbeEvent>(id, state) {
+                context(_: Witness<ProbeId>)
+                fun bump() = Probe(id(), raise(ProbeEvent(id())))
+            }
+            lateinit var probe: Probe
+            """.trimIndent(),
+        )
+        result.shouldRejectWith("No context argument for '_: Witness<ProbeId>' found.")
+        result.errorCount() shouldBe 1
+    }
+
+    // Pinned so a compiler upgrade that changes it is seen: MID is fixed from the expected type when
+    // there is one, and Any fixes nothing. Naming the model's type on the receiving value compiles.
+    test("add { } under an expected type wider than the model cannot infer its witness") {
+        val result = compile(
+            """
+            val created: Any = add { newEmployee(Name("Ada", "Byron"), params.department.id(), "a@test.com", BUBALEH) }
+            notChanged(params.employee)
+            """.trimIndent(),
+        )
+        result.shouldRejectWith("Cannot infer type for type parameter 'MID'")
     }
 })
