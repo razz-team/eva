@@ -703,7 +703,7 @@ The guard stops a mutation from being forgotten, not from being smuggled out on 
 
 Runtime verification backs this up for every family: when the executor has the merged change set, every model reachable from the result through iterables (nested to any depth), maps, arrays, pairs and triples is checked against it. An unregistered new or dirty model fails the UoW. A model with a registered id must not carry a write of its own: the registered instance passes, and so does an ancestor of it (the clean model the block read, or one whose events the registered instance extends), which the default roundtrip then replaces with the persisted state; a sibling mutation of the same read fails. `noChanges` applies the same rule. What remains the author's responsibility: a mutation discarded inside a registration lambda (Kotlin's return value checker, enabled in the consuming build, covers that), a model that raises no event (a data-class `copy`), and a model buried in a wrapper the walk cannot see (a data class, a `Sequence`).
 
-#### Upgrading to 0.39: breaking changes
+#### Upgrading to 0.40: breaking changes
 
 The witness itself is opt-in, but these changes reach every consumer:
 
