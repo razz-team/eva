@@ -89,10 +89,12 @@ class ChangesDsl internal constructor(
 
     /**
      * Registration as a scope: mints a [Witness] for the model's id type, runs [mutate] on the model under
-     * it and registers what comes back, so a mutation and its registration cannot come apart. A mutator
-     * built on [com.razz.eva.domain.Model.raise] is callable only here or in a fixture's `mutating { }`.
-     * The lambda names the resulting state, so a transition is typed as its target; a mutation that
-     * declines hands the receiver back (`mutate() ?: this`) and the model is registered as unchanged.
+     * it and registers what comes back, so the receiver's mutation cannot be left unregistered. A mutator
+     * built on [com.razz.eva.domain.Model.raise] is callable only here, in [add] or in a fixture's
+     * `mutating { }`. The lambda names the resulting state, so a transition is typed as its target; a
+     * mutation that declines hands the receiver back (`mutate() ?: this`) and the model is registered as
+     * unchanged. The witness covers the id type, not the instance: a second model of the same type
+     * mutated inside [mutate] is not registered, and the returned instance is checked by id only.
      */
     fun <MID, E, M, R> update(model: M, mutate: context(Witness<MID>) M.() -> R): R
         where M : Model<MID, E>, R : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
@@ -111,11 +113,12 @@ class ChangesDsl internal constructor(
     /**
      * Creation as a scope: a factory built on [com.razz.eva.domain.ModelState.NewState.Companion.created]
      * needs a [Witness], and this is the only place in production that supplies one, so a model cannot be
-     * created without being added. The witness covers every id type, since the model does not exist yet.
+     * created without being added. The witness covers the created model's id type, inferred from the
+     * lambda, so a stray mutation of another model type inside [create] does not compile.
      */
-    fun <MID, E, M> add(create: context(Witness<ModelId<out Comparable<*>>>) () -> M): M
+    fun <MID, E, M> add(create: context(Witness<MID>) () -> M): M
         where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> =
-        add(context(Witness<ModelId<out Comparable<*>>>()) { create() })
+        add(context(Witness<MID>()) { create() })
 
     fun <MID, E, M> notChanged(model: M): M
         where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {

@@ -93,4 +93,20 @@ import com.razz.eva.domain.Department
         result.shouldRejectWith("No context argument for '_: Witness<EmployeeId>' found.")
         result.errorCount() shouldBe 1
     }
+
+    // The witness type is inferred from the lambda body, so the stray call fixes it to EmployeeId and the
+    // factory's own model no longer fits: one error, reported against the factory rather than the stray.
+    test("add { } witnesses one id type; a mutation of another model type inside it does not compile") {
+        val result = compile(
+            """
+            add {
+                val moved = params.employee.changeDepartment(params.department)
+                com.razz.eva.domain.TestModel.Factory.createdTestModel("probe", 1)
+            }
+            notChanged(params.employee)
+            """.trimIndent(),
+        )
+        result.shouldRejectWith("Return type mismatch: expected 'Model<EmployeeId, ModelEvent<EmployeeId>>'")
+        result.errorCount() shouldBe 1
+    }
 })
