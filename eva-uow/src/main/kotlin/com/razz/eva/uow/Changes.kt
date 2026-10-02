@@ -212,9 +212,8 @@ class ChangesAccumulator private constructor(
 /**
  * A new or dirty model reachable from a result whose id is not in [changes] carries a write that will
  * never be persisted. A [NoopModel] claim vouches only for the claimed instance; a real change vouches
- * for its id. Called at block completion by the proving families, where a block cannot even compile
- * with an unregistered model as its tail, and by the executor over the final merged change set, which
- * is where the plain families' hand-back pattern has finished and the answer is authoritative.
+ * for its id. Called by the executor over the final merged change set, which is where a composed
+ * child's hand-back to its parent has finished and the answer is authoritative.
  */
 internal fun verifyResultAccounted(result: Any?, changes: List<ModelChange>) {
     val registered = changes.associateBy { it.id }
@@ -264,19 +263,26 @@ internal infix fun List<ModelEvent<*>>.isSameAs(events: List<ModelEvent<*>>): Bo
 }
 
 /**
- * A model in the result whose id is registered must be the registered instance: a stale or smuggled
- * instance cannot pose as the persisted state. Identity, not id and events: clean instances of one id
- * share an empty event list by construction, and a data-class model's synthesized copy keeps the
- * same state while its fields diverge. Checked over the flattened set, so an owned child of a
- * registered Aggregate counts as registered.
+ * A model in the result whose id is registered must not carry a write of its own: it is either the
+ * registered instance, or an ancestor of it, meaning a clean instance or one whose events the
+ * registered instance extends. An ancestor is what a block holds when it returns the model it read
+ * and registered the mutated one, or when a composed child mutated a model after the parent's
+ * roundtrip { } seed resolved it; its events all persist through the registered instance, and the
+ * executor's roundtrip hands the caller the persisted state wherever the result shape allows. A
+ * sibling (a second mutation of the same read, or a data-class copy that kept the events while its
+ * fields diverged) carries events or fields nothing persists, so it fails. Events are compared by
+ * identity. Checked over the flattened set, so an owned child of a registered Aggregate counts as
+ * registered.
  */
 internal fun verifyResultInstances(result: Any?, changes: List<ModelChange>) {
     val registered = changes.associateBy { it.id }
     for (model in modelsIn(result)) {
         val change = registered[model.id()] ?: continue
-        check(change.model === model) {
-            "Model [${model.id().stringValue()}] in the result is not the instance that was " +
-                "registered: the change holds ${describe(change.model)}, the result holds " +
+        val ancestor = !model.isNew() && !model.isDirty() ||
+            change.model.modelEvents() isSuccessorOf model.modelEvents()
+        check(change.model === model || ancestor) {
+            "Model [${model.id().stringValue()}] in the result carries a write its registered instance " +
+                "does not: the change holds ${describe(change.model)}, the result holds " +
                 "${describe(model)}. Return the value add or update handed back, or resolve the " +
                 "registered instance with roundtrip { p -> p(model) }."
         }
