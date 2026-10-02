@@ -91,12 +91,12 @@ class ChangesAccumulator private constructor(
     internal fun changeFor(modelId: ModelId<out Comparable<*>>): ModelChange? = modelChanges[modelId]
 
     /**
-     * [changeFor] over the same flattened view [withResult] persists, so an owned child of a
-     * registered [Aggregate] counts as accounted. The two guards must agree: resolving a child
-     * through the raw map alone reports a dropped write for a model the aggregate will persist.
+     * Every change by id over the same flattened view [withResult] persists, so an owned child of a
+     * registered [Aggregate] counts as accounted. The guards must agree: resolving a child through
+     * the raw map alone reports a dropped write for a model the aggregate will persist.
      */
-    internal fun flattenedChangeFor(modelId: ModelId<out Comparable<*>>): ModelChange? =
-        flattenChildModels().firstOrNull { it.id == modelId }
+    internal fun flattenedChanges(): Map<ModelId<out Comparable<*>>, ModelChange> =
+        flattenChildModels().associateBy { it.id }
 
     internal fun withReplacedModelChange(
         modelId: ModelId<out Comparable<*>>,
@@ -122,6 +122,8 @@ class ChangesAccumulator private constructor(
      * preserving order.
      */
     internal fun merging(uowName: String, subChanges: Changes<*>): ChangesAccumulator {
+        // an anonymous UoW has an empty simple name
+        val child = uowName.ifEmpty { "child UnitOfWork" }
         if (subChanges.stubbed) {
             val mergedModels = LinkedHashMap(modelChanges)
             for (change in subChanges.modelChangesToPersist) {
@@ -135,12 +137,12 @@ class ChangesAccumulator private constructor(
             val intact = next != null &&
                 (next.modelEvents isSameAs prev.modelEvents || next.modelEvents isSuccessorOf prev.modelEvents)
             check(intact) {
-                "Composed $uowName dropped inherited changes for model [${id.stringValue()}]; " +
+                "Composed $child dropped inherited changes for model [${id.stringValue()}]; " +
                     "construct the child with the ExecutionContext given to the factory"
             }
         }
         check(subChanges.entityChangesToPersist.containsAll(entityChanges)) {
-            "Composed $uowName dropped inherited entity changes; " +
+            "Composed $child dropped inherited entity changes; " +
                 "construct the child with the ExecutionContext given to the factory"
         }
         return ChangesAccumulator(
@@ -160,17 +162,24 @@ class ChangesAccumulator private constructor(
     @Suppress("UNCHECKED_CAST")
     internal fun flattenChildModels(): List<ModelChange> {
         val result = mutableListOf<ModelChange>()
-        val seen = modelChanges.keys.toMutableSet()
+        // the instance each id persists as: a registration, or the first owned child flattened for it
+        val known: MutableMap<ModelId<out Comparable<*>>, Model<*, *>> =
+            modelChanges.mapValuesTo(LinkedHashMap()) { (_, change) -> change.model }
         fun flatten(model: Model<*, *>) {
             if (model !is Aggregate<*, *>) return
             for (child in model.ownedModels()) {
-                val claimed = modelChanges[child.id()]
-                check(claimed !is NoopModel || !(child.isNew() || child.isDirty())) {
-                    "Model [${child.id().stringValue()}] is registered as unchanged, but aggregate " +
-                        "[${model.id().stringValue()}] owns a ${if (child.isNew()) "new" else "changed"} " +
-                        "instance of it: the write would be silently dropped"
+                val persistsAs = known[child.id()]
+                if (persistsAs != null) {
+                    check(child.isCoveredBy(persistsAs)) {
+                        val claim = if (modelChanges[child.id()] is NoopModel) "registered as unchanged" else
+                            "persisted as another instance"
+                        "Model [${child.id().stringValue()}] is $claim, but aggregate " +
+                            "[${model.id().stringValue()}] owns a ${if (child.isNew()) "new" else "changed"} " +
+                            "instance of it: the write would be silently dropped"
+                    }
+                    continue
                 }
-                if (!seen.add(child.id())) continue
+                known[child.id()] = child
                 val m = child as Model<ModelId<out Comparable<*>>, ModelEvent<ModelId<out Comparable<*>>>>
                 when {
                     child.isNew() -> result.add(AddModel(m, m.modelEvents()))
@@ -269,8 +278,8 @@ internal infix fun List<ModelEvent<*>>.isSameAs(events: List<ModelEvent<*>>): Bo
  * and registered the mutated one, or when a composed child mutated a model after the parent's
  * roundtrip { } seed resolved it; its events all persist through the registered instance, and the
  * executor's roundtrip hands the caller the persisted state wherever the result shape allows. A
- * sibling (a second mutation of the same read, or a data-class copy that kept the events while its
- * fields diverged) carries events or fields nothing persists, so it fails. Events are compared by
+ * sibling (a second mutation of the same read, or a copy of the registered instance that kept its
+ * events while its fields diverged) carries events or fields nothing persists, so it fails. Events are compared by
  * identity. Checked over the flattened set, so an owned child of a registered Aggregate counts as
  * registered.
  */
@@ -278,9 +287,7 @@ internal fun verifyResultInstances(result: Any?, changes: List<ModelChange>) {
     val registered = changes.associateBy { it.id }
     for (model in modelsIn(result)) {
         val change = registered[model.id()] ?: continue
-        val ancestor = !model.isNew() && !model.isDirty() ||
-            change.model.modelEvents() isSuccessorOf model.modelEvents()
-        check(change.model === model || ancestor) {
+        check(model.isCoveredBy(change.model)) {
             "Model [${model.id().stringValue()}] in the result carries a write its registered instance " +
                 "does not: the change holds ${describe(change.model)}, the result holds " +
                 "${describe(model)}. Return the value add or update handed back, or resolve the " +
@@ -289,6 +296,16 @@ internal fun verifyResultInstances(result: Any?, changes: List<ModelChange>) {
     }
 }
 
+/**
+ * True when [this] carries no write that [persistsAs] lacks: it is that instance, it is clean, or
+ * [persistsAs]'s events literally extend its own (an ancestor). The result nets, `noChanges` and the
+ * aggregate flatten all use this one rule, so they agree on what a stale instance may be.
+ */
+internal fun Model<*, *>.isCoveredBy(persistsAs: Model<*, *>): Boolean =
+    this === persistsAs ||
+        !isNew() && !isDirty() ||
+        persistsAs.modelEvents() isSuccessorOf modelEvents()
+
 private fun describe(model: Model<*, *>): String {
     val state = when {
         model.isNew() -> "new"
@@ -296,8 +313,7 @@ private fun describe(model: Model<*, *>): String {
         else -> "unchanged"
     }
     val events = model.modelEvents().map { it.eventName() }
-    // identity and value both matter here: the two instances often agree on class, state and
-    // events, which is exactly the case this check exists for
-    return "${model::class.simpleName}[$state, events = $events, " +
-        "instance = ${System.identityHashCode(model)}, value = $model]"
+    // identity, not value: the two instances often agree on class, state and events, and a model's
+    // toString may carry personal data into logs and spans
+    return "${model::class.simpleName}[$state, events = $events, instance = ${System.identityHashCode(model)}]"
 }

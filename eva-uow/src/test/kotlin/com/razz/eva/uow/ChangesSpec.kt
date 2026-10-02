@@ -5,6 +5,7 @@ import com.razz.eva.domain.Aggregate
 import com.razz.eva.domain.DepartmentEvent
 import com.razz.eva.domain.DepartmentEvent.OwnedDepartmentCreated
 import com.razz.eva.domain.DepartmentId
+import com.razz.eva.domain.Department.OwnedDepartment
 import com.razz.eva.domain.DeptAggregate
 import com.razz.eva.domain.DeptAggregate.Companion.newDeptAggregate
 import com.razz.eva.domain.Employee
@@ -29,6 +30,7 @@ import com.razz.eva.domain.TestModelStatus.CREATED
 import com.razz.eva.domain.Version.Companion.V1
 import com.razz.eva.domain.addEmployee
 import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.matchers.string.shouldContain
 import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
@@ -640,6 +642,40 @@ class ChangesSpec : BehaviorSpec({
                 changes.modelChangesToPersist shouldHaveSize 2
                 changes.modelChangesToPersist[0].model shouldBe emp
                 changes.modelChangesToPersist[1].model shouldBe deptWithEmp
+            }
+        }
+
+        When("An aggregate owns a later instance of a child registered on its own") {
+            val dept = newDeptAggregate(name = "Engineering", boss = bossId, ration = BUBALEH)
+            val emp = mutating { newEmployee(Name("Dan", "Brown"), dept.id(), "dan@test.com", BUBALEH) }
+            val otherDept = OwnedDepartment(
+                DepartmentId.randomDepartmentId(), "Other", bossId, 1, BUBALEH, persistentState(V1, null),
+            )
+            val moved = mutating { emp.changeDepartment(otherDept) }
+            val accumulator = ChangesAccumulator()
+                .withAddedModel(emp)
+                .withAddedModel(dept.addEmployee(moved))
+
+            Then("Flattening fails instead of dropping the events only the owned instance carries") {
+                val ex = shouldThrow<IllegalStateException> { accumulator.withResult("dropped") }
+                checkNotNull(ex.message) shouldContain "is persisted as another instance"
+            }
+        }
+
+        When("An aggregate owns an earlier instance of a child registered on its own") {
+            val dept = newDeptAggregate(name = "Engineering", boss = bossId, ration = BUBALEH)
+            val emp = mutating { newEmployee(Name("Eve", "Green"), dept.id(), "eve@test.com", BUBALEH) }
+            val otherDept = OwnedDepartment(
+                DepartmentId.randomDepartmentId(), "Other", bossId, 1, BUBALEH, persistentState(V1, null),
+            )
+            val moved = mutating { emp.changeDepartment(otherDept) }
+            val changes = ChangesAccumulator()
+                .withAddedModel(moved)
+                .withAddedModel(dept.addEmployee(emp))
+                .withResult("covered")
+
+            Then("The registered instance persists the child, once") {
+                changes.modelChangesToPersist.map { it.model } shouldBe listOf(moved, dept.addEmployee(emp))
             }
         }
 

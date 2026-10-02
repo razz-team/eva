@@ -1,11 +1,14 @@
 package com.razz.eva.uow
 
+import com.razz.eva.domain.Aggregate
 import com.razz.eva.domain.Model
 import com.razz.eva.domain.Principal
 import com.razz.eva.persistence.PersistenceException
 import com.razz.eva.uow.BaseUnitOfWork.Configuration.Companion.default
 import com.razz.eva.uow.Retry.StaleRecordFixedRetry.Companion.DEFAULT
 import java.time.InstantSource
+import java.util.Collections
+import java.util.IdentityHashMap
 
 /**
  * The template every unit of work family instantiates. [C] documents the receiver of the change block
@@ -34,12 +37,13 @@ abstract class BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, C>(
     protected fun noChanges() = NO_CHANGES
 
     // Under composition a dirty model handed back through noChanges may already be registered in the
-    // parent's change set (threaded in via a ModelParam): that exact instance's write persists via
-    // the parent. Only the registered instance vouches; a divergent instance under the same id
-    // carries events of its own that would be silently dropped.
+    // parent's change set (threaded in via a ModelParam): its write persists via the parent when it is
+    // the registered instance or an ancestor of it, the same rule the executor's result net applies. A
+    // divergent instance under the same id carries events of its own that would be silently dropped.
     protected fun <R> noChanges(result: R): Changes<R> {
+        val inherited by lazy { executionContext.inheritedChanges?.flattenedChanges().orEmpty() }
         checkNoDroppedWrite(result, "noChanges") { model ->
-            executionContext.inheritedChanges?.flattenedChangeFor(model.id())?.model === model
+            inherited[model.id()]?.let { model.isCoveredBy(it.model) } ?: false
         }
         return RealisedChanges(result, listOf(), listOf())
     }
@@ -59,15 +63,23 @@ abstract class BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, C>(
 }
 
 /**
- * Every model reachable from [value] through the containers the guards understand: bare models,
- * [Iterable]s (nested to any depth), [Map] keys and values, [Array]s, [Pair]s and [Triple]s.
+ * Every model reachable from [value] through the containers the guards understand: bare models and the
+ * models an [Aggregate] owns, [Iterable]s (nested to any depth), [Map] keys and values, [Array]s, [Pair]s
+ * and [Triple]s.
  * A model inside any other wrapper (a data class, a sealed outcome, a [Sequence], which cannot be
  * walked without consuming it) is invisible to the guards; the docs state that as the boundary.
  */
 internal fun modelsIn(value: Any?): List<Model<*, *>> {
     val found = mutableListOf<Model<*, *>>()
+    // containers by identity, so a self-referencing result is walked once instead of overflowing
+    val visited = Collections.newSetFromMap(IdentityHashMap<Any, Boolean>())
     fun walk(v: Any?) {
+        if (v !is Model<*, *> && v != null && !visited.add(v)) return
         when (v) {
+            is Aggregate<*, *> -> {
+                found.add(v)
+                v.ownedModels().forEach(::walk)
+            }
             is Model<*, *> -> found.add(v)
             is Iterable<*> -> v.forEach(::walk)
             is Map<*, *> -> {
