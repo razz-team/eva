@@ -195,40 +195,7 @@ class ChangesAccumulator private constructor(
             if (change.id !in result) result[change.id] = change
             flatten(change.model)
         }
-        return insertedBeforeTheirOwned(result.values.toList())
-    }
-
-    // The changes in their order, except that a change to a model a new aggregate owns comes right after
-    // that aggregate's own insert, in their original relative order: a child registered on its own before
-    // its new root (the only order add { } allows for a witnessed child) persists after the root, so a
-    // foreign key from child to root holds. Nested owners resolve the same way.
-    private fun insertedBeforeTheirOwned(changes: List<ModelChange>): List<ModelChange> {
-        val present = changes.mapTo(HashSet()) { it.id }
-        val newOwnerOf = HashMap<ModelId<out Comparable<*>>, ModelId<out Comparable<*>>>()
-        for (change in changes) {
-            val owner = change.model
-            if (change !is AddModel<*, *, *> || owner !is Aggregate<*, *>) continue
-            for (owned in owner.ownedModels()) {
-                if (owned.id() in present && owned.id() != change.id) newOwnerOf.putIfAbsent(owned.id(), change.id)
-            }
-        }
-        if (newOwnerOf.isEmpty()) return changes
-        val emitted = HashSet<ModelId<out Comparable<*>>>()
-        val waiting = HashMap<ModelId<out Comparable<*>>, MutableList<ModelChange>>()
-        val ordered = ArrayList<ModelChange>(changes.size)
-        fun emit(change: ModelChange) {
-            if (!emitted.add(change.id)) return
-            ordered.add(change)
-            waiting.remove(change.id)?.forEach(::emit)
-        }
-        for (change in changes) {
-            val owner = newOwnerOf[change.id]
-            if (owner != null && owner !in emitted) waiting.getOrPut(owner) { mutableListOf() }.add(change)
-            else emit(change)
-        }
-        // owners that never came (an ownership cycle) release what waited on them in the original order
-        changes.forEach(::emit)
-        return ordered
+        return result.values.toList()
     }
 
     @Suppress("UNCHECKED_CAST")

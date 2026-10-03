@@ -94,9 +94,9 @@ class ChangesDsl internal constructor(
      * built on [com.razz.eva.domain.Model.raise] is callable only here, in [add] or in a fixture's
      * `mutating { }`. The lambda names the resulting state, so a transition is typed as its target; a
      * mutation that declines hands the receiver back (`mutate() ?: this`): a clean receiver is registered
-     * as unchanged, a receiver already dirty from an unwitnessed mutator is registered as changed, one the
-     * change set already persists (a registration, the parent's included, or an aggregate that owns it)
-     * adds nothing, and one a composed child received from its parent and extended is merged into it.
+     * as unchanged, a receiver already dirty from an unwitnessed mutator is registered as changed, one a
+     * registration already covers (the parent's included) adds nothing, one a composed child received from
+     * its parent and extended is merged into it, and a new one an aggregate in the change set owns is added.
      * The witness covers the id type, not the instance: a second model of the same type mutated inside
      * [mutate] is not registered, and the returned instance is checked by id only.
      */
@@ -113,13 +113,15 @@ class ChangesDsl internal constructor(
 
     private fun <MID, E, M> registerDeclined(model: M): M
         where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
-        val existing = changes.flattenedChanges()[model.id()]
+        val registered = changes.changeFor(model.id())
         return when {
-            // already persisted as this instance or a later one: a registration, the parent's included,
-            // or an aggregate that owns it
-            existing != null && model.isCoveredBy(existing.model) -> model
+            // already registered as this instance or a later one, the parent's registration included
+            registered != null && model.isCoveredBy(registered.model) -> model
             // a model the parent registered, extended here by an unwitnessed mutator: merge it
             model.id() in inheritedModelIds -> update(model)
+            // a new model an aggregate in the change set owns: registered on its own, so it persists even if
+            // that aggregate later stops owning it; the aggregate's copy is then skipped as covered
+            model.isNew() && isOwnedInChangeSet(model) -> add(model)
             model.isNew() -> error(
                 "update(model) { } handed back new model [${model.id().stringValue()}] unchanged; register a " +
                     "new model with add",
@@ -129,6 +131,9 @@ class ChangesDsl internal constructor(
             else -> notChanged(model)
         }
     }
+
+    private fun isOwnedInChangeSet(model: Model<*, *>): Boolean =
+        changes.flattenedChanges()[model.id()]?.let { model.isCoveredBy(it.model) } ?: false
 
     /**
      * Creation as a scope: a factory built on [com.razz.eva.domain.ModelState.NewState.Companion.created]

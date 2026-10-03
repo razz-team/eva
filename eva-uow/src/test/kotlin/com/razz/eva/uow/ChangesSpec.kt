@@ -638,10 +638,10 @@ class ChangesSpec : BehaviorSpec({
                 .withAddedModel(deptWithEmp)
                 .withResult("explicit child")
 
-            Then("Child is not duplicated, and persists after its new root") {
+            Then("Child is not duplicated - explicit registration takes precedence") {
                 changes.modelChangesToPersist shouldHaveSize 2
-                changes.modelChangesToPersist[0].model shouldBe deptWithEmp
-                changes.modelChangesToPersist[1].model shouldBe emp
+                changes.modelChangesToPersist[0].model shouldBe emp
+                changes.modelChangesToPersist[1].model shouldBe deptWithEmp
             }
         }
 
@@ -658,10 +658,10 @@ class ChangesSpec : BehaviorSpec({
                 .withAddedModel(owner)
                 .withResult("later")
 
-            Then("The later instance persists once, after its new owner") {
-                changes.modelChangesToPersist.map { it.model } shouldBe listOf(owner, moved)
-                changes.modelChangesToPersist[1].shouldBeInstanceOf<AddModel<*, *, *>>()
-                changes.modelChangesToPersist[1].modelEvents shouldHaveSize 2
+            Then("The later instance persists once, in the earlier registration's place") {
+                changes.modelChangesToPersist.map { it.model } shouldBe listOf(moved, owner)
+                changes.modelChangesToPersist[0].shouldBeInstanceOf<AddModel<*, *, *>>()
+                changes.modelChangesToPersist[0].modelEvents shouldHaveSize 2
             }
         }
 
@@ -783,7 +783,7 @@ class ChangesSpec : BehaviorSpec({
                 .withResult("covered")
 
             Then("The registered instance persists the child, once") {
-                changes.modelChangesToPersist.map { it.model } shouldBe listOf(dept.addEmployee(emp), moved)
+                changes.modelChangesToPersist.map { it.model } shouldBe listOf(moved, dept.addEmployee(emp))
             }
         }
 

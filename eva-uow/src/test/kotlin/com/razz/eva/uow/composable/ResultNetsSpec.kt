@@ -373,6 +373,41 @@ class ResultNetsSpec : FunSpec({
         persisted.captured.map { it.model } shouldBe listOf(dept, hire)
     }
 
+    test("A declined employee an aggregate owns is registered on its own and survives the aggregate dropping it") {
+        val bossId = EmployeeId()
+        val employee = Employee(
+            EmployeeId(), Name("Lou", "Reed"), randomDepartmentId(), "lou@test.com", BUBALEH, persistentState(V1, null),
+        )
+        val otherDept = OwnedDepartment(randomDepartmentId(), "Other", bossId, 1, BUBALEH, persistentState(V1, null))
+        val moved = mutating { employee.changeDepartment(otherDept) }
+        val stored = DeptAggregate(
+            randomDepartmentId(), "D0", bossId, 1, BUBALEH, listOf(employee), persistentState(V1, null),
+        )
+        val owning = DeptAggregate(
+            stored.id(), "D1", bossId, 1, BUBALEH, listOf(moved),
+            stored.raise(DepartmentEvent.NameChanged(stored.id(), "D0", "D1")),
+        )
+        val emptied = DeptAggregate(
+            owning.id(), "D2", bossId, 1, BUBALEH, listOf(),
+            owning.raise(DepartmentEvent.NameChanged(owning.id(), "D1", "D2")),
+        )
+        val (persisting, persisted) = capturing()
+        executor(persisting).execute(
+            TestPrincipal,
+            uow<DeptAggregate<List<Employee>>> {
+                update(owning)
+                execute(
+                    uow<DeptAggregate<List<Employee>>> {
+                        update(moved) { this }
+                        update(emptied)
+                    },
+                    TestPrincipal,
+                ) { DummyUow.Params }
+            },
+        ) { DummyUow.Params }
+        persisted.captured.single { it.id == employee.id() }.model shouldBeSameInstanceAs moved
+    }
+
     test("update(model) { } on a new model that comes back unchanged names add") {
         val ex = shouldThrow<IllegalStateException> {
             executor(persistingReturning()).execute(
