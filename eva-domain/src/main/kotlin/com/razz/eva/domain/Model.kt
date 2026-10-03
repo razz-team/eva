@@ -1,3 +1,7 @@
+// detekt's parser predates context parameters and misreads their colon; a per-declaration Suppress
+// does not reach the context line, so the rule is off for this file
+@file:Suppress("SpacingAroundColon")
+
 package com.razz.eva.domain
 
 abstract class Model<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>>(
@@ -17,6 +21,21 @@ abstract class Model<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>>(
         modelState.raiseEvent(firstEvent, *newEvents)
 
     protected fun raiseEvent(newEvent: E): ModelState<ID, E> =
+        modelState.raiseEvent(newEvent)
+
+    /**
+     * [raiseEvent] that can only be called under a [Witness] for this model's id type. A mutator built
+     * on it declares `context(_: Witness<ID>)` and is thereby callable only inside the change block's
+     * `update(model) { }` or `add { }`, which register the receiver's result, or inside a fixture's
+     * `mutating { }`; [Witness] states what this does not guard against. A model migrates one mutator
+     * at a time; the ungated [raiseEvent] stays for the rest.
+     */
+    context(_: Witness<ID>)
+    protected fun raise(firstEvent: E, vararg newEvents: E): ModelState<ID, E> =
+        modelState.raiseEvent(firstEvent, *newEvents)
+
+    context(_: Witness<ID>)
+    protected fun raise(newEvent: E): ModelState<ID, E> =
         modelState.raiseEvent(newEvent)
 
     internal fun <T> proto(): T? {

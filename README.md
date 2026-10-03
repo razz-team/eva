@@ -650,7 +650,7 @@ class CheckoutUow(
 
 The `execute` function takes a UoW factory, a principal, and params. Child UoWs inherit accumulated changes from the parent, and their changes are merged back. All changes from parent and child UoWs are persisted in a single transaction.
 
-Child UoWs must also extend `com.razz.eva.uow.composable.UnitOfWork`:
+Child UoWs must also extend `com.razz.eva.uow.composable.UnitOfWork`. Construct the child with the `ExecutionContext` handed to the factory: a child that made real changes must carry every inherited change forward with its events preserved, or `execute` fails loudly. In tests, build a stubbed child's return value with `stubChanges(result, ...)` rather than hand-assembling accumulators; its claims merge without demoting the parent's changes. `stubChanges` is gated by `@TestDoubleApi` (opt-in from test sources only) and the executor refuses it as a real UoW's outcome:
 
 ```kotlin
 class DebitAccountUow(
@@ -670,6 +670,65 @@ class DebitAccountUow(
     }
 }
 ```
+
+#### Witnessed mutations: `update(model) { }` and `add { }`
+
+`changes { }` persists only what was handed to `add` / `update` / `notChanged`. A block that mutates a model and forgets to register it drops the write on the floor and reports success. The guard for that lives on the model side: a mutator built on `raise` instead of `raiseEvent`, and a factory built on `created` instead of `newState`, declare a `Witness` context parameter that the registration lambdas supply. Such a mutator or factory is callable only where a witness for its id type is in scope, so calling one outside a registration does not compile.
+
+```kotlin
+    // the model: one line per migrated mutator or factory
+    context(_: Witness<EmployeeId>)
+    fun changeDepartment(newDepartment: Department<*>): Employee = Employee(
+        ...,
+        raise(DepartmentChanged(id(), departmentId, newDepartment.id())),
+    )
+
+    // the block: the registration is the scope the mutation runs in
+    changes {
+        update(employee) { changeDepartment(department) }               // Employee
+        update(invoice) { cycleId?.let { updateCycleId(it) } ?: this }   // declined: registered unchanged
+        update(filled) { score(check, principal) }                       // a transition, typed as ScoredKyb
+        add { newOrder(customer, clock.instant()) }                      // created and added
+    }
+
+    changes {
+        val moved = employee.changeDepartment(department)              // does not compile: no Witness in context
+        notChanged(employee)
+    }
+```
+
+Tests use `mutating { }` from the eva-domain test-fixtures artifact. Migration is one mutator at a time: `raiseEvent` and `newState` stay for the rest, and a model with both kinds compiles. Below language version 2.4, a build that declares a witnessed mutator or calls `update(model) { }` or `add { }` needs `-Xcontext-parameters`; a build that uses only the bare `add(model)` / `update(model)` does not. From language version 2.4 on, drop the flag: the compiler warns that it is redundant, and `allWarningsAsErrors` turns that into an error. detekt 1.23 reports a false `SpacingAroundColon` on every `context(_: Witness<...>)` line that a declaration-level `@Suppress` does not reach; suppress it per file with `@file:Suppress("SpacingAroundColon")`.
+
+The guard stops a mutation from being forgotten, not from being smuggled out on purpose. Its limits:
+
+- **Per id type, not per instance.** Inside `update(a) { }` another model of the same type can be mutated, or created by a witnessed factory, and neither is registered. `add { }` witnesses the created model's type only, inferred from the lambda; under an expected type wider than the model (`val x: Any = add { }`, a parameter typed `Model<*, *>`) it cannot infer, so name the model's type on the receiving value.
+- **Aggregates.** `add { }` and `update(root) { }` supply one witness, for the root's id type. Register each witnessed owned child with its own `add { }` or `update(child) { }`, then the root that holds the returned instance. Models persist in registration order, so the children go first: that suits a root that already exists, but against a new root with a non-deferrable foreign key a new child fails on its insert, and an existing child moved into it fails on its update. Register the new root first where you can, create new children with `newState` inside the root's factory, or defer the constraint. Registration order is the default sequential mode's; with `supportsOutOfOrderPersisting`, updates are flushed before inserts. A root factory or mutator that itself calls a witnessed child factory or mutator needs two witnesses at once and cannot be called; keep such children on `newState` / `raiseEvent` for now.
+- **Not suspend.** The registration lambdas are plain functions, so a suspend call (a store, a query, a gateway) runs before the block and its result is passed in.
+- **Escapes.** The witness is a plain value with an internal constructor. `contextOf<Witness<X>>()` or a closure created inside the lambda carries it out; a nested `update(b) { }` still sees the outer witness; a witness for a supertype id covers its subtypes; Java code, or a Kotlin caller suppressing `INVISIBLE_REFERENCE`, can construct one. Review those the way you would review a reflective write.
+
+Runtime verification backs this up for every family: when the executor has the merged change set, every model reachable from the result through iterables (nested to any depth), maps, arrays, pairs, triples and the models an `Aggregate` owns is checked against it. An unregistered new or dirty model fails the UoW. A model with a registered id must not carry a write of its own: the registered instance passes, and so does an ancestor of it (the clean model the block read, or one whose events the registered instance extends); a sibling mutation of the same read fails, and so does a copy of the registered instance that kept its events while its fields diverged. The executor hands the caller the persisted state for a bare model, a flat collection, or a result built with `roundtrip { }`; inside a pair, map, triple, array or nested collection the caller receives the ancestor as returned, as on 0.39. The same rule decides a `noChanges(result)` in a composed child and an aggregate's owned child whose id is registered on its own, except that an owned instance extending the registered one persists in its place. `verifyInOrder` applies the instance rule to the spec's own change set; the unregistered-model rule runs only at the executor, because a composed child may hand a model back for its parent to register. What remains the author's responsibility: a mutation discarded inside a registration lambda (Kotlin's return value checker in `full` mode, `-Xreturn-value-checker=full`, on the module that declares the mutators, reports it), a model that raises no event (a data-class `copy`), and a model buried in a wrapper the walk cannot see (a data class, a `Sequence`).
+
+#### Upgrading from 0.38
+
+- **0.38.1, 0.38.2** (#311, #312): JDBC query spans are named after the operation and the table; dashboards keyed on the old span names need updating. `QueryTracingListenerProvider`, `OpenTelemetry.databaseSpan`, `tracingDatabaseQueries`, `QueryNaming` and `MAX_STATEMENT_LENGTH` in eva-tracing became internal.
+- **0.38.3** (#316): `InstantiationContext.Internal.idModelParam` is an error inside a UoW; build composed params with `constantModelParam` over a model read in the block.
+- **0.38.5** (#325): `PersistedLookup` is reified, so `p(x)` on a value of an inferred intersection type needs the type named, `p<Department<*>>(x)`.
+- **0.38.5** (#324): a spec's `verify` lambda runs once, and `addsAndReturns` / `updatesAndReturns` assert that the result is the registered model: the same id, with every result event in the change. A spec that returned another model, or a further mutation of the registered one, fails there.
+- **0.39.0** (#321): sagas get an observer seam, and a saga whose `onException` returns null restarts, by default, at most twice, 100 ms apart, then rethrows (override `restartAfter` to change that); before, it restarted without limit. Nothing changes for code that does not use `eva-saga`.
+
+#### Upgrading to 0.40: breaking changes
+
+The witness itself is opt-in, but these changes reach every consumer:
+
+- **Custom UoW families.** `BaseUnitOfWork` no longer declares an abstract `changes`, because each family shapes that function itself. A family that declared `final override suspend fun changes` fails to compile with `'changes' overrides nothing`; drop the `override`, keep the body, and keep it `protected`. No single source shape compiles against both 0.39 and 0.40; binaries compiled against 0.39 still link. `ComposableUow` is sealed, so only the bases eva ships can be composed as children.
+- **New runtime failures** (`IllegalStateException`, before anything is persisted). Each of these silently dropped a write on 0.39:
+  - a result holding a new or dirty model that no `add` / `update` registered, including inside nested collections, maps, arrays, pairs, triples and an aggregate's owned models;
+  - a result holding a model that carries a write its registered instance lacks;
+  - `noChanges(result)` with a dirty model that is neither registered in the parent's change set nor an ancestor of the registered instance;
+  - an `Aggregate` owning an instance that diverges from another instance of the same id in the change set (a registration, a model a composed child flattened, or another aggregate's owned instance), or a changed instance of a model claimed `notChanged`. An owned instance that extends the other one persists in its place, which 0.39 dropped; a model a composed child flattened out of an aggregate, or one an earlier registration of an aggregate owned, stays registered even when the aggregate's later state no longer owns it.
+- **Composed children.** `execute` fails with `Composed <child> dropped inherited changes` when a child that made changes was not constructed with the `ExecutionContext` handed to its factory; 0.39 silently replaced the parent's changes with the child's. A test double for a composed child must be built with `stubChanges` (eva-uow test fixtures, `@OptIn(TestDoubleApi::class)`), not a hand-assembled `ChangesAccumulator`, and the executor refuses a stub as a real UoW's outcome.
+- **UoW specs.** `verifyInOrder` fails a spec whose result holds a model carrying a write its registered instance lacks, the same rule the executor applies. Two correct shapes fail it: a composed child that claims `notChanged(m)` and hands a mutation of `m` back for its parent to register, and a parent whose stubbed child returns an instance that does not descend from the one the parent registered. A stub claims every model its result reaches as unchanged, an aggregate's owned models included, so a parent that then extends one of those through the aggregate fails flattening in the spec but not in production. Build the stub's result from the parent's instance, register such a child model with its own `update(child) { }`, and verify such a child through its parent. A parent that extends a stub's new model registers it as an add, as production inserts it, so its spec verifies `adds`.
+- **A model member named `raise`.** The compiler warns `CONTEXTUAL_OVERLOAD_SHADOWED` on a model that declares or overrides its own `raise`, because `Model.raise` now exists: at language version 2.4 always, below it when `-Xcontext-parameters` is on. Under `allWarningsAsErrors` that is an error. Rename the member, or suppress the warning on the class when the model never calls the witnessed `raise`.
 
 #### Returning persisted models with `roundtrip { }`
 

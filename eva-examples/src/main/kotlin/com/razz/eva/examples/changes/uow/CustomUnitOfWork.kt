@@ -14,7 +14,7 @@ abstract class CustomUnitOfWork<PRINCIPAL, PARAMS, RESULT>(
 ) : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, CustomChangesDsl>(executionContext, configuration)
     where PRINCIPAL : Principal<*>, PARAMS : UowParams<PARAMS>, RESULT : Any {
 
-    final override suspend fun changes(init: suspend CustomChangesDsl.() -> RESULT): Changes<RESULT> {
+    protected suspend fun changes(init: suspend CustomChangesDsl.() -> RESULT): Changes<RESULT> {
         return CustomChangesDsl.changes(ChangesAccumulator(), init)
     }
 }

@@ -1,5 +1,6 @@
 package com.razz.eva.uow.func
 
+import com.razz.eva.domain.mutating
 import com.razz.eva.domain.Department.Companion.newDepartment
 import com.razz.eva.domain.Employee.Companion.newEmployee
 import com.razz.eva.domain.EmployeeId
@@ -25,12 +26,14 @@ class ConstraintSpec : PersistenceBaseSpec({
             ),
         )
         val employee = module.writableRepository.add(
-            newEmployee(
-                name = Name("K", "🍄"),
-                departmentId = department.id(),
-                email = "K.🍄@backend.razz.team",
-                ration = SHAKSHOUKA,
-            ),
+            mutating {
+                newEmployee(
+                    name = Name("K", "🍄"),
+                    departmentId = department.id(),
+                    email = "K.🍄@backend.razz.team",
+                    ration = SHAKSHOUKA,
+                )
+            },
         )
 
         When("Principal tries to perform uow and break unique constraints") {

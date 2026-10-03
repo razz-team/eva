@@ -1,5 +1,6 @@
 package com.razz.eva.uow
 
+import com.razz.eva.domain.TestModel.ActiveTestModel
 import com.razz.eva.domain.TestModel.Factory.createdTestModel
 import com.razz.eva.domain.TestModel.Factory.existingCreatedTestModel
 import com.razz.eva.domain.TestModelEvent.TestModelCreated
@@ -198,5 +199,20 @@ class ChangesDslSpec : FunSpec({
 
         changes.modelChangesToPersist shouldBe listOf(NoopModel(model))
         changes.result shouldBe "K P A C U B O"
+    }
+
+    test("A plain block may hand an unregistered model back for its caller to register") {
+        val model0 = createdTestModel("MLG", 420)
+        val dirty = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1).activate()
+
+        val uow = object : UnitOfWork<TestPrincipal, DummyUow.Params, ActiveTestModel>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: DummyUow.Params) = changes {
+                add(model0)
+                dirty
+            }
+        }
+        // the executor refuses this over the merged change set; a block on its own does not,
+        // so a parent can still register what a child handed back
+        uow.tryPerform(TestPrincipal, DummyUow.Params).result shouldBe dirty
     }
 })
