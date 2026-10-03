@@ -30,6 +30,8 @@ import com.razz.eva.uow.ExecutionContext
 import com.razz.eva.uow.Persisting
 import com.razz.eva.uow.TestPrincipal
 import com.razz.eva.uow.UnitOfWorkExecutor
+import com.razz.eva.uow.stubChanges
+import com.razz.eva.uow.TestDoubleApi
 import com.razz.eva.uow.verify.verifyInOrder
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
@@ -357,7 +359,7 @@ class ResultNetsSpec : FunSpec({
         change.modelEvents shouldHaveSize 2
     }
 
-    test("A composed child declining on an employee its parent's new aggregate owns leaves it to the aggregate") {
+    test("A composed child declining on an employee its parent's new aggregate owns adds it, once") {
         val bossId = EmployeeId()
         val hire = mutating { newEmployee(Name("Kim", "Day"), randomDepartmentId(), "kim@test.com", BUBALEH) }
         val dept = newDeptAggregate(name = "Engineering", boss = bossId, ration = BUBALEH, employees = listOf(hire))
@@ -406,6 +408,79 @@ class ResultNetsSpec : FunSpec({
             },
         ) { DummyUow.Params }
         persisted.captured.single { it.id == employee.id() }.model shouldBeSameInstanceAs moved
+    }
+
+    test("A new employee a child declines on and then drops from its new aggregate is still inserted") {
+        val bossId = EmployeeId()
+        val hire = mutating { newEmployee(Name("Max", "Born"), randomDepartmentId(), "max@test.com", BUBALEH) }
+        val dept = newDeptAggregate(name = "Engineering", boss = bossId, ration = BUBALEH, employees = listOf(hire))
+        val dropped = DeptAggregate(
+            dept.id(), "Renamed", bossId, 1, BUBALEH, listOf(),
+            dept.raise(DepartmentEvent.NameChanged(dept.id(), dept.name, "Renamed")),
+        )
+        val (persisting, persisted) = capturing()
+        executor(persisting).execute(
+            TestPrincipal,
+            uow<DeptAggregate<List<Employee>>> {
+                add(dept)
+                execute(
+                    uow<DeptAggregate<List<Employee>>> {
+                        update(hire) { this }
+                        update(dropped)
+                    },
+                    TestPrincipal,
+                ) { DummyUow.Params }
+            },
+        ) { DummyUow.Params }
+        persisted.captured.single { it.id == hire.id() }.shouldBeInstanceOf<AddModel<*, *, *>>()
+            .model shouldBeSameInstanceAs hire
+    }
+
+    test("Declining on a stale clean read of an employee an aggregate in the block moved leaves the move") {
+        val bossId = EmployeeId()
+        val employee = Employee(
+            EmployeeId(), Name("Ned", "Kelly"), randomDepartmentId(), "ned@test.com", BUBALEH,
+            persistentState(V1, null),
+        )
+        val otherDept = OwnedDepartment(randomDepartmentId(), "Other", bossId, 1, BUBALEH, persistentState(V1, null))
+        val moved = mutating { employee.changeDepartment(otherDept) }
+        val stored = DeptAggregate(
+            randomDepartmentId(), "D0", bossId, 1, BUBALEH, listOf(employee), persistentState(V1, null),
+        )
+        val owning = DeptAggregate(
+            stored.id(), "D1", bossId, 1, BUBALEH, listOf(moved),
+            stored.raise(DepartmentEvent.NameChanged(stored.id(), "D0", "D1")),
+        )
+        val (persisting, persisted) = capturing()
+        executor(persisting).execute(
+            TestPrincipal,
+            uow<Employee> {
+                update(owning)
+                update(employee) { this }
+            },
+        ) { DummyUow.Params }
+        persisted.captured.single { it.id == employee.id() }.model shouldBeSameInstanceAs moved
+    }
+
+    test("A parent spec over a stubbed child's new model sees it added, as production inserts it") {
+        val created = createdTestModel("stubbed", 1)
+        @OptIn(TestDoubleApi::class)
+        val stubbed = { exCtx: ExecutionContext ->
+            object : DummyUow<TestModel>(exCtx) {
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params) =
+                    stubChanges<TestModel>(created)
+            }
+        }
+        val parent = uow<TestModel> {
+            val fromChild = execute(stubbed, TestPrincipal) { DummyUow.Params }
+            update((fromChild as CreatedTestModel).changeParam1("extended"))
+        }(ExecutionContext(fixedUTC(ofEpochMilli(0)), OpenTelemetry.noop()))
+        val changes = parent.tryPerform(TestPrincipal, DummyUow.Params)
+        changes verifyInOrder {
+            adds<CreatedTestModel> { param1 shouldBe "extended" }
+            emits<com.razz.eva.domain.TestModelEvent.TestModelCreated> { }
+            emits<com.razz.eva.domain.TestModelEvent.TestModelEvent1> { }
+        }
     }
 
     test("update(model) { } on a new model that comes back unchanged names add") {

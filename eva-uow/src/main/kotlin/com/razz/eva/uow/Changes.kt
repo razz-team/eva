@@ -95,6 +95,20 @@ class ChangesAccumulator private constructor(
      * registered [Aggregate] counts as accounted. The guards must agree: resolving a child through
      * the raw map alone reports a dropped write for a model the aggregate will persist.
      */
+    /**
+     * The instance an aggregate registered here owns for [modelId], found by walking owned models without
+     * the flatten's contradiction checks, so it answers in any intermediate state of a block.
+     */
+    internal fun ownedInstanceOf(modelId: ModelId<out Comparable<*>>): Model<*, *>? {
+        fun find(model: Model<*, *>): Model<*, *>? = when (model) {
+            is Aggregate<*, *> -> model.ownedModels().firstNotNullOfOrNull { owned ->
+                if (owned.id() == modelId) owned else find(owned)
+            }
+            else -> null
+        }
+        return modelChanges.values.firstNotNullOfOrNull { find(it.model) }
+    }
+
     internal fun flattenedChanges(): Map<ModelId<out Comparable<*>>, ModelChange> =
         flattenChildModels().associateBy { it.id }
 
