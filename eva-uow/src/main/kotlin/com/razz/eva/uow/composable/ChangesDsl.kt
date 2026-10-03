@@ -94,32 +94,40 @@ class ChangesDsl internal constructor(
      * built on [com.razz.eva.domain.Model.raise] is callable only here, in [add] or in a fixture's
      * `mutating { }`. The lambda names the resulting state, so a transition is typed as its target; a
      * mutation that declines hands the receiver back (`mutate() ?: this`): a clean receiver is registered
-     * as unchanged, a receiver already dirty from an unwitnessed mutator is registered as changed, and one
-     * a composed child received from its parent keeps the parent's change. The witness covers the id
-     * type, not the instance: a second model of the same type
-     * mutated inside [mutate] is not registered, and the returned instance is checked by id only.
+     * as unchanged, a receiver already dirty from an unwitnessed mutator is registered as changed, one the
+     * change set already persists (a registration, the parent's included, or an aggregate that owns it)
+     * adds nothing, and one a composed child received from its parent and extended is merged into it.
+     * The witness covers the id type, not the instance: a second model of the same type mutated inside
+     * [mutate] is not registered, and the returned instance is checked by id only.
      */
     fun <MID, E, M, R> update(model: M, mutate: context(Witness<MID>) M.() -> R): R
         where M : Model<MID, E>, R : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
         val mutated = context(Witness<MID>()) { model.mutate() }
-        if (mutated === model) {
-            // a model the parent registered, handed in and declined here: the parent's change stands
-            val existing = changes.changeFor(model.id())
-            if (existing != null && model.id() in inheritedModelIds && model.isCoveredBy(existing.model)) {
-                return model
-            }
-            check(!model.isNew()) {
-                "update(model) { } handed back new model [${model.id().stringValue()}] unchanged; register a " +
-                    "new model with add"
-            }
-            // a receiver already dirty from an unwitnessed mutator still carries its own write
-            return if (model.isDirty()) update(model) else notChanged(model)
-        }
+        if (mutated === model) return registerDeclined(model)
         check(mutated.id() == model.id()) {
             "update(model) { } returned model [${mutated.id().stringValue()}] instead of the mutated " +
                 "[${model.id().stringValue()}]"
         }
         return update(mutated)
+    }
+
+    private fun <MID, E, M> registerDeclined(model: M): M
+        where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
+        val existing = changes.flattenedChanges()[model.id()]
+        return when {
+            // already persisted as this instance or a later one: a registration, the parent's included,
+            // or an aggregate that owns it
+            existing != null && model.isCoveredBy(existing.model) -> model
+            // a model the parent registered, extended here by an unwitnessed mutator: merge it
+            model.id() in inheritedModelIds -> update(model)
+            model.isNew() -> error(
+                "update(model) { } handed back new model [${model.id().stringValue()}] unchanged; register a " +
+                    "new model with add",
+            )
+            // dirty from an unwitnessed mutator: it still carries its own write
+            model.isDirty() -> update(model)
+            else -> notChanged(model)
+        }
     }
 
     /**

@@ -33,6 +33,8 @@ import com.razz.eva.uow.UnitOfWorkExecutor
 import com.razz.eva.uow.verify.verifyInOrder
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.collections.shouldHaveSize
+import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeSameInstanceAs
 import io.mockk.Called
@@ -337,6 +339,38 @@ class ResultNetsSpec : FunSpec({
             },
         ) { DummyUow.Params }
         persisted.captured.single().shouldBeInstanceOf<UpdateModel<*, *, *>>().model shouldBeSameInstanceAs dirtied
+    }
+
+    test("A composed child declining on its own unwitnessed extension of a model its parent added merges it") {
+        val created = createdTestModel("new", 1)
+        val extended = created.changeParam1("child")
+        val (persisting, persisted) = capturing()
+        executor(persisting).execute(
+            TestPrincipal,
+            uow<TestModel> {
+                add(created)
+                execute(uow<TestModel> { update(extended) { this } }, TestPrincipal) { DummyUow.Params }
+            },
+        ) { DummyUow.Params }
+        val change = persisted.captured.single().shouldBeInstanceOf<AddModel<*, *, *>>()
+        change.model shouldBeSameInstanceAs extended
+        change.modelEvents shouldHaveSize 2
+    }
+
+    test("A composed child declining on an employee its parent's new aggregate owns leaves it to the aggregate") {
+        val bossId = EmployeeId()
+        val hire = mutating { newEmployee(Name("Kim", "Day"), randomDepartmentId(), "kim@test.com", BUBALEH) }
+        val dept = newDeptAggregate(name = "Engineering", boss = bossId, ration = BUBALEH, employees = listOf(hire))
+        val (persisting, persisted) = capturing()
+        executor(persisting).execute(
+            TestPrincipal,
+            uow<DeptAggregate<List<Employee>>> {
+                add(dept)
+                execute(uow<Employee> { update(hire) { this } }, TestPrincipal) { DummyUow.Params }
+                dept
+            },
+        ) { DummyUow.Params }
+        persisted.captured.map { it.model } shouldBe listOf(dept, hire)
     }
 
     test("update(model) { } on a new model that comes back unchanged names add") {

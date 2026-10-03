@@ -190,12 +190,45 @@ class ChangesAccumulator private constructor(
             }
         }
         for (change in modelChanges.values) {
-            // already replaced by a later owned instance flattened from an earlier registration
-            if (change.id in result) continue
-            result[change.id] = change
+            // a registration an earlier owner already replaced with a later instance keeps that entry, but
+            // its own owned models are still walked, so none of their writes slips past the known check
+            if (change.id !in result) result[change.id] = change
             flatten(change.model)
         }
-        return result.values.toList()
+        return insertedBeforeTheirOwned(result.values.toList())
+    }
+
+    // The changes in their order, except that a change to a model a new aggregate owns comes right after
+    // that aggregate's own insert, in their original relative order: a child registered on its own before
+    // its new root (the only order add { } allows for a witnessed child) persists after the root, so a
+    // foreign key from child to root holds. Nested owners resolve the same way.
+    private fun insertedBeforeTheirOwned(changes: List<ModelChange>): List<ModelChange> {
+        val present = changes.mapTo(HashSet()) { it.id }
+        val newOwnerOf = HashMap<ModelId<out Comparable<*>>, ModelId<out Comparable<*>>>()
+        for (change in changes) {
+            val owner = change.model
+            if (change !is AddModel<*, *, *> || owner !is Aggregate<*, *>) continue
+            for (owned in owner.ownedModels()) {
+                if (owned.id() in present && owned.id() != change.id) newOwnerOf.putIfAbsent(owned.id(), change.id)
+            }
+        }
+        if (newOwnerOf.isEmpty()) return changes
+        val emitted = HashSet<ModelId<out Comparable<*>>>()
+        val waiting = HashMap<ModelId<out Comparable<*>>, MutableList<ModelChange>>()
+        val ordered = ArrayList<ModelChange>(changes.size)
+        fun emit(change: ModelChange) {
+            if (!emitted.add(change.id)) return
+            ordered.add(change)
+            waiting.remove(change.id)?.forEach(::emit)
+        }
+        for (change in changes) {
+            val owner = newOwnerOf[change.id]
+            if (owner != null && owner !in emitted) waiting.getOrPut(owner) { mutableListOf() }.add(change)
+            else emit(change)
+        }
+        // owners that never came (an ownership cycle) release what waited on them in the original order
+        changes.forEach(::emit)
+        return ordered
     }
 
     @Suppress("UNCHECKED_CAST")
