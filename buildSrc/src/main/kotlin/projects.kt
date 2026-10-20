@@ -25,6 +25,10 @@ interface eva {
     object eva_events_db_schema : eva
     object eva_jooq : eva
     object eva_migrations : eva
+    object eva_polling_outbox {
+        object eva_polling_outbox_lib : eva
+        object eva_polling_outbox_starter : eva
+    }
     object eva_paging : eva
     object eva_persistence : eva
     object eva_idempotency_key : eva

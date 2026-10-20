@@ -23,6 +23,7 @@ dependencies {
     implementation(libs.kotlin.plugin)
     implementation(libs.dokka.plugin)
     implementation(libs.maven.publish.plugin)
+    implementation(libs.jooq.docker.plugin)
 
     // make version catalog accessors available to precompiled script plugins
     implementation(files(libs.javaClass.superclass.protectionDomain.codeSource.location))
