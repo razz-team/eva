@@ -1,5 +1,6 @@
 package com.razz.eva.uow.func
 
+import com.razz.eva.domain.mutating
 import com.razz.eva.domain.Department.Companion.newDepartment
 import com.razz.eva.domain.Employee.Companion.newEmployee
 import com.razz.eva.domain.EmployeeId
@@ -185,12 +186,14 @@ class WriteTxScopeSpec : PersistenceBaseSpec({
                 ration = SHAKSHOUKA,
             ),
         )
-        val employeeOutOfUow = newEmployee(
-            name = Name("Beren", "Erchamion${nextInt(100000)}"),
-            departmentId = department.id(),
-            email = "beren.erchamion${nextInt(100000)}@razz.com",
-            ration = SHAKSHOUKA,
-        )
+        val employeeOutOfUow = mutating {
+            newEmployee(
+                name = Name("Beren", "Erchamion${nextInt(100000)}"),
+                departmentId = department.id(),
+                email = "beren.erchamion${nextInt(100000)}@razz.com",
+                ration = SHAKSHOUKA,
+            )
+        }
         var updatedOutOfUow = false
         module.departmentPreUpdate.onPreUpdate(department.id()) {
             if (!updatedOutOfUow) {
@@ -236,12 +239,14 @@ class WriteTxScopeSpec : PersistenceBaseSpec({
                 ration = SHAKSHOUKA,
             ),
         )
-        val employeeOutOfUow = newEmployee(
-            name = Name("Turin", "Turambar${nextInt(100000)}"),
-            departmentId = department.id(),
-            email = "turin.turambar${nextInt(100000)}@razz.com",
-            ration = SHAKSHOUKA,
-        )
+        val employeeOutOfUow = mutating {
+            newEmployee(
+                name = Name("Turin", "Turambar${nextInt(100000)}"),
+                departmentId = department.id(),
+                email = "turin.turambar${nextInt(100000)}@razz.com",
+                ration = SHAKSHOUKA,
+            )
+        }
         var updatedOutOfUow = false
         module.departmentPreUpdate.onPreUpdate(department.id()) {
             if (!updatedOutOfUow) {

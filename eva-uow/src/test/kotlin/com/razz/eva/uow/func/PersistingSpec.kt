@@ -1,5 +1,6 @@
 package com.razz.eva.uow.func
 
+import com.razz.eva.domain.mutating
 import com.razz.eva.domain.DeletableEntity
 import com.razz.eva.domain.Department
 import com.razz.eva.domain.EntityKey
@@ -104,7 +105,7 @@ class PersistingSpec : BehaviorSpec({
     val boss1 = Employee(
         bossId1, Name("Nursultan", "N"), oldDepId, "nursultan@001.kz", BUBALEH,
         persistentStateV1(),
-    ).changeDepartment(department1)
+    ).mutating { changeDepartment(department1) }
 
     val departmentId2 = randomDepartmentId()
     val bossId2 = EmployeeId(randomUUID())
@@ -126,7 +127,7 @@ class PersistingSpec : BehaviorSpec({
     val boss2 = Employee(
         bossId2, Name("Vladimir", "P"), oldDepId, "vladimir@001.ru", BUBALEH,
         persistentStateV1(),
-    ).changeDepartment(department2)
+    ).mutating { changeDepartment(department2) }
 
     val departmentId3 = randomDepartmentId()
     val bossId3 = EmployeeId(randomUUID())

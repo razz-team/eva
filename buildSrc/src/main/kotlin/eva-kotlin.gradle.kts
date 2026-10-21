@@ -61,7 +61,11 @@ tasks.compileKotlin {
         languageVersion = org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_2
         jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21
         allWarningsAsErrors = true
-        freeCompilerArgs = listOf("-opt-in=kotlin.RequiresOptIn", "-Xconsistent-data-class-copy-visibility")
+        freeCompilerArgs = listOf(
+            "-opt-in=kotlin.RequiresOptIn",
+            "-Xconsistent-data-class-copy-visibility",
+            "-Xcontext-parameters",
+        )
     }
 }
 tasks.compileTestJava {
@@ -72,7 +76,7 @@ tasks.compileTestKotlin {
         apiVersion = org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_2
         languageVersion = org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_2
         jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21
-        freeCompilerArgs = listOf("-opt-in=kotlin.RequiresOptIn")
+        freeCompilerArgs = listOf("-opt-in=kotlin.RequiresOptIn", "-Xcontext-parameters")
     }
 }
 tasks.compileTestFixturesJava {
@@ -84,6 +88,7 @@ tasks.compileTestFixturesKotlin {
         apiVersion = org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_2
         languageVersion = org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_2
         jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21
+        freeCompilerArgs = listOf("-Xcontext-parameters")
     }
 }
 

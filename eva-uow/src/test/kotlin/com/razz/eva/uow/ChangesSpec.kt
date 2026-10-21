@@ -1,9 +1,11 @@
 package com.razz.eva.uow
 
+import com.razz.eva.domain.mutating
 import com.razz.eva.domain.Aggregate
 import com.razz.eva.domain.DepartmentEvent
 import com.razz.eva.domain.DepartmentEvent.OwnedDepartmentCreated
 import com.razz.eva.domain.DepartmentId
+import com.razz.eva.domain.Department.OwnedDepartment
 import com.razz.eva.domain.DeptAggregate
 import com.razz.eva.domain.DeptAggregate.Companion.newDeptAggregate
 import com.razz.eva.domain.Employee
@@ -28,6 +30,7 @@ import com.razz.eva.domain.TestModelStatus.CREATED
 import com.razz.eva.domain.Version.Companion.V1
 import com.razz.eva.domain.addEmployee
 import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.matchers.string.shouldContain
 import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
@@ -248,8 +251,8 @@ class ChangesSpec : BehaviorSpec({
             val model1 = existingCreatedTestModel(randomTestModelId(), "name1", 1337, V1)
                 .activate()
             val model1Event = TestModelStatusChanged(model1.id(), CREATED, ACTIVE)
+            // clean on purpose: an unregistered dirty model in a result fails at the executor
             val model2 = existingCreatedTestModel(randomTestModelId(), "name2", 100500, V1)
-                .activate()
             val model3 = existingCreatedTestModel(randomTestModelId(), "name3", 0xBABE, V1)
                 .activate()
             val model3Event = TestModelStatusChanged(model3.id(), CREATED, ACTIVE)
@@ -573,7 +576,7 @@ class ChangesSpec : BehaviorSpec({
                 boss = bossId,
                 ration = BUBALEH,
             ).let { d ->
-                val emp = newEmployee(Name("Alice", "Smith"), d.id(), "alice@test.com", BUBALEH)
+                val emp = mutating { newEmployee(Name("Alice", "Smith"), d.id(), "alice@test.com", BUBALEH) }
                 d.addEmployee(emp)
             }
             val changes = ChangesAccumulator()
@@ -627,7 +630,7 @@ class ChangesSpec : BehaviorSpec({
                 boss = bossId,
                 ration = BUBALEH,
             )
-            val emp = newEmployee(Name("Bob", "Jones"), dept.id(), "bob@test.com", BUBALEH)
+            val emp = mutating { newEmployee(Name("Bob", "Jones"), dept.id(), "bob@test.com", BUBALEH) }
             val deptWithEmp = dept.addEmployee(emp)
 
             val changes = ChangesAccumulator()
@@ -642,6 +645,148 @@ class ChangesSpec : BehaviorSpec({
             }
         }
 
+        When("An aggregate owns a later instance of a child registered on its own") {
+            val dept = newDeptAggregate(name = "Engineering", boss = bossId, ration = BUBALEH)
+            val emp = mutating { newEmployee(Name("Dan", "Brown"), dept.id(), "dan@test.com", BUBALEH) }
+            val otherDept = OwnedDepartment(
+                DepartmentId.randomDepartmentId(), "Other", bossId, 1, BUBALEH, persistentState(V1, null),
+            )
+            val moved = mutating { emp.changeDepartment(otherDept) }
+            val owner = dept.addEmployee(moved)
+            val changes = ChangesAccumulator()
+                .withAddedModel(emp)
+                .withAddedModel(owner)
+                .withResult("later")
+
+            Then("The later instance persists once, in the earlier registration's place") {
+                changes.modelChangesToPersist.map { it.model } shouldBe listOf(moved, owner)
+                changes.modelChangesToPersist[0].shouldBeInstanceOf<AddModel<*, *, *>>()
+                changes.modelChangesToPersist[0].modelEvents shouldHaveSize 2
+            }
+        }
+
+        When("An aggregate owns an instance that diverges from the registered one") {
+            val dept = newDeptAggregate(name = "Engineering", boss = bossId, ration = BUBALEH)
+            val emp = mutating { newEmployee(Name("Fay", "Black"), dept.id(), "fay@test.com", BUBALEH) }
+            fun elsewhere(name: String) = OwnedDepartment(
+                DepartmentId.randomDepartmentId(), name, bossId, 1, BUBALEH, persistentState(V1, null),
+            )
+            val registered = mutating { emp.changeDepartment(elsewhere("One")) }
+            val owned = mutating { emp.changeDepartment(elsewhere("Two")) }
+            val accumulator = ChangesAccumulator()
+                .withAddedModel(registered)
+                .withAddedModel(dept.addEmployee(owned))
+
+            Then("Flattening fails instead of dropping one of the two writes") {
+                val ex = shouldThrow<IllegalStateException> { accumulator.withResult("diverged") }
+                checkNotNull(ex.message) shouldContain "that diverges from the one it persists as"
+            }
+        }
+
+        When("Two aggregates own one employee, one clean and one moved") {
+            val employee = Employee(
+                EmployeeId(), Name("Gus", "Grey"), DepartmentId.randomDepartmentId(), "gus@test.com", BUBALEH,
+                persistentState(V1, null),
+            )
+            val otherDept = OwnedDepartment(
+                DepartmentId.randomDepartmentId(), "Other", bossId, 1, BUBALEH, persistentState(V1, null),
+            )
+            val moved = mutating { employee.changeDepartment(otherDept) }
+            fun owning(owned: Employee, name: String) = DeptAggregate(
+                DepartmentId.randomDepartmentId(), name, bossId, 1, BUBALEH, listOf(owned), persistentState(V1, null),
+            )
+            val keeper = owning(employee, "Keeper")
+            val mover = owning(moved, "Mover").rename("Mover v2")
+
+            Then("The move persists once whichever owner is registered first") {
+                listOf(
+                    ChangesAccumulator().withUnchangedModel(keeper).withUpdatedModel(mover),
+                    ChangesAccumulator().withUpdatedModel(mover).withUnchangedModel(keeper),
+                ).forEach { accumulator ->
+                    val employeeChanges = accumulator.withResult("both").modelChangesToPersist
+                        .filter { it.id == employee.id() }
+                    employeeChanges.map { it.model } shouldBe listOf(moved)
+                    employeeChanges.single().shouldBeInstanceOf<UpdateModel<*, *, *>>()
+                }
+            }
+        }
+
+        When("Two aggregates own diverging moves of one employee that nothing registers on its own") {
+            val employee = Employee(
+                EmployeeId(), Name("Hal", "Ring"), DepartmentId.randomDepartmentId(), "hal@test.com", BUBALEH,
+                persistentState(V1, null),
+            )
+            fun movedTo(name: String) = mutating {
+                employee.changeDepartment(
+                    OwnedDepartment(
+                        DepartmentId.randomDepartmentId(), name, bossId, 1, BUBALEH, persistentState(V1, null),
+                    ),
+                )
+            }
+            fun owning(owned: Employee, name: String) = DeptAggregate(
+                DepartmentId.randomDepartmentId(), name, bossId, 1, BUBALEH, listOf(owned), persistentState(V1, null),
+            ).rename("$name v2")
+            val accumulator = ChangesAccumulator()
+                .withUpdatedModel(owning(movedTo("One"), "A"))
+                .withUpdatedModel(owning(movedTo("Two"), "B"))
+
+            Then("Flattening fails instead of persisting one move and dropping the other") {
+                val ex = shouldThrow<IllegalStateException> { accumulator.withResult("diverged") }
+                checkNotNull(ex.message) shouldContain "that diverges from the one it persists as"
+            }
+        }
+
+        When("A wrapper owns a later state of a department whose own registration holds an employee's move") {
+            val employee = Employee(
+                EmployeeId(), Name("Ivy", "Lane"), DepartmentId.randomDepartmentId(), "ivy@test.com", BUBALEH,
+                persistentState(V1, null),
+            )
+            val moved = mutating {
+                employee.changeDepartment(
+                    OwnedDepartment(
+                        DepartmentId.randomDepartmentId(), "Away", bossId, 1, BUBALEH, persistentState(V1, null),
+                    ),
+                )
+            }
+            val dept = DeptAggregate(
+                DepartmentId.randomDepartmentId(), "Dept", bossId, 1, BUBALEH, listOf(moved), persistentState(V1, null),
+            ).rename("Dept v2")
+            // a later state of the department that still lists the employee as it was read
+            val deptLater = DeptAggregate(
+                dept.id(), "Dept v3", bossId, 1, BUBALEH, listOf(employee),
+                dept.raise(DepartmentEvent.NameChanged(dept.id(), dept.name, "Dept v3")),
+            )
+            val box = Box(BoxId(java.util.UUID.randomUUID()), persistentState(V1, null), deptLater)
+
+            Then("The move persists whichever is registered first") {
+                listOf(
+                    ChangesAccumulator().withUnchangedModel(box).withUpdatedModel(dept),
+                    ChangesAccumulator().withUpdatedModel(dept).withUnchangedModel(box),
+                ).forEach { accumulator ->
+                    val persisted = accumulator.withResult("nested").modelChangesToPersist
+                    persisted.single { it.id == employee.id() }.model shouldBe moved
+                    persisted.single { it.id == dept.id() }.model shouldBe deptLater
+                }
+            }
+        }
+
+        When("An aggregate owns an earlier instance of a child registered on its own") {
+            val dept = newDeptAggregate(name = "Engineering", boss = bossId, ration = BUBALEH)
+            val emp = mutating { newEmployee(Name("Eve", "Green"), dept.id(), "eve@test.com", BUBALEH) }
+            val otherDept = OwnedDepartment(
+                DepartmentId.randomDepartmentId(), "Other", bossId, 1, BUBALEH, persistentState(V1, null),
+            )
+            val moved = mutating { emp.changeDepartment(otherDept) }
+            val changes = ChangesAccumulator()
+                .withAddedModel(moved)
+                .withAddedModel(dept.addEmployee(emp))
+                .withResult("covered")
+
+            Then("The registered instance persists the child, once") {
+                changes.modelChangesToPersist.map { it.model } shouldBe listOf(moved, dept.addEmployee(emp))
+            }
+        }
+
         When("Updated parent has new child models") {
             val existingDept = DeptAggregate(
                 id = DepartmentId.randomDepartmentId(),
@@ -652,7 +797,7 @@ class ChangesSpec : BehaviorSpec({
                 employees = listOf(),
                 modelState = persistentState(V1, null),
             )
-            val emp = newEmployee(Name("Carol", "White"), existingDept.id(), "carol@test.com", BUBALEH)
+            val emp = mutating { newEmployee(Name("Carol", "White"), existingDept.id(), "carol@test.com", BUBALEH) }
             val renamedWithEmp = existingDept.rename("Eng v2").addEmployee(emp)
 
             val changes = ChangesAccumulator()
@@ -705,13 +850,48 @@ class ChangesSpec : BehaviorSpec({
             }
         }
 
+        When("An owned child's write is claimed as unchanged by the block") {
+            val emp = mutating {
+                newEmployee(Name("Frank", "Black"), DepartmentId.randomDepartmentId(), "f@test.com", BUBALEH)
+            }
+            val claimed = Employee(
+                id = emp.id(),
+                name = emp.name,
+                departmentId = emp.departmentId,
+                email = emp.email,
+                ration = BUBALEH,
+                modelState = persistentState(V1, null),
+            )
+            val dept = DeptAggregate(
+                id = emp.departmentId,
+                name = "Engineering",
+                boss = bossId,
+                headcount = 2,
+                ration = BUBALEH,
+                employees = listOf(emp),
+                modelState = persistentState(V1, null),
+            ).rename("Eng v4")
+
+            Then("The contradiction fails loudly instead of dropping the child's write") {
+                val exception = shouldThrow<IllegalStateException> {
+                    ChangesAccumulator()
+                        .withUnchangedModel(claimed)
+                        .withUpdatedModel(dept)
+                        .withResult("claim hides the child")
+                }
+                exception.message shouldBe "Model [${emp.id().stringValue()}] is registered as " +
+                    "unchanged, but aggregate [${dept.id().stringValue()}] owns a new instance of " +
+                    "it: the write would be silently dropped"
+            }
+        }
+
         When("Nested aggregates (2-level deep) are added") {
             val deptWithEmployee = newDeptAggregate(
                 name = "Inner Dept",
                 boss = bossId,
                 ration = BUBALEH,
             ).let { d ->
-                val emp = newEmployee(Name("Eve", "Green"), d.id(), "eve@test.com", BUBALEH)
+                val emp = mutating { newEmployee(Name("Eve", "Green"), d.id(), "eve@test.com", BUBALEH) }
                 d.addEmployee(emp)
             }
             val wrapperId = DepartmentId.randomDepartmentId()
@@ -751,3 +931,16 @@ class ChangesSpec : BehaviorSpec({
         ownedModels: List<Model<*, *>> = listOf(),
     ) : Aggregate<DepartmentId, DepartmentEvent>(id, modelState, ownedModels)
 }
+
+private data class BoxId(override val id: java.util.UUID) : com.razz.eva.domain.ModelId<java.util.UUID>
+
+private class BoxEvent(override val modelId: BoxId) : com.razz.eva.domain.ModelEvent<BoxId> {
+    override val modelName = "Box"
+}
+
+// an aggregate that owns an aggregate, for the nested flatten case
+private class Box(
+    id: BoxId,
+    modelState: com.razz.eva.domain.ModelState<BoxId, BoxEvent>,
+    dept: DeptAggregate<List<Employee>>,
+) : com.razz.eva.domain.Aggregate<BoxId, BoxEvent>(id, modelState, listOf(dept))
