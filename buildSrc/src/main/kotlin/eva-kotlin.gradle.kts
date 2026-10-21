@@ -1,4 +1,7 @@
+import org.gradle.api.tasks.testing.logging.TestExceptionFormat
+import org.gradle.api.tasks.testing.logging.TestLogEvent.FAILED
 import org.gradle.api.tasks.testing.logging.TestLogEvent.STANDARD_ERROR
+import org.gradle.api.tasks.testing.logging.TestLogEvent.STANDARD_OUT
 
 plugins {
     java
@@ -14,8 +17,12 @@ val libs = the<org.gradle.accessors.dm.LibrariesForLibs>()
 tasks.test {
     useJUnitPlatform()
     testLogging {
-        events(STANDARD_ERROR)
+        events(FAILED, STANDARD_OUT, STANDARD_ERROR)
+        exceptionFormat = TestExceptionFormat.FULL
+        showCauses = true
+        showStackTraces = true
     }
+    jvmArgumentProviders.add(LogbackTestConfig(rootProject.file("buildSrc/src/main/resources/logback-test.xml")))
 }
 
 apply<ProjectsPlugin>()
@@ -50,6 +57,8 @@ dependencies {
     testImplementation(libs.kotest.assertions.core)
     testImplementation(libs.kotest.assertions.json)
     testImplementation(libs.kotest.runner)
+
+    testRuntimeOnly(libs.logback)
 }
 
 tasks.compileJava {
