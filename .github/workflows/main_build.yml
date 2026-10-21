@@ -37,6 +37,7 @@ jobs:
           path: '**/build/test-results/**/*.xml'
           reporter: java-junit
           fail-on-empty: false
+          use-actions-summary: false # default true writes the job summary instead of creating a check run
 
       - name: dependency graph
         uses: gradle/actions/dependency-submission@v3
