@@ -7,6 +7,9 @@ on:
 jobs:
   build_main:
     runs-on: ubuntu-latest
+    permissions:
+      checks: write
+      contents: write
 
     steps:
       - name: Checkout the repo
@@ -25,6 +28,15 @@ jobs:
 
       - name: Build project
         run: ./gradlew build
+
+      - name: Publish test report
+        if: ${{ !cancelled() }}
+        uses: dorny/test-reporter@v2
+        with:
+          name: Test results
+          path: '**/build/test-results/**/*.xml'
+          reporter: java-junit
+          fail-on-empty: false
 
       - name: dependency graph
         uses: gradle/actions/dependency-submission@v3
