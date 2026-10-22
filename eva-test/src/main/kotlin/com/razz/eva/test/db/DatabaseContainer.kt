@@ -1,6 +1,6 @@
 package com.razz.eva.test.db
 
-import com.razz.eva.test.db.DockerImageName.PostgrePartmanImage16
+import com.razz.eva.test.db.DockerImageName.PostgrePartmanImage
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
 import org.testcontainers.postgresql.PostgreSQLContainer
@@ -47,7 +47,7 @@ data class DatabaseContainer(
         // 5 cpu = 2 for db; 1 cpu = 1 for db; 16 cpu = 4 for db
         private val cpuCount = ceil(getRuntime().availableProcessors() / 4.0).toLong()
 
-        private val pgContainer = PostgreDockerContainer(PostgrePartmanImage16)
+        private val pgContainer = PostgreDockerContainer(PostgrePartmanImage)
             .withDatabaseName("test")
             .withUsername("test")
             .withPassword("test")
@@ -94,8 +94,8 @@ open class DockerImageName(internal val value: String) {
     fun toTestcontainers(): TestcontainersDockerImageName = TestcontainersDockerImageName.parse(this.value)
         .asCompatibleSubstituteFor("postgres")
 
-    object PostgrePartmanImage16 : DockerImageName(
+    object PostgrePartmanImage : DockerImageName(
         System.getenv("EVA_TEST_POSTGRES_IMAGE")
-            ?: "public.ecr.aws/t9u6q1l4/testdb:pg16.12_p5.4.1_ts2.25",
+            ?: "public.ecr.aws/t9u6q1l4/testdb:pg18.4_p4.5.1",
     )
 }
