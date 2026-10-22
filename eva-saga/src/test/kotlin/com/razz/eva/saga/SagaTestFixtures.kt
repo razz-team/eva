@@ -16,6 +16,7 @@ internal class RecordingObserver : SagaObserver<TestPrincipal, Params> {
 
     val events = mutableListOf<String>()
     val runIds = mutableListOf<SagaRunId>()
+    val roots = mutableListOf<SagaRunId>()
     val parents = mutableListOf<Pair<SagaRunId, SagaRunId?>>()
     val sagaNames = mutableListOf<String>()
     val stepElapsed = mutableListOf<Duration>()
@@ -27,6 +28,7 @@ internal class RecordingObserver : SagaObserver<TestPrincipal, Params> {
     override suspend fun onNotification(notification: SagaNotification<TestPrincipal, Params>) {
         val run = notification.run
         runIds += run.id
+        roots += run.rootId
         events += when (notification) {
             is Resumed -> {
                 parents += run.id to run.parentId

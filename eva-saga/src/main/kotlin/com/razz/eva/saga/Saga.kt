@@ -66,7 +66,8 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
         RESTART_BACKOFF.takeIf { attempt < MAX_RESTARTS }
 
     suspend fun resume(principal: PRINCIPAL, params: PARAMS): TS {
-        val sagaRun = SagaRun(SagaRunId.random(), null, 0, sagaName, principal, params)
+        val runId = SagaRunId.random()
+        val sagaRun = SagaRun(runId, runId, null, 0, sagaName, principal, params)
         return sagaExecutionContext.otel.withSpan(
             spanName = sagaRun.sagaName,
             parameters = { setAttribute(SAGA_RUN_ID, sagaRun.id.toString()) },

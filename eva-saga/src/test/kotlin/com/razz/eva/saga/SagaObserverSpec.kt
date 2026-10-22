@@ -15,6 +15,7 @@ import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.comparables.shouldBeLessThan
 import io.kotest.matchers.longs.shouldBeLessThan
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import io.opentelemetry.api.trace.StatusCode.ERROR
 import io.opentelemetry.sdk.OpenTelemetrySdk
 import io.opentelemetry.sdk.metrics.SdkMeterProvider
@@ -25,6 +26,7 @@ import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
 import kotlinx.coroutines.delay
 import kotlin.coroutines.cancellation.CancellationException
 import java.time.Duration
+import java.util.UUID.randomUUID
 import kotlin.time.Duration.Companion.milliseconds
 
 internal class SagaObserverSpec : ShouldSpec({
@@ -121,6 +123,43 @@ internal class SagaObserverSpec : ShouldSpec({
         runs.size shouldBe 2
         runs[0].second shouldBe null
         runs[1].second shouldBe runs[0].first
+    }
+    should("hold one root run id across every attempt of a restart chain") {
+        val observer = RecordingObserver()
+        var thrown = 0
+        val params = Params(
+            { step ->
+                when (step) {
+                    is Step0 -> Step1("go go go!")
+                    else -> if (thrown >= 2) {
+                        Finish0("it's time to stop")
+                    } else {
+                        thrown++
+                        throw IllegalArgumentException("can't touch this")
+                    }
+                }
+            },
+            { _, _, _, _ -> null },
+        )
+
+        TestSaga(listOf(observer)).resume(principal, params)
+
+        val runs = observer.parents.distinct()
+        runs.size shouldBe 3
+        val root = runs[0].first
+
+        observer.roots.distinct() shouldBe listOf(root)
+        runs.map { it.second } shouldBe listOf(null, root, runs[1].first)
+        runs[2].second shouldNotBe root
+    }
+    should("hand back the uuid it was built from") {
+        val uuid = randomUUID()
+
+        val runId = SagaRunId(uuid)
+
+        runId.uuidValue() shouldBe uuid
+        runId.toString() shouldBe uuid.toString()
+        SagaRunId.random().uuidValue() shouldNotBe uuid
     }
     should("keep the saga on course when an observer throws") {
         val observer = RecordingObserver()
