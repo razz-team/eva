@@ -2,11 +2,15 @@ package com.razz.eva.persistence.jdbc
 
 import io.kotest.assertions.withClue
 import io.kotest.core.spec.style.ShouldSpec
+import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeSameInstanceAs
 import io.mockk.every
 import io.mockk.mockk
+import io.opentelemetry.sdk.OpenTelemetrySdk
+import io.opentelemetry.sdk.metrics.SdkMeterProvider
+import io.opentelemetry.sdk.testing.exporter.InMemoryMetricReader
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.asCoroutineDispatcher
@@ -211,5 +215,22 @@ class DataSourceConnectionProviderSpec : ShouldSpec({
         withTimeout(Duration.ofMillis(200)) {
             runCatching { provider.acquire() }.exceptionOrNull()?.message shouldBe message
         }
+    }
+
+    should("record pool wait histogram when openTelemetry is provided") {
+        val metricReader = InMemoryMetricReader.create()
+        val openTelemetry = OpenTelemetrySdk.builder()
+            .setMeterProvider(SdkMeterProvider.builder().registerMetricReader(metricReader).build())
+            .build()
+        val connection = mockk<Connection>(relaxed = true)
+        val pool = mockk<DataSource>()
+        every { pool.connection } returns connection
+        val provider = DataSourceConnectionProvider(pool, Dispatchers.IO, openTelemetry)
+        provider.acquire() shouldBeSameInstanceAs connection
+        val metric = metricReader.collectAllMetrics().single { it.name == "jdbc.pool.wait" }
+        val points = metric.histogramData.points
+        points shouldHaveSize 1
+        points.first().count shouldBe 1
+        points.first().boundaries shouldContain 1_000_000.0
     }
 })
