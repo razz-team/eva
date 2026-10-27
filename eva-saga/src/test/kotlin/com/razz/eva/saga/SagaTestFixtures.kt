@@ -15,9 +15,9 @@ import kotlin.time.Duration.Companion.milliseconds
 internal class RecordingObserver : SagaObserver<TestPrincipal, Params> {
 
     val events = mutableListOf<String>()
+    val attemptIds = mutableListOf<SagaAttemptId>()
     val runIds = mutableListOf<SagaRunId>()
-    val roots = mutableListOf<SagaRunId>()
-    val parents = mutableListOf<Pair<SagaRunId, SagaRunId?>>()
+    val parents = mutableListOf<Pair<SagaAttemptId, SagaAttemptId?>>()
     val sagaNames = mutableListOf<String>()
     val stepElapsed = mutableListOf<Duration>()
     val failureElapsed = mutableListOf<Duration>()
@@ -27,11 +27,11 @@ internal class RecordingObserver : SagaObserver<TestPrincipal, Params> {
 
     override suspend fun onNotification(notification: SagaNotification<TestPrincipal, Params>) {
         val run = notification.run
-        runIds += run.id
-        roots += run.rootId
+        attemptIds += run.attemptId
+        runIds += run.runId
         events += when (notification) {
             is Resumed -> {
-                parents += run.id to run.parentId
+                parents += run.attemptId to run.parentAttemptId
                 sagaNames += run.sagaName
                 stepElapsed += notification.stepElapsed
                 "resumed:${notification.first::class.simpleName}"

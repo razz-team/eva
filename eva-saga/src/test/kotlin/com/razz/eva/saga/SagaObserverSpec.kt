@@ -26,7 +26,6 @@ import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
 import kotlinx.coroutines.delay
 import kotlin.coroutines.cancellation.CancellationException
 import java.time.Duration
-import java.util.UUID.randomUUID
 import kotlin.time.Duration.Companion.milliseconds
 
 internal class SagaObserverSpec : ShouldSpec({
@@ -56,7 +55,7 @@ internal class SagaObserverSpec : ShouldSpec({
 
         TestSaga(listOf(observer)).resume(principal, params)
 
-        observer.runIds.distinct().size shouldBe 1
+        observer.attemptIds.distinct().size shouldBe 1
     }
     should("notify observer of failure with the terminal the exception was mapped to") {
         val observer = RecordingObserver()
@@ -144,22 +143,13 @@ internal class SagaObserverSpec : ShouldSpec({
 
         TestSaga(listOf(observer)).resume(principal, params)
 
-        val runs = observer.parents.distinct()
-        runs.size shouldBe 3
-        val root = runs[0].first
+        val attempts = observer.parents.distinct()
+        attempts.size shouldBe 3
+        val firstAttemptId = attempts[0].first
 
-        observer.roots.distinct() shouldBe listOf(root)
-        runs.map { it.second } shouldBe listOf(null, root, runs[1].first)
-        runs[2].second shouldNotBe root
-    }
-    should("hand back the uuid it was built from") {
-        val uuid = randomUUID()
-
-        val runId = SagaRunId(uuid)
-
-        runId.uuidValue() shouldBe uuid
-        runId.toString() shouldBe uuid.toString()
-        SagaRunId.random().uuidValue() shouldNotBe uuid
+        observer.runIds.distinct().size shouldBe 1
+        attempts.map { it.second } shouldBe listOf(null, firstAttemptId, attempts[1].first)
+        attempts[2].second shouldNotBe firstAttemptId
     }
     should("keep the saga on course when an observer throws") {
         val observer = RecordingObserver()
