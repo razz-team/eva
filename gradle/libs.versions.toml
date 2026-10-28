@@ -10,7 +10,7 @@ flyway = { module = "org.flywaydb:flyway-core", version.ref = "flywaydb" }
 flyway-postgres = { module = "org.flywaydb:flyway-database-postgresql", version.ref = "flywaydb" }
 hikari = { module = "com.zaxxer:HikariCP", version = "7.1.0" }
 kotlin-logging = { module = "io.github.microutils:kotlin-logging", version = "3.0.5" }
-logback = { module = "ch.qos.logback:logback-classic", version = "1.6.5" }
+logback = { module = "ch.qos.logback:logback-classic", version = "1.6.6" }
 mockk = { module = "io.mockk:mockk", version = "1.14.11" }
 postgres = { module = "org.postgresql:postgresql", version = "42.7.14" }
 
@@ -21,9 +21,9 @@ kotlinx-serialization-bom = { module = "org.jetbrains.kotlinx:kotlinx-serializat
 
 jooq-bom = { module = "org.jooq:jooq-bom", version = "3.21.9" }
 jackson-bom = { module = "com.fasterxml.jackson:jackson-bom", version = "2.22.4" }
-vertx-bom = { module = "io.vertx:vertx-stack-depchain", version = "5.2.1" }
+vertx-bom = { module = "io.vertx:vertx-stack-depchain", version = "5.2.2" }
 
-micrometer-bom = { module = "io.micrometer:micrometer-bom", version = "1.17.1" }
+micrometer-bom = { module = "io.micrometer:micrometer-bom", version = "1.17.2" }
 opentelemetry-instrumentation-bom = { module = "io.opentelemetry.instrumentation:opentelemetry-instrumentation-bom", version = "2.32.0" }
 opentelemetry-instrumentation-alpha-bom = { module = "io.opentelemetry.instrumentation:opentelemetry-instrumentation-bom-alpha", version = "2.32.0-alpha" }
 
