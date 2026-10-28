@@ -122,9 +122,9 @@ internal class SagaRestartSpec : ShouldSpec({
             ).resume(principal, params)
         }
 
-        observer.runIds.distinct().size shouldBe 3
-        val perRun = observer.runIds.zip(observer.events).groupBy({ it.first }, { it.second })
-        perRun.values.map { it.endEvents() } shouldBe listOf(1, 1, 1)
+        observer.attemptIds.distinct().size shouldBe 3
+        val perAttempt = observer.attemptIds.zip(observer.events).groupBy({ it.first }, { it.second })
+        perAttempt.values.map { it.endEvents() } shouldBe listOf(1, 1, 1)
     }
     should("not restart at all when the policy declines the first attempt") {
         val observer = RecordingObserver()
@@ -137,7 +137,7 @@ internal class SagaRestartSpec : ShouldSpec({
             TestSaga(listOf(observer), restartPolicy = { _, _ -> null }).resume(principal, params)
         }
 
-        observer.runIds.distinct().size shouldBe 1
+        observer.attemptIds.distinct().size shouldBe 1
     }
     should("hand the policy the attempt number and the failure that triggered the restart") {
         val seen = mutableListOf<Pair<Int, String>>()
@@ -177,7 +177,7 @@ internal class SagaRestartSpec : ShouldSpec({
 
         TestSaga(listOf(observer)).resume(principal, params) shouldBe Finish0("it's time to stop")
 
-        observer.runIds.distinct().size shouldBe 2
+        observer.attemptIds.distinct().size shouldBe 2
     }
     should("report a run time that spans every attempt and the backoff between them") {
         val observer = RecordingObserver()
