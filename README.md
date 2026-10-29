@@ -699,6 +699,32 @@ At top-level execution the builder is rerun over the persisted set, so `Result` 
 #### Transactional outbox 
 Eva employs the [outbox pattern](https://microservices.io/patterns/data/transactional-outbox.html) for event distribution. In short: events are written to the same database and in the same transaction as models. The same transactional guarantees apply to both models and events. The events schema and migrations are provided by Eva - you can find SQL sources [here](/eva-events-db-schema/src/main/resources/com/razz/eva/events/db/V001__create_events.sql) and persistence logic [here](eva-repository/src/main/kotlin/com/razz/eva/repository/JooqEventRepository.kt). Eva is not in charge of further distribution of such events; however, there are several open-source frameworks available, for instance [Kafka Connect](https://docs.confluent.io/platform/current/connect/index.html) and [Debezium](https://debezium.io/documentation/reference/2.0/tutorial.html).
 
+#### Polling outbox publisher
+[eva-polling-outbox-lib](eva-polling-outbox/eva-polling-outbox-lib) is an optional, standalone module that polls `model_events` and publishes unpublished events to Kafka in batches: all events of a batch are sent at once, then their broker acks are awaited. [db-scheduler](https://github.com/kagkarlsson/db-scheduler) runs one task per events database, each on its own thread, and makes sure only one node runs a given task at a time. Each execution makes up to `maxIterations` fetch-publish iterations: the first one scans all unpublished events in `inserted_at` order, the following ones start at the latest seen `inserted_at` minus a configurable `leeway`, after which the task goes back to the scheduler queue. Each task has a service name, and by default an event goes to the `<serviceName>-<modelName>` topic, e.g. `kebab-AppClient`. Records are keyed by model id, and the value is the `model_events` row as JSON (`id`, `uow_id`, `model_id`, `model_name`, `name`, `occurred_at` in epoch millis, `payload` and `tracing_context` as JSON-encoded strings), the format eva event consumers read. Delivery is at-least-once, and an event that failed to publish is retried after the later events of its batch, so events of a model may arrive out of order.
+
+The outbox relies on eva's events migrations, which add `model_events.published_at` and the db-scheduler `scheduled_tasks` table to the events schema. Events existing before that migration are treated as already published.
+
+```kotlin
+val producer = OutboxProducer.create(bootstrapServers = bootstrapServers)
+val outbox = EvaOutbox(
+    schedulerDataSource = dataSource,
+    tasks = listOf(
+        OutboxTaskConfig(name = "main", serviceName = "kebab", eventsDataSource = dataSource, outbox = OutboxConfig()),
+    ),
+    producer = producer,
+    instantSource = Clock.systemUTC(),
+)
+outbox.start()
+```
+
+[eva-polling-outbox-starter](eva-polling-outbox/eva-polling-outbox-starter) wraps it into a standalone application. `./gradlew :eva-polling-outbox:eva-polling-outbox-starter:installDist` builds it into `eva-polling-outbox/eva-polling-outbox-starter/build/install/eva-polling-outbox`, and it is started with the path to a YAML config as the only argument:
+
+```shell
+bin/eva-polling-outbox config.yaml
+```
+
+The config lists the scheduler database, one task per events database, the Kafka producer settings and an optional `OutboxConfig` per task; durations are ISO-8601 (`PT10S`) and `${NAME}` placeholders are replaced with environment variables. See [config.example.yaml](eva-polling-outbox/eva-polling-outbox-starter/src/dist/config.example.yaml).
+
 #### Custom event publisher
 When desired, events can be published through a custom implementation of [EventPublisher](eva-events/src/main/kotlin/com/razz/eva/events/EventPublisher.kt). This publisher has to be passed to `Persisting` as an optional parameter as demonstrated below:
 ```kotlin
