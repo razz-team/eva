@@ -6,9 +6,12 @@ kotlinx-serialization = "1.11.0"
 
 [libraries]
 # not managed by BOMs
+db-scheduler = { module = "com.github.kagkarlsson:db-scheduler", version = "16.12.0" }
 flyway = { module = "org.flywaydb:flyway-core", version.ref = "flywaydb" }
 flyway-postgres = { module = "org.flywaydb:flyway-database-postgresql", version.ref = "flywaydb" }
+kafka-clients = { module = "org.apache.kafka:kafka-clients", version = "4.4.0" }
 hikari = { module = "com.zaxxer:HikariCP", version = "7.1.0" }
+kaml = { module = "com.charleskorn.kaml:kaml", version = "0.104.0" }
 kotlin-logging = { module = "io.github.microutils:kotlin-logging", version = "3.0.5" }
 logback = { module = "ch.qos.logback:logback-classic", version = "1.6.6" }
 mockk = { module = "io.mockk:mockk", version = "1.14.11" }
@@ -56,9 +59,11 @@ kotest-assertions-json = { module = "io.kotest:kotest-assertions-json-jvm" }
 kotest-assertions-core = { module = "io.kotest:kotest-assertions-core-jvm" }
 
 testcontainers-postgres = { module = "org.testcontainers:testcontainers-postgresql" }
+testcontainers-kafka = { module = "org.testcontainers:testcontainers-kafka" }
 
 jooq = { module = "org.jooq:jooq" }
 jooq-postgres = { module = "org.jooq:jooq-postgres-extensions" }
+jooq-codegen = { module = "org.jooq:jooq-codegen" }
 
 detekt-formatting = { module = "io.gitlab.arturbosch.detekt:detekt-formatting", version.ref = "detekt" }
 
@@ -69,6 +74,7 @@ kotlin-serialization-plugin = { module = "org.jetbrains.kotlin:kotlin-serializat
 detekt-plugin = { module = "io.gitlab.arturbosch.detekt:detekt-gradle-plugin", version.ref = "detekt" }
 dokka-plugin = { module = "org.jetbrains.dokka:dokka-gradle-plugin", version = "2.2.0" }
 maven-publish-plugin = { module = "com.vanniktech:gradle-maven-publish-plugin", version = "0.37.0" }
+jooq-docker-plugin = { module = "dev.monosoul.jooq:jooq-gradle-plugin", version = "9.0.9" }
 
 [plugins]
 versions = { id = "com.github.ben-manes.versions", version = "0.66.0" }
