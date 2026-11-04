@@ -102,6 +102,19 @@ class ChangesAccumulator private constructor(
 
     internal fun models(): List<Model<*, *>> = modelChanges.values.map { it.model }
 
+    /** The ids of [earlier]'s models this one lacks, or holds without the events [earlier] had for them. */
+    internal fun modelIdsDroppedFrom(earlier: ChangesAccumulator): List<ModelId<out Comparable<*>>> =
+        earlier.modelChanges.filter { (id, change) ->
+            val events = modelChanges[id]?.modelEvents
+            events == null || events.size < change.modelEvents.size ||
+                change.modelEvents.indices.any { events[it] !== change.modelEvents[it] }
+        }.keys.toList()
+
+    /** Whether this one starts with [earlier]'s entity changes, the same ones in the same order. */
+    internal fun keepsEntityChangesOf(earlier: ChangesAccumulator): Boolean =
+        entityChanges.size >= earlier.entityChanges.size &&
+            earlier.entityChanges.indices.all { entityChanges[it] === earlier.entityChanges[it] }
+
     fun <R> withResult(
         result: R,
         resultBuilder: ((PersistedLookup) -> Any?)? = null,

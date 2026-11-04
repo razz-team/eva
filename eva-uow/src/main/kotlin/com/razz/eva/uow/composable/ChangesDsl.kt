@@ -121,6 +121,10 @@ class ChangesDsl internal constructor(
         changes = changes.withDeletedEntityByKey(key, entityClass)
     }
 
+    /**
+     * Runs the unit of work [uowFactory] builds over this block's changes and takes its changes as the block's.
+     * Refuses a child whose changes no longer hold every model and entity change registered before it ran.
+     */
     suspend fun <PRINCIPAL, PARAMS, RESULT, UOW> execute(
         uowFactory: (ExecutionContext) -> UOW,
         principal: PRINCIPAL,
@@ -141,7 +145,9 @@ class ChangesDsl internal constructor(
                 subChanges.modelChangesToPersist.map { it.id.stringValue() },
             )
             if (subChanges.modelChangesToPersist.isNotEmpty() || subChanges.entityChangesToPersist.isNotEmpty()) {
-                changes = ChangesAccumulator.from(subChanges)
+                val merged = ChangesAccumulator.from(subChanges)
+                merged.checkHoldsAllOf(changes, uow.name())
+                changes = merged
                 inheritedModelIds.addAll(changes.modelIds())
             }
             // Under composition the caller gets this in-memory seed; the child's resultBuilder is not rerun.
@@ -169,6 +175,19 @@ class ChangesDsl internal constructor(
             val dsl = ChangesDsl(executionContext)
             val res = init(dsl)
             return dsl.withResult(res)
+        }
+    }
+
+    private fun ChangesAccumulator.checkHoldsAllOf(parent: ChangesAccumulator, uowName: String) {
+        val droppedModelIds = modelIdsDroppedFrom(parent)
+        val keepsEntityChanges = keepsEntityChangesOf(parent)
+        check(droppedModelIds.isEmpty() && keepsEntityChanges) {
+            val dropped = listOfNotNull(
+                droppedModelIds.takeIf { it.isNotEmpty() }?.let { ids -> "models ${ids.map { it.stringValue() }}" },
+                "entity changes".takeUnless { keepsEntityChanges },
+            )
+            "Composed unit of work [$uowName] dropped ${dropped.joinToString(" and ")} its parent had registered. " +
+                "Build its changes with changes { } over the ExecutionContext its factory is given."
         }
     }
 
