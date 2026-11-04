@@ -100,6 +100,8 @@ class ChangesAccumulator private constructor(
 
     internal fun modelIds(): Set<ModelId<out Comparable<*>>> = modelChanges.keys
 
+    internal fun models(): List<Model<*, *>> = modelChanges.values.map { it.model }
+
     fun <R> withResult(
         result: R,
         resultBuilder: ((PersistedLookup) -> Any?)? = null,

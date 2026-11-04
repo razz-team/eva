@@ -1,6 +1,7 @@
 package com.razz.eva.uow.composable
 
 import com.razz.eva.domain.DepartmentId.Companion.randomDepartmentId
+import com.razz.eva.domain.Model
 import com.razz.eva.domain.EmployeeId.Companion.randomEmployeeId
 import com.razz.eva.domain.Tag
 import com.razz.eva.domain.Ration
@@ -46,6 +47,86 @@ class ChangesDslSpec : FunSpec({
     val now = millisUTC().instant()
     val clock = fixedUTC(now)
     val executionContext = ExecutionContext(clock, OpenTelemetry.noop())
+
+    test("registered() lists the block's models and a composed child's, each as last registered") {
+        val added = createdTestModel("MLG", 420)
+        val existing = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
+        val childAdded = createdTestModel("child", 1)
+        val innerUow = { ctx: ExecutionContext ->
+            object : DummyUow<String>(ctx) {
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                    update(existing.activate())
+                    add(childAdded)
+                    "child"
+                }
+            }
+        }
+        var beforeChild = listOf<Model<*, *>>()
+        var afterChild = listOf<Model<*, *>>()
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                add(added)
+                beforeChild = registered()
+                execute(innerUow, TestPrincipal) { Params }
+                afterChild = registered()
+                "parent"
+            }
+        }
+        uow.tryPerform(TestPrincipal, DummyUow.Params)
+
+        beforeChild shouldBe listOf(added)
+        afterChild.map { it.id() } shouldBe listOf(added.id(), existing.id(), childAdded.id())
+        afterChild[1].shouldBeTypeOf<ActiveTestModel>()
+    }
+
+    test("A unit of work with a DSL of its own composes a child through ChangesDsl.changes") {
+        val own = createdTestModel("own", 1)
+        val childAdded = createdTestModel("child", 2)
+        val innerUow = { ctx: ExecutionContext ->
+            object : DummyUow<CreatedTestModel>(ctx) {
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                    add(childAdded)
+                }
+            }
+        }
+        val uow = object : FencedUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: DummyUow.Params) = changes {
+                add(own)
+                execute(innerUow, TestPrincipal) { DummyUow.Params }
+                "fenced"
+            }
+        }
+        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
+
+        changes.modelChangesToPersist shouldBe listOf(
+            AddModel(own, listOf(TestModelCreated(own.id()))),
+            AddModel(childAdded, listOf(TestModelCreated(childAdded.id()))),
+        )
+        changes.result shouldBe "fenced"
+    }
+
+    test("A unit of work with a DSL of its own refuses a child that writes what only its block may") {
+        val own = createdTestModel("own", 1)
+        val kept = existingCreatedTestModel(randomTestModelId(), "kept", 3, V1)
+        val innerUow = { ctx: ExecutionContext ->
+            object : DummyUow<String>(ctx) {
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                    update(kept.activate())
+                    "child"
+                }
+            }
+        }
+        val uow = object : FencedUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: DummyUow.Params) = changes {
+                add(own)
+                execute(innerUow, TestPrincipal) { DummyUow.Params }
+                "fenced"
+            }
+        }
+
+        shouldThrow<IllegalStateException> { uow.tryPerform(TestPrincipal, DummyUow.Params) }
+            .message shouldBe "A child wrote [${kept.id().stringValue()}], which only this block may write"
+    }
 
     test("""
         Should return properly built RealisedChanges when

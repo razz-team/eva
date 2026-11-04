@@ -149,10 +149,21 @@ class ChangesDsl internal constructor(
         }
     }
 
+    /**
+     * The models registered so far, in registration order, those of composed children included, each as it was
+     * last registered. A unit of work that wraps this DSL reads it around [execute] to see what a child wrote.
+     */
+    fun registered(): List<Model<*, *>> = changes.models()
+
     companion object {
-        internal suspend inline fun <R> changes(
+        /**
+         * Runs [init] over a fresh DSL seeded with the changes [executionContext] inherited from a composing
+         * parent, and returns what it built. [UnitOfWork] runs its own block through here; a unit of work with a
+         * DSL of its own, built on [com.razz.eva.uow.BaseUnitOfWork], wraps this one the same way, so its children
+         * merge and its own changes reach a parent by the one path.
+         */
+        suspend fun <R> changes(
             executionContext: ExecutionContext,
-            @Suppress("REDUNDANT_INLINE_SUSPEND_FUNCTION_TYPE")
             init: suspend ChangesDsl.() -> R,
         ): Changes<R> {
             val dsl = ChangesDsl(executionContext)
