@@ -240,6 +240,29 @@ class ChangesDslSpec : FunSpec({
             "is given."
     }
 
+    test("execute refuses a composed child that holds its parent's updated model as unchanged") {
+        val existing = existingCreatedTestModel(randomTestModelId(), "existing", 2, V1)
+        val activated = existing.activate()
+        val innerUow = { ctx: ExecutionContext ->
+            object : DummyUow<String>(ctx) {
+                override fun name() = "HandBuilt"
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params): Changes<String> =
+                    ChangesAccumulator().withUnchangedModel(activated).withResult("hand built")
+            }
+        }
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                update(activated)
+                execute(innerUow, TestPrincipal) { Params }
+            }
+        }
+
+        shouldThrow<IllegalStateException> { uow.tryPerform(TestPrincipal, DummyUow.Params) }
+            .message shouldBe "Composed unit of work [HandBuilt] dropped models [${existing.id().stringValue()}] " +
+            "its parent had registered. Build its changes with changes { } over the ExecutionContext its factory " +
+            "is given."
+    }
+
     test("execute refuses a composed child that drops the entity changes its parent had registered") {
         val tag = Tag.environmentTag(randomDepartmentId().id, "production")
         val childAdded = createdTestModel("child", 1)

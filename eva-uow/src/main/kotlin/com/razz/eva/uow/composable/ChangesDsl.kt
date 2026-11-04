@@ -158,6 +158,8 @@ class ChangesDsl internal constructor(
     /**
      * The models registered so far, in registration order, those of composed children included, each as it was
      * last registered. A unit of work that wraps this DSL reads it around [execute] to see what a child wrote.
+     * After a child ran, it also lists the owned models of any aggregate registered so far, which the child's changes
+     * carry flattened.
      */
     fun registered(): List<Model<*, *>> = changes.models()
 
