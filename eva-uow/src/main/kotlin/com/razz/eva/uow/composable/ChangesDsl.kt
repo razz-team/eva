@@ -25,6 +25,7 @@ import kotlin.reflect.KClass
 
 class ChangesDsl internal constructor(
     private val executionContext: ExecutionContext,
+    private val refusing: (Model<*, *>) -> Boolean,
 ) {
     private var changes: ChangesAccumulator = executionContext.inheritedChanges ?: ChangesAccumulator()
     private val inheritedModelIds: MutableSet<ModelId<out Comparable<*>>> = changes.modelIds().toMutableSet()
@@ -123,7 +124,9 @@ class ChangesDsl internal constructor(
 
     /**
      * Runs the unit of work [uowFactory] builds over this block's changes and takes its changes as the block's.
-     * Refuses a child whose changes no longer hold every model and entity change registered before it ran.
+     * Refuses a child whose changes no longer hold every model and entity change registered before it ran, and
+     * one that registered a model this block's `refusing` answers for. A refused child leaves the block's changes
+     * as they were.
      */
     suspend fun <PRINCIPAL, PARAMS, RESULT, UOW> execute(
         uowFactory: (ExecutionContext) -> UOW,
@@ -147,6 +150,7 @@ class ChangesDsl internal constructor(
             if (subChanges.modelChangesToPersist.isNotEmpty() || subChanges.entityChangesToPersist.isNotEmpty()) {
                 val merged = ChangesAccumulator.from(subChanges)
                 merged.checkHoldsAllOf(changes, uow.name())
+                merged.checkRefusesNoneNewTo(changes, uow.name())
                 changes = merged
                 inheritedModelIds.addAll(changes.modelIds())
             }
@@ -155,28 +159,33 @@ class ChangesDsl internal constructor(
         }
     }
 
-    /**
-     * The models registered so far, in registration order, those of composed children included, each as it was
-     * last registered. A unit of work that wraps this DSL reads it around [execute] to see what a child wrote.
-     * After a child ran, it also lists the owned models of any aggregate registered so far, which the child's changes
-     * carry flattened.
-     */
-    fun registered(): List<Model<*, *>> = changes.models()
-
     companion object {
         /**
          * Runs [init] over a fresh DSL seeded with the changes [executionContext] inherited from a composing
          * parent, and returns what it built. [UnitOfWork] runs its own block through here; a unit of work with a
          * DSL of its own, built on [com.razz.eva.uow.BaseUnitOfWork], wraps this one the same way, so its children
          * merge and its own changes reach a parent by the one path.
+         *
+         * [refusing] answers for a model no child of the block may register, as new, changed or unchanged, or on
+         * top of one the block holds: [execute] refuses such a child before taking its changes. The block's own
+         * registrations are not asked. [UnitOfWork] refuses nothing.
          */
         suspend fun <R> changes(
             executionContext: ExecutionContext,
+            refusing: (Model<*, *>) -> Boolean,
             init: suspend ChangesDsl.() -> R,
         ): Changes<R> {
-            val dsl = ChangesDsl(executionContext)
+            val dsl = ChangesDsl(executionContext, refusing)
             val res = init(dsl)
             return dsl.withResult(res)
+        }
+    }
+
+    private fun ChangesAccumulator.checkRefusesNoneNewTo(parent: ChangesAccumulator, uowName: String) {
+        val refused = modelsNotHeldBy(parent).filter(refusing)
+        check(refused.isEmpty()) {
+            "Composed unit of work [$uowName] wrote ${refused.map { it.id().stringValue() }}, " +
+                "which its parent refuses"
         }
     }
 

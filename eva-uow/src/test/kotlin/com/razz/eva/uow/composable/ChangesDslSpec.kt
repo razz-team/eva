@@ -1,8 +1,12 @@
 package com.razz.eva.uow.composable
 
 import com.razz.eva.domain.DepartmentId.Companion.randomDepartmentId
-import com.razz.eva.domain.Model
+import com.razz.eva.domain.DeptAggregate.Companion.newDeptAggregate
+import com.razz.eva.domain.Employee
+import com.razz.eva.domain.Employee.Companion.newEmployee
 import com.razz.eva.domain.EmployeeId.Companion.randomEmployeeId
+import com.razz.eva.domain.Name
+import com.razz.eva.domain.addEmployee
 import com.razz.eva.domain.Tag
 import com.razz.eva.domain.Ration
 import com.razz.eva.domain.RationAllocation
@@ -22,6 +26,7 @@ import com.razz.eva.domain.TestModelStatus.CREATED
 import com.razz.eva.domain.Version.Companion.V1
 import com.razz.eva.uow.AddEntity
 import com.razz.eva.uow.AddModel
+import com.razz.eva.uow.BaseUnitOfWork
 import com.razz.eva.uow.Changes
 import com.razz.eva.uow.ChangesAccumulator
 import com.razz.eva.uow.Clocks.fixedUTC
@@ -50,7 +55,7 @@ class ChangesDslSpec : FunSpec({
     val clock = fixedUTC(now)
     val executionContext = ExecutionContext(clock, OpenTelemetry.noop())
 
-    test("registered() lists the block's models and a composed child's, each as last registered") {
+    test("A unit of work refusing nothing takes a composed child's writes as they are") {
         val added = createdTestModel("MLG", 420)
         val existing = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
         val childAdded = createdTestModel("child", 1)
@@ -63,22 +68,17 @@ class ChangesDslSpec : FunSpec({
                 }
             }
         }
-        var beforeChild = listOf<Model<*, *>>()
-        var afterChild = listOf<Model<*, *>>()
         val uow = object : DummyUow<String>(executionContext) {
             override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
                 add(added)
-                beforeChild = registered()
                 execute(innerUow, TestPrincipal) { Params }
-                afterChild = registered()
                 "parent"
             }
         }
-        uow.tryPerform(TestPrincipal, DummyUow.Params)
+        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
 
-        beforeChild shouldBe listOf(added)
-        afterChild.map { it.id() } shouldBe listOf(added.id(), existing.id(), childAdded.id())
-        afterChild[1].shouldBeTypeOf<ActiveTestModel>()
+        changes.modelChangesToPersist.map { it.id } shouldBe listOf(added.id(), existing.id(), childAdded.id())
+        changes.modelChangesToPersist[1].model.shouldBeTypeOf<ActiveTestModel>()
     }
 
     test("A unit of work with a DSL of its own composes a child through ChangesDsl.changes") {
@@ -107,11 +107,26 @@ class ChangesDslSpec : FunSpec({
         changes.result shouldBe "fenced"
     }
 
-    test("A unit of work with a DSL of its own refuses a child that writes what only its block may") {
+    test("A unit of work with a DSL of its own returns changes of a type only its own block produces") {
+        val own = createdTestModel("own", 1)
+        val uow = object : FencedUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: DummyUow.Params) = changes {
+                add(own)
+                "fenced"
+            }
+        }
+        val changes: FencedChanges<String> = uow.tryPerform(TestPrincipal, DummyUow.Params)
+
+        changes.modelChangesToPersist shouldBe listOf(AddModel(own, listOf(TestModelCreated(own.id()))))
+        changes.result shouldBe "fenced"
+    }
+
+    test("A unit of work with a DSL of its own refuses a child that updates a model its block refuses") {
         val own = createdTestModel("own", 1)
         val kept = existingCreatedTestModel(randomTestModelId(), "kept", 3, V1)
         val innerUow = { ctx: ExecutionContext ->
             object : DummyUow<String>(ctx) {
+                override fun name() = "Child"
                 override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
                     update(kept.activate())
                     "child"
@@ -127,7 +142,138 @@ class ChangesDslSpec : FunSpec({
         }
 
         shouldThrow<IllegalStateException> { uow.tryPerform(TestPrincipal, DummyUow.Params) }
-            .message shouldBe "A child wrote [${kept.id().stringValue()}], which only this block may write"
+            .message shouldBe "Composed unit of work [Child] wrote [${kept.id().stringValue()}], " +
+            "which its parent refuses"
+    }
+
+    test("A unit of work with a DSL of its own refuses a child that adds a model its block refuses") {
+        val own = createdTestModel("own", 1)
+        val childAdded = createdTestModel("child", 2).activate()
+        val innerUow = { ctx: ExecutionContext ->
+            object : DummyUow<String>(ctx) {
+                override fun name() = "Child"
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                    add(childAdded)
+                    "child"
+                }
+            }
+        }
+        val uow = object : FencedUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: DummyUow.Params) = changes {
+                add(own)
+                execute(innerUow, TestPrincipal) { DummyUow.Params }
+                "fenced"
+            }
+        }
+
+        shouldThrow<IllegalStateException> { uow.tryPerform(TestPrincipal, DummyUow.Params) }
+            .message shouldBe "Composed unit of work [Child] wrote [${childAdded.id().stringValue()}], " +
+            "which its parent refuses"
+    }
+
+    test("A unit of work with a DSL of its own refuses a child that holds a model its block refuses as unchanged") {
+        val own = createdTestModel("own", 1)
+        val held = existingCreatedTestModel(randomTestModelId(), "held", 3, V1)
+        val innerUow = { ctx: ExecutionContext ->
+            object : DummyUow<String>(ctx) {
+                override fun name() = "Child"
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                    notChanged(held)
+                    "child"
+                }
+            }
+        }
+        val uow = object : BaseUnitOfWork<TestPrincipal, DummyUow.Params, String, ChangesDsl>(executionContext) {
+            override suspend fun changes(init: suspend ChangesDsl.() -> String) =
+                ChangesDsl.changes(executionContext, refusing = { it.id() == held.id() }, init)
+
+            override suspend fun tryPerform(principal: TestPrincipal, params: DummyUow.Params) = changes {
+                add(own)
+                execute(innerUow, TestPrincipal) { DummyUow.Params }
+                "parent"
+            }
+        }
+
+        shouldThrow<IllegalStateException> { uow.tryPerform(TestPrincipal, DummyUow.Params) }
+            .message shouldBe "Composed unit of work [Child] wrote [${held.id().stringValue()}], " +
+            "which its parent refuses"
+    }
+
+    test("A unit of work with a DSL of its own refuses a child that writes on top of the block's own registration") {
+        val existing = existingCreatedTestModel(randomTestModelId(), "merged", 3, V1)
+        var registered: CreatedTestModel? = null
+        val innerUow = { ctx: ExecutionContext ->
+            object : DummyUow<String>(ctx) {
+                override fun name() = "Child"
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                    update(checkNotNull(registered).activate())
+                    "child"
+                }
+            }
+        }
+        val uow = object : FencedUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: DummyUow.Params) = changes {
+                registered = update(existing.changeParam1("own"))
+                execute(innerUow, TestPrincipal) { DummyUow.Params }
+                "fenced"
+            }
+        }
+
+        shouldThrow<IllegalStateException> { uow.tryPerform(TestPrincipal, DummyUow.Params) }
+            .message shouldBe "Composed unit of work [Child] wrote [${existing.id().stringValue()}], " +
+            "which its parent refuses"
+    }
+
+    test("A block that swallows a child's refusal keeps the changes it had, none of the child's") {
+        val own = createdTestModel("own", 1)
+        val kept = existingCreatedTestModel(randomTestModelId(), "kept", 3, V1)
+        val innerUow = { ctx: ExecutionContext ->
+            object : DummyUow<String>(ctx) {
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                    update(kept.activate())
+                    "child"
+                }
+            }
+        }
+        val uow = object : FencedUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: DummyUow.Params) = changes {
+                add(own)
+                runCatching { execute(innerUow, TestPrincipal) { DummyUow.Params } }
+                "fenced"
+            }
+        }
+        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
+
+        changes.modelChangesToPersist shouldBe listOf(AddModel(own, listOf(TestModelCreated(own.id()))))
+    }
+
+    test("A refusal does not count the owned models of an aggregate the block registered as the child's writes") {
+        val dept = newDeptAggregate(name = "Dept", boss = randomEmployeeId(), ration = Ration.BUBALEH).let { d ->
+            d.addEmployee(newEmployee(Name("Eve", "Green"), d.id(), "eve@test.com", Ration.BUBALEH))
+        }
+        val childAdded = createdTestModel("child", 2)
+        val innerUow = { ctx: ExecutionContext ->
+            object : DummyUow<String>(ctx) {
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                    add(childAdded)
+                    "child"
+                }
+            }
+        }
+        val uow = object : BaseUnitOfWork<TestPrincipal, DummyUow.Params, String, ChangesDsl>(executionContext) {
+            override suspend fun changes(init: suspend ChangesDsl.() -> String) =
+                ChangesDsl.changes(executionContext, refusing = { it is Employee }, init)
+
+            override suspend fun tryPerform(principal: TestPrincipal, params: DummyUow.Params) = changes {
+                add(dept)
+                execute(innerUow, TestPrincipal) { DummyUow.Params }
+                "parent"
+            }
+        }
+        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
+
+        changes.modelChangesToPersist.map { it.id } shouldBe
+            listOf(dept.id(), dept.employees.single().id(), childAdded.id())
     }
 
     test("A composed child built over the context it is given keeps every change its parent had registered") {

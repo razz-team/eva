@@ -8,6 +8,8 @@ import com.razz.eva.domain.Model
 import com.razz.eva.domain.UpdatableEntity
 import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
+import java.util.Collections
+import java.util.IdentityHashMap
 import kotlin.reflect.KClass
 
 private fun existingChangeExceptionMessage(modelId: ModelId<*>) =
@@ -100,7 +102,15 @@ class ChangesAccumulator private constructor(
 
     internal fun modelIds(): Set<ModelId<out Comparable<*>>> = modelChanges.keys
 
-    internal fun models(): List<Model<*, *>> = modelChanges.values.map { it.model }
+    /**
+     * The models this one holds that [earlier] did not, by instance: a model registered since, and a model
+     * registered again on top of [earlier]'s instance. An owned model [earlier] carried unregistered is not counted.
+     */
+    internal fun modelsNotHeldBy(earlier: ChangesAccumulator): List<Model<*, *>> {
+        val held = Collections.newSetFromMap(IdentityHashMap<Model<*, *>, Boolean>())
+        earlier.flattenChildModels().mapTo(held) { it.model }
+        return modelChanges.values.map { it.model }.filter { it !in held }
+    }
 
     /** The ids of [earlier]'s models this one lacks, or holds without the events [earlier] had for them. */
     internal fun modelIdsDroppedFrom(earlier: ChangesAccumulator): List<ModelId<out Comparable<*>>> =
