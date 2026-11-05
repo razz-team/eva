@@ -224,6 +224,40 @@ class ChangesDslSpec : FunSpec({
             "which its parent refuses"
     }
 
+    test("A unit of work with a DSL of its own refuses a child that relays a grandchild's write its block refuses") {
+        val own = createdTestModel("own", 1)
+        val kept = existingCreatedTestModel(randomTestModelId(), "kept", 3, V1)
+        val grandchildUow = { ctx: ExecutionContext ->
+            object : DummyUow<String>(ctx) {
+                override fun name() = "Grandchild"
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                    update(kept.activate())
+                    "grandchild"
+                }
+            }
+        }
+        val childUow = { ctx: ExecutionContext ->
+            object : DummyUow<String>(ctx) {
+                override fun name() = "Child"
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                    execute(grandchildUow, TestPrincipal) { Params }
+                    "child"
+                }
+            }
+        }
+        val uow = object : FencedUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: DummyUow.Params) = changes {
+                add(own)
+                execute(childUow, TestPrincipal) { DummyUow.Params }
+                "fenced"
+            }
+        }
+
+        shouldThrow<IllegalStateException> { uow.tryPerform(TestPrincipal, DummyUow.Params) }
+            .message shouldBe "Composed unit of work [Child] wrote [${kept.id().stringValue()}], " +
+            "which its parent refuses"
+    }
+
     test("A block that swallows a child's refusal keeps the changes it had, none of the child's") {
         val own = createdTestModel("own", 1)
         val kept = existingCreatedTestModel(randomTestModelId(), "kept", 3, V1)
@@ -245,6 +279,49 @@ class ChangesDslSpec : FunSpec({
         val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
 
         changes.modelChangesToPersist shouldBe listOf(AddModel(own, listOf(TestModelCreated(own.id()))))
+    }
+
+    test("A block that swallows a child's refusal takes a later child, with its models and entity changes intact") {
+        val departmentId = randomDepartmentId()
+        val own = createdTestModel("own", 1)
+        val kept = existingCreatedTestModel(randomTestModelId(), "kept", 3, V1)
+        val other = existingCreatedTestModel(randomTestModelId(), "other", 4, V1)
+        val tag = Tag.environmentTag(departmentId.id, "production")
+        val refusedUow = { ctx: ExecutionContext ->
+            object : DummyUow<String>(ctx) {
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                    update(kept.activate())
+                    "refused"
+                }
+            }
+        }
+        val laterUow = { ctx: ExecutionContext ->
+            object : DummyUow<String>(ctx) {
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                    update(other.changeParam1("later"))
+                    "later"
+                }
+            }
+        }
+        val uow = object : FencedUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: DummyUow.Params) = changes {
+                add(own)
+                add(tag)
+                runCatching { execute(refusedUow, TestPrincipal) { DummyUow.Params } }
+                execute(laterUow, TestPrincipal) { DummyUow.Params }
+                "fenced"
+            }
+        }
+        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
+
+        changes.modelChangesToPersist shouldHaveSize 2
+        changes.modelChangesToPersist[0] shouldBe AddModel(own, listOf(TestModelCreated(own.id())))
+        val later = changes.modelChangesToPersist[1]
+            .shouldBeTypeOf<UpdateModel<TestModelId, CreatedTestModel, TestModelEvent>>()
+        later.id shouldBe other.id()
+        later.modelEvents shouldBe listOf(TestModelEvent1(other.id()))
+        changes.entityChangesToPersist shouldBe listOf(AddEntity(tag))
+        changes.result shouldBe "fenced"
     }
 
     test("A refusal does not count the owned models of an aggregate the block registered as the child's writes") {
