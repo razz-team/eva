@@ -170,7 +170,7 @@ class ChangesDsl internal constructor(
          * top of one the block holds: [execute] refuses such a child before taking its changes. The block's own
          * registrations are not asked. [UnitOfWork] refuses nothing.
          */
-        suspend fun <R> changes(
+        internal suspend fun <R> changes(
             executionContext: ExecutionContext,
             refusing: (Model<*, *>) -> Boolean,
             init: suspend ChangesDsl.() -> R,

@@ -71,6 +71,9 @@ class UnitOfWorkExecutor(
             ?: throw IllegalArgumentException("Attempted to register multiple factories for ${it.key.simpleName}")
     }
 
+    /** The class of every unit of work a factory was registered for, for a boot check over the registrations. */
+    val registered: Set<KClass<*>> get() = classToFactory.keys
+
     suspend fun <PRINCIPAL, PARAMS, RESULT, UOW> execute(
         principal: PRINCIPAL,
         uowFactory: (ExecutionContext) -> UOW,
