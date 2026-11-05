@@ -32,6 +32,16 @@ class ProvenSpec : FunSpec({
             .message shouldBe "A proof for test.write is decided again only after an attempt lent it"
     }
 
+    test("refuses a retry whose reload answers another model, and decides nothing again") {
+        val proof = proof(employee)
+        INITIAL.proven(proof) { error("the first attempt does not reload") }.decided()
+        val other = employee(department = employee.departmentId)
+        shouldThrow<IllegalStateException> { AFTER_RETRY.proven(proof) { other }.decided() }
+            .message shouldBe
+            "The reload answered ${other.id().stringValue()} for the proof's ${employee.id().stringValue()}"
+        proof.decidedAgain shouldBe listOf()
+    }
+
     test("lends a proof once, so two params fields cannot carry one decision") {
         val proof = proof(employee)
         INITIAL.proven(proof) { reloaded }.decided()

@@ -11,6 +11,7 @@ import com.razz.eva.uow.guarded.Proven
  * The audit row of a guarded unit of work, as the kotlinx serializer writes it: a [Guarded] as
  * `{"action", "target", "params"}`, the params with the mapper's own serializer, and a [Proven] as
  * `{"action", "target"}`. Without it Jackson would write the proof by its getters.
+ * It writes [Guarded] and [Proven] only: a raw [com.razz.eva.uow.guarded.Proof] in params is written unredacted.
  */
 internal object GuardedAuditModule : SimpleModule("eva-guarded-audit") {
 
