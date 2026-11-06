@@ -151,7 +151,7 @@ class ChangesDsl internal constructor(
         val span = uowSpan(uow.name())
         return span.use {
             val subChanges = performingSpan(uow.name()).use {
-                uow.tryPerform(principal, params(InstantiationContext.Internal(0)))
+                uow.tryPerform(principal, params(InstantiationContext.Internal(0, principal)))
             }
             span.setAttribute(
                 MODEL_ID,

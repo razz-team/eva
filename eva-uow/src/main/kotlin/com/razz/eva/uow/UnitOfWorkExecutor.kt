@@ -115,7 +115,7 @@ class UnitOfWorkExecutor(
                     uowSpan.updateName(name)
                     uowSpan.setAttribute(UOW_NAME, name)
                 }
-                val constructedParams = params(InstantiationContext.External(currentAttempt))
+                val constructedParams = params(InstantiationContext.External(currentAttempt, principal))
                 val attempted = attempt(uow, principal, constructedParams, now, name, uowSpan)
                 val committed = when (attempted) {
                     is Attempted.Conflict -> {

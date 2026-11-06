@@ -8,6 +8,6 @@ object TestConstantModelParam {
     fun <MID : ModelId<out Comparable<*>>, M : Model<MID, *>> constantModelParamForSpec(
         model: M,
     ): ModelParam<MID, M> {
-        return InstantiationContext.Internal(0).constantModelParam(model)
+        return InstantiationContext.Internal(0, null).constantModelParam(model)
     }
 }

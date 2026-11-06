@@ -1,9 +1,9 @@
 package com.razz.eva.uow.guarded
 
-import com.razz.eva.uow.InstantiationContextFixtures.INITIAL
+import com.razz.eva.uow.InstantiationContextFixtures.initial
+import com.razz.eva.uow.TestPrincipal
 import com.razz.eva.uow.guarded.Fixtures.employee
 import com.razz.eva.uow.guarded.Fixtures.proof
-import com.razz.eva.uow.guarded.Guarded.Companion.guarded
 import com.razz.eva.uow.guarded.Proven.Companion.proven
 import com.razz.eva.uow.params.kotlinx.KotlinxParamsSerializer
 import io.kotest.core.spec.style.FunSpec
@@ -11,25 +11,29 @@ import io.kotest.matchers.shouldBe
 
 class GuardedAuditSpec : FunSpec({
 
-    test("a guarded params row carries the action, the target's id and the unit of work's params") {
-        val target = employee()
+    val first = initial(TestPrincipal)
+
+    test("a guarded params row is the unit of work's own params, each proven field its action and model id") {
+        val employee = employee()
         val extra = employee()
-        val extraProof = proof(extra)
-        val params = INITIAL.run {
-            MoveEmployeeUow.Params("moves", extra = proven(extraProof) { extra }, how = MoveEmployeeUow.How.UNDECIDED)
+        val params = first.run {
+            MoveEmployeeUow.Params(
+                proven(proof(employee)) { employee },
+                "moves",
+                extra = proven(proof(extra)) { extra },
+                how = MoveEmployeeUow.How.UNDECIDED,
+            )
         }
-        val guarded = INITIAL.guarded(proof(target), params) { target }
-        KotlinxParamsSerializer().serialize(guarded) shouldBe
-            """{"action":"test.write","target":"${target.id().stringValue()}",""" +
-            """"params":{"note":"moves","extra":{"action":"test.write","target":"${extra.id().stringValue()}"},""" +
-            """"how":"UNDECIDED"}}"""
+        KotlinxParamsSerializer().serialize(params) shouldBe
+            """{"employee":{"action":"test.write","target":"${employee.id().stringValue()}"},"note":"moves",""" +
+            """"extra":{"action":"test.write","target":"${extra.id().stringValue()}"},"how":"UNDECIDED"}"""
     }
 
-    test("the principal is the row's own: a guarded params row reads the inner idempotency key") {
-        val target = employee()
-        val guarded = INITIAL.guarded(proof(target), MoveEmployeeUow.Params("moves")) { target }
-        guarded.idempotencyKey shouldBe null
-        guarded.action shouldBe "test.write"
-        guarded.targetId shouldBe target.id().stringValue()
+    test("a list of proven fields writes one entry per proof, in order") {
+        val team = listOf(employee(), employee())
+        val params = first.run { TeamParams(team.map { member -> proven(proof(member)) { member } }) }
+        KotlinxParamsSerializer().serialize(params) shouldBe
+            """{"team":[{"action":"test.write","target":"${team[0].id().stringValue()}"},""" +
+            """{"action":"test.write","target":"${team[1].id().stringValue()}"}]}"""
     }
 })

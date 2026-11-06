@@ -5,11 +5,9 @@ import com.razz.eva.domain.Employee
 import com.razz.eva.uow.ExecutionContext
 import com.razz.eva.uow.TestPrincipal
 import com.razz.eva.uow.composable.UnitOfWork
-import com.razz.eva.uow.params.kotlinx.UowParams
-import kotlinx.serialization.Serializable
 
 /**
- * Composes [child] before it moves its target to [department]. With [swallowing] it catches the child's refusal
+ * Composes [child] before it moves its employee to [department]. With [swallowing] it catches the child's refusal
  * and goes on, so only its own write may land.
  */
 internal class ComposingGuardedUow<R : Any>(
@@ -17,24 +15,19 @@ internal class ComposingGuardedUow<R : Any>(
     private val department: Department<*>,
     private val child: (ExecutionContext) -> UnitOfWork<TestPrincipal, ChildParams, R>,
     private val swallowing: Boolean,
-) : GuardedUnitOfWork<TestPrincipal, TestProof<Employee>, ComposingGuardedUow.Params, Employee, Employee>(
+) : GuardedUnitOfWork<TestPrincipal, TestProof<*>, EmployeeParams, Employee>(
     executionContext,
     Configuration.default(),
     EmployeesGuarded,
     setOf(),
 ) {
 
-    @Serializable
-    object Params : UowParams<Params> {
-        override fun serialization() = serializer()
-    }
-
-    override suspend fun perform(principal: TestPrincipal, params: Params) = changes {
+    override suspend fun tryPerform(principal: TestPrincipal, params: EmployeeParams) = changes {
         try {
             execute(child, principal) { ChildParams }
         } catch (ex: IllegalStateException) {
             if (!swallowing) throw ex
         }
-        update(target.changeDepartment(department))
+        update(params.employee.model().changeDepartment(department))
     }
 }

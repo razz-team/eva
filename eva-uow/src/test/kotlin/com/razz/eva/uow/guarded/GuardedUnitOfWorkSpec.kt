@@ -7,19 +7,21 @@ import com.razz.eva.domain.Employee.Companion.newEmployee
 import com.razz.eva.domain.EmployeeEvent.DepartmentChanged
 import com.razz.eva.domain.EmployeeId.Companion.randomEmployeeId
 import com.razz.eva.domain.Model
+import com.razz.eva.domain.ModelState.PersistentState.Companion.persistentState
 import com.razz.eva.domain.Name
 import com.razz.eva.domain.Ration.BUBALEH
 import com.razz.eva.domain.Tag
+import com.razz.eva.domain.Version.Companion.version
 import com.razz.eva.domain.addEmployee
-import com.razz.eva.persistence.PersistenceException
 import com.razz.eva.persistence.PersistenceException.StaleRecordException
 import com.razz.eva.uow.AddEntity
 import com.razz.eva.uow.Clocks.fixedUTC
 import com.razz.eva.uow.Clocks.millisUTC
 import com.razz.eva.uow.ExecutionContext
 import com.razz.eva.uow.InstantiationContext
-import com.razz.eva.uow.InstantiationContextFixtures.AFTER_RETRY
 import com.razz.eva.uow.InstantiationContextFixtures.INITIAL
+import com.razz.eva.uow.InstantiationContextFixtures.afterRetry
+import com.razz.eva.uow.InstantiationContextFixtures.initial
 import com.razz.eva.uow.NoopModel
 import com.razz.eva.uow.TestPrincipal
 import com.razz.eva.uow.UpdateModel
@@ -28,13 +30,11 @@ import com.razz.eva.uow.composable.UnitOfWork
 import com.razz.eva.uow.guarded.Fixtures.department
 import com.razz.eva.uow.guarded.Fixtures.employee
 import com.razz.eva.uow.guarded.Fixtures.proof
-import com.razz.eva.uow.guarded.Guarded.Companion.guarded
 import com.razz.eva.uow.guarded.MoveEmployeeUow.How.DECOY
 import com.razz.eva.uow.guarded.MoveEmployeeUow.How.PROVEN
 import com.razz.eva.uow.guarded.MoveEmployeeUow.How.UNDECIDED
 import com.razz.eva.uow.guarded.MoveEmployeeUow.Params
 import com.razz.eva.uow.guarded.Proven.Companion.proven
-import com.razz.eva.uow.params.kotlinx.UowParams
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContainExactly
@@ -52,32 +52,38 @@ class GuardedUnitOfWorkSpec : FunSpec({
     val elsewhere = department("Elsewhere")
     val employee = employee(department = home.id())
     val moved = employee(id = employee.id(), department = elsewhere.id())
+    val first = initial(TestPrincipal)
+    val retry = afterRetry(TestPrincipal)
     fun uow(unguarded: Set<KClass<out Model<*, *>>> = setOf()) = MoveEmployeeUow(executionContext, unguarded, away)
-    fun <P : UowParams<P>> InstantiationContext.guardedOn(
-        proof: TestProof<Employee>,
-        params: P,
-        reloaded: Employee = moved,
-    ) = guarded(proof, params) { reloaded }
+    fun InstantiationContext.moving(proof: TestProof<Employee>, reloaded: Employee = moved) =
+        proven(proof) { reloaded }
+    fun InstantiationContext.params(proof: TestProof<Employee>) = EmployeeParams(moving(proof))
     fun <R : Any> composing(child: (ExecutionContext) -> UnitOfWork<TestPrincipal, ChildParams, R>) =
         ComposingGuardedUow(executionContext, away, child, swallowing = false)
     fun <R : Any> targetFirst(child: (ExecutionContext, Employee) -> UnitOfWork<TestPrincipal, ChildParams, R>) =
         TargetFirstGuardedUow(executionContext, away, child)
     fun refusedWrite(uow: String, id: String) = "Composed unit of work [$uow] wrote [$id], which its parent refuses"
+    fun ungated(id: Any) = "A guarded unit of work updates only a model a proof decided in its block " +
+        "or a declared type, and $id is neither"
+    fun unwritten(uow: String, ids: List<Any>) =
+        "$uow decided ${ids.map { it.toString() }} and wrote nothing on them: update each, or hold it with notChanged"
     fun plainChild(name: String, body: suspend ChangesDsl.() -> String) = { ctx: ExecutionContext ->
         object : UnitOfWork<TestPrincipal, ChildParams, String>(ctx) {
             override fun name() = name
             override suspend fun tryPerform(principal: TestPrincipal, params: ChildParams) = changes(body)
         }
     }
-    fun block(body: suspend GuardedChangesDsl<TestPrincipal, Employee>.() -> Employee) =
-        object : GuardedUnitOfWork<TestPrincipal, TestProof<Employee>, ComposingGuardedUow.Params, Employee, Employee>(
+    fun block(body: suspend GuardedChangesDsl<TestProof<*>>.(EmployeeParams) -> Employee) =
+        object : GuardedUnitOfWork<TestPrincipal, TestProof<*>, EmployeeParams, Employee>(
             executionContext, Configuration.default(), EmployeesGuarded, setOf(),
         ) {
-            override suspend fun perform(principal: TestPrincipal, params: ComposingGuardedUow.Params) = changes(body)
+            override fun name() = "Block"
+            override suspend fun tryPerform(principal: TestPrincipal, params: EmployeeParams) =
+                changes { body(params) }
         }
 
-    test("writes its target under the proof and returns changes of the one sealed type") {
-        val changes = uow().tryPerform(TestPrincipal, INITIAL.guardedOn(proof(employee), Params("moves")))
+    test("writes a proven model under its proof and returns changes of the one sealed type") {
+        val changes = uow().tryPerform(TestPrincipal, first.run { Params(moving(proof(employee)), "moves") })
         changes.shouldBeInstanceOf<GuardedChanges<Employee>>()
         val change = changes.modelChangesToPersist.single().shouldBeInstanceOf<UpdateModel<*, *, *>>()
         change.model.shouldBeInstanceOf<Employee>().departmentId shouldBe away.id()
@@ -90,158 +96,191 @@ class GuardedUnitOfWorkSpec : FunSpec({
     test("keeps the decided model on the first attempt and never reloads it") {
         val never: Employee by lazy { error("the first attempt does not reload") }
         val proof = proof(employee)
-        val changes = uow().tryPerform(TestPrincipal, INITIAL.guarded(proof, Params("moves")) { never })
+        val changes = uow().tryPerform(TestPrincipal, first.run { Params(proven(proof) { never }, "moves") })
         changes.result.id() shouldBe employee.id()
         proof.decidedAgain shouldBe listOf()
     }
 
-    test("reloads the target on a retry and lets the proof decide again on what it loaded") {
+    test("reloads a proven model on a retry and lets the proof decide again on what it loaded") {
         val proof = proof(employee)
-        val changes = uow().tryPerform(TestPrincipal, AFTER_RETRY.guardedOn(proof, Params("moves"), moved))
+        first.moving(proof)
+        val changes = uow().tryPerform(TestPrincipal, retry.run { Params(moving(proof, moved), "moves") })
         proof.decidedAgain shouldBe listOf(moved)
         val change = changes.modelChangesToPersist.single().shouldBeInstanceOf<UpdateModel<*, *, *>>()
         change.modelEvents shouldBe listOf(DepartmentChanged(employee.id(), elsewhere.id(), away.id()))
     }
 
-    test("a retry whose reload the proof refuses does not run the body") {
+    test("a retry whose reload the proof refuses writes nothing") {
         val proof = proof(employee, refused = setOf(elsewhere))
-        shouldThrow<Refused> { uow().tryPerform(TestPrincipal, AFTER_RETRY.guardedOn(proof, Params("moves"))) }
+        first.moving(proof)
+        shouldThrow<Refused> { uow().tryPerform(TestPrincipal, retry.run { Params(moving(proof), "moves") }) }
             .message shouldBe "moved out of reach"
     }
 
     test("a reload that answers another model is refused before the proof is asked") {
         val proof = proof(employee)
         val other = employee()
+        first.moving(proof)
         shouldThrow<IllegalStateException> {
-            uow().tryPerform(TestPrincipal, AFTER_RETRY.guardedOn(proof, Params("moves"), other))
+            uow().tryPerform(TestPrincipal, retry.run { Params(moving(proof, other), "moves") })
         }.message shouldBe "The reload answered ${other.id().stringValue()} " +
             "for the proof's ${employee.id().stringValue()}"
         proof.decidedAgain shouldBe listOf()
     }
 
-    test("binds a proof to one run: a second first attempt on it is refused, a retry on it is not") {
+    test("binds a proof to one unit of work: a second first attempt on it is refused, a retry on it is not") {
         val proof = proof(employee)
-        INITIAL.guardedOn(proof, Params("first"))
-        AFTER_RETRY.guardedOn(proof, Params("retried"))
-        shouldThrow<IllegalStateException> { INITIAL.guardedOn(proof, Params("second")) }
-            .message shouldBe "A proof for test.write runs once, and this one ran"
-        proof.lent shouldBe false
+        first.moving(proof)
+        retry.moving(proof)
+        shouldThrow<IllegalStateException> { first.moving(proof) }
+            .message shouldBe "A proof for test.write is spent once, and this one was"
     }
 
-    test("refuses a proof minted for another principal") {
+    test("binds a retry only on a proof a first attempt spent") {
+        shouldThrow<IllegalStateException> { retry.moving(proof(employee)) }
+            .message shouldBe "A proof for test.write binds a retry only after a first attempt"
+    }
+
+    test("refuses to bind a proof minted for another principal, or in params built for none, and leaves it unspent") {
         val proof = TestProof(OtherPrincipal, employee) { }
-        val guarded = INITIAL.guarded(proof, Params("moves")) { moved }
-        shouldThrow<IllegalStateException> { uow().tryPerform(TestPrincipal, guarded) }
-            .message shouldBe "MoveEmployeeUow was handed a proof minted for another principal"
+        shouldThrow<IllegalStateException> { first.moving(proof) }
+            .message shouldBe "A proof for test.write on ${employee.id().stringValue()} " +
+            "was minted for another principal"
+        val mine = proof(employee)
+        shouldThrow<IllegalStateException> { INITIAL.moving(mine) }
+            .message shouldBe "A proof binds only in params built for the principal they run under"
+        initial(OtherPrincipal).moving(proof)
+        first.moving(mine)
     }
 
-    test("refuses a block that only reads its target") {
-        val guarded = INITIAL.guardedOn(proof(employee), Params("reads", readOnly = true))
-        shouldThrow<IllegalStateException> { uow().tryPerform(TestPrincipal, guarded) }
-            .message shouldBe "MoveEmployeeUow runs test.write without writing ${employee.id().stringValue()}"
+    test("refuses a block that reads a proven model and writes nothing on it") {
+        val params = first.run { Params(moving(proof(employee)), "reads", skips = true) }
+        shouldThrow<IllegalStateException> { uow().tryPerform(TestPrincipal, params) }
+            .message shouldBe unwritten("MoveEmployeeUow", listOf(employee.id().stringValue()))
     }
 
-    test("refuses a block that adds a new model and only reads its target") {
+    test("holds a proven model with notChanged, a version check on the decided model") {
+        val params = first.run { Params(moving(proof(employee)), "holds", holds = true) }
+        uow().tryPerform(TestPrincipal, params).modelChangesToPersist.single() shouldBe NoopModel(employee)
+    }
+
+    test("refuses a block that adds a new model and only reads its proven model") {
         val added = Department.newDepartment("New", employee.id(), 1, BUBALEH)
-        val guarded = INITIAL.guardedOn(proof(employee), Params("adds", adds = added, readOnly = true))
-        shouldThrow<IllegalStateException> { uow().tryPerform(TestPrincipal, guarded) }
-            .message shouldBe "MoveEmployeeUow runs test.write without writing ${employee.id().stringValue()}"
+        val params = first.run { Params(moving(proof(employee)), "adds", adds = added, skips = true) }
+        shouldThrow<IllegalStateException> { uow().tryPerform(TestPrincipal, params) }
+            .message shouldBe unwritten("MoveEmployeeUow", listOf(employee.id().stringValue()))
     }
 
-    test("refuses an update beside the target, though the block updates the target too") {
+    test("refuses a decided model written at a version other than the one decided") {
+        val stale = Employee(
+            employee.id(), employee.name, home.id(), employee.email, BUBALEH, persistentState(version(2), null),
+        )
+        val params = first.run { Params(moving(proof(employee)), "stale", stale = stale) }
+        shouldThrow<IllegalStateException> { uow().tryPerform(TestPrincipal, params) }
+            .message shouldBe "${employee.id().stringValue()} was decided at version 1, and the block writes it at 2"
+    }
+
+    test("refuses two proofs that decide one model in one block") {
+        val params = first.run {
+            Params(moving(proof(employee)), "twice", extra = moving(proof(employee)), how = PROVEN)
+        }
+        shouldThrow<IllegalStateException> { uow().tryPerform(TestPrincipal, params) }
+            .message shouldBe "A block decides ${employee.id().stringValue()} once, and two proofs decided it"
+    }
+
+    test("refuses an update beside the proven model, though the block updates the proven model too") {
         val beside = employee(department = home.id())
-        val guarded = INITIAL.guardedOn(proof(employee), Params("moves two", beside = beside))
-        shouldThrow<IllegalStateException> { uow().tryPerform(TestPrincipal, guarded) }
-            .message shouldBe "A guarded unit of work updates only its target ${employee.id().stringValue()}, " +
-            "not ${beside.id().stringValue()}, which is neither proven nor declared"
+        val params = first.run { Params(moving(proof(employee)), "moves two", beside = beside) }
+        shouldThrow<IllegalStateException> { uow().tryPerform(TestPrincipal, params) }
+            .message shouldBe ungated(beside.id().stringValue())
     }
 
-    test("writes one more model under its own proof, read through it, and spends that proof") {
+    test("writes two models, each read through its own proof") {
         val extra = employee(department = home.id())
-        val extraProof = proof(extra)
-        val params = INITIAL.run { Params("moves two", extra = proven(extraProof) { error("first attempt") }) }
-        val changes = uow().tryPerform(TestPrincipal, INITIAL.guardedOn(proof(employee), params))
+        val params = first.run {
+            Params(moving(proof(employee)), "moves two", extra = proven(proof(extra)) { error("first") })
+        }
+        val changes = uow().tryPerform(TestPrincipal, params)
         changes.modelChangesToPersist.map { it.id } shouldContainExactly listOf(extra.id(), employee.id())
-        extraProof.lent shouldBe true
-        shouldThrow<IllegalStateException> { extraProof.run() }
-            .message shouldBe "A proof for test.write runs once, and this one ran"
-        shouldThrow<IllegalStateException> { extraProof.lend() }
-            .message shouldBe "A proof for test.write covers one write, and this one ran"
     }
 
-    test("decides a proven model again on a retry, once an attempt lent its proof") {
+    test("decides a second proven model again on a retry") {
         val extra = employee(department = home.id())
         val extraMoved = employee(id = extra.id(), department = elsewhere.id())
         val extraProof = proof(extra)
-        INITIAL.run { proven(extraProof) { error("first attempt") } }.decided()
-        val params = AFTER_RETRY.run { Params("moves two", extra = proven(extraProof) { extraMoved }) }
-        uow().tryPerform(TestPrincipal, AFTER_RETRY.guardedOn(proof(employee), params))
+        val employeeProof = proof(employee)
+        first.run { Params(moving(employeeProof), "first", extra = proven(extraProof) { error("first") }) }
+        val params = retry.run {
+            Params(moving(employeeProof), "moves two", extra = proven(extraProof) { extraMoved })
+        }
+        uow().tryPerform(TestPrincipal, params)
         extraProof.decidedAgain shouldBe listOf(extraMoved)
-        val unlent = proof(extra)
-        shouldThrow<IllegalStateException> {
-            AFTER_RETRY.run { proven(unlent) { extraMoved } }.decided()
-        }.message shouldBe "A proof for test.write is decided again only after an attempt lent it"
     }
 
-    test("refuses a proven model the block writes without reading it through its proof, and leaves it unspent") {
+    test("refuses a proven model the block writes without reading it through its proof") {
         val extra = employee(department = home.id())
-        val extraProof = proof(extra)
-        val params = INITIAL.run { Params("moves two", extra = proven(extraProof) { extra }, how = UNDECIDED) }
-        val guarded = INITIAL.guardedOn(proof(employee), params)
-        shouldThrow<IllegalStateException> { uow().tryPerform(TestPrincipal, guarded) }
-            .message shouldBe "A guarded unit of work updates only its target ${employee.id().stringValue()}, " +
-            "not ${extra.id().stringValue()}, which is neither proven nor declared"
-        extraProof.lent shouldBe false
+        val params = first.run {
+            Params(
+                moving(proof(employee)),
+                "two",
+                extra = proven(proof(extra)) { extra },
+                how = UNDECIDED,
+                undecided = extra,
+            )
+        }
+        shouldThrow<IllegalStateException> { uow().tryPerform(TestPrincipal, params) }
+            .message shouldBe ungated(extra.id().stringValue())
     }
 
     test("refuses an unread proven model where the unit of work declares another aggregate") {
         val extra = employee(department = home.id())
-        val extraProof = proof(extra)
-        val params = INITIAL.run { Params("moves two", extra = proven(extraProof) { extra }, how = UNDECIDED) }
-        val guarded = INITIAL.guardedOn(proof(employee), params)
-        shouldThrow<IllegalStateException> { uow(setOf(Department::class)).tryPerform(TestPrincipal, guarded) }
-            .message shouldBe "A guarded unit of work updates only its target ${employee.id().stringValue()}, " +
-            "not ${extra.id().stringValue()}, which is neither proven nor declared"
+        val params = first.run {
+            Params(
+                moving(proof(employee)),
+                "two",
+                extra = proven(proof(extra)) { extra },
+                how = UNDECIDED,
+                undecided = extra,
+            )
+        }
+        shouldThrow<IllegalStateException> { uow(setOf(Department::class)).tryPerform(TestPrincipal, params) }
+            .message shouldBe ungated(extra.id().stringValue())
     }
 
     test("refuses another model written in a proven model's place, though the block read the proof") {
         val extra = employee(department = home.id())
         val decoy = employee(department = home.id())
-        val extraProof = proof(extra)
-        val params = INITIAL.run { Params("decoys", extra = proven(extraProof) { extra }, how = DECOY, decoy = decoy) }
-        val guarded = INITIAL.guardedOn(proof(employee), params)
-        shouldThrow<IllegalStateException> { uow().tryPerform(TestPrincipal, guarded) }
-            .message shouldBe "A guarded unit of work updates only its target ${employee.id().stringValue()}, " +
-            "not ${decoy.id().stringValue()}, which is neither proven nor declared"
+        val params = first.run {
+            Params(
+                moving(proof(employee)), "decoys", extra = proven(proof(extra)) { extra }, how = DECOY, decoy = decoy,
+            )
+        }
+        shouldThrow<IllegalStateException> { uow().tryPerform(TestPrincipal, params) }
+            .message shouldBe ungated(decoy.id().stringValue())
     }
 
     test("refuses a proven model an earlier attempt read through its proof, on an attempt that did not read it") {
         val extra = employee(department = home.id())
         val extraProof = proof(extra)
-        val first = INITIAL.run { Params("moves two", extra = proven(extraProof) { extra }, how = PROVEN) }
-        uow().tryPerform(TestPrincipal, INITIAL.guardedOn(proof(employee), first))
-        val retry = AFTER_RETRY.run { Params("moves two", extra = proven(extraProof) { extra }, how = UNDECIDED) }
-        shouldThrow<IllegalStateException> {
-            uow().tryPerform(TestPrincipal, AFTER_RETRY.guardedOn(proof(employee), retry))
-        }.message shouldBe "A guarded unit of work updates only its target ${employee.id().stringValue()}, " +
-            "not ${extra.id().stringValue()}, which is neither proven nor declared"
-    }
-
-    test("refuses to read a proven model whose proof was minted for another principal") {
-        val extra = employee(department = home.id())
-        val extraProof = TestProof(OtherPrincipal, extra) { }
-        val params = INITIAL.run { Params("moves two", extra = proven(extraProof) { extra }) }
-        val guarded = INITIAL.guardedOn(proof(employee), params)
-        shouldThrow<IllegalStateException> { uow().tryPerform(TestPrincipal, guarded) }
-            .message shouldBe "A proof for test.write on ${extra.id().stringValue()} was minted for another principal"
-        extraProof.lent shouldBe false
+        val employeeProof = proof(employee)
+        val params = first.run { Params(moving(employeeProof), "two", extra = proven(extraProof) { extra }) }
+        uow().tryPerform(TestPrincipal, params)
+        val again = retry.run {
+            Params(
+                moving(employeeProof), "two", extra = proven(extraProof) { extra }, how = UNDECIDED, undecided = extra,
+            )
+        }
+        shouldThrow<IllegalStateException> { uow().tryPerform(TestPrincipal, again) }
+            .message shouldBe ungated(extra.id().stringValue())
     }
 
     test("updates a model of a declared aggregate without a proof, and refuses to declare a guarded one") {
         val renamed = department("Old")
-        val guarded = INITIAL.guardedOn(proof(employee), Params("renames", renames = renamed))
-        shouldThrow<IllegalStateException> { uow().tryPerform(TestPrincipal, guarded) }
-        val changes = uow(setOf(Department::class)).tryPerform(TestPrincipal, guarded)
+        shouldThrow<IllegalStateException> {
+            uow().tryPerform(TestPrincipal, first.run { Params(moving(proof(employee)), "renames", renames = renamed) })
+        }
+        val params = first.run { Params(moving(proof(employee)), "renames", renames = renamed) }
+        val changes = uow(setOf(Department::class)).tryPerform(TestPrincipal, params)
         changes.modelChangesToPersist.map { it.id } shouldContainExactly listOf(renamed.id(), employee.id())
         shouldThrow<IllegalArgumentException> { uow(setOf(Employee::class)) }
             .message shouldBe "MoveEmployeeUow writes Employee without a proof, and that reaches a guarded model"
@@ -249,49 +288,69 @@ class GuardedUnitOfWorkSpec : FunSpec({
             .message shouldBe "MoveEmployeeUow writes Model without a proof, and that reaches a guarded model"
     }
 
+    test("a unit of work with no proven field adds models and writes declared ones, and no guarded one") {
+        val renamed = department("Old")
+        val hired = newEmployee(Name("Eve", "Green"), home.id(), "eve@test.com", BUBALEH)
+        val unproven = UnprovenUow(executionContext) { add(hired); update(renamed.rename("Renamed")) }
+        unproven.tryPerform(TestPrincipal, ChildParams).modelChangesToPersist.map { it.id } shouldContainExactly
+            listOf(hired.id(), renamed.id())
+        val writing = UnprovenUow(executionContext) { update(employee.changeDepartment(away)) }
+        shouldThrow<IllegalStateException> { writing.tryPerform(TestPrincipal, ChildParams) }
+            .message shouldBe ungated(employee.id().stringValue())
+    }
+
+    test("writes each of several models of one kind under its own proof, and refuses one left unwritten") {
+        val team = listOf(employee, employee(department = home.id()), employee(department = home.id()))
+        val bound = first.run { TeamParams(team.map { member -> proven(proof(member)) { member } }) }
+        MoveTeamUow(executionContext, away, skipping = null).tryPerform(TestPrincipal, bound)
+            .modelChangesToPersist.map { it.id } shouldContainExactly team.map { it.id() }
+        val again = first.run { TeamParams(team.map { member -> proven(proof(member)) { member } }) }
+        shouldThrow<IllegalStateException> {
+            MoveTeamUow(executionContext, away, skipping = team[1].id()).tryPerform(TestPrincipal, again)
+        }.message shouldBe unwritten("MoveTeamUow", listOf(team[1].id().stringValue()))
+    }
+
     test("composes a child that writes an unguarded model, and refuses one that writes a guarded model") {
         val other = employee(department = home.id())
         val changes = composing { RenameDepartmentUow(it, home) }
-            .tryPerform(TestPrincipal, INITIAL.guardedOn(proof(employee), ComposingGuardedUow.Params))
+            .tryPerform(TestPrincipal, first.params(proof(employee)))
         changes.modelChangesToPersist.map { it.id } shouldContainExactly listOf(home.id(), employee.id())
         shouldThrow<IllegalStateException> {
-            composing { MoveOtherEmployeeUow(it, other, away) }
-                .tryPerform(TestPrincipal, INITIAL.guardedOn(proof(employee), ComposingGuardedUow.Params))
+            composing { MoveOtherEmployeeUow(it, other, away) }.tryPerform(TestPrincipal, first.params(proof(employee)))
         }.message shouldBe refusedWrite("MoveOtherEmployeeUow", other.id().stringValue())
     }
 
-    test("refuses a child that writes the target itself, which only the block's update covers") {
+    test("refuses a child that writes the proven model itself, which only the block's update covers") {
         shouldThrow<IllegalStateException> {
             composing { MoveOtherEmployeeUow(it, employee, away) }
-                .tryPerform(TestPrincipal, INITIAL.guardedOn(proof(employee), ComposingGuardedUow.Params))
+                .tryPerform(TestPrincipal, first.params(proof(employee)))
         }.message shouldBe refusedWrite("MoveOtherEmployeeUow", employee.id().stringValue())
     }
 
-    test("refuses a child that holds a guarded model beside the target as unchanged, a version check without a proof") {
+    test("refuses a child that holds a guarded model beside the proven one as unchanged, a version check unproven") {
         val other = employee(department = home.id())
         shouldThrow<IllegalStateException> {
-            composing { HoldEmployeeUow(it, other) }
-                .tryPerform(TestPrincipal, INITIAL.guardedOn(proof(employee), ComposingGuardedUow.Params))
+            composing { HoldEmployeeUow(it, other) }.tryPerform(TestPrincipal, first.params(proof(employee)))
         }.message shouldBe refusedWrite("HoldEmployeeUow", other.id().stringValue())
     }
 
-    test("lands a composed child's writes after the target the block updated first") {
+    test("lands a composed child's writes after the proven model the block updated first") {
         val changes = targetFirst { ctx, _ -> RenameDepartmentUow(ctx, home) }
-            .tryPerform(TestPrincipal, INITIAL.guardedOn(proof(employee), TargetFirstGuardedUow.Params))
+            .tryPerform(TestPrincipal, first.params(proof(employee)))
         changes.modelChangesToPersist.map { it.id } shouldContainExactly listOf(employee.id(), home.id())
     }
 
-    test("refuses a child that merges onto the target instance the block updated first") {
+    test("refuses a child that merges onto the decided instance the block updated first") {
         shouldThrow<IllegalStateException> {
             targetFirst { ctx, movedTarget -> MoveOtherEmployeeUow(ctx, movedTarget, elsewhere) }
-                .tryPerform(TestPrincipal, INITIAL.guardedOn(proof(employee), TargetFirstGuardedUow.Params))
+                .tryPerform(TestPrincipal, first.params(proof(employee)))
         }.message shouldBe refusedWrite("MoveOtherEmployeeUow", employee.id().stringValue())
     }
 
-    test("refuses a child whose hand-built changes drop the target the block updated first") {
+    test("refuses a child whose hand-built changes drop the proven model the block updated first") {
         shouldThrow<IllegalStateException> {
             targetFirst { ctx, _ -> HandBuiltChildUow(ctx, home) }
-                .tryPerform(TestPrincipal, INITIAL.guardedOn(proof(employee), TargetFirstGuardedUow.Params))
+                .tryPerform(TestPrincipal, first.params(proof(employee)))
         }.message shouldBe "Composed unit of work [HandBuiltChildUow] dropped models " +
             "[${employee.id().stringValue()}] its parent had registered. Build its changes with changes { } over " +
             "the ExecutionContext its factory is given."
@@ -301,16 +360,26 @@ class GuardedUnitOfWorkSpec : FunSpec({
         val other = employee(department = home.id())
         val moving = { ctx: ExecutionContext -> MoveOtherEmployeeUow(ctx, other, away) }
         val changes = ComposingGuardedUow(executionContext, away, moving, swallowing = true)
-            .tryPerform(TestPrincipal, INITIAL.guardedOn(proof(employee), ComposingGuardedUow.Params))
+            .tryPerform(TestPrincipal, first.params(proof(employee)))
         changes.modelChangesToPersist.map { it.id } shouldBe listOf(employee.id())
         changes.modelChangesToPersist.none { it is NoopModel } shouldBe true
+    }
+
+    test("a swallowed refusal of a child's write on a decided model leaves that model to the rule") {
+        val swallowing = block { params ->
+            val decided = params.employee.model()
+            runCatching { execute({ MoveOtherEmployeeUow(it, decided, away) }, TestPrincipal) { ChildParams } }
+            decided
+        }
+        shouldThrow<IllegalStateException> { swallowing.tryPerform(TestPrincipal, first.params(proof(employee))) }
+            .message shouldBe unwritten("Block", listOf(employee.id().stringValue()))
     }
 
     test("refuses a child that adds a guarded model") {
         val hired = newEmployee(Name("Eve", "Green"), home.id(), "eve@test.com", BUBALEH)
         shouldThrow<IllegalStateException> {
             composing(plainChild("Hire") { add(hired); "hired" })
-                .tryPerform(TestPrincipal, INITIAL.guardedOn(proof(employee), ComposingGuardedUow.Params))
+                .tryPerform(TestPrincipal, first.params(proof(employee)))
         }.message shouldBe refusedWrite("Hire", hired.id().stringValue())
     }
 
@@ -319,7 +388,7 @@ class GuardedUnitOfWorkSpec : FunSpec({
         val grandchild = { ctx: ExecutionContext -> MoveOtherEmployeeUow(ctx, other, away) }
         shouldThrow<IllegalStateException> {
             composing(plainChild("Relay") { execute(grandchild, TestPrincipal) { ChildParams }; "relayed" })
-                .tryPerform(TestPrincipal, INITIAL.guardedOn(proof(employee), ComposingGuardedUow.Params))
+                .tryPerform(TestPrincipal, first.params(proof(employee)))
         }.message shouldBe refusedWrite("Relay", other.id().stringValue())
     }
 
@@ -327,14 +396,14 @@ class GuardedUnitOfWorkSpec : FunSpec({
         val other = employee(department = home.id())
         val tag = Tag.environmentTag(home.id().id, "production")
         var refusal: Throwable? = null
-        val changes = block {
+        val changes = block { params ->
             execute(plainChild("Tag") { add(tag); "tagged" }, TestPrincipal) { ChildParams }
             refusal = runCatching {
                 execute({ MoveOtherEmployeeUow(it, other, away) }, TestPrincipal) { ChildParams }
             }.exceptionOrNull()
             execute({ RenameDepartmentUow(it, home) }, TestPrincipal) { ChildParams }
-            update(target.changeDepartment(away))
-        }.tryPerform(TestPrincipal, INITIAL.guardedOn(proof(employee), ComposingGuardedUow.Params))
+            update(params.employee.model().changeDepartment(away))
+        }.tryPerform(TestPrincipal, first.params(proof(employee)))
         refusal?.message shouldBe refusedWrite("MoveOtherEmployeeUow", other.id().stringValue())
         changes.modelChangesToPersist.map { it.id } shouldBe listOf(home.id(), employee.id())
         changes.entityChangesToPersist shouldBe listOf(AddEntity(tag))
@@ -344,11 +413,11 @@ class GuardedUnitOfWorkSpec : FunSpec({
         val dept = newDeptAggregate(name = "Dept", boss = randomEmployeeId(), ration = BUBALEH).let { d ->
             d.addEmployee(newEmployee(Name("Eve", "Green"), d.id(), "eve@test.com", BUBALEH))
         }
-        val changes = block {
+        val changes = block { params ->
             add(dept)
             execute({ RenameDepartmentUow(it, home) }, TestPrincipal) { ChildParams }
-            update(target.changeDepartment(away))
-        }.tryPerform(TestPrincipal, INITIAL.guardedOn(proof(employee), ComposingGuardedUow.Params))
+            update(params.employee.model().changeDepartment(away))
+        }.tryPerform(TestPrincipal, first.params(proof(employee)))
         changes.modelChangesToPersist.map { it.id } shouldBe
             listOf(dept.id(), dept.employees.single().id(), home.id(), employee.id())
     }
@@ -357,32 +426,24 @@ class GuardedUnitOfWorkSpec : FunSpec({
         val hired = newEmployee(Name("Eve", "Green"), home.id(), "eve@test.com", BUBALEH)
         val dept = newDeptAggregate(name = "Dept", boss = randomEmployeeId(), ration = BUBALEH).addEmployee(hired)
         shouldThrow<IllegalStateException> {
-            block {
+            block { params ->
                 execute(plainChild("Found") { add(dept); "founded" }, TestPrincipal) { ChildParams }
-                update(target.changeDepartment(away))
-            }.tryPerform(TestPrincipal, INITIAL.guardedOn(proof(employee), ComposingGuardedUow.Params))
+                update(params.employee.model().changeDepartment(away))
+            }.tryPerform(TestPrincipal, first.params(proof(employee)))
         }.message shouldBe refusedWrite("Found", hired.id().stringValue())
     }
 
-    test("answers a failed write with the target the attempt ran on, or rethrows, and none before the attempt ran") {
-        val uow = uow()
-        val guarded = AFTER_RETRY.guardedOn(proof(employee), Params("moves"), moved)
+    test("answers a failed write with the model the attempt decided, or rethrows, and none the attempt did not read") {
+        val proof = proof(employee)
+        first.moving(proof)
+        val params = retry.run { Params(moving(proof, moved), "moves") }
         val stale = StaleRecordException(setOf(employee.id()), "employee")
-        shouldThrow<IllegalStateException> { uow.onFailure(guarded, stale) }
-            .message shouldBe "MoveEmployeeUow: a failed write is answered only after its attempt ran"
-        uow.tryPerform(TestPrincipal, guarded)
-        shouldThrow<StaleRecordException> { uow.onFailure(guarded, stale) } shouldBeSameInstanceAs stale
-        val answering = object : GuardedUnitOfWork<TestPrincipal, TestProof<Employee>, Params, Employee, Employee>(
-            executionContext, Configuration.default(), EmployeesGuarded, setOf(),
-        ) {
-            override suspend fun perform(principal: TestPrincipal, params: Params) = changes { update(target) }
-            override suspend fun onFailure(target: Employee, params: Params, ex: PersistenceException) = target
-        }
-        answering.onFailure(guarded, stale) shouldBeSameInstanceAs moved
-    }
-
-    test("a changes { } outside tryPerform is refused") {
-        shouldThrow<IllegalStateException> { uow().stray() }
-            .message shouldBe "MoveEmployeeUow: changes { } runs only inside tryPerform"
+        val answering = MoveEmployeeUow(executionContext, setOf(), away, answering = true)
+        shouldThrow<IllegalStateException> { answering.onFailure(params, stale) }
+            .message shouldBe "MoveEmployeeUow: a failed write is answered only on a model its attempt decided, " +
+            "and ${employee.id().stringValue()} was not"
+        answering.tryPerform(TestPrincipal, params)
+        answering.onFailure(params, stale) shouldBeSameInstanceAs moved
+        shouldThrow<StaleRecordException> { uow().onFailure(params, stale) } shouldBeSameInstanceAs stale
     }
 })

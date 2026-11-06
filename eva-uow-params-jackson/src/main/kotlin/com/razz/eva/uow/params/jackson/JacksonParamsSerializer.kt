@@ -6,8 +6,8 @@ import com.razz.eva.uow.ParamsSerializer
 import com.razz.eva.uow.UowParams
 
 /**
- * Writes params with [objectMapper], a copy of it with [GuardedAuditModule] added: a guarded unit of work's params
- * and a proof bound into params write their audit fields, never the proof.
+ * Writes params with [objectMapper], a copy of it with [GuardedAuditModule] added: a proof bound into params
+ * writes its audit fields, never the proof.
  */
 class JacksonParamsSerializer(
     objectMapper: ObjectMapper = jacksonObjectMapper(),

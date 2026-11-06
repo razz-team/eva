@@ -1,68 +1,67 @@
 package com.razz.eva.uow.guarded
 
-import com.razz.eva.uow.InstantiationContextFixtures.AFTER_RETRY
-import com.razz.eva.uow.InstantiationContextFixtures.INITIAL
+import com.razz.eva.uow.InstantiationContextFixtures.afterRetry
+import com.razz.eva.uow.InstantiationContextFixtures.initial
+import com.razz.eva.uow.TestPrincipal
 import com.razz.eva.uow.guarded.Fixtures.employee
 import com.razz.eva.uow.guarded.Fixtures.proof
-import com.razz.eva.uow.guarded.Guarded.Companion.guarded
 import com.razz.eva.uow.guarded.Proven.Companion.proven
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeSameInstanceAs
 
-/** A proof bound into another unit of work's params: spent on its one read, and never shared with a run. */
+/** A proof bound into params: spent as the first attempt binds it, decided again on each retry's reload. */
 class ProvenSpec : FunSpec({
 
     val employee = employee()
     val reloaded = employee(id = employee.id(), department = employee.departmentId)
+    val first = initial(TestPrincipal)
+    val retry = afterRetry(TestPrincipal)
 
-    test("keeps the model the proof was decided on in the first attempt, and lends the proof on the first read") {
-        val proof = proof(employee)
-        val proven = INITIAL.proven(proof) { error("the first attempt does not reload") }
+    test("keeps the model the proof was decided on in the first attempt, and decides it once") {
+        val proven = first.proven(proof(employee)) { error("the first attempt does not reload") }
+        proven.decidedOrNull() shouldBe null
         proven.decided() shouldBeSameInstanceAs employee
         proven.decided() shouldBeSameInstanceAs employee
-        proof.lent shouldBe true
+        proven.decidedOrNull() shouldBeSameInstanceAs employee
     }
 
-    test("refuses a retry on a proof that ran its own unit of work") {
+    test("decides a retry's reload once, however often the block reads it") {
         val proof = proof(employee)
-        INITIAL.guarded(proof, MoveEmployeeUow.Params("ran")) { employee }
-        shouldThrow<IllegalStateException> { AFTER_RETRY.proven(proof) { reloaded }.decided() }
-            .message shouldBe "A proof for test.write is decided again only after an attempt lent it"
+        first.proven(proof) { error("the first attempt does not reload") }
+        val proven = retry.proven(proof) { reloaded }
+        proven.decided() shouldBeSameInstanceAs reloaded
+        proven.decided() shouldBeSameInstanceAs reloaded
+        proof.decidedAgain shouldBe listOf(reloaded)
     }
 
     test("refuses a retry whose reload answers another model, and decides nothing again") {
         val proof = proof(employee)
-        INITIAL.proven(proof) { error("the first attempt does not reload") }.decided()
+        first.proven(proof) { error("the first attempt does not reload") }
         val other = employee(department = employee.departmentId)
-        shouldThrow<IllegalStateException> { AFTER_RETRY.proven(proof) { other }.decided() }
+        shouldThrow<IllegalStateException> { retry.proven(proof) { other }.decided() }
             .message shouldBe
             "The reload answered ${other.id().stringValue()} for the proof's ${employee.id().stringValue()}"
         proof.decidedAgain shouldBe listOf()
     }
 
-    test("lends a proof once, so two params fields cannot carry one decision") {
+    test("spends a proof once, so two params fields cannot carry one decision") {
         val proof = proof(employee)
-        INITIAL.proven(proof) { reloaded }.decided()
-        shouldThrow<IllegalStateException> { INITIAL.proven(proof) { reloaded }.decided() }
-            .message shouldBe "A proof for test.write covers one write, and this one ran"
+        first.proven(proof) { reloaded }
+        shouldThrow<IllegalStateException> { first.proven(proof) { reloaded } }
+            .message shouldBe "A proof for test.write is spent once, and this one was"
     }
 
-    test("a lent proof runs no unit of work, and a proof that ran is not lent") {
-        val lent = proof(employee)
-        INITIAL.proven(lent) { reloaded }.decided()
-        shouldThrow<IllegalStateException> { INITIAL.guarded(lent, MoveEmployeeUow.Params("lent")) { employee } }
-            .message shouldBe "A proof for test.write runs once, and this one ran"
-        val ran = proof(employee)
-        INITIAL.guarded(ran, MoveEmployeeUow.Params("ran")) { employee }
-        shouldThrow<IllegalStateException> { INITIAL.proven(ran) { reloaded }.decided() }
-            .message shouldBe "A proof for test.write covers one write, and this one ran"
+    test("spends a proof as the params bind it, whether or not the block reads it") {
+        val proof = proof(employee)
+        first.proven(proof) { reloaded }
+        retry.proven(proof) { reloaded }
+        proof.decidedAgain shouldBe listOf()
     }
 
     test("writes its action and its model's id for the audit row, and nothing else") {
-        val proof = proof(employee)
-        val proven = INITIAL.proven(proof) { reloaded }
+        val proven = first.proven(proof(employee)) { reloaded }
         proven.action shouldBe "test.write"
         proven.targetId shouldBe employee.id().stringValue()
     }
