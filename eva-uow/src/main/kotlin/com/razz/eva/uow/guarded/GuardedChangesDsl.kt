@@ -9,7 +9,10 @@ import com.razz.eva.uow.InstantiationContext
 import com.razz.eva.uow.PersistedLookup
 import com.razz.eva.uow.UowParams
 import com.razz.eva.uow.composable.ChangesDsl
+import com.razz.eva.uow.composable.ChangesDsl.ChildRun
 import com.razz.eva.uow.composable.UnitOfWork
+import java.util.Collections
+import java.util.IdentityHashMap
 import kotlin.reflect.KClass
 
 /**
@@ -24,6 +27,7 @@ class GuardedChangesDsl<P : Principal<*>, T : Model<*, *>> internal constructor(
     val target: T,
     private val principal: P,
     private val unguarded: Set<KClass<out Model<*, *>>>,
+    private val guarding: Guarding,
 ) {
 
     // The ids a Proven decided in this block: a fresh block runs each attempt, so a retry reads each one again.
@@ -79,5 +83,21 @@ class GuardedChangesDsl<P : Principal<*>, T : Model<*, *>> internal constructor(
         where PRINCIPAL : Principal<*>,
               PARAMS : UowParams<PARAMS>,
               RESULT : Any,
-              UOW : UnitOfWork<PRINCIPAL, PARAMS, RESULT> = dsl.execute(uowFactory, principal, params)
+              UOW : UnitOfWork<PRINCIPAL, PARAMS, RESULT> {
+        val run = dsl.runChild(uowFactory, principal, params)
+        val refused = run.modelsNotHeldBySeed().filter { guarding.covers(it::class) }
+        check(refused.isEmpty()) {
+            "Composed unit of work [${run.uowName}] wrote ${refused.map { it.id().stringValue() }}, " +
+                "which its parent refuses"
+        }
+        return dsl.take(run)
+    }
+
+    // By instance: a model registered since, or again on top of the seed's; the seed's owned models count as held.
+    // Per id the last change, as the merge keeps it.
+    private fun ChildRun<*>.modelsNotHeldBySeed(): List<Model<*, *>> {
+        val held = Collections.newSetFromMap(IdentityHashMap<Model<*, *>, Boolean>())
+        seed.flattenChildModels().mapTo(held) { it.model }
+        return changes.modelChangesToPersist.associateBy { it.id }.values.map { it.model }.filter { it !in held }
+    }
 }

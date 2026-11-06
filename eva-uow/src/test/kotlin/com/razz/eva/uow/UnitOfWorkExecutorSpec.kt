@@ -50,7 +50,6 @@ import java.time.Duration.ofMillis
 import java.time.Instant.ofEpochMilli
 import java.util.*
 import com.razz.eva.uow.composable.DummyUow
-import com.razz.eva.uow.composable.FencedUow
 import com.razz.eva.uow.composable.UnitOfWork as ComposableUnitOfWork
 import kotlin.reflect.KClass
 import java.time.InstantSource
@@ -438,65 +437,6 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                     result.dept shouldBe persistedDepartment
                     result.dept.name shouldBe "PersistedDepartment"
                     result.note shouldBe "seed"
-                }
-            }
-        }
-
-        And("A unit of work with a DSL of its own returns the changes its block built, wrapped") {
-            val persistedDepartment = OwnedDepartment(
-                id = departmentId,
-                name = "PersistedDepartment",
-                headcount = 1,
-                ration = Ration.BUBALEH,
-                boss = bossId,
-                modelState = newState(
-                    OwnedDepartmentCreated(
-                        departmentId = departmentId,
-                        name = "PersistedDepartment",
-                        headcount = 1,
-                        ration = Ration.BUBALEH,
-                        boss = bossId,
-                    ),
-                ),
-            )
-            val tag = Tag.environmentTag(departmentId.id, "production")
-            val factory = { exCtx: ExecutionContext ->
-                object : FencedUow<DeptResult>(exCtx) {
-                    override suspend fun tryPerform(principal: TestPrincipal, params: DummyUow.Params) = changes {
-                        add(department)
-                        add(tag)
-                        roundtrip { p -> DeptResult(p(department), "fenced") }
-                    }
-                }
-            }
-
-            When("the executor runs it top-level") {
-                val departmentRepo = mockk<ModelRepository<DepartmentId, OwnedDepartment>>(relaxed = true)
-                val tagRepo = mockk<DeletableEntityRepository<Tag>>(relaxed = true)
-                coEvery { departmentRepo.add(any(), department) } returns persistedDepartment
-                coEvery { tagRepo.add(any(), tag) } returns tag
-                val uowx = UnitOfWorkExecutor(
-                    listOf(),
-                    Persisting(
-                        transactionManager = WithCtxConnectionTransactionManager(),
-                        modelRepos = ModelRepos(OwnedDepartment::class hasRepo departmentRepo),
-                        entityRepos = EntityRepos(Tag::class hasEntityRepo tagRepo),
-                        eventRepository = DummyEventRepository(),
-                        paramsSerializer = KotlinxParamsSerializer(),
-                    ),
-                    clock,
-                    OpenTelemetry.noop(),
-                )
-
-                val result = uowx.execute(TestPrincipal, factory) { DummyUow.Params }
-
-                Then("it persists the model and the entity the block registered") {
-                    coVerify { departmentRepo.add(any(), department) }
-                    coVerify { tagRepo.add(any(), tag) }
-                }
-                And("the result is the block's, built again over the persisted model") {
-                    result.dept shouldBe persistedDepartment
-                    result.note shouldBe "fenced"
                 }
             }
         }

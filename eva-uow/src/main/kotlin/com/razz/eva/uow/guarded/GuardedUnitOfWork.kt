@@ -82,8 +82,8 @@ abstract class GuardedUnitOfWork<P, PF, PARAMS, M, RESULT>(
             "${name()}: changes { } runs only inside tryPerform"
         }
         return Produced(
-            ChangesDsl.changes(executionContext, refusing = { guarding.covers(it::class) }) {
-                val dsl = GuardedChangesDsl(this, attempt.target, attempt.principal, unguardedWrites)
+            ChangesDsl.changes(executionContext) {
+                val dsl = GuardedChangesDsl(this, attempt.target, attempt.principal, unguardedWrites, guarding)
                 val result = dsl.init()
                 check(dsl.wroteTarget) {
                     "${name()} runs ${attempt.action.name} without writing ${attempt.target.id().stringValue()}"

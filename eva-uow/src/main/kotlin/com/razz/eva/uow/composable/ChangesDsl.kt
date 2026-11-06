@@ -25,7 +25,6 @@ import kotlin.reflect.KClass
 
 class ChangesDsl internal constructor(
     private val executionContext: ExecutionContext,
-    private val refusing: (Model<*, *>) -> Boolean,
 ) {
     private var changes: ChangesAccumulator = executionContext.inheritedChanges ?: ChangesAccumulator()
     private val inheritedModelIds: MutableSet<ModelId<out Comparable<*>>> = changes.modelIds().toMutableSet()
@@ -124,9 +123,8 @@ class ChangesDsl internal constructor(
 
     /**
      * Runs the unit of work [uowFactory] builds over this block's changes and takes its changes as the block's.
-     * Refuses a child whose changes no longer hold every model and entity change registered before it ran, and
-     * one that registered a model this block's `refusing` answers for. A refused child leaves the block's changes
-     * as they were.
+     * Refuses a child whose changes no longer hold every model and entity change registered before it ran; a
+     * refused child leaves the block's changes as they were.
      */
     suspend fun <PRINCIPAL, PARAMS, RESULT, UOW> execute(
         uowFactory: (ExecutionContext) -> UOW,
@@ -136,8 +134,20 @@ class ChangesDsl internal constructor(
         where PRINCIPAL : Principal<*>,
               PARAMS : UowParams<PARAMS>,
               RESULT : Any,
+              UOW : UnitOfWork<PRINCIPAL, PARAMS, RESULT> = take(runChild(uowFactory, principal, params))
+
+    /** Runs a child over this block's changes, in its own span, and returns what it built without taking it. */
+    internal suspend fun <PRINCIPAL, PARAMS, RESULT, UOW> runChild(
+        uowFactory: (ExecutionContext) -> UOW,
+        principal: PRINCIPAL,
+        params: InstantiationContext.Internal.() -> PARAMS,
+    ): ChildRun<RESULT>
+        where PRINCIPAL : Principal<*>,
+              PARAMS : UowParams<PARAMS>,
+              RESULT : Any,
               UOW : UnitOfWork<PRINCIPAL, PARAMS, RESULT> {
-        val uow = uowFactory(executionContext.withInheritedChanges(changes))
+        val seed = changes
+        val uow = uowFactory(executionContext.withInheritedChanges(seed))
         val span = uowSpan(uow.name())
         return span.use {
             val subChanges = performingSpan(uow.name()).use {
@@ -147,45 +157,39 @@ class ChangesDsl internal constructor(
                 MODEL_ID,
                 subChanges.modelChangesToPersist.map { it.id.stringValue() },
             )
-            if (subChanges.modelChangesToPersist.isNotEmpty() || subChanges.entityChangesToPersist.isNotEmpty()) {
-                val merged = ChangesAccumulator.from(subChanges)
-                merged.checkHoldsAllOf(changes, uow.name())
-                merged.checkRefusesNoneNewTo(changes, uow.name())
-                changes = merged
-                inheritedModelIds.addAll(changes.modelIds())
-            }
-            // Under composition the caller gets this in-memory seed; the child's resultBuilder is not rerun.
-            subChanges.result
+            ChildRun(uow.name(), seed, subChanges)
         }
     }
+
+    /** Takes a child's changes as this block's, once the drop check passes, and returns the child's result. */
+    internal fun <RESULT> take(run: ChildRun<RESULT>): RESULT {
+        val subChanges = run.changes
+        if (subChanges.modelChangesToPersist.isNotEmpty() || subChanges.entityChangesToPersist.isNotEmpty()) {
+            val merged = ChangesAccumulator.from(subChanges)
+            merged.checkHoldsAllOf(changes, run.uowName)
+            changes = merged
+            inheritedModelIds.addAll(changes.modelIds())
+        }
+        // Under composition the caller gets this in-memory seed; the child's resultBuilder is not rerun.
+        return subChanges.result
+    }
+
+    /** What [runChild] ran: the child's name, the changes it was seeded with, and the changes it built. */
+    internal class ChildRun<RESULT>(
+        val uowName: String,
+        val seed: ChangesAccumulator,
+        val changes: Changes<RESULT>,
+    )
 
     companion object {
-        /**
-         * Runs [init] over a fresh DSL seeded with the changes [executionContext] inherited from a composing
-         * parent, and returns what it built. [UnitOfWork] runs its own block through here; a unit of work with a
-         * DSL of its own, built on [com.razz.eva.uow.BaseUnitOfWork], wraps this one the same way, so its children
-         * merge and its own changes reach a parent by the one path.
-         *
-         * [refusing] answers for a model no child of the block may register, as new, changed or unchanged, or on
-         * top of one the block holds: [execute] refuses such a child before taking its changes. The block's own
-         * registrations are not asked. [UnitOfWork] refuses nothing.
-         */
-        internal suspend fun <R> changes(
+        internal suspend inline fun <R> changes(
             executionContext: ExecutionContext,
-            refusing: (Model<*, *>) -> Boolean,
+            @Suppress("REDUNDANT_INLINE_SUSPEND_FUNCTION_TYPE")
             init: suspend ChangesDsl.() -> R,
         ): Changes<R> {
-            val dsl = ChangesDsl(executionContext, refusing)
+            val dsl = ChangesDsl(executionContext)
             val res = init(dsl)
             return dsl.withResult(res)
-        }
-    }
-
-    private fun ChangesAccumulator.checkRefusesNoneNewTo(parent: ChangesAccumulator, uowName: String) {
-        val refused = modelsNotHeldBy(parent).filter(refusing)
-        check(refused.isEmpty()) {
-            "Composed unit of work [$uowName] wrote ${refused.map { it.id().stringValue() }}, " +
-                "which its parent refuses"
         }
     }
 
