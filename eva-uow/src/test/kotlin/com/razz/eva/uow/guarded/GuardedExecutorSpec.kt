@@ -154,4 +154,18 @@ class GuardedExecutorSpec : FunSpec({
         }.message shouldBe "A proof for test.write on ${employee.id().stringValue()} was minted for another principal"
         coVerify(exactly = 0) { repo.update(any(), any<Employee>()) }
     }
+
+    test("a retry handed the first attempt's Proven is refused before it writes again, and reloads nothing") {
+        coEvery { repo.update(any(), any<Employee>()) } throws StaleRecordException(setOf(employee.id()), "employee")
+        val proof = proof(employee)
+        var bound: Proven<TestProof<Employee>, Employee>? = null
+        shouldThrow<IllegalStateException> {
+            uowx.execute(TestPrincipal, { MoveEmployeeUow(it, setOf(), away, retrying) }) {
+                MoveEmployeeUow.Params(bound ?: proven(proof) { reloaded }.also { bound = it }, "moves")
+            }
+        }.message shouldBe "A proven model is read in the block of the attempt that bound it, " +
+            "and ${employee.id().stringValue()} was read before"
+        proof.decidedAgain shouldBe listOf()
+        coVerify(exactly = 1) { repo.update(any(), any<Employee>()) }
+    }
 })

@@ -58,7 +58,7 @@ class Proven<out PF : Proof<*, *, *>, M : Model<*, *>> private constructor(
          * Binds [proof] to this attempt's params, for the principal they are built for. The first attempt spends it,
          * so one proof binds one unit of work; a retry of the run that spent it binds it again. [PF] is the minter's
          * own proof type: a guarded unit of work reads only the proofs of the type it declares. A composed child's
-         * params bind none: only the unit of work a caller runs reads a proof.
+         * params bind none: only the unit of work a caller runs reads a proof. A proof binds only a stored target.
          */
         fun <PF : Proof<*, *, M>, M : Model<*, *>> InstantiationContext.proven(
             proof: PF,
@@ -70,6 +70,9 @@ class Proven<out PF : Proof<*, *, *>, M : Model<*, *>> private constructor(
             check(proof.principal == principal) {
                 "A proof for ${proof.action.name} on ${proof.target.id().stringValue()} " +
                     "was minted for another principal"
+            }
+            require(proof.target.isPersisted()) {
+                "A proof binds a stored model, and ${proof.target.id().stringValue()} is not stored"
             }
             val firstAttempt = attempt == 0
             if (firstAttempt) {

@@ -169,6 +169,20 @@ class GuardedUnitOfWorkSpec : FunSpec({
         first.moving(proof)
     }
 
+    test("refuses to bind a proof on a model that is not stored") {
+        val hired = newEmployee(Name("Eve", "Green"), home.id(), "eve@test.com", BUBALEH)
+        shouldThrow<IllegalArgumentException> { first.run { proven(TestProof(TestPrincipal, hired) { }) { hired } } }
+            .message shouldBe "A proof binds a stored model, and ${hired.id().stringValue()} is not stored"
+    }
+
+    test("reads a proven model only in the block of the attempt that bound it, not in a second block on its params") {
+        val params = first.run { Params(moving(proof(employee)), "moves") }
+        uow().tryPerform(TestPrincipal, params)
+        shouldThrow<IllegalStateException> { uow().tryPerform(TestPrincipal, params) }
+            .message shouldBe "A proven model is read in the block of the attempt that bound it, " +
+            "and ${employee.id().stringValue()} was read before"
+    }
+
     test("refuses a block that reads a proven model and writes nothing on it") {
         val params = first.run { Params(moving(proof(employee)), "reads", skips = true) }
         shouldThrow<IllegalStateException> { uow().tryPerform(TestPrincipal, params) }

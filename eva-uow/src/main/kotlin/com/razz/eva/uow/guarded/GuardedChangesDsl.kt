@@ -52,8 +52,15 @@ class GuardedChangesDsl<PF : Proof<*, *, *>> internal constructor(
     /**
      * The model this attempt writes under the proof, decided: the proof's own on the first attempt, the reload's on
      * a retry. `update` then takes it, in this block only, and the block must update it or hold it with `notChanged`.
+     * A [Proven] is read in the block of the attempt that bound it: one another block read is refused.
      */
     suspend fun <M : Model<*, *>> Proven<PF, M>.model(): M {
+        decidedOrNull()?.let { earlier ->
+            check(decided[earlier.id()] === this) {
+                "A proven model is read in the block of the attempt that bound it, " +
+                    "and ${earlier.id().stringValue()} was read before"
+            }
+        }
         val model = decided()
         val earlier = decided.putIfAbsent(model.id(), this)
         check(earlier == null || earlier === this) {
