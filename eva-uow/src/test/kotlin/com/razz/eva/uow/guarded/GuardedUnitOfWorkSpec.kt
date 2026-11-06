@@ -1,12 +1,19 @@
 package com.razz.eva.uow.guarded
 
 import com.razz.eva.domain.Department
+import com.razz.eva.domain.DeptAggregate.Companion.newDeptAggregate
 import com.razz.eva.domain.Employee
+import com.razz.eva.domain.Employee.Companion.newEmployee
 import com.razz.eva.domain.EmployeeEvent.DepartmentChanged
+import com.razz.eva.domain.EmployeeId.Companion.randomEmployeeId
 import com.razz.eva.domain.Model
+import com.razz.eva.domain.Name
 import com.razz.eva.domain.Ration.BUBALEH
+import com.razz.eva.domain.Tag
+import com.razz.eva.domain.addEmployee
 import com.razz.eva.persistence.PersistenceException
 import com.razz.eva.persistence.PersistenceException.StaleRecordException
+import com.razz.eva.uow.AddEntity
 import com.razz.eva.uow.Clocks.fixedUTC
 import com.razz.eva.uow.Clocks.millisUTC
 import com.razz.eva.uow.ExecutionContext
@@ -16,6 +23,7 @@ import com.razz.eva.uow.InstantiationContextFixtures.INITIAL
 import com.razz.eva.uow.NoopModel
 import com.razz.eva.uow.TestPrincipal
 import com.razz.eva.uow.UpdateModel
+import com.razz.eva.uow.composable.ChangesDsl
 import com.razz.eva.uow.composable.UnitOfWork
 import com.razz.eva.uow.guarded.Fixtures.department
 import com.razz.eva.uow.guarded.Fixtures.employee
@@ -55,6 +63,18 @@ class GuardedUnitOfWorkSpec : FunSpec({
     fun <R : Any> targetFirst(child: (ExecutionContext, Employee) -> UnitOfWork<TestPrincipal, ChildParams, R>) =
         TargetFirstGuardedUow(executionContext, away, child)
     fun refusedWrite(uow: String, id: String) = "Composed unit of work [$uow] wrote [$id], which its parent refuses"
+    fun plainChild(name: String, body: suspend ChangesDsl.() -> String) = { ctx: ExecutionContext ->
+        object : UnitOfWork<TestPrincipal, ChildParams, String>(ctx) {
+            override fun name() = name
+            override suspend fun tryPerform(principal: TestPrincipal, params: ChildParams) = changes(body)
+        }
+    }
+    fun block(body: suspend GuardedChangesDsl<TestPrincipal, Employee>.() -> Employee) =
+        object : GuardedUnitOfWork<TestPrincipal, TestProof<Employee>, ComposingGuardedUow.Params, Employee, Employee>(
+            executionContext, Configuration.default(), EmployeesGuarded, setOf(),
+        ) {
+            override suspend fun perform(principal: TestPrincipal, params: ComposingGuardedUow.Params) = changes(body)
+        }
 
     test("writes its target under the proof and returns changes of the one sealed type") {
         val changes = uow().tryPerform(TestPrincipal, INITIAL.guardedOn(proof(employee), Params("moves")))
@@ -284,6 +304,53 @@ class GuardedUnitOfWorkSpec : FunSpec({
             .tryPerform(TestPrincipal, INITIAL.guardedOn(proof(employee), ComposingGuardedUow.Params))
         changes.modelChangesToPersist.map { it.id } shouldBe listOf(employee.id())
         changes.modelChangesToPersist.none { it is NoopModel } shouldBe true
+    }
+
+    test("refuses a child that adds a guarded model") {
+        val hired = newEmployee(Name("Eve", "Green"), home.id(), "eve@test.com", BUBALEH)
+        shouldThrow<IllegalStateException> {
+            composing(plainChild("Hire") { add(hired); "hired" })
+                .tryPerform(TestPrincipal, INITIAL.guardedOn(proof(employee), ComposingGuardedUow.Params))
+        }.message shouldBe refusedWrite("Hire", hired.id().stringValue())
+    }
+
+    test("refuses a plain child that relays a grandchild's write of a guarded model, naming the child") {
+        val other = employee(department = home.id())
+        val grandchild = { ctx: ExecutionContext -> MoveOtherEmployeeUow(ctx, other, away) }
+        shouldThrow<IllegalStateException> {
+            composing(plainChild("Relay") { execute(grandchild, TestPrincipal) { ChildParams }; "relayed" })
+                .tryPerform(TestPrincipal, INITIAL.guardedOn(proof(employee), ComposingGuardedUow.Params))
+        }.message shouldBe refusedWrite("Relay", other.id().stringValue())
+    }
+
+    test("after a swallowed refusal a later child merges onto the block's models and entity changes as they were") {
+        val other = employee(department = home.id())
+        val tag = Tag.environmentTag(home.id().id, "production")
+        var refusal: Throwable? = null
+        val changes = block {
+            execute(plainChild("Tag") { add(tag); "tagged" }, TestPrincipal) { ChildParams }
+            refusal = runCatching {
+                execute({ MoveOtherEmployeeUow(it, other, away) }, TestPrincipal) { ChildParams }
+            }.exceptionOrNull()
+            execute({ RenameDepartmentUow(it, home) }, TestPrincipal) { ChildParams }
+            update(target.changeDepartment(away))
+        }.tryPerform(TestPrincipal, INITIAL.guardedOn(proof(employee), ComposingGuardedUow.Params))
+        refusal?.message shouldBe refusedWrite("MoveOtherEmployeeUow", other.id().stringValue())
+        changes.modelChangesToPersist.map { it.id } shouldBe listOf(home.id(), employee.id())
+        changes.entityChangesToPersist shouldBe listOf(AddEntity(tag))
+    }
+
+    test("does not count the owned models of an aggregate the block added as a child's writes") {
+        val dept = newDeptAggregate(name = "Dept", boss = randomEmployeeId(), ration = BUBALEH).let { d ->
+            d.addEmployee(newEmployee(Name("Eve", "Green"), d.id(), "eve@test.com", BUBALEH))
+        }
+        val changes = block {
+            add(dept)
+            execute({ RenameDepartmentUow(it, home) }, TestPrincipal) { ChildParams }
+            update(target.changeDepartment(away))
+        }.tryPerform(TestPrincipal, INITIAL.guardedOn(proof(employee), ComposingGuardedUow.Params))
+        changes.modelChangesToPersist.map { it.id } shouldBe
+            listOf(dept.id(), dept.employees.single().id(), home.id(), employee.id())
     }
 
     test("answers a failed write with the target the attempt ran on, or rethrows, and none before the attempt ran") {

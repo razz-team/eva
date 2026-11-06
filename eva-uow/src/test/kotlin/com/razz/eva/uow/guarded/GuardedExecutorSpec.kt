@@ -12,6 +12,7 @@ import com.razz.eva.uow.BaseUnitOfWork.Configuration
 import com.razz.eva.uow.Clocks.fixedUTC
 import com.razz.eva.uow.Clocks.millisUTC
 import com.razz.eva.uow.DummyEventRepository
+import com.razz.eva.uow.ExecutionContext
 import com.razz.eva.uow.Persisting
 import com.razz.eva.uow.Retry.StaleRecordFixedRetry
 import com.razz.eva.uow.TestPrincipal
@@ -70,6 +71,24 @@ class GuardedExecutorSpec : FunSpec({
         proof.decidedAgain shouldBe listOf(reloaded)
         result shouldBe persisted
         coVerify(exactly = 2) { repo.update(any(), any<Employee>()) }
+    }
+
+    test("a block's roundtrip result is built again over the models the executor persisted") {
+        coEvery { repo.update(any(), any<Employee>()) } returns persisted
+        val factory = { ctx: ExecutionContext ->
+            object : GuardedUnitOfWork<TestPrincipal, TestProof<Employee>, ChildParams, Employee, List<Employee>>(
+                ctx, Configuration.default(), EmployeesGuarded, setOf(),
+            ) {
+                override suspend fun perform(principal: TestPrincipal, params: ChildParams) = changes {
+                    val moved = update(target.changeDepartment(away))
+                    roundtrip { p -> listOf(p(moved)) }
+                }
+            }
+        }
+        val result = uowx.execute(TestPrincipal, factory) {
+            guarded(proof(employee), ChildParams) { reloaded }
+        }
+        result shouldBe listOf(persisted)
     }
 
     test("a refused reload stops the retry before the body runs") {
