@@ -100,6 +100,28 @@ class ChangesAccumulator private constructor(
 
     internal fun modelIds(): Set<ModelId<out Comparable<*>>> = modelChanges.keys
 
+    /**
+     * The ids of [earlier]'s models this one lacks, or holds without the events [earlier] had for them. A change held
+     * as the same instance is kept: an accumulator copies its map and keeps every change it does not replace.
+     */
+    internal fun modelIdsDroppedFrom(earlier: ChangesAccumulator): List<ModelId<out Comparable<*>>> =
+        earlier.modelChanges.filter { (id, change) ->
+            val held = modelChanges[id]
+            if (held === change) return@filter false
+            val events = held?.modelEvents
+            events == null || events.size < change.modelEvents.size ||
+                change.modelEvents.indices.any { events[it] !== change.modelEvents[it] }
+        }.keys.toList()
+
+    /**
+     * Whether this one starts with [earlier]'s entity changes, the same ones in the same order. The same list does:
+     * an accumulator that registers no entity keeps the list it was built from.
+     */
+    internal fun keepsEntityChangesOf(earlier: ChangesAccumulator): Boolean =
+        entityChanges === earlier.entityChanges ||
+            entityChanges.size >= earlier.entityChanges.size &&
+            earlier.entityChanges.indices.all { entityChanges[it] === earlier.entityChanges[it] }
+
     fun <R> withResult(
         result: R,
         resultBuilder: ((PersistedLookup) -> Any?)? = null,
@@ -109,7 +131,7 @@ class ChangesAccumulator private constructor(
     }
 
     @Suppress("UNCHECKED_CAST")
-    private fun flattenChildModels(): List<ModelChange> {
+    internal fun flattenChildModels(): List<ModelChange> {
         val result = mutableListOf<ModelChange>()
         val seen = modelChanges.keys.toMutableSet()
         fun flatten(model: Model<*, *>) {

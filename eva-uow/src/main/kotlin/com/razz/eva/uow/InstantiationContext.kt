@@ -1,12 +1,28 @@
 package com.razz.eva.uow
 
-sealed class InstantiationContext(internal val attempt: Int) {
+import com.razz.eva.domain.Principal
 
-    internal class External(attempt: Int) : InstantiationContext(attempt)
+/**
+ * What a params block knows of the attempt it builds params for: its number, the principal it runs under, and the
+ * run it belongs to, one per `execute` call and shared by its retries.
+ */
+sealed class InstantiationContext(
+    internal val attempt: Int,
+    internal val principal: Principal<*>,
+    internal val run: Run,
+) {
 
-    class Internal internal constructor(attempt: Int) : InstantiationContext(attempt)
+    internal class External(attempt: Int, principal: Principal<*>, run: Run) :
+        InstantiationContext(attempt, principal, run)
+
+    class Internal internal constructor(attempt: Int, principal: Principal<*>, run: Run) :
+        InstantiationContext(attempt, principal, run)
+
+    /** One run of a unit of work, across its attempts. Compared by identity. */
+    internal class Run
 
     internal companion object Factory {
-        internal operator fun invoke(attempt: Int): InstantiationContext = External(attempt)
+        internal operator fun invoke(attempt: Int, principal: Principal<*>, run: Run): InstantiationContext =
+            External(attempt, principal, run)
     }
 }

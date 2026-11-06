@@ -71,6 +71,9 @@ class UnitOfWorkExecutor(
             ?: throw IllegalArgumentException("Attempted to register multiple factories for ${it.key.simpleName}")
     }
 
+    /** The class of every unit of work a factory was registered for, for a boot check over the registrations. */
+    val registered: Set<KClass<*>> get() = classToFactory.keys
+
     suspend fun <PRINCIPAL, PARAMS, RESULT, UOW> execute(
         principal: PRINCIPAL,
         uowFactory: (ExecutionContext) -> UOW,
@@ -104,6 +107,7 @@ class UnitOfWorkExecutor(
         var name = uowName
         try {
             var currentAttempt = 0
+            val run = InstantiationContext.Run()
             while (true) {
                 val now = clock.instant()
                 val uow = uowFactory(ExecutionContext(Clocks.fixedUTC(now), openTelemetry))
@@ -112,7 +116,7 @@ class UnitOfWorkExecutor(
                     uowSpan.updateName(name)
                     uowSpan.setAttribute(UOW_NAME, name)
                 }
-                val constructedParams = params(InstantiationContext.External(currentAttempt))
+                val constructedParams = params(InstantiationContext.External(currentAttempt, principal, run))
                 val attempted = attempt(uow, principal, constructedParams, now, name, uowSpan)
                 val committed = when (attempted) {
                     is Attempted.Conflict -> {

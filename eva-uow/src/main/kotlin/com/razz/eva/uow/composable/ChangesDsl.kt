@@ -121,6 +121,11 @@ class ChangesDsl internal constructor(
         changes = changes.withDeletedEntityByKey(key, entityClass)
     }
 
+    /**
+     * Runs the unit of work [uowFactory] builds over this block's changes and takes its changes as the block's.
+     * Refuses a child whose changes no longer hold every model and entity change registered before it ran; a
+     * refused child leaves the block's changes as they were.
+     */
     suspend fun <PRINCIPAL, PARAMS, RESULT, UOW> execute(
         uowFactory: (ExecutionContext) -> UOW,
         principal: PRINCIPAL,
@@ -129,25 +134,56 @@ class ChangesDsl internal constructor(
         where PRINCIPAL : Principal<*>,
               PARAMS : UowParams<PARAMS>,
               RESULT : Any,
+              UOW : UnitOfWork<PRINCIPAL, PARAMS, RESULT> = take(runChild(uowFactory, principal, params))
+
+    /** Runs a child over this block's changes, in its own span, and returns what it built without taking it. */
+    internal suspend fun <PRINCIPAL, PARAMS, RESULT, UOW> runChild(
+        uowFactory: (ExecutionContext) -> UOW,
+        principal: PRINCIPAL,
+        params: InstantiationContext.Internal.() -> PARAMS,
+    ): ChildRun<RESULT>
+        where PRINCIPAL : Principal<*>,
+              PARAMS : UowParams<PARAMS>,
+              RESULT : Any,
               UOW : UnitOfWork<PRINCIPAL, PARAMS, RESULT> {
-        val uow = uowFactory(executionContext.withInheritedChanges(changes))
+        val seed = changes
+        val uow = uowFactory(executionContext.withInheritedChanges(seed))
         val span = uowSpan(uow.name())
+        val context = InstantiationContext.Internal(0, principal, InstantiationContext.Run())
         return span.use {
             val subChanges = performingSpan(uow.name()).use {
-                uow.tryPerform(principal, params(InstantiationContext.Internal(0)))
+                uow.tryPerform(principal, params(context))
             }
             span.setAttribute(
                 MODEL_ID,
                 subChanges.modelChangesToPersist.map { it.id.stringValue() },
             )
-            if (subChanges.modelChangesToPersist.isNotEmpty() || subChanges.entityChangesToPersist.isNotEmpty()) {
-                changes = ChangesAccumulator.from(subChanges)
-                inheritedModelIds.addAll(changes.modelIds())
-            }
-            // Under composition the caller gets this in-memory seed; the child's resultBuilder is not rerun.
-            subChanges.result
+            ChildRun(uow.name(), seed, subChanges)
         }
     }
+
+    /**
+     * Takes a child's changes as this block's, once the drop check passes, and returns the child's result. A child
+     * that registered nothing is neither checked nor merged.
+     */
+    internal fun <RESULT> take(run: ChildRun<RESULT>): RESULT {
+        val subChanges = run.changes
+        if (subChanges.modelChangesToPersist.isNotEmpty() || subChanges.entityChangesToPersist.isNotEmpty()) {
+            val merged = ChangesAccumulator.from(subChanges)
+            merged.checkHoldsAllOf(changes, run.uowName)
+            changes = merged
+            inheritedModelIds.addAll(changes.modelIds())
+        }
+        // Under composition the caller gets this in-memory seed; the child's resultBuilder is not rerun.
+        return subChanges.result
+    }
+
+    /** What [runChild] ran: the child's name, the changes it was seeded with, and the changes it built. */
+    internal class ChildRun<RESULT>(
+        val uowName: String,
+        val seed: ChangesAccumulator,
+        val changes: Changes<RESULT>,
+    )
 
     companion object {
         internal suspend inline fun <R> changes(
@@ -158,6 +194,19 @@ class ChangesDsl internal constructor(
             val dsl = ChangesDsl(executionContext)
             val res = init(dsl)
             return dsl.withResult(res)
+        }
+    }
+
+    private fun ChangesAccumulator.checkHoldsAllOf(parent: ChangesAccumulator, uowName: String) {
+        val droppedModelIds = modelIdsDroppedFrom(parent)
+        val keepsEntityChanges = keepsEntityChangesOf(parent)
+        check(droppedModelIds.isEmpty() && keepsEntityChanges) {
+            val dropped = listOfNotNull(
+                droppedModelIds.takeIf { it.isNotEmpty() }?.let { ids -> "models ${ids.map { it.stringValue() }}" },
+                "entity changes".takeUnless { keepsEntityChanges },
+            )
+            "Composed unit of work [$uowName] dropped ${dropped.joinToString(" and ")} its parent had registered. " +
+                "Build its changes with changes { } over the ExecutionContext its factory is given."
         }
     }
 

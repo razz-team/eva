@@ -1,0 +1,78 @@
+package com.razz.eva.uow.guarded
+
+import com.razz.eva.domain.Model
+import com.razz.eva.domain.Principal
+import com.razz.eva.persistence.PersistenceException
+import com.razz.eva.uow.BaseUnitOfWork
+import com.razz.eva.uow.Changes
+import com.razz.eva.uow.EntityChange
+import com.razz.eva.uow.ExecutionContext
+import com.razz.eva.uow.ModelChange
+import com.razz.eva.uow.PersistedLookup
+import com.razz.eva.uow.UowParams
+import com.razz.eva.uow.composable.ChangesDsl
+import kotlin.reflect.KClass
+
+/**
+ * A unit of work that writes a model its framework guards only under a proof of type [PF], the one its decider
+ * mints: each such model is a [Proven] field of [PARAMS]. It is written like every other unit of work:
+ * `override suspend fun tryPerform(principal, params) = changes { ... }`. The block reads a proven model with
+ * `params.x.model()` and must update it or hold it with `notChanged`, so the version check makes the decision hold
+ * at commit. Like every block it registers at least one change: one that registers none, as over an empty list of
+ * proofs, fails with "No changes to persist".
+ */
+abstract class GuardedUnitOfWork<P, PF, PARAMS, RESULT>(
+    private val executionContext: ExecutionContext,
+    configuration: Configuration,
+    private val guarding: Guarding,
+    /**
+     * The models the block updates as a plain unit of work does, without a proof: aggregates with no actions yet. A
+     * type [guarding] covers is refused here, so its models take a proof.
+     */
+    val unguardedWrites: Set<KClass<out Model<*, *>>>,
+) : BaseUnitOfWork<P, PARAMS, RESULT, GuardedChangesDsl<PF>>(executionContext, configuration)
+    where P : Principal<*>,
+          PF : Proof<*, *, *>,
+          PARAMS : UowParams<PARAMS>,
+          RESULT : Any {
+
+    init {
+        val covered = unguardedWrites.filter(guarding::covers)
+        require(covered.isEmpty()) {
+            "${name()} writes ${covered.joinToString { it.simpleName.orEmpty() }} without a proof, " +
+                "and that reaches a guarded model"
+        }
+    }
+
+    /** The unit of work's own body: `= changes { ... }`. Only its `changes { }` builds what it returns. */
+    abstract override suspend fun tryPerform(principal: P, params: PARAMS): GuardedChanges<RESULT>
+
+    // Answered on the models the failed attempt decided, never on a reload the failure path would make.
+    final override suspend fun onFailure(params: PARAMS, ex: PersistenceException): RESULT =
+        onFailure(Decided(name()), params, ex)
+
+    /** As [BaseUnitOfWork.onFailure], handed what the failed attempt decided: `decided[params.x]`. */
+    open suspend fun onFailure(decided: Decided, params: PARAMS, ex: PersistenceException): RESULT = throw ex
+
+    // The block runs over the composable DSL, so a child it executes merges by its rules, behind the guarded gates.
+    final override suspend fun changes(init: suspend GuardedChangesDsl<PF>.() -> RESULT): GuardedChanges<RESULT> =
+        Produced(
+            ChangesDsl.changes(executionContext) {
+                val dsl = GuardedChangesDsl<PF>(this, unguardedWrites, guarding)
+                val result = dsl.init()
+                val unheld = dsl.decidedNotHeld()
+                check(unheld.isEmpty()) {
+                    "${name()} decided ${unheld.map { it.stringValue() }} and wrote nothing on them: " +
+                        "update each, or hold it with notChanged"
+                }
+                result
+            },
+        )
+
+    private class Produced<R>(private val changes: Changes<R>) : GuardedChanges<R>() {
+        override val result: R get() = changes.result
+        override val modelChangesToPersist: List<ModelChange> get() = changes.modelChangesToPersist
+        override val entityChangesToPersist: List<EntityChange> get() = changes.entityChangesToPersist
+        override val resultBuilder: ((PersistedLookup) -> Any?)? get() = changes.resultBuilder
+    }
+}
