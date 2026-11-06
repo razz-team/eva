@@ -86,6 +86,7 @@ class GuardedChangesDsl<P : Principal<*>, T : Model<*, *>> internal constructor(
               RESULT : Any,
               UOW : UnitOfWork<PRINCIPAL, PARAMS, RESULT> {
         val run = dsl.runChild(uowFactory, principal, params)
+        // Filtering before the last-per-id step is exact: a Changes holds one change per id.
         val covered = run.changes.modelChangesToPersist.filter { guarding.covers(it.model::class) }
         if (covered.isEmpty()) return dsl.take(run)
         val refused = run.modelsNotHeldBySeed(covered)
