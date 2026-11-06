@@ -204,6 +204,29 @@ class ChangesDslSpec : FunSpec({
             "Build its changes with changes { } over the ExecutionContext its factory is given."
     }
 
+    test("execute refuses a composed child that replaces its parent's entity changes with as many others") {
+        val departmentId = randomDepartmentId()
+        val tag = Tag.environmentTag(departmentId.id, "production")
+        val otherTag = Tag.priorityTag(departmentId.id, 1)
+        val innerUow = { ctx: ExecutionContext ->
+            object : DummyUow<String>(ctx) {
+                override fun name() = "HandBuilt"
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params): Changes<String> =
+                    ChangesAccumulator().withAddedEntity(otherTag).withResult("hand built")
+            }
+        }
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                add(tag)
+                execute(innerUow, TestPrincipal) { Params }
+            }
+        }
+
+        shouldThrow<IllegalStateException> { uow.tryPerform(TestPrincipal, DummyUow.Params) }
+            .message shouldBe "Composed unit of work [HandBuilt] dropped entity changes its parent had registered. " +
+            "Build its changes with changes { } over the ExecutionContext its factory is given."
+    }
+
     test("""
         Should return properly built RealisedChanges when
         new model added, changed model updated and not changed model marked as not changed

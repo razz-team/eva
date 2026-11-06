@@ -6,6 +6,7 @@ import com.razz.eva.domain.ModelId
 import com.razz.eva.domain.Principal
 import com.razz.eva.uow.ExecutionContext
 import com.razz.eva.uow.InstantiationContext
+import com.razz.eva.uow.ModelChange
 import com.razz.eva.uow.PersistedLookup
 import com.razz.eva.uow.UowParams
 import com.razz.eva.uow.composable.ChangesDsl
@@ -85,7 +86,9 @@ class GuardedChangesDsl<P : Principal<*>, T : Model<*, *>> internal constructor(
               RESULT : Any,
               UOW : UnitOfWork<PRINCIPAL, PARAMS, RESULT> {
         val run = dsl.runChild(uowFactory, principal, params)
-        val refused = run.modelsNotHeldBySeed().filter { guarding.covers(it::class) }
+        val covered = run.changes.modelChangesToPersist.filter { guarding.covers(it.model::class) }
+        if (covered.isEmpty()) return dsl.take(run)
+        val refused = run.modelsNotHeldBySeed(covered)
         check(refused.isEmpty()) {
             "Composed unit of work [${run.uowName}] wrote ${refused.map { it.id().stringValue() }}, " +
                 "which its parent refuses"
@@ -95,9 +98,9 @@ class GuardedChangesDsl<P : Principal<*>, T : Model<*, *>> internal constructor(
 
     // By instance: a model registered since, or again on top of the seed's; the seed's owned models count as held.
     // Per id the last change, as the merge keeps it.
-    private fun ChildRun<*>.modelsNotHeldBySeed(): List<Model<*, *>> {
+    private fun ChildRun<*>.modelsNotHeldBySeed(covered: List<ModelChange>): List<Model<*, *>> {
         val held = Collections.newSetFromMap(IdentityHashMap<Model<*, *>, Boolean>())
         seed.flattenChildModels().mapTo(held) { it.model }
-        return changes.modelChangesToPersist.associateBy { it.id }.values.map { it.model }.filter { it !in held }
+        return covered.associateBy { it.id }.values.map { it.model }.filter { it !in held }
     }
 }
