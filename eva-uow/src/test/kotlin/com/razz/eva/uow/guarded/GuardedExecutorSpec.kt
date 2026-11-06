@@ -125,6 +125,26 @@ class GuardedExecutorSpec : FunSpec({
         coVerify(exactly = 1) { repo.update(any(), any<Employee>()) }
     }
 
+    test("a retry binds only a proof its own run spent, and refuses one another committed run spent") {
+        val other = employee(department = home.id())
+        val committed = proof(other)
+        coEvery { repo.update(any(), any<Employee>()) } returns employee(id = other.id(), department = away.id())
+        uowx.execute(TestPrincipal, { MoveEmployeeUow(it, setOf(), away) }) {
+            MoveEmployeeUow.Params(proven(committed) { other }, "spends it")
+        }
+        clearMocks(repo)
+        coEvery { repo.update(any(), any<Employee>()) } throws StaleRecordException(setOf(employee.id()), "employee")
+        val proof = proof(employee)
+        var binds = 0
+        shouldThrow<IllegalStateException> {
+            uowx.execute(TestPrincipal, { MoveEmployeeUow(it, setOf(), away, retrying) }) {
+                MoveEmployeeUow.Params(proven(if (binds++ == 0) proof else committed) { other }, "switches")
+            }
+        }.message shouldBe "A proof for test.write binds a retry only of the run that spent it"
+        committed.decidedAgain shouldBe listOf()
+        coVerify(exactly = 1) { repo.update(any(), any<Employee>()) }
+    }
+
     test("a proof minted for another principal than the run's is refused as the params bind it") {
         val proof = TestProof(OtherPrincipal, employee) { }
         shouldThrow<IllegalStateException> {

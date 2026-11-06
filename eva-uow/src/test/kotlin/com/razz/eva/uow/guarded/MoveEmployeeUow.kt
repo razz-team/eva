@@ -17,7 +17,7 @@ import kotlin.reflect.KClass
  * proof and then [Params.decoy] written in its place. With [Params.beside] it updates an employee neither proof
  * decided; with [Params.renames] it renames a department without a proof, with [Params.adds] it adds a new one.
  * [Params.holds] holds the employee with `notChanged`, [Params.skips] reads it and writes nothing, [Params.stale]
- * writes it at another version. With [answering] a failed write answers the employee the attempt decided.
+ * writes or holds it at another version. With [answering] a failed write answers the employee the attempt decided.
  */
 internal class MoveEmployeeUow(
     executionContext: ExecutionContext,
@@ -68,7 +68,7 @@ internal class MoveEmployeeUow(
         params.renames?.let { update(it.rename("Renamed")) }
         val employee = params.employee.model()
         when {
-            params.holds -> notChanged(employee)
+            params.holds -> notChanged(params.stale ?: employee)
             params.skips -> employee
             else -> update((params.stale ?: employee).changeDepartment(department))
         }

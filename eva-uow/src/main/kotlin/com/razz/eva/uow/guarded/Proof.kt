@@ -2,13 +2,14 @@ package com.razz.eva.uow.guarded
 
 import com.razz.eva.domain.Model
 import com.razz.eva.domain.Principal
-import java.util.concurrent.atomic.AtomicBoolean
+import com.razz.eva.uow.InstantiationContext
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * Evidence, minted by the framework's own decider, that [principal] may do [action] to [target] as it was when
  * decided. A unit of work's params carry it as a [Proven]. The kernel asks a proof two things: to decide again on
- * the model a retry loads ([decideAgain]), and to be spent, once, when the first attempt's params bind it. How a
- * decision is made, reported or refused is the minter's; spending is the kernel's.
+ * the model a retry loads ([decideAgain]), and to be spent, once, when the first attempt's params bind it; a retry
+ * of that run binds it again. How a decision is made, reported or refused is the minter's; spending is the kernel's.
  */
 abstract class Proof<out P : Principal<*>, out A : Action, M : Model<*, *>> {
 
@@ -22,10 +23,10 @@ abstract class Proof<out P : Principal<*>, out A : Action, M : Model<*, *>> {
     /** Decides [action] for [principal] again on [reloaded], the target as a retry loaded it. Refuses by throwing. */
     abstract suspend fun decideAgain(reloaded: M)
 
-    private val spent = AtomicBoolean(false)
+    private val spentBy = AtomicReference<InstantiationContext.Run?>(null)
 
-    internal fun spend() =
-        check(spent.compareAndSet(false, true)) { "A proof for ${action.name} is spent once, and this one was" }
+    internal fun spend(run: InstantiationContext.Run) =
+        check(spentBy.compareAndSet(null, run)) { "A proof for ${action.name} is spent once, and this one was" }
 
-    internal val isSpent: Boolean get() = spent.get()
+    internal fun isSpentBy(run: InstantiationContext.Run): Boolean = spentBy.get() === run
 }

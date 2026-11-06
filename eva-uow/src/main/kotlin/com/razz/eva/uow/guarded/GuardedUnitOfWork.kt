@@ -18,7 +18,8 @@ import kotlin.reflect.KClass
  * mints: each such model is a [Proven] field of [PARAMS]. It is written like every other unit of work:
  * `override suspend fun tryPerform(principal, params) = changes { ... }`. The block reads a proven model with
  * `params.x.model()` and must update it or hold it with `notChanged`, so the version check makes the decision hold
- * at commit.
+ * at commit. Like every block it registers at least one change: one that registers none, as over an empty list of
+ * proofs, fails with "No changes to persist".
  */
 abstract class GuardedUnitOfWork<P, PF, PARAMS, RESULT>(
     private val executionContext: ExecutionContext,

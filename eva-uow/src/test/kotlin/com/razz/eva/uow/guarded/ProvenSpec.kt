@@ -17,7 +17,7 @@ class ProvenSpec : FunSpec({
     val employee = employee()
     val reloaded = employee(id = employee.id(), department = employee.departmentId)
     val first = initial(TestPrincipal)
-    val retry = afterRetry(TestPrincipal)
+    val retry = afterRetry(first)
 
     test("keeps the model the proof was decided on in the first attempt, and decides it once") {
         val proven = first.proven(proof(employee)) { error("the first attempt does not reload") }

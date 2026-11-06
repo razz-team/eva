@@ -9,4 +9,4 @@ val AFTER_RETRY = InstantiationContextFixtures.AFTER_RETRY
 
 fun initial(principal: Principal<*>): InstantiationContext = InstantiationContextFixtures.initial(principal)
 
-fun afterRetry(principal: Principal<*>): InstantiationContext = InstantiationContextFixtures.afterRetry(principal)
+fun afterRetry(first: InstantiationContext): InstantiationContext = InstantiationContextFixtures.afterRetry(first)

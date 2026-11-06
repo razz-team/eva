@@ -56,25 +56,28 @@ class Proven<out PF : Proof<*, *, *>, M : Model<*, *>> private constructor(
 
         /**
          * Binds [proof] to this attempt's params, for the principal they are built for. The first attempt spends it,
-         * so one proof binds one unit of work; a retry binds it again only once it was spent. [PF] is the minter's
-         * own proof type: a guarded unit of work reads only the proofs of the type it declares.
+         * so one proof binds one unit of work; a retry of the run that spent it binds it again. [PF] is the minter's
+         * own proof type: a guarded unit of work reads only the proofs of the type it declares. A composed child's
+         * params bind none: only the unit of work a caller runs reads a proof.
          */
         fun <PF : Proof<*, *, M>, M : Model<*, *>> InstantiationContext.proven(
             proof: PF,
             reload: suspend () -> M,
         ): Proven<PF, M> {
-            val built = checkNotNull(principal) {
-                "A proof binds only in params built for the principal they run under"
+            check(this !is InstantiationContext.Internal) {
+                "A proof binds in the params a caller builds for a unit of work, not in a composed child's"
             }
-            check(proof.principal == built) {
+            check(proof.principal == principal) {
                 "A proof for ${proof.action.name} on ${proof.target.id().stringValue()} " +
                     "was minted for another principal"
             }
             val firstAttempt = attempt == 0
             if (firstAttempt) {
-                proof.spend()
+                proof.spend(run)
             } else {
-                check(proof.isSpent) { "A proof for ${proof.action.name} binds a retry only after a first attempt" }
+                check(proof.isSpentBy(run)) {
+                    "A proof for ${proof.action.name} binds a retry only of the run that spent it"
+                }
             }
             return Proven(proof, firstAttempt, reload)
         }

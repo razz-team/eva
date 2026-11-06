@@ -19,7 +19,6 @@ import com.razz.eva.uow.Clocks.fixedUTC
 import com.razz.eva.uow.Clocks.millisUTC
 import com.razz.eva.uow.ExecutionContext
 import com.razz.eva.uow.InstantiationContext
-import com.razz.eva.uow.InstantiationContextFixtures.INITIAL
 import com.razz.eva.uow.InstantiationContextFixtures.afterRetry
 import com.razz.eva.uow.InstantiationContextFixtures.initial
 import com.razz.eva.uow.NoopModel
@@ -53,7 +52,7 @@ class GuardedUnitOfWorkSpec : FunSpec({
     val employee = employee(department = home.id())
     val moved = employee(id = employee.id(), department = elsewhere.id())
     val first = initial(TestPrincipal)
-    val retry = afterRetry(TestPrincipal)
+    val retry = afterRetry(first)
     fun uow(unguarded: Set<KClass<out Model<*, *>>> = setOf()) = MoveEmployeeUow(executionContext, unguarded, away)
     fun InstantiationContext.moving(proof: TestProof<Employee>, reloaded: Employee = moved) =
         proven(proof) { reloaded }
@@ -136,21 +135,38 @@ class GuardedUnitOfWorkSpec : FunSpec({
             .message shouldBe "A proof for test.write is spent once, and this one was"
     }
 
-    test("binds a retry only on a proof a first attempt spent") {
-        shouldThrow<IllegalStateException> { retry.moving(proof(employee)) }
-            .message shouldBe "A proof for test.write binds a retry only after a first attempt"
+    test("binds a retry only on a proof the first attempt of its own run spent") {
+        val unspent = proof(employee)
+        shouldThrow<IllegalStateException> { retry.moving(unspent) }
+            .message shouldBe "A proof for test.write binds a retry only of the run that spent it"
+        val spent = proof(employee)
+        initial(TestPrincipal).moving(spent)
+        shouldThrow<IllegalStateException> { retry.moving(spent) }
+            .message shouldBe "A proof for test.write binds a retry only of the run that spent it"
+        first.moving(unspent)
     }
 
-    test("refuses to bind a proof minted for another principal, or in params built for none, and leaves it unspent") {
+    test("refuses to bind a proof minted for another principal, and leaves it unspent") {
         val proof = TestProof(OtherPrincipal, employee) { }
         shouldThrow<IllegalStateException> { first.moving(proof) }
             .message shouldBe "A proof for test.write on ${employee.id().stringValue()} " +
             "was minted for another principal"
-        val mine = proof(employee)
-        shouldThrow<IllegalStateException> { INITIAL.moving(mine) }
-            .message shouldBe "A proof binds only in params built for the principal they run under"
         initial(OtherPrincipal).moving(proof)
-        first.moving(mine)
+    }
+
+    test("refuses to bind a proof in a composed child's params, and leaves it unspent") {
+        val proof = proof(employee)
+        val parent = block { params ->
+            execute({ RenameDepartmentUow(it, home) }, TestPrincipal) {
+                moving(proof)
+                ChildParams
+            }
+            update(params.employee.model().changeDepartment(away))
+        }
+        shouldThrow<IllegalStateException> { parent.tryPerform(TestPrincipal, first.params(proof(employee))) }
+            .message shouldBe "A proof binds in the params a caller builds for a unit of work, " +
+            "not in a composed child's"
+        first.moving(proof)
     }
 
     test("refuses a block that reads a proven model and writes nothing on it") {
@@ -176,6 +192,15 @@ class GuardedUnitOfWorkSpec : FunSpec({
             employee.id(), employee.name, home.id(), employee.email, BUBALEH, persistentState(version(2), null),
         )
         val params = first.run { Params(moving(proof(employee)), "stale", stale = stale) }
+        shouldThrow<IllegalStateException> { uow().tryPerform(TestPrincipal, params) }
+            .message shouldBe "${employee.id().stringValue()} was decided at version 1, and the block writes it at 2"
+    }
+
+    test("refuses to hold a decided model at a version other than the one decided") {
+        val stale = Employee(
+            employee.id(), employee.name, home.id(), employee.email, BUBALEH, persistentState(version(2), null),
+        )
+        val params = first.run { Params(moving(proof(employee)), "holds stale", holds = true, stale = stale) }
         shouldThrow<IllegalStateException> { uow().tryPerform(TestPrincipal, params) }
             .message shouldBe "${employee.id().stringValue()} was decided at version 1, and the block writes it at 2"
     }

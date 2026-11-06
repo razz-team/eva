@@ -107,6 +107,7 @@ class UnitOfWorkExecutor(
         var name = uowName
         try {
             var currentAttempt = 0
+            val run = InstantiationContext.Run()
             while (true) {
                 val now = clock.instant()
                 val uow = uowFactory(ExecutionContext(Clocks.fixedUTC(now), openTelemetry))
@@ -115,7 +116,7 @@ class UnitOfWorkExecutor(
                     uowSpan.updateName(name)
                     uowSpan.setAttribute(UOW_NAME, name)
                 }
-                val constructedParams = params(InstantiationContext.External(currentAttempt, principal))
+                val constructedParams = params(InstantiationContext.External(currentAttempt, principal, run))
                 val attempted = attempt(uow, principal, constructedParams, now, name, uowSpan)
                 val committed = when (attempted) {
                     is Attempted.Conflict -> {

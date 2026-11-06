@@ -149,9 +149,10 @@ class ChangesDsl internal constructor(
         val seed = changes
         val uow = uowFactory(executionContext.withInheritedChanges(seed))
         val span = uowSpan(uow.name())
+        val context = InstantiationContext.Internal(0, principal, InstantiationContext.Run())
         return span.use {
             val subChanges = performingSpan(uow.name()).use {
-                uow.tryPerform(principal, params(InstantiationContext.Internal(0, principal)))
+                uow.tryPerform(principal, params(context))
             }
             span.setAttribute(
                 MODEL_ID,
