@@ -353,6 +353,17 @@ class GuardedUnitOfWorkSpec : FunSpec({
             listOf(dept.id(), dept.employees.single().id(), home.id(), employee.id())
     }
 
+    test("refuses a child that adds an unguarded aggregate owning a new guarded model, naming the owned model") {
+        val hired = newEmployee(Name("Eve", "Green"), home.id(), "eve@test.com", BUBALEH)
+        val dept = newDeptAggregate(name = "Dept", boss = randomEmployeeId(), ration = BUBALEH).addEmployee(hired)
+        shouldThrow<IllegalStateException> {
+            block {
+                execute(plainChild("Found") { add(dept); "founded" }, TestPrincipal) { ChildParams }
+                update(target.changeDepartment(away))
+            }.tryPerform(TestPrincipal, INITIAL.guardedOn(proof(employee), ComposingGuardedUow.Params))
+        }.message shouldBe refusedWrite("Found", hired.id().stringValue())
+    }
+
     test("answers a failed write with the target the attempt ran on, or rethrows, and none before the attempt ran") {
         val uow = uow()
         val guarded = AFTER_RETRY.guardedOn(proof(employee), Params("moves"), moved)

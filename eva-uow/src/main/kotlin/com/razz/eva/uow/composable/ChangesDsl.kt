@@ -161,7 +161,10 @@ class ChangesDsl internal constructor(
         }
     }
 
-    /** Takes a child's changes as this block's, once the drop check passes, and returns the child's result. */
+    /**
+     * Takes a child's changes as this block's, once the drop check passes, and returns the child's result. A child
+     * that registered nothing is neither checked nor merged.
+     */
     internal fun <RESULT> take(run: ChildRun<RESULT>): RESULT {
         val subChanges = run.changes
         if (subChanges.modelChangesToPersist.isNotEmpty() || subChanges.entityChangesToPersist.isNotEmpty()) {
