@@ -11,7 +11,7 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeSameInstanceAs
 
-/** A proof bound into params: spent as the first attempt binds it, decided again on each retry's reload. */
+/** A proof wrapped in a Proven: the first attempt marks it as used, and each retry asks it about the reload. */
 class ProvenSpec : FunSpec({
 
     val employee = employee()
@@ -19,35 +19,35 @@ class ProvenSpec : FunSpec({
     val first = initial(TestPrincipal)
     val retry = afterRetry(first)
 
-    test("keeps the model the proof was decided on in the first attempt, and decides it once") {
+    test("returns the proof's target on the first attempt, the same instance on every read") {
         val proven = first.proven(proof(employee)) { error("the first attempt does not reload") }
-        proven.decidedOrNull() shouldBe null
-        proven.decided() shouldBeSameInstanceAs employee
-        proven.decided() shouldBeSameInstanceAs employee
-        proven.decidedOrNull() shouldBeSameInstanceAs employee
+        proven.readOrNull() shouldBe null
+        proven.read() shouldBeSameInstanceAs employee
+        proven.read() shouldBeSameInstanceAs employee
+        proven.readOrNull() shouldBeSameInstanceAs employee
     }
 
-    test("decides a retry's reload once, however often the block reads it") {
+    test("asks the proof about a retry's reload once, however often the block reads it") {
         val proof = proof(employee)
         first.proven(proof) { error("the first attempt does not reload") }
         val proven = retry.proven(proof) { reloaded }
-        proven.decided() shouldBeSameInstanceAs reloaded
-        proven.decided() shouldBeSameInstanceAs reloaded
+        proven.read() shouldBeSameInstanceAs reloaded
+        proven.read() shouldBeSameInstanceAs reloaded
         proof.decidedAgain shouldBe listOf(reloaded)
     }
 
-    test("refuses a retry whose reload answers another model, and decides nothing again") {
+    test("refuses a retry whose reload returns another model, and does not ask the proof") {
         val proof = proof(employee)
         first.proven(proof) { error("the first attempt does not reload") }
         val other = employee(department = employee.departmentId)
-        shouldThrow<IllegalStateException> { retry.proven(proof) { other }.decided() }
+        shouldThrow<IllegalStateException> { retry.proven(proof) { other }.read() }
             .message shouldBe
             "The reload of a Proven returned ${other.id().stringValue()}, and its proof is for " +
             "${employee.id().stringValue()}. The reload must load the proof's target by its id"
         proof.decidedAgain shouldBe listOf()
     }
 
-    test("spends a proof once, so two params fields cannot carry one decision") {
+    test("marks a proof as used once, so two params fields cannot carry one proof") {
         val proof = proof(employee)
         first.proven(proof) { reloaded }
         shouldThrow<IllegalStateException> { first.proven(proof) { reloaded } }
@@ -55,7 +55,7 @@ class ProvenSpec : FunSpec({
             "one unit of work: get a new proof for another run"
     }
 
-    test("spends a proof as the params bind it, whether or not the block reads it") {
+    test("marks a proof as used when the params wrap it, whether or not the block reads it") {
         val proof = proof(employee)
         first.proven(proof) { reloaded }
         retry.proven(proof) { reloaded }

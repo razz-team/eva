@@ -18,10 +18,12 @@ import java.util.IdentityHashMap
 import kotlin.reflect.KClass
 
 /**
- * The `changes { }` of a [GuardedUnitOfWork]: the composable DSL behind the gates a proof of type [PF] puts on it.
- * It updates a model a [Proven] decided in this block (read with [model]), at the version it was decided on, and a
- * model the unit of work declares in `unguardedWrites`; new models are added as anywhere. [execute] composes a child
- * as every unit of work does, and refuses one that writes a model the block's [Guarding] covers.
+ * The receiver of a [GuardedUnitOfWork]'s `changes { }` block. It works as the composable [ChangesDsl] does, with these
+ * limits. `update` accepts a model the block read from a [Proven] with [model], at the version it had when read, and
+ * a model whose type the unit of work lists in `unguardedWrites`; it refuses every other model. `add` accepts every
+ * new model. A model an aggregate owns is checked as if the block registered it itself. [execute] runs a child unit
+ * of work and refuses a child that registers a model of a guarded type ([Guarding]). It has no entity functions: a
+ * child registers entities. [PF] is the proof type whose [Proven] fields the block can read.
  */
 class GuardedChangesDsl<PF : Proof<*, *, *>> internal constructor(
     private val dsl: ChangesDsl,
@@ -31,12 +33,12 @@ class GuardedChangesDsl<PF : Proof<*, *, *>> internal constructor(
     private val attempt: InstantiationContext?,
 ) {
 
-    // A fresh block runs each attempt, so a retry decides each model again.
-    private val decided = mutableMapOf<ModelId<*>, Proven<*, *>>()
-    private val held = mutableSetOf<ModelId<*>>()
+    // Each attempt runs a new block, so both start empty on a retry.
+    private val read = mutableMapOf<ModelId<*>, Proven<*, *>>()
+    private val written = mutableSetOf<ModelId<*>>()
 
-    /** The ids the block decided and neither updated nor held with `notChanged`. */
-    internal fun decidedNotHeld(): List<ModelId<*>> = decided.keys.filterNot { it in held }
+    /** The ids of the models the block read with [model] and registered with neither `update` nor `notChanged`. */
+    internal fun readNotWritten(): List<ModelId<*>> = read.keys.filterNot { it in written }
 
     fun <MID, E, M> add(model: M): M
         where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
@@ -46,39 +48,41 @@ class GuardedChangesDsl<PF : Proof<*, *, *>> internal constructor(
 
     fun <MID, E, M> update(model: M): M
         where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
-        val isDecided = checkDecidedVersion(model)
-        check(isDecided || unguarded.any { it.isInstance(model) }) {
+        val wasRead = checkReadVersion(model)
+        check(wasRead || unguarded.any { it.isInstance(model) }) {
             "$uowName may not update ${model.id().stringValue()}: the block did not read it from a Proven with " +
                 "model(), and ${model::class.simpleName} is not in unguardedWrites. Read it with params.x.model(), " +
                 "or list its type in unguardedWrites"
         }
         checkOwnedModels(model)
         dsl.update(model)
-        if (isDecided) held += model.id()
+        if (wasRead) written += model.id()
         return model
     }
 
     /**
-     * The model this attempt writes under the proof, decided: the proof's own on the first attempt, the reload's on
-     * a retry. `update` then takes it, in this block only, and the block must update it or hold it with `notChanged`.
-     * A [Proven] is read in the block of the attempt that bound it: one another block read is refused.
+     * Returns the model this attempt may write. On the first attempt it is the model the proof was issued for. On a
+     * retry it is the model the reload returns, after the proof allowed the action on it again; a refusal throws
+     * here. After this call `update` accepts the model, in this block only. The block must call `update` or
+     * `notChanged` on it, or the block fails. A [Proven] from params built in another run, or that another block has
+     * read, is refused: build the params anew for each attempt.
      */
     suspend fun <M : Model<*, *>> Proven<PF, M>.model(): M {
-        check(isBoundIn(attempt)) {
+        check(belongsTo(attempt)) {
             "$uowName cannot read the Proven for $targetId: its params were built in another run, or for another " +
                 "principal. Build them in the params lambda of the execute call that runs this unit of work. In a " +
                 "spec, call tryPerform inside inAttempt(context), with the context that built the params"
         }
-        decidedOrNull()?.let { earlier ->
-            check(decided[earlier.id()] === this) {
+        readOrNull()?.let { earlier ->
+            check(read[earlier.id()] === this) {
                 "$uowName: another block already read the Proven for ${earlier.id().stringValue()}. Build the " +
                     "params in the params lambda for each attempt, and do not keep a Proven between attempts or runs"
             }
         }
-        val model = decided()
-        val earlier = decided.putIfAbsent(model.id(), this)
+        val model = read()
+        val earlier = read.putIfAbsent(model.id(), this)
         check(earlier == null || earlier === this) {
-            "$uowName: two Proven fields hold ${model.id().stringValue()}. A block reads a model through one " +
+            "$uowName: two Proven fields carry ${model.id().stringValue()}. A block reads a model through one " +
                 "proof only: pass it once"
         }
         return model
@@ -86,20 +90,24 @@ class GuardedChangesDsl<PF : Proof<*, *, *>> internal constructor(
 
     fun <MID, E, M> notChanged(model: M): M
         where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
-        val isDecided = checkDecidedVersion(model)
+        val wasRead = checkReadVersion(model)
         checkOwnedModels(model)
         dsl.notChanged(model)
-        if (isDecided) held += model.id()
+        if (wasRead) written += model.id()
         return model
     }
 
-    /** As the composable DSL's: the result over the block's models, children's included, and over the stored set. */
+    /**
+     * Builds the result as [ChangesDsl.roundtrip] does: first from the models the block and its children registered,
+     * then again from the stored models after the write.
+     */
     fun <R> roundtrip(build: (p: PersistedLookup) -> R): R = dsl.roundtrip(build)
 
     /**
-     * Runs a child under [principal] as the composable DSL does, its changes merged into this block's by its rules.
-     * The child writes undecided, except a model the block's [Guarding] covers: that write takes a proof, so a child
-     * that adds, updates, merges onto or `notChanged`s one is refused before its changes are taken.
+     * Runs a child unit of work under [principal] and merges its changes into this block's, as [ChangesDsl.execute]
+     * does. The child needs no proof for its own models. It may not register a model of a guarded type with `add`,
+     * `update` or `notChanged`: this block throws before it merges any of the child's changes. Write such a model in
+     * this block, through a [Proven].
      */
     suspend fun <PRINCIPAL, PARAMS, RESULT, UOW> execute(
         uowFactory: (ExecutionContext) -> UOW,
@@ -111,48 +119,49 @@ class GuardedChangesDsl<PF : Proof<*, *, *>> internal constructor(
               RESULT : Any,
               UOW : com.razz.eva.uow.composable.UnitOfWork<PRINCIPAL, PARAMS, RESULT> {
         val run = dsl.runChild(uowFactory, principal, params)
-        // Filtering before the last-per-id step is exact: a Changes holds one change per id.
-        val covered = run.changes.modelChangesToPersist.filter { guarding.canBeGuarded(it.model::class) }
-        if (covered.isEmpty()) return dsl.take(run)
-        val refused = run.modelsNotHeldBySeed(covered)
+        // A Changes holds one change per model id, so the filter cannot hide a later change of the same id.
+        val guarded = run.changes.modelChangesToPersist.filter { guarding.canBeGuarded(it.model::class) }
+        if (guarded.isEmpty()) return dsl.merge(run)
+        val refused = run.registeredByChild(guarded)
         check(refused.isEmpty()) {
             "$uowName refuses composed unit of work [${run.uowName}]: it registered " +
                 "${refused.map { it.id().stringValue() }}, models that need a proof. A child may not add, update or " +
                 "keep one with notChanged: write it in $uowName, through a Proven field"
         }
-        return dsl.take(run)
+        return dsl.merge(run)
     }
 
-    // A decided model is written at the version it was decided on: the version check then holds the decision.
-    private fun checkDecidedVersion(model: Model<*, *>): Boolean {
-        val decision = decided[model.id()]?.decidedOrNull() ?: return false
-        check(model.version() == decision.version()) {
+    // The block writes the model at the version it read, so the optimistic lock fails the write if the stored model
+    // changed after the proof allowed it.
+    private fun checkReadVersion(model: Model<*, *>): Boolean {
+        val readModel = read[model.id()]?.readOrNull() ?: return false
+        check(model.version() == readModel.version()) {
             "$uowName registers ${model.id().stringValue()} at version ${model.version().version}, and model() " +
-                "returned it at version ${decision.version().version}. Change the model that model() returned"
+                "returned it at version ${readModel.version().version}. Change the model that model() returned"
         }
         return true
     }
 
-    // An aggregate registers the models it owns with it. A changed owned model that can be guarded must have been
-    // read with model() at that version, and then counts as written; a new one is added as anywhere.
+    // Registering an aggregate registers the models it owns. A changed one of a guarded type must have been read
+    // with model() at that version, and then counts as written. A new one is allowed, as add allows every new model.
     private fun checkOwnedModels(model: Model<*, *>) {
         ChangesAccumulator.ownedChangesOf(model)
             .filter { it is UpdateModel<*, *, *> && guarding.canBeGuarded(it.model::class) }
             .forEach { owned ->
-                check(checkDecidedVersion(owned.model)) {
+                check(checkReadVersion(owned.model)) {
                     "$uowName registers ${model.id().stringValue()}, which owns the changed model " +
                         "${owned.id.stringValue()}, and the block did not read that model with model(). Read it " +
                         "through its Proven field, and put the model that model() returned into the aggregate"
                 }
-                held += owned.id
+                written += owned.id
             }
     }
 
-    // By instance: a model registered since, or again on top of the seed's; the seed's owned models count as held.
-    // Per id the last change, as the merge keeps it.
-    private fun ChildRun<*>.modelsNotHeldBySeed(covered: List<ModelChange>): List<Model<*, *>> {
-        val held = Collections.newSetFromMap(IdentityHashMap<Model<*, *>, Boolean>())
-        seed.flattenChildModels().mapTo(held) { it.model }
-        return covered.associateBy { it.id }.values.map { it.model }.filter { it !in held }
+    // The guarded models the child registered itself: those that are not the same instances the block had registered
+    // before the child ran. Models an aggregate owns count as the block's. Per id the last change, as the merge keeps.
+    private fun ChildRun<*>.registeredByChild(guarded: List<ModelChange>): List<Model<*, *>> {
+        val parents = Collections.newSetFromMap(IdentityHashMap<Model<*, *>, Boolean>())
+        parentChanges.flattenChildModels().mapTo(parents) { it.model }
+        return guarded.associateBy { it.id }.values.map { it.model }.filter { it !in parents }
     }
 }

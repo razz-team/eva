@@ -122,9 +122,9 @@ class ChangesDsl internal constructor(
     }
 
     /**
-     * Runs the unit of work [uowFactory] builds over this block's changes and takes its changes as the block's.
-     * Refuses a child whose changes no longer hold every model and entity change registered before it ran; a
-     * refused child leaves the block's changes as they were.
+     * Runs the child unit of work that [uowFactory] builds. The child starts from the changes this block has
+     * registered so far, and the changes it returns replace them. Throws if the returned changes lost a model change or
+     * an entity change this block had registered; the block's changes then stay as they were before the child ran.
      */
     suspend fun <PRINCIPAL, PARAMS, RESULT, UOW> execute(
         uowFactory: (ExecutionContext) -> UOW,
@@ -134,9 +134,12 @@ class ChangesDsl internal constructor(
         where PRINCIPAL : Principal<*>,
               PARAMS : UowParams<PARAMS>,
               RESULT : Any,
-              UOW : UnitOfWork<PRINCIPAL, PARAMS, RESULT> = take(runChild(uowFactory, principal, params))
+              UOW : UnitOfWork<PRINCIPAL, PARAMS, RESULT> = merge(runChild(uowFactory, principal, params))
 
-    /** Runs a child over this block's changes, in its own span, and returns what it built without taking it. */
+    /**
+     * Runs a child unit of work, in a span of its own, and returns the changes it built. It does not merge them into
+     * this block's changes: [merge] does that.
+     */
     internal suspend fun <PRINCIPAL, PARAMS, RESULT, UOW> runChild(
         uowFactory: (ExecutionContext) -> UOW,
         principal: PRINCIPAL,
@@ -146,8 +149,8 @@ class ChangesDsl internal constructor(
               PARAMS : UowParams<PARAMS>,
               RESULT : Any,
               UOW : UnitOfWork<PRINCIPAL, PARAMS, RESULT> {
-        val seed = changes
-        val uow = uowFactory(executionContext.withInheritedChanges(seed))
+        val parentChanges = changes
+        val uow = uowFactory(executionContext.withInheritedChanges(parentChanges))
         val span = uowSpan(uow.name())
         val context = InstantiationContext.Internal(0, principal, InstantiationContext.Run())
         return span.use {
@@ -158,30 +161,34 @@ class ChangesDsl internal constructor(
                 MODEL_ID,
                 subChanges.modelChangesToPersist.map { it.id.stringValue() },
             )
-            ChildRun(uow.name(), seed, subChanges)
+            ChildRun(uow.name(), parentChanges, subChanges)
         }
     }
 
     /**
-     * Takes a child's changes as this block's, once the drop check passes, and returns the child's result. A child
-     * that registered nothing is neither checked nor merged.
+     * Merges the changes a child built into this block's changes and returns the child's result. Throws, and merges
+     * nothing, if the child's changes lost a change this block had registered. If the child registered no change,
+     * this block's changes stay as they are.
      */
-    internal fun <RESULT> take(run: ChildRun<RESULT>): RESULT {
+    internal fun <RESULT> merge(run: ChildRun<RESULT>): RESULT {
         val subChanges = run.changes
         if (subChanges.modelChangesToPersist.isNotEmpty() || subChanges.entityChangesToPersist.isNotEmpty()) {
             val merged = ChangesAccumulator.from(subChanges)
-            merged.checkHoldsAllOf(changes, run.uowName)
+            merged.checkKeepsAllOf(changes, run.uowName)
             changes = merged
             inheritedModelIds.addAll(changes.modelIds())
         }
-        // Under composition the caller gets this in-memory seed; the child's resultBuilder is not rerun.
+        // The parent gets the result the child built in memory. The child's resultBuilder does not run again.
         return subChanges.result
     }
 
-    /** What [runChild] ran: the child's name, the changes it was seeded with, and the changes it built. */
+    /**
+     * The outcome of [runChild]: the child's name, this block's changes when the child started ([parentChanges]), and
+     * the changes the child returned.
+     */
     internal class ChildRun<RESULT>(
         val uowName: String,
-        val seed: ChangesAccumulator,
+        val parentChanges: ChangesAccumulator,
         val changes: Changes<RESULT>,
     )
 
@@ -197,7 +204,7 @@ class ChangesDsl internal constructor(
         }
     }
 
-    private fun ChangesAccumulator.checkHoldsAllOf(parent: ChangesAccumulator, uowName: String) {
+    private fun ChangesAccumulator.checkKeepsAllOf(parent: ChangesAccumulator, uowName: String) {
         val droppedModelIds = modelIdsDroppedFrom(parent)
         val keepsEntityChanges = keepsEntityChangesOf(parent)
         check(droppedModelIds.isEmpty() && keepsEntityChanges) {

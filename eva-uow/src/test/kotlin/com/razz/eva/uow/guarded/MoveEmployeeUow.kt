@@ -12,12 +12,12 @@ import kotlinx.serialization.Transient
 import kotlin.reflect.KClass
 
 /**
- * Moves [Params.employee] to [department]. With [Params.extra] it moves one more employee the way [Params.how]
- * says: read through its proof, written undecided ([Params.undecided] in its place, unread), or read through its
- * proof and then [Params.decoy] written in its place. With [Params.beside] it updates an employee neither proof
- * decided; with [Params.renames] it renames a department without a proof, with [Params.adds] it adds a new one.
- * [Params.holds] holds the employee with `notChanged`, [Params.skips] reads it and writes nothing, [Params.stale]
- * writes or holds it at another version. With [answering] a failed write answers the employee the attempt decided.
+ * Moves [Params.employee] to [department]. With [Params.extra] it moves one more employee the way [Params.how] says:
+ * read with model(); [Params.unread] updated in its place without a read; or read, and then [Params.decoy] updated in
+ * its place. [Params.beside] updates an employee no Proven field holds, [Params.renames] renames a department
+ * without a proof, [Params.adds] adds a new department. [Params.holds] calls `notChanged` on the employee,
+ * [Params.skips] reads it and registers nothing, [Params.stale] registers it at another version. With [answering]
+ * onFailure returns the employee the failed attempt read.
  */
 internal class MoveEmployeeUow(
     executionContext: ExecutionContext,
@@ -32,7 +32,7 @@ internal class MoveEmployeeUow(
     unguarded,
 ) {
 
-    enum class How { PROVEN, UNDECIDED, DECOY }
+    enum class How { PROVEN, UNREAD, DECOY }
 
     @Serializable
     data class Params(
@@ -40,7 +40,7 @@ internal class MoveEmployeeUow(
         val note: String,
         val extra: Proven<TestProof<Employee>, Employee>? = null,
         val how: How = How.PROVEN,
-        @Transient val undecided: Employee? = null,
+        @Transient val unread: Employee? = null,
         @Transient val decoy: Employee? = null,
         @Transient val adds: Department<*>? = null,
         @Transient val beside: Employee? = null,
@@ -56,7 +56,7 @@ internal class MoveEmployeeUow(
         params.extra?.let { extra ->
             when (params.how) {
                 How.PROVEN -> update(extra.model().changeDepartment(department))
-                How.UNDECIDED -> update(checkNotNull(params.undecided).changeDepartment(department))
+                How.UNREAD -> update(checkNotNull(params.unread).changeDepartment(department))
                 How.DECOY -> {
                     extra.model()
                     update(checkNotNull(params.decoy).changeDepartment(department))

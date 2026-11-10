@@ -20,7 +20,7 @@ internal object Fixtures {
     fun employee(id: EmployeeId = EmployeeId(), department: DepartmentId = randomDepartmentId()): Employee =
         Employee(id, Name("Ada", "Lovelace"), department, "ada@test.com", BUBALEH, persistentState(V1, null))
 
-    /** A proof for [TestPrincipal] on [target] whose decider allows every reload but one in [refused]. */
+    /** A proof for [TestPrincipal] on [target] that allows every reload except one in a department of [refused]. */
     fun proof(target: Employee, refused: Set<Department<*>> = setOf()): TestProof<Employee> =
         TestProof(TestPrincipal, target) { reloaded ->
             if (refused.any { it.id() == reloaded.departmentId }) throw Refused("moved out of reach")

@@ -101,21 +101,21 @@ class ChangesAccumulator private constructor(
     internal fun modelIds(): Set<ModelId<out Comparable<*>>> = modelChanges.keys
 
     /**
-     * The ids of [earlier]'s models this one lacks, or holds without the events [earlier] had for them. A change held
-     * as the same instance is kept: an accumulator copies its map and keeps every change it does not replace.
+     * Returns the ids of the model changes in [earlier] that this accumulator lost: the id is absent, or its change no
+     * longer starts with the events [earlier] had. A change that is the same instance in both is kept.
      */
     internal fun modelIdsDroppedFrom(earlier: ChangesAccumulator): List<ModelId<out Comparable<*>>> =
         earlier.modelChanges.filter { (id, change) ->
-            val held = modelChanges[id]
-            if (held === change) return@filter false
-            val events = held?.modelEvents
+            val kept = modelChanges[id]
+            if (kept === change) return@filter false
+            val events = kept?.modelEvents
             events == null || events.size < change.modelEvents.size ||
                 change.modelEvents.indices.any { events[it] !== change.modelEvents[it] }
         }.keys.toList()
 
     /**
-     * Whether this one starts with [earlier]'s entity changes, the same ones in the same order. The same list does:
-     * an accumulator that registers no entity keeps the list it was built from.
+     * Returns true if this accumulator's entity changes start with those of [earlier], the same instances in the same
+     * order. Two accumulators that hold the same list pass without a comparison.
      */
     internal fun keepsEntityChangesOf(earlier: ChangesAccumulator): Boolean =
         entityChanges === earlier.entityChanges ||
@@ -155,7 +155,7 @@ class ChangesAccumulator private constructor(
 
     companion object {
 
-        /** The changes [model] carries for the models it owns, new and changed, as registering it would list them. */
+        /** Returns the changes of the new and changed models that [model] owns, as registering [model] lists them. */
         internal fun ownedChangesOf(model: Model<*, *>): List<ModelChange> =
             mutableListOf<ModelChange>().also { flattenOwned(model, mutableSetOf(model.id()), it) }
 

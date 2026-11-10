@@ -4,7 +4,7 @@ import com.razz.eva.domain.Employee
 import com.razz.eva.uow.params.kotlinx.UowParams
 import kotlinx.serialization.Serializable
 
-/** Several employees, each under a proof of its own: N of one kind. */
+/** Several employees, each in a Proven field of its own. */
 @Serializable
 internal data class TeamParams(
     val team: List<Proven<TestProof<Employee>, Employee>>,

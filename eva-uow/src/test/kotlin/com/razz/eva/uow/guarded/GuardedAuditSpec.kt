@@ -21,12 +21,12 @@ class GuardedAuditSpec : FunSpec({
                 proven(proof(employee)) { employee },
                 "moves",
                 extra = proven(proof(extra)) { extra },
-                how = MoveEmployeeUow.How.UNDECIDED,
+                how = MoveEmployeeUow.How.UNREAD,
             )
         }
         KotlinxParamsSerializer().serialize(params) shouldBe
             """{"employee":{"action":"test.write","target":"${employee.id().stringValue()}"},"note":"moves",""" +
-            """"extra":{"action":"test.write","target":"${extra.id().stringValue()}"},"how":"UNDECIDED"}"""
+            """"extra":{"action":"test.write","target":"${extra.id().stringValue()}"},"how":"UNREAD"}"""
     }
 
     test("a list of proven fields writes one entry per proof, in order") {

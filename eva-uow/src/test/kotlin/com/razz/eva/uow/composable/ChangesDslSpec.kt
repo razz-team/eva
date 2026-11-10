@@ -159,7 +159,7 @@ class ChangesDslSpec : FunSpec({
             .message shouldBe dropped("Captured", "models [${existing.id().stringValue()}]")
     }
 
-    test("execute refuses a composed child that holds its parent's updated model as unchanged") {
+    test("execute refuses a composed child that calls notChanged on the model its parent updated") {
         val existing = existingCreatedTestModel(randomTestModelId(), "existing", 2, V1)
         val activated = existing.activate()
         val innerUow = { ctx: ExecutionContext ->

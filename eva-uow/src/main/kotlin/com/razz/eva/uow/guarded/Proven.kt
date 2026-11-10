@@ -12,12 +12,12 @@ import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.encoding.encodeStructure
 
 /**
- * A model a guarded block writes under a proof of type [PF], carried in the unit of work's params and bound there
- * with [proven]. The block reads it with `model()`, which only a guarded block over [PF] has, and writes it with
- * `update` or holds it with `notChanged`. The first attempt keeps the model the proof was decided on; a retry loads it
- * again through the reload and the proof decides again.
- *
- * Writes into the audit row as `{"action": ..., "target": ...}`, under the field the params give it.
+ * A params field that carries a guarded model together with the [Proof] that allows the write. Create it in the params
+ * lambda with [proven]. In the `changes` block of a guarded unit of work `params.x.model()` returns the model; only a
+ * block for proofs of type [PF] has `model()`. The block then calls `update` or `notChanged` on it. On the first
+ * attempt `model()` returns the model the proof was issued for. On a retry it loads the model again and asks the proof
+ * to allow the action again. The audit row holds the field as `{"action": ..., "target": ...}`, where `target` is the
+ * model id.
  */
 @Serializable(with = Proven.Audit::class)
 class Proven<out PF : Proof<*, *, *>, M : Model<*, *>> private constructor(
@@ -27,18 +27,21 @@ class Proven<out PF : Proof<*, *, *>, M : Model<*, *>> private constructor(
     private val run: InstantiationContext.Run,
 ) {
 
-    private var decided: M? = null
+    private var readModel: M? = null
 
-    /** The model this attempt writes, decided once: the proof's own on the first attempt, the reload's on a retry. */
-    internal suspend fun decided(): M {
-        decided?.let { return it }
+    /**
+     * Returns the model for this attempt and keeps it: the proof's target on the first attempt, the reloaded model on
+     * a retry, after the proof allowed it again.
+     */
+    internal suspend fun read(): M {
+        readModel?.let { return it }
         val model = if (firstAttempt) proof.target else reloaded()
-        decided = model
+        readModel = model
         return model
     }
 
-    /** The model [decided] answered in this attempt, or null before the attempt read it. */
-    internal fun decidedOrNull(): M? = decided
+    /** Returns the model [read] returned in this attempt, or null if the attempt did not read it. */
+    internal fun readOrNull(): M? = readModel
 
     private suspend fun reloaded(): M {
         val model = reload()
@@ -50,8 +53,8 @@ class Proven<out PF : Proof<*, *, *>, M : Model<*, *>> private constructor(
         return model
     }
 
-    /** Returns true if [context] is an attempt of the run that bound this, under the proof's principal. */
-    internal fun isBoundIn(context: InstantiationContext?): Boolean =
+    /** Returns true if [context] is an attempt of the run that created this Proven, under the proof's principal. */
+    internal fun belongsTo(context: InstantiationContext?): Boolean =
         context != null && context.run === run && context.principal == proof.principal
 
     val action: String get() = proof.action.name
@@ -61,10 +64,12 @@ class Proven<out PF : Proof<*, *, *>, M : Model<*, *>> private constructor(
     companion object {
 
         /**
-         * Binds [proof] to this attempt's params, for the principal they are built for. The first attempt spends it,
-         * so one proof binds one unit of work; a retry of the run that spent it binds it again. [PF] is the minter's
-         * own proof type: a guarded unit of work reads only the proofs of the type it declares. A composed child's
-         * params bind none: only the unit of work a caller runs reads a proof. A proof binds only a stored target.
+         * Wraps [proof] in a [Proven] for the params of this attempt. Call it in the params lambda of
+         * `UnitOfWorkExecutor.execute`, once per proof. [reload] loads the proof's target again; eva calls it on a
+         * retry only. Throws if the proof was issued for another principal than the one the unit of work runs under;
+         * if the proof's target is new or has unsaved changes; if the proof already ran another unit of work (a retry
+         * of the same run may wrap it again); or if it is called in the params of a child run with `execute` inside a
+         * block.
          */
         fun <PF : Proof<*, *, M>, M : Model<*, *>> InstantiationContext.proven(
             proof: PF,
@@ -85,17 +90,18 @@ class Proven<out PF : Proof<*, *, *>, M : Model<*, *>> private constructor(
             }
             val firstAttempt = attempt == 0
             if (firstAttempt) {
-                proof.spend(run)
+                proof.markUsedBy(run)
             } else {
-                check(proof.isSpentBy(run)) {
-                    "The proof for ${proof.action.name} was not bound in the first attempt of this run. Bind the " +
-                        "same proofs in every attempt. In a spec, build the first attempt's params before the retry's"
+                check(proof.isUsedBy(run)) {
+                    "The proof for ${proof.action.name} was not wrapped with proven(...) in the first attempt " +
+                        "of this run. Wrap the same proofs in every attempt. In a spec, build the first attempt's " +
+                        "params before the retry's"
                 }
             }
             return Proven(proof, firstAttempt, reload, run)
         }
 
-        /** A composed child's params take no proof, so this call does not compile. */
+        /** A composed child's params take no proof, so a call here is a compile error. */
         @Deprecated(
             "A composed child's params take no proof. Call proven(...) in the params lambda of the unit of work " +
                 "the caller runs, and write the guarded model there.",
@@ -108,7 +114,10 @@ class Proven<out PF : Proof<*, *, *>, M : Model<*, *>> private constructor(
         ): Nothing = error("proven(...) was called in the params of a composed child")
     }
 
-    /** Encode-only, as every params serializer is. An object: a params field needs no serializer per type argument. */
+    /**
+     * Writes the audit form of a [Proven]. It cannot decode, like every params serializer. It is an `object`, so a
+     * `Proven<PF, M>` field needs no serializer for `PF` or `M`.
+     */
     object Audit : KSerializer<Proven<*, *>> {
 
         override val descriptor: SerialDescriptor = buildClassSerialDescriptor("com.razz.eva.uow.guarded.Proven") {
@@ -122,6 +131,7 @@ class Proven<out PF : Proof<*, *, *>, M : Model<*, *>> private constructor(
         }
 
         override fun deserialize(decoder: Decoder): Proven<*, *> =
-            error("A Proven cannot be decoded: the application issues a proof, and it is never read from stored params")
+            error("A Proven cannot be decoded: the application issues a proof, and it is never read from stored " +
+                "params")
     }
 }

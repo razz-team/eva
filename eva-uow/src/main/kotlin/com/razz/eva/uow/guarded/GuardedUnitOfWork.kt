@@ -16,20 +16,22 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlin.reflect.KClass
 
 /**
- * A unit of work that writes a model its framework guards only under a proof of type [PF], the one its decider
- * mints: each such model is a [Proven] field of [PARAMS]. It is written like every other unit of work:
- * `override suspend fun tryPerform(principal, params) = changes { ... }`. The block reads a proven model with
- * `params.x.model()` and must update it or hold it with `notChanged`, so the version check makes the decision hold
- * at commit. Like every block it registers at least one change: one that registers none, as over an empty list of
- * proofs, fails with "No changes to persist".
+ * A unit of work that may write a guarded model only when its params carry a proof for it. The application says which
+ * models are guarded ([Guarding]) and issues the proofs; [PF] is its proof type and [P] the principal it runs under.
+ * Declare each guarded model the unit of work writes as a [Proven] field of [PARAMS]. Write the body as in every unit
+ * of work: `override suspend fun tryPerform(principal, params) = changes { ... }`. In that `changes` block
+ * `params.x.model()` returns the model, and the block must call `update` or `notChanged` on it, so the write fails if
+ * the stored model changed after the proof was issued. A block registers at least one change: one that registers none,
+ * for example over an empty `List<Proven>`, fails with "No changes to persist".
  */
 abstract class GuardedUnitOfWork<P, PF, PARAMS, RESULT>(
     private val executionContext: ExecutionContext,
     configuration: Configuration,
+    /** The model types that need a proof. One object for the whole application. */
     private val guarding: Guarding,
     /**
-     * The models the block updates as a plain unit of work does, without a proof: aggregates with no actions yet. A
-     * type [guarding] covers is refused here, so its models take a proof.
+     * The model types the block may `update` without a proof: models the application does not guard yet. The
+     * constructor throws if a model of one of them can be guarded.
      */
     val unguardedWrites: Set<KClass<out Model<*, *>>>,
 ) : BaseUnitOfWork<P, PARAMS, RESULT, GuardedChangesDsl<PF>>(executionContext, configuration)
@@ -46,26 +48,30 @@ abstract class GuardedUnitOfWork<P, PF, PARAMS, RESULT>(
         }
     }
 
-    /** The unit of work's own body: `= changes { ... }`. Only its `changes { }` builds what it returns. */
+    /** The body of the unit of work. Write it as `= changes { ... }`: nothing else creates a [GuardedChanges]. */
     abstract override suspend fun tryPerform(principal: P, params: PARAMS): GuardedChanges<RESULT>
 
-    // Answered on the models the failed attempt decided, never on a reload the failure path would make.
+    // onFailure gets the models the failed attempt read. It loads nothing again: no proof would allow a new read.
     final override suspend fun onFailure(params: PARAMS, ex: PersistenceException): RESULT =
         onFailure(FailedAttempt(label()), params, ex)
 
-    /** As [BaseUnitOfWork.onFailure], handed what the failed attempt decided: `decided[params.x]`. */
+    /**
+     * Called as [BaseUnitOfWork.onFailure] is, when the write failed and no retry is left. `attempt[params.x]`
+     * returns the model the failed attempt read from that field. The default rethrows [ex].
+     */
     open suspend fun onFailure(attempt: FailedAttempt, params: PARAMS, ex: PersistenceException): RESULT = throw ex
 
-    // The block runs over the composable DSL, so a child it executes merges by its rules, behind the guarded gates.
+    // The block registers its changes in a composable ChangesDsl, so a child run with execute merges as in any
+    // composable unit of work.
     final override suspend fun changes(init: suspend GuardedChangesDsl<PF>.() -> RESULT): GuardedChanges<RESULT> =
         Produced(
             ChangesDsl.changes(executionContext) {
                 val attempt = currentCoroutineContext()[InstantiationContext.Current]?.context
                 val dsl = GuardedChangesDsl<PF>(this, label(), unguardedWrites, guarding, attempt)
                 val result = dsl.init()
-                val unheld = dsl.decidedNotHeld()
-                check(unheld.isEmpty()) {
-                    "${label()} read ${unheld.map { it.stringValue() }} with model() and registered no change for " +
+                val unwritten = dsl.readNotWritten()
+                check(unwritten.isEmpty()) {
+                    "${label()} read ${unwritten.map { it.stringValue() }} with model() and registered no change for " +
                         "them. Call update(model) on each, or notChanged(model) to keep it as it is"
                 }
                 result

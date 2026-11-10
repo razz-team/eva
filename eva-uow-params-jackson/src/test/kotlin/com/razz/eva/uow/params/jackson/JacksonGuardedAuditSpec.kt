@@ -19,7 +19,7 @@ import com.razz.eva.uow.guarded.Proven.Companion.proven
 import io.kotest.core.spec.style.ShouldSpec
 import io.kotest.matchers.shouldBe
 
-/** A proof bound into params, through Jackson: the fields the kotlinx serializer writes, never the proof. */
+/** Jackson writes a Proven field as the kotlinx serializer does: its action and its model id. */
 class JacksonGuardedAuditSpec : ShouldSpec({
 
     val write = object : Action {
@@ -42,7 +42,7 @@ class JacksonGuardedAuditSpec : ShouldSpec({
         EmployeeId(), Name("Ada", "Lovelace"), randomDepartmentId(), "ada@test.com", BUBALEH, persistentState(V1, null),
     )
 
-    should("write each proof bound into params as its action and its model's id, never the proof") {
+    should("write each Proven field as its action and its model id, and nothing else of the proof") {
         val target = employee()
         val extra = employee()
         val params = initial(TestPrincipal).run {

@@ -4,7 +4,7 @@ import com.razz.eva.domain.Department
 import com.razz.eva.uow.ExecutionContext
 import com.razz.eva.uow.TestPrincipal
 
-/** A guarded unit of work with no proven field, declaring departments: [body] is its whole block. */
+/** A guarded unit of work with no Proven field that lists departments in unguardedWrites. [body] is its block. */
 internal class UnprovenUow(
     executionContext: ExecutionContext,
     private val body: suspend GuardedChangesDsl<TestProof<*>>.() -> Any,

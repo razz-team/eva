@@ -33,7 +33,7 @@ import io.mockk.mockk
 import io.opentelemetry.api.OpenTelemetry
 import java.time.Duration.ofMillis
 
-/** The kernel under the executor: a retry reloads and decides again, a failed write is answered on what it decided. */
+/** A guarded unit of work run by the executor: a retry reloads its model, and onFailure gets the model last read. */
 class GuardedExecutorSpec : FunSpec({
 
     val clock = fixedUTC(millisUTC().instant())
@@ -59,7 +59,7 @@ class GuardedExecutorSpec : FunSpec({
 
     beforeTest { clearMocks(repo) }
 
-    test("a stale first write retries on the reloaded model, which the proof decides again, and persists that one") {
+    test("a stale first write retries with the reloaded model, which the proof allows again, and persists that model") {
         val reloads = mutableListOf<Int>()
         coEvery { repo.update(any(), any<Employee>()) }
             .throws(StaleRecordException(setOf(employee.id()), "employee"))
@@ -101,7 +101,7 @@ class GuardedExecutorSpec : FunSpec({
         coVerify(exactly = 1) { repo.update(any(), any<Employee>()) }
     }
 
-    test("a write that stays stale is answered by onFailure on the model the last attempt decided") {
+    test("onFailure gets the model the last attempt read when the write stays stale") {
         coEvery { repo.update(any(), any<Employee>()) } throws StaleRecordException(setOf(employee.id()), "employee")
         val proof = proof(employee)
         val answered = uowx.execute(
@@ -112,7 +112,7 @@ class GuardedExecutorSpec : FunSpec({
         proof.decidedAgain shouldBe listOf(reloaded)
     }
 
-    test("one proof binds one unit of work: a second run on it is refused before anything is written") {
+    test("one proof runs one unit of work: a second run with it is refused before anything is written") {
         coEvery { repo.update(any(), any<Employee>()) } returns persisted
         val proof = proof(employee)
         uowx.execute(TestPrincipal, { MoveEmployeeUow(it, setOf(), away) }) {
@@ -127,12 +127,12 @@ class GuardedExecutorSpec : FunSpec({
         coVerify(exactly = 1) { repo.update(any(), any<Employee>()) }
     }
 
-    test("a retry binds only a proof its own run spent, and refuses one another committed run spent") {
+    test("a retry accepts only a proof the first attempt of its run used, and refuses one another run used") {
         val other = employee(department = home.id())
         val committed = proof(other)
         coEvery { repo.update(any(), any<Employee>()) } returns employee(id = other.id(), department = away.id())
         uowx.execute(TestPrincipal, { MoveEmployeeUow(it, setOf(), away) }) {
-            MoveEmployeeUow.Params(proven(committed) { other }, "spends it")
+            MoveEmployeeUow.Params(proven(committed) { other }, "uses it")
         }
         clearMocks(repo)
         coEvery { repo.update(any(), any<Employee>()) } throws StaleRecordException(setOf(employee.id()), "employee")
@@ -142,13 +142,14 @@ class GuardedExecutorSpec : FunSpec({
             uowx.execute(TestPrincipal, { MoveEmployeeUow(it, setOf(), away, retrying) }) {
                 MoveEmployeeUow.Params(proven(if (binds++ == 0) proof else committed) { other }, "switches")
             }
-        }.message shouldBe "The proof for test.write was not bound in the first attempt of this run. Bind the " +
-            "same proofs in every attempt. In a spec, build the first attempt's params before the retry's"
+        }.message shouldBe "The proof for test.write was not wrapped with proven(...) in the first attempt of " +
+            "this run. Wrap the same proofs in every attempt. In a spec, build the first attempt's params before " +
+            "the retry's"
         committed.decidedAgain shouldBe listOf()
         coVerify(exactly = 1) { repo.update(any(), any<Employee>()) }
     }
 
-    test("a proof minted for another principal than the run's is refused as the params bind it") {
+    test("a proof issued for another principal than the run's is refused when the params wrap it") {
         val proof = TestProof(OtherPrincipal, employee) { }
         shouldThrow<IllegalStateException> {
             uowx.execute(TestPrincipal, { MoveEmployeeUow(it, setOf(), away) }) {
@@ -159,7 +160,7 @@ class GuardedExecutorSpec : FunSpec({
         coVerify(exactly = 0) { repo.update(any(), any<Employee>()) }
     }
 
-    test("a retry handed the first attempt's Proven is refused before it writes again, and reloads nothing") {
+    test("a retry given the first attempt's Proven is refused before it writes again, and reloads nothing") {
         coEvery { repo.update(any(), any<Employee>()) } throws StaleRecordException(setOf(employee.id()), "employee")
         val proof = proof(employee)
         var bound: Proven<TestProof<Employee>, Employee>? = null
@@ -179,7 +180,7 @@ class GuardedExecutorSpec : FunSpec({
         shouldThrow<Refused> {
             uowx.execute(TestPrincipal, { MoveEmployeeUow(it, setOf(), away) }) {
                 leaked = proven(proof(employee)) { reloaded }
-                throw Refused("the params lambda fails after the bind")
+                throw Refused("the params lambda fails after it wraps the proof")
             }
         }
         val anyone = { ctx: ExecutionContext ->

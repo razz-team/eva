@@ -6,10 +6,11 @@ import com.razz.eva.uow.InstantiationContext
 import java.util.concurrent.atomic.AtomicReference
 
 /**
- * Evidence, minted by the framework's own decider, that [principal] may do [action] to [target] as it was when
- * decided. A unit of work's params carry it as a [Proven]. The kernel asks a proof two things: to decide again on
- * the model a retry loads ([decideAgain]), and to be spent, once, when the first attempt's params bind it; a retry
- * of that run binds it again. How a decision is made, reported or refused is the minter's; spending is the kernel's.
+ * The application's record that it allowed [principal] to do [action] to [target], as [target] was at that time.
+ * The application creates one where it checks permissions; eva never creates one. To use it, wrap it in a [Proven]
+ * with `proven(proof, reload)` in the params of a guarded unit of work. One proof runs one unit of work: the first
+ * attempt's params mark it as used, and only a retry of the same run can wrap it again. On a retry eva loads the
+ * model again and calls [decideAgain].
  */
 abstract class Proof<out P : Principal<*>, out A : Action, M : Model<*, *>> {
 
@@ -17,19 +18,25 @@ abstract class Proof<out P : Principal<*>, out A : Action, M : Model<*, *>> {
 
     abstract val action: A
 
-    /** The model the decision was about, as stored: what the first attempt writes. */
+    /**
+     * The model the action was allowed on. It must be the stored model, with no unsaved changes. The first attempt
+     * writes this model.
+     */
     abstract val target: M
 
-    /** Decides [action] for [principal] again on [reloaded], the target as a retry loaded it. Refuses by throwing. */
+    /**
+     * Called on a retry with [reloaded], the model as it is stored now. Check again that [principal] may do [action]
+     * to it, and throw if not.
+     */
     abstract suspend fun decideAgain(reloaded: M)
 
-    private val spentBy = AtomicReference<InstantiationContext.Run?>(null)
+    private val usedBy = AtomicReference<InstantiationContext.Run?>(null)
 
-    internal fun spend(run: InstantiationContext.Run) =
-        check(spentBy.compareAndSet(null, run)) {
+    internal fun markUsedBy(run: InstantiationContext.Run) =
+        check(usedBy.compareAndSet(null, run)) {
             "This proof for ${action.name} was already used to run a unit of work. One proof runs one unit of work: " +
                 "get a new proof for another run"
         }
 
-    internal fun isSpentBy(run: InstantiationContext.Run): Boolean = spentBy.get() === run
+    internal fun isUsedBy(run: InstantiationContext.Run): Boolean = usedBy.get() === run
 }

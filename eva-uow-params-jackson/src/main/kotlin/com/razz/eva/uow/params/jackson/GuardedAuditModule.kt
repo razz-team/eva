@@ -7,9 +7,9 @@ import com.fasterxml.jackson.databind.ser.std.StdSerializer
 import com.razz.eva.uow.guarded.Proven
 
 /**
- * A [Proven] in params as the kotlinx serializer writes it, `{"action", "target"}`: without it Jackson would write
- * the proof by its getters. It writes [Proven] only: a raw [com.razz.eva.uow.guarded.Proof] in params is written
- * unredacted.
+ * Makes Jackson write a [Proven] as the kotlinx serializer does, `{"action": ..., "target": ...}`. Without it Jackson
+ * writes the `targetId` getter under its own name. It handles [Proven] only: do not put a
+ * [com.razz.eva.uow.guarded.Proof] itself in params, Jackson would write all its properties.
  */
 internal object GuardedAuditModule : SimpleModule("eva-guarded-audit") {
 

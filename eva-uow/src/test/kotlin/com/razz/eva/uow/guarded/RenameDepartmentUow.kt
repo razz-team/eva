@@ -5,7 +5,7 @@ import com.razz.eva.uow.ExecutionContext
 import com.razz.eva.uow.TestPrincipal
 import com.razz.eva.uow.composable.UnitOfWork
 
-/** A plain composable child: renames a department, a model no proof guards. */
+/** A plain composable child: renames a department, a model that needs no proof. */
 internal class RenameDepartmentUow(
     executionContext: ExecutionContext,
     private val department: Department<*>,

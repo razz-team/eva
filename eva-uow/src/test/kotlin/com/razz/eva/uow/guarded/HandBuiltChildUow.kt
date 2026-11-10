@@ -7,7 +7,7 @@ import com.razz.eva.uow.ExecutionContext
 import com.razz.eva.uow.TestPrincipal
 import com.razz.eva.uow.composable.UnitOfWork
 
-/** A composable child that renames a department on changes it builds by hand, not over the context it is given. */
+/** A composable child that renames a department in changes it builds by hand, without the context it is given. */
 internal class HandBuiltChildUow(
     executionContext: ExecutionContext,
     private val department: Department<*>,

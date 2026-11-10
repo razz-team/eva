@@ -8,7 +8,7 @@ import com.razz.eva.uow.composable.UnitOfWork
 
 /**
  * Composes [child] before it moves its employee to [department]. With [swallowing] it catches the child's refusal
- * and goes on, so only its own write may land.
+ * and goes on, so only its own changes are written.
  */
 internal class ComposingGuardedUow<R : Any>(
     executionContext: ExecutionContext,

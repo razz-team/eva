@@ -17,8 +17,8 @@ object InstantiationContextFixtures {
         InstantiationContext(first.attempt + 1, first.principal, first.run)
 
     /**
-     * Runs [block] in the attempt of this context, as the executor runs `tryPerform`. A guarded block that [block]
-     * runs can then read the [com.razz.eva.uow.guarded.Proven] fields bound in this run.
+     * Runs [block] in the attempt of this context, as the executor runs `tryPerform`. A guarded unit of work that
+     * [block] runs can then read the [com.razz.eva.uow.guarded.Proven] fields of params built in this run.
      */
     suspend fun <T> InstantiationContext.inAttempt(block: suspend () -> T): T =
         withContext(InstantiationContext.Current(this)) { block() }

@@ -3,8 +3,8 @@ package com.razz.eva.uow.guarded
 import com.razz.eva.uow.Changes
 
 /**
- * What a guarded block returns. Sealed in this module: the one subclass is [GuardedUnitOfWork]'s own, beside its
- * `changes`, so a body that ends on `noChanges()`, a hand-built accumulator or another unit of work's `changes { }`
- * does not compile, anywhere.
+ * The return type of a guarded unit of work's `tryPerform`. Only the `changes { }` of [GuardedUnitOfWork] creates
+ * one. A body that returns `noChanges()`, changes built by hand, or the `changes { }` of a plain unit of work is a
+ * compile error.
  */
 sealed class GuardedChanges<R> : Changes<R>()

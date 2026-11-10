@@ -10,7 +10,7 @@ class FailedAttempt internal constructor(private val uowName: String) {
      * the params that `onFailure` received; a [Proven] from other params returns what the attempt that built those
      * params read.
      */
-    operator fun <M : Model<*, *>> get(proven: Proven<*, M>): M = checkNotNull(proven.decidedOrNull()) {
+    operator fun <M : Model<*, *>> get(proven: Proven<*, M>): M = checkNotNull(proven.readOrNull()) {
         "$uowName: onFailure asked for ${proven.targetId}, and the failed attempt did not read that model with " +
             "model(). Ask only for a Proven the block reads on every path"
     }
