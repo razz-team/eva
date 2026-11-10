@@ -42,7 +42,8 @@ class ProvenSpec : FunSpec({
         val other = employee(department = employee.departmentId)
         shouldThrow<IllegalStateException> { retry.proven(proof) { other }.decided() }
             .message shouldBe
-            "The reload answered ${other.id().stringValue()} for the proof's ${employee.id().stringValue()}"
+            "The reload of a Proven returned ${other.id().stringValue()}, and its proof is for " +
+            "${employee.id().stringValue()}. The reload must load the proof's target by its id"
         proof.decidedAgain shouldBe listOf()
     }
 
@@ -50,7 +51,8 @@ class ProvenSpec : FunSpec({
         val proof = proof(employee)
         first.proven(proof) { reloaded }
         shouldThrow<IllegalStateException> { first.proven(proof) { reloaded } }
-            .message shouldBe "A proof for test.write is spent once, and this one was"
+            .message shouldBe "This proof for test.write was already used to run a unit of work. One proof runs " +
+            "one unit of work: get a new proof for another run"
     }
 
     test("spends a proof as the params bind it, whether or not the block reads it") {

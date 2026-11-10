@@ -74,6 +74,6 @@ internal class MoveEmployeeUow(
         }
     }
 
-    override suspend fun onFailure(decided: Decided, params: Params, ex: PersistenceException): Employee =
-        if (answering) decided[params.employee] else throw ex
+    override suspend fun onFailure(attempt: FailedAttempt, params: Params, ex: PersistenceException): Employee =
+        if (answering) attempt[params.employee] else throw ex
 }

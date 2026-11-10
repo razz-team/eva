@@ -205,8 +205,9 @@ class ChangesDsl internal constructor(
                 droppedModelIds.takeIf { it.isNotEmpty() }?.let { ids -> "models ${ids.map { it.stringValue() }}" },
                 "entity changes".takeUnless { keepsEntityChanges },
             )
-            "Composed unit of work [$uowName] dropped ${dropped.joinToString(" and ")} its parent had registered. " +
-                "Build its changes with changes { } over the ExecutionContext its factory is given."
+            "Composed unit of work [$uowName] returned changes without ${dropped.joinToString(" and ")} that its " +
+                "parent had registered. Build the child's changes with changes { }, in a unit of work created with " +
+                "the ExecutionContext its factory receives."
         }
     }
 

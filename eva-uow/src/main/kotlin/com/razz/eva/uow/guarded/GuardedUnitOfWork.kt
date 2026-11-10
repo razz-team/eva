@@ -39,10 +39,10 @@ abstract class GuardedUnitOfWork<P, PF, PARAMS, RESULT>(
           RESULT : Any {
 
     init {
-        val covered = unguardedWrites.filter(guarding::canBeGuarded)
-        require(covered.isEmpty()) {
-            "${name()} writes ${covered.joinToString { it.simpleName.orEmpty() }} without a proof, " +
-                "and that reaches a guarded model"
+        val guarded = unguardedWrites.filter(guarding::canBeGuarded)
+        require(guarded.isEmpty()) {
+            "${label()} lists ${guarded.map { it.simpleName }} in unguardedWrites, and a model of each can be " +
+                "guarded. Remove them, and write such models through Proven fields"
         }
     }
 
@@ -51,26 +51,28 @@ abstract class GuardedUnitOfWork<P, PF, PARAMS, RESULT>(
 
     // Answered on the models the failed attempt decided, never on a reload the failure path would make.
     final override suspend fun onFailure(params: PARAMS, ex: PersistenceException): RESULT =
-        onFailure(Decided(name()), params, ex)
+        onFailure(FailedAttempt(label()), params, ex)
 
     /** As [BaseUnitOfWork.onFailure], handed what the failed attempt decided: `decided[params.x]`. */
-    open suspend fun onFailure(decided: Decided, params: PARAMS, ex: PersistenceException): RESULT = throw ex
+    open suspend fun onFailure(attempt: FailedAttempt, params: PARAMS, ex: PersistenceException): RESULT = throw ex
 
     // The block runs over the composable DSL, so a child it executes merges by its rules, behind the guarded gates.
     final override suspend fun changes(init: suspend GuardedChangesDsl<PF>.() -> RESULT): GuardedChanges<RESULT> =
         Produced(
             ChangesDsl.changes(executionContext) {
                 val attempt = currentCoroutineContext()[InstantiationContext.Current]?.context
-                val dsl = GuardedChangesDsl<PF>(this, unguardedWrites, guarding, attempt)
+                val dsl = GuardedChangesDsl<PF>(this, label(), unguardedWrites, guarding, attempt)
                 val result = dsl.init()
                 val unheld = dsl.decidedNotHeld()
                 check(unheld.isEmpty()) {
-                    "${name()} decided ${unheld.map { it.stringValue() }} and wrote nothing on them: " +
-                        "update each, or hold it with notChanged"
+                    "${label()} read ${unheld.map { it.stringValue() }} with model() and registered no change for " +
+                        "them. Call update(model) on each, or notChanged(model) to keep it as it is"
                 }
                 result
             },
         )
+
+    private fun label() = name().ifEmpty { "A guarded unit of work" }
 
     private class Produced<R>(private val changes: Changes<R>) : GuardedChanges<R>() {
         override val result: R get() = changes.result

@@ -26,7 +26,10 @@ abstract class Proof<out P : Principal<*>, out A : Action, M : Model<*, *>> {
     private val spentBy = AtomicReference<InstantiationContext.Run?>(null)
 
     internal fun spend(run: InstantiationContext.Run) =
-        check(spentBy.compareAndSet(null, run)) { "A proof for ${action.name} is spent once, and this one was" }
+        check(spentBy.compareAndSet(null, run)) {
+            "This proof for ${action.name} was already used to run a unit of work. One proof runs one unit of work: " +
+                "get a new proof for another run"
+        }
 
     internal fun isSpentBy(run: InstantiationContext.Run): Boolean = spentBy.get() === run
 }

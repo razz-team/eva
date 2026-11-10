@@ -43,7 +43,8 @@ class Proven<out PF : Proof<*, *, *>, M : Model<*, *>> private constructor(
     private suspend fun reloaded(): M {
         val model = reload()
         check(model.id() == proof.target.id()) {
-            "The reload answered ${model.id().stringValue()} for the proof's ${proof.target.id().stringValue()}"
+            "The reload of a Proven returned ${model.id().stringValue()}, and its proof is for " +
+                "${proof.target.id().stringValue()}. The reload must load the proof's target by its id"
         }
         proof.decideAgain(model)
         return model
@@ -70,25 +71,41 @@ class Proven<out PF : Proof<*, *, *>, M : Model<*, *>> private constructor(
             reload: suspend () -> M,
         ): Proven<PF, M> {
             check(this !is InstantiationContext.Internal) {
-                "A proof binds in the params a caller builds for a unit of work, not in a composed child's"
+                "proven(...) was called in the params of a composed child. A child takes no proof: call " +
+                    "proven(...) in the params lambda of the unit of work the caller runs, and write the guarded " +
+                    "model there"
             }
             check(proof.principal == principal) {
-                "A proof for ${proof.action.name} on ${proof.target.id().stringValue()} " +
-                    "was minted for another principal"
+                "The proof for ${proof.action.name} on ${proof.target.id().stringValue()} was issued for another " +
+                    "principal than the one this unit of work runs under. Run it under the proof's principal"
             }
             require(proof.target.isPersisted()) {
-                "A proof binds a stored model, and ${proof.target.id().stringValue()} is not stored"
+                "The proof for ${proof.action.name} is on ${proof.target.id().stringValue()}, which is new or has " +
+                    "unsaved changes. Get the proof on the model as it was loaded"
             }
             val firstAttempt = attempt == 0
             if (firstAttempt) {
                 proof.spend(run)
             } else {
                 check(proof.isSpentBy(run)) {
-                    "A proof for ${proof.action.name} binds a retry only of the run that spent it"
+                    "The proof for ${proof.action.name} was not bound in the first attempt of this run. Bind the " +
+                        "same proofs in every attempt. In a spec, build the first attempt's params before the retry's"
                 }
             }
             return Proven(proof, firstAttempt, reload, run)
         }
+
+        /** A composed child's params take no proof, so this call does not compile. */
+        @Deprecated(
+            "A composed child's params take no proof. Call proven(...) in the params lambda of the unit of work " +
+                "the caller runs, and write the guarded model there.",
+            level = DeprecationLevel.ERROR,
+        )
+        @Suppress("UnusedParameter")
+        fun <PF : Proof<*, *, M>, M : Model<*, *>> InstantiationContext.Internal.proven(
+            proof: PF,
+            reload: suspend () -> M,
+        ): Nothing = error("proven(...) was called in the params of a composed child")
     }
 
     /** Encode-only, as every params serializer is. An object: a params field needs no serializer per type argument. */
@@ -105,6 +122,6 @@ class Proven<out PF : Proof<*, *, *>, M : Model<*, *>> private constructor(
         }
 
         override fun deserialize(decoder: Decoder): Proven<*, *> =
-            error("A proof is minted by the framework's decider, never read back")
+            error("A Proven cannot be decoded: the application issues a proof, and it is never read from stored params")
     }
 }

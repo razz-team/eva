@@ -25,6 +25,7 @@ import kotlin.reflect.KClass
  */
 class GuardedChangesDsl<PF : Proof<*, *, *>> internal constructor(
     private val dsl: ChangesDsl,
+    private val uowName: String,
     private val unguarded: Set<KClass<out Model<*, *>>>,
     private val guarding: Guarding,
     private val attempt: InstantiationContext?,
@@ -47,8 +48,9 @@ class GuardedChangesDsl<PF : Proof<*, *, *>> internal constructor(
         where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
         val isDecided = checkDecidedVersion(model)
         check(isDecided || unguarded.any { it.isInstance(model) }) {
-            "A guarded unit of work updates only a model a proof decided in its block or a declared type, " +
-                "and ${model.id().stringValue()} is neither"
+            "$uowName may not update ${model.id().stringValue()}: the block did not read it from a Proven with " +
+                "model(), and ${model::class.simpleName} is not in unguardedWrites. Read it with params.x.model(), " +
+                "or list its type in unguardedWrites"
         }
         checkOwnedModels(model)
         dsl.update(model)
@@ -63,18 +65,21 @@ class GuardedChangesDsl<PF : Proof<*, *, *>> internal constructor(
      */
     suspend fun <M : Model<*, *>> Proven<PF, M>.model(): M {
         check(isBoundIn(attempt)) {
-            "The Proven for $targetId was bound in another run, or for another principal than this one runs under"
+            "$uowName cannot read the Proven for $targetId: its params were built in another run, or for another " +
+                "principal. Build them in the params lambda of the execute call that runs this unit of work. In a " +
+                "spec, call tryPerform inside inAttempt(context), with the context that built the params"
         }
         decidedOrNull()?.let { earlier ->
             check(decided[earlier.id()] === this) {
-                "A proven model is read in the block of the attempt that bound it, " +
-                    "and ${earlier.id().stringValue()} was read before"
+                "$uowName: another block already read the Proven for ${earlier.id().stringValue()}. Build the " +
+                    "params in the params lambda for each attempt, and do not keep a Proven between attempts or runs"
             }
         }
         val model = decided()
         val earlier = decided.putIfAbsent(model.id(), this)
         check(earlier == null || earlier === this) {
-            "A block decides ${model.id().stringValue()} once, and two proofs decided it"
+            "$uowName: two Proven fields hold ${model.id().stringValue()}. A block reads a model through one " +
+                "proof only: pass it once"
         }
         return model
     }
@@ -111,8 +116,9 @@ class GuardedChangesDsl<PF : Proof<*, *, *>> internal constructor(
         if (covered.isEmpty()) return dsl.take(run)
         val refused = run.modelsNotHeldBySeed(covered)
         check(refused.isEmpty()) {
-            "Composed unit of work [${run.uowName}] wrote ${refused.map { it.id().stringValue() }}, " +
-                "which its parent refuses"
+            "$uowName refuses composed unit of work [${run.uowName}]: it registered " +
+                "${refused.map { it.id().stringValue() }}, models that need a proof. A child may not add, update or " +
+                "keep one with notChanged: write it in $uowName, through a Proven field"
         }
         return dsl.take(run)
     }
@@ -121,8 +127,8 @@ class GuardedChangesDsl<PF : Proof<*, *, *>> internal constructor(
     private fun checkDecidedVersion(model: Model<*, *>): Boolean {
         val decision = decided[model.id()]?.decidedOrNull() ?: return false
         check(model.version() == decision.version()) {
-            "${model.id().stringValue()} was decided at version ${decision.version().version}, " +
-                "and the block writes it at ${model.version().version}"
+            "$uowName registers ${model.id().stringValue()} at version ${model.version().version}, and model() " +
+                "returned it at version ${decision.version().version}. Change the model that model() returned"
         }
         return true
     }
@@ -134,8 +140,9 @@ class GuardedChangesDsl<PF : Proof<*, *, *>> internal constructor(
             .filter { it is UpdateModel<*, *, *> && guarding.canBeGuarded(it.model::class) }
             .forEach { owned ->
                 check(checkDecidedVersion(owned.model)) {
-                    "${model.id().stringValue()} owns ${owned.id.stringValue()}, which changed, " +
-                        "and the block did not read that model with model()"
+                    "$uowName registers ${model.id().stringValue()}, which owns the changed model " +
+                        "${owned.id.stringValue()}, and the block did not read that model with model(). Read it " +
+                        "through its Proven field, and put the model that model() returned into the aggregate"
                 }
                 held += owned.id
             }

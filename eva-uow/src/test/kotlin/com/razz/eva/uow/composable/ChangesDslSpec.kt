@@ -45,6 +45,10 @@ import java.time.LocalDate
 
 class ChangesDslSpec : FunSpec({
 
+    fun dropped(uow: String, what: String) = "Composed unit of work [$uow] returned changes without $what that " +
+        "its parent had registered. Build the child's changes with changes { }, in a unit of work created with the " +
+        "ExecutionContext its factory receives."
+
     val now = millisUTC().instant()
     val clock = fixedUTC(now)
     val executionContext = ExecutionContext(clock, OpenTelemetry.noop())
@@ -104,8 +108,7 @@ class ChangesDslSpec : FunSpec({
         }
 
         shouldThrow<IllegalStateException> { uow.tryPerform(TestPrincipal, DummyUow.Params) }
-            .message shouldBe "Composed unit of work [HandBuilt] dropped models [${own.id().stringValue()}] its " +
-            "parent had registered. Build its changes with changes { } over the ExecutionContext its factory is given."
+            .message shouldBe dropped("HandBuilt", "models [${own.id().stringValue()}]")
     }
 
     test("execute refuses a composed child built over a captured context instead of the one it is given") {
@@ -130,9 +133,8 @@ class ChangesDslSpec : FunSpec({
         }
 
         shouldThrow<IllegalStateException> { uow.tryPerform(TestPrincipal, DummyUow.Params) }
-            .message shouldBe "Composed unit of work [Captured] dropped models " +
-            "[${own.id().stringValue()}, ${existing.id().stringValue()}] its parent had registered. " +
-            "Build its changes with changes { } over the ExecutionContext its factory is given."
+            .message shouldBe
+            dropped("Captured", "models [${own.id().stringValue()}, ${existing.id().stringValue()}]")
     }
 
     test("execute refuses a composed child that registers its parent's model without the parent's events") {
@@ -154,9 +156,7 @@ class ChangesDslSpec : FunSpec({
         }
 
         shouldThrow<IllegalStateException> { uow.tryPerform(TestPrincipal, DummyUow.Params) }
-            .message shouldBe "Composed unit of work [Captured] dropped models [${existing.id().stringValue()}] " +
-            "its parent had registered. Build its changes with changes { } over the ExecutionContext its factory " +
-            "is given."
+            .message shouldBe dropped("Captured", "models [${existing.id().stringValue()}]")
     }
 
     test("execute refuses a composed child that holds its parent's updated model as unchanged") {
@@ -177,9 +177,7 @@ class ChangesDslSpec : FunSpec({
         }
 
         shouldThrow<IllegalStateException> { uow.tryPerform(TestPrincipal, DummyUow.Params) }
-            .message shouldBe "Composed unit of work [HandBuilt] dropped models [${existing.id().stringValue()}] " +
-            "its parent had registered. Build its changes with changes { } over the ExecutionContext its factory " +
-            "is given."
+            .message shouldBe dropped("HandBuilt", "models [${existing.id().stringValue()}]")
     }
 
     test("execute refuses a composed child that drops the entity changes its parent had registered") {
@@ -200,8 +198,7 @@ class ChangesDslSpec : FunSpec({
         }
 
         shouldThrow<IllegalStateException> { uow.tryPerform(TestPrincipal, DummyUow.Params) }
-            .message shouldBe "Composed unit of work [HandBuilt] dropped entity changes its parent had registered. " +
-            "Build its changes with changes { } over the ExecutionContext its factory is given."
+            .message shouldBe dropped("HandBuilt", "entity changes")
     }
 
     test("execute refuses a composed child that replaces its parent's entity changes with as many others") {
@@ -223,8 +220,7 @@ class ChangesDslSpec : FunSpec({
         }
 
         shouldThrow<IllegalStateException> { uow.tryPerform(TestPrincipal, DummyUow.Params) }
-            .message shouldBe "Composed unit of work [HandBuilt] dropped entity changes its parent had registered. " +
-            "Build its changes with changes { } over the ExecutionContext its factory is given."
+            .message shouldBe dropped("HandBuilt", "entity changes")
     }
 
     test("execute refuses a composed child that hands back an equal but distinct copy of its parent's entity changes") {
@@ -246,8 +242,7 @@ class ChangesDslSpec : FunSpec({
         }
 
         shouldThrow<IllegalStateException> { uow.tryPerform(TestPrincipal, DummyUow.Params) }
-            .message shouldBe "Composed unit of work [HandBuilt] dropped entity changes its parent had registered. " +
-            "Build its changes with changes { } over the ExecutionContext its factory is given."
+            .message shouldBe dropped("HandBuilt", "entity changes")
     }
 
     test("""

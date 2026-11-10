@@ -62,7 +62,7 @@ class JacksonGuardedAuditSpec : ShouldSpec({
         val mine = jacksonObjectMapper()
         JacksonParamsSerializer(mine)
         val proven = initial(TestPrincipal).run { proven(Allowed(target, write)) { target } }
-        mine.writeValueAsString(proven) shouldBe
-            """{"action":"test.write","targetId":"${target.id().stringValue()}"}"""
+        mine.readTree(mine.writeValueAsString(proven)) shouldBe
+            mine.readTree("""{"action":"test.write","targetId":"${target.id().stringValue()}"}""")
     }
 })
