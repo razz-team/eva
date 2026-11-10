@@ -33,7 +33,7 @@ class ProvenSpec : FunSpec({
         val proven = retry.proven(proof) { reloaded }
         proven.read() shouldBeSameInstanceAs reloaded
         proven.read() shouldBeSameInstanceAs reloaded
-        proof.decidedAgain shouldBe listOf(reloaded)
+        proof.checkedAgain shouldBe listOf(reloaded)
     }
 
     test("refuses a retry whose reload returns another model, and does not ask the proof") {
@@ -44,7 +44,7 @@ class ProvenSpec : FunSpec({
             .message shouldBe
             "The reload of a Proven returned ${other.id().stringValue()}, and its proof is for " +
             "${employee.id().stringValue()}. The reload must load the proof's target by its id"
-        proof.decidedAgain shouldBe listOf()
+        proof.checkedAgain shouldBe listOf()
     }
 
     test("marks a proof as used once, so two params fields cannot carry one proof") {
@@ -59,7 +59,7 @@ class ProvenSpec : FunSpec({
         val proof = proof(employee)
         first.proven(proof) { reloaded }
         retry.proven(proof) { reloaded }
-        proof.decidedAgain shouldBe listOf()
+        proof.checkedAgain shouldBe listOf()
     }
 
     test("writes its action and its model's id for the audit row, and nothing else") {

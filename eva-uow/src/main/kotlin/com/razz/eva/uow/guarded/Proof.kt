@@ -10,7 +10,7 @@ import java.util.concurrent.atomic.AtomicReference
  * The application creates one where it checks permissions; eva never creates one. To use it, wrap it in a [Proven]
  * with `proven(proof, reload)` in the params of a guarded unit of work. One proof runs one unit of work: the first
  * attempt's params mark it as used, and only a retry of the same run can wrap it again. On a retry eva loads the
- * model again and calls [decideAgain].
+ * model again and calls [checkAgain].
  */
 abstract class Proof<out P : Principal<*>, out A : Action, M : Model<*, *>> {
 
@@ -28,7 +28,7 @@ abstract class Proof<out P : Principal<*>, out A : Action, M : Model<*, *>> {
      * Called on a retry with [reloaded], the model as it is stored now. Check again that [principal] may do [action]
      * to it, and throw if not.
      */
-    abstract suspend fun decideAgain(reloaded: M)
+    abstract suspend fun checkAgain(reloaded: M)
 
     private val usedBy = AtomicReference<InstantiationContext.Run?>(null)
 

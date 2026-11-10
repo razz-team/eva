@@ -9,7 +9,7 @@ import com.razz.eva.uow.guarded.Proven
 /**
  * Makes Jackson write a [Proven] as the kotlinx serializer does, `{"action": ..., "target": ...}`. Without it Jackson
  * writes the `targetId` getter under its own name. It handles [Proven] only: do not put a
- * [com.razz.eva.uow.guarded.Proof] itself in params, Jackson would write all its properties.
+ * [com.razz.eva.uow.guarded.Proof] itself in params, because Jackson would write all its properties.
  */
 internal object GuardedAuditModule : SimpleModule("eva-guarded-audit") {
 

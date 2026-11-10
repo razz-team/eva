@@ -22,9 +22,8 @@ import kotlinx.serialization.encoding.encodeStructure
 @Serializable(with = Proven.Audit::class)
 class Proven<out PF : Proof<*, *, *>, M : Model<*, *>> private constructor(
     private val proof: Proof<*, *, M>,
-    private val firstAttempt: Boolean,
     private val reload: suspend () -> M,
-    private val run: InstantiationContext.Run,
+    private val context: InstantiationContext,
 ) {
 
     private var readModel: M? = null
@@ -35,7 +34,7 @@ class Proven<out PF : Proof<*, *, *>, M : Model<*, *>> private constructor(
      */
     internal suspend fun read(): M {
         readModel?.let { return it }
-        val model = if (firstAttempt) proof.target else reloaded()
+        val model = if (context.attempt == 0) proof.target else reloaded()
         readModel = model
         return model
     }
@@ -49,13 +48,12 @@ class Proven<out PF : Proof<*, *, *>, M : Model<*, *>> private constructor(
             "The reload of a Proven returned ${model.id().stringValue()}, and its proof is for " +
                 "${proof.target.id().stringValue()}. The reload must load the proof's target by its id"
         }
-        proof.decideAgain(model)
+        proof.checkAgain(model)
         return model
     }
 
-    /** Returns true if [context] is an attempt of the run that created this Proven, under the proof's principal. */
-    internal fun belongsTo(context: InstantiationContext?): Boolean =
-        context != null && context.run === run && context.principal == proof.principal
+    /** Returns true if [attempt] is the attempt whose params lambda created this Proven. */
+    internal fun belongsTo(attempt: InstantiationContext?): Boolean = attempt === context
 
     val action: String get() = proof.action.name
 
@@ -88,8 +86,7 @@ class Proven<out PF : Proof<*, *, *>, M : Model<*, *>> private constructor(
                 "The proof for ${proof.action.name} is on ${proof.target.id().stringValue()}, which is new or has " +
                     "unsaved changes. Get the proof on the model as it was loaded"
             }
-            val firstAttempt = attempt == 0
-            if (firstAttempt) {
+            if (attempt == 0) {
                 proof.markUsedBy(run)
             } else {
                 check(proof.isUsedBy(run)) {
@@ -98,7 +95,7 @@ class Proven<out PF : Proof<*, *, *>, M : Model<*, *>> private constructor(
                         "params before the retry's"
                 }
             }
-            return Proven(proof, firstAttempt, reload, run)
+            return Proven(proof, reload, this)
         }
 
         /** A composed child's params take no proof, so a call here is a compile error. */

@@ -4,9 +4,9 @@ import com.razz.eva.domain.Model
 import kotlin.reflect.KClass
 
 /**
- * The model types that need a [Proof]. The application has one, over the models it issues proofs for. A guarded
- * block writes a model of these [types], or of a subtype of one, only through a [Proven]. It refuses a composed child
- * that registers such a model, and a guarded unit of work cannot list such a type in `unguardedWrites`.
+ * The model types that need a [Proof]. The application creates one, from the model types it issues proofs for. A
+ * guarded block writes a model of these [types], or of a subtype of one, only through a [Proven]. It refuses a composed
+ * child that registers such a model, and a guarded unit of work cannot list such a type in `unguardedWrites`.
  */
 class Guarding(vararg types: KClass<out Model<*, *>>) {
 

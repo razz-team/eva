@@ -69,7 +69,7 @@ class GuardedExecutorSpec : FunSpec({
             MoveEmployeeUow.Params(proven(proof) { reloads += attempt; reloaded }, "moves")
         }
         reloads shouldBe listOf(1)
-        proof.decidedAgain shouldBe listOf(reloaded)
+        proof.checkedAgain shouldBe listOf(reloaded)
         result shouldBe persisted
         coVerify(exactly = 2) { repo.update(any(), any<Employee>()) }
     }
@@ -109,7 +109,7 @@ class GuardedExecutorSpec : FunSpec({
             { MoveEmployeeUow(it, setOf(), away, retrying, answering = true) },
         ) { MoveEmployeeUow.Params(proven(proof) { reloaded }, "moves") }
         answered shouldBe reloaded
-        proof.decidedAgain shouldBe listOf(reloaded)
+        proof.checkedAgain shouldBe listOf(reloaded)
     }
 
     test("one proof runs one unit of work: a second run with it is refused before anything is written") {
@@ -145,7 +145,7 @@ class GuardedExecutorSpec : FunSpec({
         }.message shouldBe "The proof for test.write was not wrapped with proven(...) in the first attempt of " +
             "this run. Wrap the same proofs in every attempt. In a spec, build the first attempt's params before " +
             "the retry's"
-        committed.decidedAgain shouldBe listOf()
+        committed.checkedAgain shouldBe listOf()
         coVerify(exactly = 1) { repo.update(any(), any<Employee>()) }
     }
 
@@ -168,10 +168,11 @@ class GuardedExecutorSpec : FunSpec({
             uowx.execute(TestPrincipal, { MoveEmployeeUow(it, setOf(), away, retrying) }) {
                 MoveEmployeeUow.Params(bound ?: proven(proof) { reloaded }.also { bound = it }, "moves")
             }
-        }.message shouldBe "MoveEmployeeUow: another block already read the Proven for " +
-            "${employee.id().stringValue()}. Build the params in the params lambda for each attempt, and do not keep " +
-            "a Proven between attempts or runs"
-        proof.decidedAgain shouldBe listOf()
+        }.message shouldBe "MoveEmployeeUow cannot read the Proven for ${employee.id().stringValue()}: its params " +
+            "were built in another attempt or another run. Build them in the params lambda of the execute call that " +
+            "runs this unit of work. In a spec, call tryPerform inside inAttempt(context), with the context that " +
+            "built the params"
+        proof.checkedAgain shouldBe listOf()
         coVerify(exactly = 1) { repo.update(any(), any<Employee>()) }
     }
 
@@ -194,7 +195,7 @@ class GuardedExecutorSpec : FunSpec({
         shouldThrow<IllegalStateException> {
             uowx.execute(OtherPrincipal, anyone) { EmployeeParams(checkNotNull(leaked)) }
         }.message shouldBe "A guarded unit of work cannot read the Proven for ${employee.id().stringValue()}: " +
-            "its params were built in another run, or for another principal. Build them in the params lambda of the " +
+            "its params were built in another attempt or another run. Build them in the params lambda of the " +
             "execute call that runs this unit of work. In a spec, call tryPerform inside inAttempt(context), with " +
             "the context that built the params"
         coVerify(exactly = 0) { repo.update(any(), any<Employee>()) }

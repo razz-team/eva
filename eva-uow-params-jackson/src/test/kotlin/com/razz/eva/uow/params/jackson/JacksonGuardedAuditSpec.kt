@@ -29,7 +29,7 @@ class JacksonGuardedAuditSpec : ShouldSpec({
     class Allowed(override val target: Employee, write: Action) : Proof<Principal<*>, Action, Employee>() {
         override val principal = TestPrincipal
         override val action = write
-        override suspend fun decideAgain(reloaded: Employee) = Unit
+        override suspend fun checkAgain(reloaded: Employee) = Unit
     }
 
     data class Params(

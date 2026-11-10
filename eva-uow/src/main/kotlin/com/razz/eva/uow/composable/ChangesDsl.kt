@@ -33,6 +33,10 @@ class ChangesDsl internal constructor(
 
     private fun <R> withResult(result: R): Changes<R> = changes.withResult(result, resultBuilder)
 
+    /** The ids of the models this block's changes hold now, the models that registered aggregates own included. */
+    internal fun registeredModelIds(): Set<ModelId<out Comparable<*>>> =
+        changes.flattenChildModels().mapTo(mutableSetOf()) { it.id }
+
     /**
      * Builds the UoW result via [p], which resolves each model to its change-set instance by id. Top-level
      * execution reruns this over the persisted (flushed) set, so the result carries DB-roundtripped models,

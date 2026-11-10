@@ -33,12 +33,11 @@ class GuardedChangesDsl<PF : Proof<*, *, *>> internal constructor(
     private val attempt: InstantiationContext?,
 ) {
 
-    // Each attempt runs a new block, so both start empty on a retry.
+    // Each attempt runs a new block, so it starts empty on a retry.
     private val read = mutableMapOf<ModelId<*>, Proven<*, *>>()
-    private val written = mutableSetOf<ModelId<*>>()
 
-    /** The ids of the models the block read with [model] and registered with neither `update` nor `notChanged`. */
-    internal fun readNotWritten(): List<ModelId<*>> = read.keys.filterNot { it in written }
+    /** The ids of the models the block read with [model] and its changes do not hold, directly or in an aggregate. */
+    internal fun readNotWritten(): List<ModelId<*>> = (read.keys - dsl.registeredModelIds()).toList()
 
     fun <MID, E, M> add(model: M): M
         where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
@@ -50,13 +49,16 @@ class GuardedChangesDsl<PF : Proof<*, *, *>> internal constructor(
         where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
         val wasRead = checkReadVersion(model)
         check(wasRead || unguarded.any { it.isInstance(model) }) {
+            val remedy = if (guarding.canBeGuarded(model::class)) {
+                "Read it with params.x.model()"
+            } else {
+                "Read it with params.x.model(), or list its type in unguardedWrites"
+            }
             "$uowName may not update ${model.id().stringValue()}: the block did not read it from a Proven with " +
-                "model(), and ${model::class.simpleName} is not in unguardedWrites. Read it with params.x.model(), " +
-                "or list its type in unguardedWrites"
+                "model(), and ${model::class.simpleName} is not in unguardedWrites. $remedy"
         }
         checkOwnedModels(model)
         dsl.update(model)
-        if (wasRead) written += model.id()
         return model
     }
 
@@ -64,13 +66,13 @@ class GuardedChangesDsl<PF : Proof<*, *, *>> internal constructor(
      * Returns the model this attempt may write. On the first attempt it is the model the proof was issued for. On a
      * retry it is the model the reload returns, after the proof allowed the action on it again; a refusal throws
      * here. After this call `update` accepts the model, in this block only. The block must call `update` or
-     * `notChanged` on it, or the block fails. A [Proven] from params built in another run, or that another block has
-     * read, is refused: build the params anew for each attempt.
+     * `notChanged` on it, or the block fails. A [Proven] from params built in another attempt or another run, or that
+     * another block has read, is refused: build the params anew for each attempt.
      */
     suspend fun <M : Model<*, *>> Proven<PF, M>.model(): M {
         check(belongsTo(attempt)) {
-            "$uowName cannot read the Proven for $targetId: its params were built in another run, or for another " +
-                "principal. Build them in the params lambda of the execute call that runs this unit of work. In a " +
+            "$uowName cannot read the Proven for $targetId: its params were built in another attempt or another " +
+                "run. Build them in the params lambda of the execute call that runs this unit of work. In a " +
                 "spec, call tryPerform inside inAttempt(context), with the context that built the params"
         }
         readOrNull()?.let { earlier ->
@@ -90,10 +92,9 @@ class GuardedChangesDsl<PF : Proof<*, *, *>> internal constructor(
 
     fun <MID, E, M> notChanged(model: M): M
         where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
-        val wasRead = checkReadVersion(model)
+        checkReadVersion(model)
         checkOwnedModels(model)
         dsl.notChanged(model)
-        if (wasRead) written += model.id()
         return model
     }
 
@@ -143,7 +144,7 @@ class GuardedChangesDsl<PF : Proof<*, *, *>> internal constructor(
     }
 
     // Registering an aggregate registers the models it owns. A changed one of a guarded type must have been read
-    // with model() at that version, and then counts as written. A new one is allowed, as add allows every new model.
+    // with model() at that version. A new one is allowed, as add allows every new model.
     private fun checkOwnedModels(model: Model<*, *>) {
         ChangesAccumulator.ownedChangesOf(model)
             .filter { it is UpdateModel<*, *, *> && guarding.canBeGuarded(it.model::class) }
@@ -153,15 +154,14 @@ class GuardedChangesDsl<PF : Proof<*, *, *>> internal constructor(
                         "${owned.id.stringValue()}, and the block did not read that model with model(). Read it " +
                         "through its Proven field, and put the model that model() returned into the aggregate"
                 }
-                written += owned.id
             }
     }
 
     // The guarded models the child registered itself: those that are not the same instances the block had registered
-    // before the child ran. Models an aggregate owns count as the block's. Per id the last change, as the merge keeps.
+    // before the child ran. Models an aggregate owns count as the block's.
     private fun ChildRun<*>.registeredByChild(guarded: List<ModelChange>): List<Model<*, *>> {
         val parents = Collections.newSetFromMap(IdentityHashMap<Model<*, *>, Boolean>())
         parentChanges.flattenChildModels().mapTo(parents) { it.model }
-        return guarded.associateBy { it.id }.values.map { it.model }.filter { it !in parents }
+        return guarded.map { it.model }.filter { it !in parents }
     }
 }
