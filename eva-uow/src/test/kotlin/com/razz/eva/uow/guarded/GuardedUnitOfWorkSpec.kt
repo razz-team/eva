@@ -1,6 +1,7 @@
 package com.razz.eva.uow.guarded
 
 import com.razz.eva.domain.Department
+import com.razz.eva.domain.DeptAggregate
 import com.razz.eva.domain.DeptAggregate.Companion.newDeptAggregate
 import com.razz.eva.domain.Employee
 import com.razz.eva.domain.Employee.Companion.newEmployee
@@ -11,6 +12,7 @@ import com.razz.eva.domain.ModelState.PersistentState.Companion.persistentState
 import com.razz.eva.domain.Name
 import com.razz.eva.domain.Ration.BUBALEH
 import com.razz.eva.domain.Tag
+import com.razz.eva.domain.Version.Companion.V1
 import com.razz.eva.domain.Version.Companion.version
 import com.razz.eva.domain.addEmployee
 import com.razz.eva.persistence.PersistenceException.StaleRecordException
@@ -20,6 +22,7 @@ import com.razz.eva.uow.Clocks.millisUTC
 import com.razz.eva.uow.ExecutionContext
 import com.razz.eva.uow.InstantiationContext
 import com.razz.eva.uow.InstantiationContextFixtures.afterRetry
+import com.razz.eva.uow.InstantiationContextFixtures.inAttempt
 import com.razz.eva.uow.InstantiationContextFixtures.initial
 import com.razz.eva.uow.NoopModel
 import com.razz.eva.uow.TestPrincipal
@@ -53,6 +56,8 @@ class GuardedUnitOfWorkSpec : FunSpec({
     val moved = employee(id = employee.id(), department = elsewhere.id())
     val first = initial(TestPrincipal)
     val retry = afterRetry(first)
+    // Each block in this spec runs in the run of first, as the executor would run it.
+    aroundTest { (testCase, execute) -> first.inAttempt { execute(testCase) } }
     fun uow(unguarded: Set<KClass<out Model<*, *>>> = setOf()) = MoveEmployeeUow(executionContext, unguarded, away)
     fun InstantiationContext.moving(proof: TestProof<Employee>, reloaded: Employee = moved) =
         proven(proof) { reloaded }
@@ -66,15 +71,24 @@ class GuardedUnitOfWorkSpec : FunSpec({
         "or a declared type, and $id is neither"
     fun unwritten(uow: String, ids: List<Any>) =
         "$uow decided ${ids.map { it.toString() }} and wrote nothing on them: update each, or hold it with notChanged"
+    fun ownedUnread(owner: String, owned: String) =
+        "$owner owns $owned, which changed, and the block did not read that model with model()"
+    fun boundElsewhere(id: String) =
+        "The Proven for $id was bound in another run, or for another principal than this one runs under"
+    fun storedDept(employees: List<Employee>) =
+        DeptAggregate(home.id(), "Stored", randomEmployeeId(), 1, BUBALEH, employees, persistentState(V1, null))
     fun plainChild(name: String, body: suspend ChangesDsl.() -> String) = { ctx: ExecutionContext ->
         object : UnitOfWork<TestPrincipal, ChildParams, String>(ctx) {
             override fun name() = name
             override suspend fun tryPerform(principal: TestPrincipal, params: ChildParams) = changes(body)
         }
     }
-    fun block(body: suspend GuardedChangesDsl<TestProof<*>>.(EmployeeParams) -> Employee) =
-        object : GuardedUnitOfWork<TestPrincipal, TestProof<*>, EmployeeParams, Employee>(
-            executionContext, Configuration.default(), EmployeesGuarded, setOf(),
+    fun block(
+        unguarded: Set<KClass<out Model<*, *>>> = setOf(),
+        guarding: Guarding = EmployeesGuarded,
+        body: suspend GuardedChangesDsl<TestProof<*>>.(EmployeeParams) -> Employee,
+    ) = object : GuardedUnitOfWork<TestPrincipal, TestProof<*>, EmployeeParams, Employee>(
+            executionContext, Configuration.default(), guarding, unguarded,
         ) {
             override fun name() = "Block"
             override suspend fun tryPerform(principal: TestPrincipal, params: EmployeeParams) =
@@ -484,5 +498,68 @@ class GuardedUnitOfWorkSpec : FunSpec({
         answering.tryPerform(TestPrincipal, params)
         answering.onFailure(params, stale) shouldBeSameInstanceAs moved
         shouldThrow<StaleRecordException> { uow().onFailure(params, stale) } shouldBeSameInstanceAs stale
+    }
+
+    test("refuses an added aggregate that owns a changed guarded model the block did not read with model()") {
+        val other = employee(department = home.id())
+        val dept = newDeptAggregate(name = "Fresh", boss = randomEmployeeId(), ration = BUBALEH)
+            .addEmployee(other.changeDepartment(away))
+        shouldThrow<IllegalStateException> {
+            block { params ->
+                add(dept)
+                update(params.employee.model().changeDepartment(away))
+            }.tryPerform(TestPrincipal, first.params(proof(employee)))
+        }.message shouldBe ownedUnread(dept.id().stringValue(), other.id().stringValue())
+    }
+
+    test("refuses a stored aggregate kept with notChanged that owns a changed guarded model the block did not read") {
+        val other = employee(department = home.id())
+        val dept = storedDept(listOf(other.changeDepartment(away)))
+        shouldThrow<IllegalStateException> {
+            block { params ->
+                notChanged(dept)
+                update(params.employee.model().changeDepartment(away))
+            }.tryPerform(TestPrincipal, first.params(proof(employee)))
+        }.message shouldBe ownedUnread(dept.id().stringValue(), other.id().stringValue())
+    }
+
+    test("refuses an update of a listed aggregate that owns a changed guarded model the block did not read") {
+        val other = employee(department = home.id())
+        val dept = storedDept(listOf(other.changeDepartment(away)))
+        shouldThrow<IllegalStateException> {
+            block(unguarded = setOf(DeptAggregate::class)) { params ->
+                update(dept.rename("Renamed"))
+                update(params.employee.model().changeDepartment(away))
+            }.tryPerform(TestPrincipal, first.params(proof(employee)))
+        }.message shouldBe ownedUnread(dept.id().stringValue(), other.id().stringValue())
+    }
+
+    test("writes a proven model through the aggregate that owns it, at the version model() returned") {
+        val changes = block(unguarded = setOf(DeptAggregate::class)) { params ->
+            val moved = params.employee.model().changeDepartment(away)
+            update(storedDept(listOf(moved)).rename("Renamed"))
+            moved
+        }.tryPerform(TestPrincipal, first.params(proof(employee)))
+        changes.modelChangesToPersist.map { it.id } shouldContainExactly listOf(home.id(), employee.id())
+    }
+
+    test("a guarded type covers its subtypes: a child's write of a subtype of a guarded type is refused") {
+        shouldThrow<IllegalStateException> {
+            block(guarding = Guarding(Department::class)) { params ->
+                execute({ RenameDepartmentUow(it, home) }, TestPrincipal) { ChildParams }
+                update(params.employee.model().changeDepartment(away))
+            }.tryPerform(TestPrincipal, first.params(proof(employee)))
+        }.message shouldBe refusedWrite("RenameDepartmentUow", home.id().stringValue())
+    }
+
+    test("refuses a Proven in a block that runs in another run, or in its run under another principal") {
+        val params = first.run { Params(moving(proof(employee)), "moves") }
+        shouldThrow<IllegalStateException> {
+            initial(TestPrincipal).inAttempt { uow().tryPerform(TestPrincipal, params) }
+        }.message shouldBe boundElsewhere(employee.id().stringValue())
+        shouldThrow<IllegalStateException> {
+            InstantiationContext(1, OtherPrincipal, first.run).inAttempt { uow().tryPerform(TestPrincipal, params) }
+        }.message shouldBe boundElsewhere(employee.id().stringValue())
+        uow().tryPerform(TestPrincipal, params).result.departmentId shouldBe away.id()
     }
 })

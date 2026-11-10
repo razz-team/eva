@@ -7,10 +7,12 @@ import com.razz.eva.uow.BaseUnitOfWork
 import com.razz.eva.uow.Changes
 import com.razz.eva.uow.EntityChange
 import com.razz.eva.uow.ExecutionContext
+import com.razz.eva.uow.InstantiationContext
 import com.razz.eva.uow.ModelChange
 import com.razz.eva.uow.PersistedLookup
 import com.razz.eva.uow.UowParams
 import com.razz.eva.uow.composable.ChangesDsl
+import kotlinx.coroutines.currentCoroutineContext
 import kotlin.reflect.KClass
 
 /**
@@ -37,7 +39,7 @@ abstract class GuardedUnitOfWork<P, PF, PARAMS, RESULT>(
           RESULT : Any {
 
     init {
-        val covered = unguardedWrites.filter(guarding::covers)
+        val covered = unguardedWrites.filter(guarding::canBeGuarded)
         require(covered.isEmpty()) {
             "${name()} writes ${covered.joinToString { it.simpleName.orEmpty() }} without a proof, " +
                 "and that reaches a guarded model"
@@ -58,7 +60,8 @@ abstract class GuardedUnitOfWork<P, PF, PARAMS, RESULT>(
     final override suspend fun changes(init: suspend GuardedChangesDsl<PF>.() -> RESULT): GuardedChanges<RESULT> =
         Produced(
             ChangesDsl.changes(executionContext) {
-                val dsl = GuardedChangesDsl<PF>(this, unguardedWrites, guarding)
+                val attempt = currentCoroutineContext()[InstantiationContext.Current]?.context
+                val dsl = GuardedChangesDsl<PF>(this, unguardedWrites, guarding, attempt)
                 val result = dsl.init()
                 val unheld = dsl.decidedNotHeld()
                 check(unheld.isEmpty()) {

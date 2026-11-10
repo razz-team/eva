@@ -1,5 +1,6 @@
 package com.razz.eva.uow.params.jackson
 
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.razz.eva.domain.DepartmentId.Companion.randomDepartmentId
 import com.razz.eva.domain.Employee
 import com.razz.eva.domain.EmployeeId
@@ -54,5 +55,14 @@ class JacksonGuardedAuditSpec : ShouldSpec({
         JacksonParamsSerializer().serialize(params) shouldBe
             """{"employee":{"action":"test.write","target":"${target.id().stringValue()}"},"note":"moves two",""" +
             """"extra":[{"action":"test.write","target":"${extra.id().stringValue()}"}],"idempotencyKey":null}"""
+    }
+
+    should("leave the mapper it was given as it was") {
+        val target = employee()
+        val mine = jacksonObjectMapper()
+        JacksonParamsSerializer(mine)
+        val proven = initial(TestPrincipal).run { proven(Allowed(target, write)) { target } }
+        mine.writeValueAsString(proven) shouldBe
+            """{"action":"test.write","targetId":"${target.id().stringValue()}"}"""
     }
 })

@@ -130,25 +130,12 @@ class ChangesAccumulator private constructor(
         return RealisedChanges(result, flattenChildModels(), entityChanges, resultBuilder)
     }
 
-    @Suppress("UNCHECKED_CAST")
     internal fun flattenChildModels(): List<ModelChange> {
         val result = mutableListOf<ModelChange>()
         val seen = modelChanges.keys.toMutableSet()
-        fun flatten(model: Model<*, *>) {
-            if (model !is Aggregate<*, *>) return
-            for (child in model.ownedModels()) {
-                if (!seen.add(child.id())) continue
-                val m = child as Model<ModelId<out Comparable<*>>, ModelEvent<ModelId<out Comparable<*>>>>
-                when {
-                    child.isNew() -> result.add(AddModel(m, m.modelEvents()))
-                    child.isDirty() -> result.add(UpdateModel(m, m.modelEvents()))
-                }
-                flatten(child)
-            }
-        }
         for (change in modelChanges.values) {
             result.add(change)
-            flatten(change.model)
+            flattenOwned(change.model, seen, result)
         }
         return result
     }
@@ -167,6 +154,29 @@ class ChangesAccumulator private constructor(
     }
 
     companion object {
+
+        /** The changes [model] carries for the models it owns, new and changed, as registering it would list them. */
+        internal fun ownedChangesOf(model: Model<*, *>): List<ModelChange> =
+            mutableListOf<ModelChange>().also { flattenOwned(model, mutableSetOf(model.id()), it) }
+
+        @Suppress("UNCHECKED_CAST")
+        private fun flattenOwned(
+            model: Model<*, *>,
+            seen: MutableSet<ModelId<out Comparable<*>>>,
+            result: MutableList<ModelChange>,
+        ) {
+            if (model !is Aggregate<*, *>) return
+            for (child in model.ownedModels()) {
+                if (!seen.add(child.id())) continue
+                val m = child as Model<ModelId<out Comparable<*>>, ModelEvent<ModelId<out Comparable<*>>>>
+                when {
+                    child.isNew() -> result.add(AddModel(m, m.modelEvents()))
+                    child.isDirty() -> result.add(UpdateModel(m, m.modelEvents()))
+                }
+                flattenOwned(child, seen, result)
+            }
+        }
+
         internal fun from(changes: Changes<*>): ChangesAccumulator {
             return ChangesAccumulator(
                 changes.modelChangesToPersist.associateByTo(LinkedHashMap()) { it.id },

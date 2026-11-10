@@ -537,6 +537,21 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
             }
         }
 
+        And("Factories for two units of work") {
+            @Suppress("UNCHECKED_CAST") val factories = listOf(
+                CreateDepartmentUow::class withFactory { mockk() },
+                (DummyUow::class as KClass<DummyUow<String>>) withFactory { mockk() },
+            )
+
+            When("Principal creates UnitOfWorkExecutor") {
+                val uowx = UnitOfWorkExecutor(factories, mockk(), clock, OpenTelemetry.noop())
+
+                Then("registered answers the class of each") {
+                    uowx.registered shouldBe setOf(CreateDepartmentUow::class, DummyUow::class)
+                }
+            }
+        }
+
         And("UnitOfWorkExecutor and UnitOfWork are configured") {
             val anotherId = randomDepartmentId()
             val anotherModel = OwnedDepartment(

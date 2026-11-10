@@ -4,11 +4,13 @@ import com.razz.eva.domain.Model
 import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
 import com.razz.eva.domain.Principal
+import com.razz.eva.uow.ChangesAccumulator
 import com.razz.eva.uow.ExecutionContext
 import com.razz.eva.uow.InstantiationContext
 import com.razz.eva.uow.ModelChange
 import com.razz.eva.uow.PersistedLookup
 import com.razz.eva.uow.UowParams
+import com.razz.eva.uow.UpdateModel
 import com.razz.eva.uow.composable.ChangesDsl
 import com.razz.eva.uow.composable.ChangesDsl.ChildRun
 import java.util.Collections
@@ -25,6 +27,7 @@ class GuardedChangesDsl<PF : Proof<*, *, *>> internal constructor(
     private val dsl: ChangesDsl,
     private val unguarded: Set<KClass<out Model<*, *>>>,
     private val guarding: Guarding,
+    private val attempt: InstantiationContext?,
 ) {
 
     // A fresh block runs each attempt, so a retry decides each model again.
@@ -35,7 +38,10 @@ class GuardedChangesDsl<PF : Proof<*, *, *>> internal constructor(
     internal fun decidedNotHeld(): List<ModelId<*>> = decided.keys.filterNot { it in held }
 
     fun <MID, E, M> add(model: M): M
-        where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> = dsl.add(model)
+        where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
+        checkOwnedModels(model)
+        return dsl.add(model)
+    }
 
     fun <MID, E, M> update(model: M): M
         where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
@@ -44,6 +50,7 @@ class GuardedChangesDsl<PF : Proof<*, *, *>> internal constructor(
             "A guarded unit of work updates only a model a proof decided in its block or a declared type, " +
                 "and ${model.id().stringValue()} is neither"
         }
+        checkOwnedModels(model)
         dsl.update(model)
         if (isDecided) held += model.id()
         return model
@@ -55,6 +62,9 @@ class GuardedChangesDsl<PF : Proof<*, *, *>> internal constructor(
      * A [Proven] is read in the block of the attempt that bound it: one another block read is refused.
      */
     suspend fun <M : Model<*, *>> Proven<PF, M>.model(): M {
+        check(isBoundIn(attempt)) {
+            "The Proven for $targetId was bound in another run, or for another principal than this one runs under"
+        }
         decidedOrNull()?.let { earlier ->
             check(decided[earlier.id()] === this) {
                 "A proven model is read in the block of the attempt that bound it, " +
@@ -72,6 +82,7 @@ class GuardedChangesDsl<PF : Proof<*, *, *>> internal constructor(
     fun <MID, E, M> notChanged(model: M): M
         where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
         val isDecided = checkDecidedVersion(model)
+        checkOwnedModels(model)
         dsl.notChanged(model)
         if (isDecided) held += model.id()
         return model
@@ -96,7 +107,7 @@ class GuardedChangesDsl<PF : Proof<*, *, *>> internal constructor(
               UOW : com.razz.eva.uow.composable.UnitOfWork<PRINCIPAL, PARAMS, RESULT> {
         val run = dsl.runChild(uowFactory, principal, params)
         // Filtering before the last-per-id step is exact: a Changes holds one change per id.
-        val covered = run.changes.modelChangesToPersist.filter { guarding.covers(it.model::class) }
+        val covered = run.changes.modelChangesToPersist.filter { guarding.canBeGuarded(it.model::class) }
         if (covered.isEmpty()) return dsl.take(run)
         val refused = run.modelsNotHeldBySeed(covered)
         check(refused.isEmpty()) {
@@ -114,6 +125,20 @@ class GuardedChangesDsl<PF : Proof<*, *, *>> internal constructor(
                 "and the block writes it at ${model.version().version}"
         }
         return true
+    }
+
+    // An aggregate registers the models it owns with it. A changed owned model that can be guarded must have been
+    // read with model() at that version, and then counts as written; a new one is added as anywhere.
+    private fun checkOwnedModels(model: Model<*, *>) {
+        ChangesAccumulator.ownedChangesOf(model)
+            .filter { it is UpdateModel<*, *, *> && guarding.canBeGuarded(it.model::class) }
+            .forEach { owned ->
+                check(checkDecidedVersion(owned.model)) {
+                    "${model.id().stringValue()} owns ${owned.id.stringValue()}, which changed, " +
+                        "and the block did not read that model with model()"
+                }
+                held += owned.id
+            }
     }
 
     // By instance: a model registered since, or again on top of the seed's; the seed's owned models count as held.

@@ -2,6 +2,7 @@ package com.razz.eva.uow.guarded
 
 import com.razz.eva.domain.Employee
 import com.razz.eva.domain.EmployeeId
+import com.razz.eva.domain.Principal
 import com.razz.eva.persistence.PersistenceException.StaleRecordException
 import com.razz.eva.persistence.WithCtxConnectionTransactionManager
 import com.razz.eva.repository.EntityRepos
@@ -167,5 +168,28 @@ class GuardedExecutorSpec : FunSpec({
             "and ${employee.id().stringValue()} was read before"
         proof.decidedAgain shouldBe listOf()
         coVerify(exactly = 1) { repo.update(any(), any<Employee>()) }
+    }
+
+    test("a Proven leaked from a run whose params lambda threw is refused in another run, before anything is written") {
+        var leaked: Proven<TestProof<Employee>, Employee>? = null
+        shouldThrow<Refused> {
+            uowx.execute(TestPrincipal, { MoveEmployeeUow(it, setOf(), away) }) {
+                leaked = proven(proof(employee)) { reloaded }
+                throw Refused("the params lambda fails after the bind")
+            }
+        }
+        val anyone = { ctx: ExecutionContext ->
+            object : GuardedUnitOfWork<Principal<*>, TestProof<*>, EmployeeParams, Employee>(
+                ctx, Configuration.default(), EmployeesGuarded, setOf(),
+            ) {
+                override suspend fun tryPerform(principal: Principal<*>, params: EmployeeParams) =
+                    changes { update(params.employee.model().changeDepartment(away)) }
+            }
+        }
+        shouldThrow<IllegalStateException> {
+            uowx.execute(OtherPrincipal, anyone) { EmployeeParams(checkNotNull(leaked)) }
+        }.message shouldBe "The Proven for ${employee.id().stringValue()} was bound in another run, " +
+            "or for another principal than this one runs under"
+        coVerify(exactly = 0) { repo.update(any(), any<Employee>()) }
     }
 })

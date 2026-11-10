@@ -4,11 +4,19 @@ import com.razz.eva.domain.Model
 import kotlin.reflect.KClass
 
 /**
- * Which models a guarded block writes only under a [Proof]: the framework's aggregates with actions. A block refuses
- * a composed child that registers one, and a unit of work may not declare one in its `unguardedWrites`.
+ * The model types that need a [Proof]. The application has one, over the models it issues proofs for. A guarded
+ * block writes a model of these [types], or of a subtype of one, only through a [Proven]. It refuses a composed child
+ * that registers such a model, and a guarded unit of work cannot list such a type in `unguardedWrites`.
  */
-fun interface Guarding {
+class Guarding(vararg types: KClass<out Model<*, *>>) {
 
-    /** Whether [type] reaches a guarded model: one of them, or a supertype of one. */
-    fun covers(type: KClass<out Model<*, *>>): Boolean
+    val types: Set<KClass<out Model<*, *>>> = types.toSet()
+
+    /**
+     * Returns true if a model of [type] can be a guarded model: [type] is a guarded type, a subtype of one, or a
+     * supertype of one.
+     */
+    internal fun canBeGuarded(type: KClass<out Model<*, *>>): Boolean = types.any {
+        it.java.isAssignableFrom(type.java) || type.java.isAssignableFrom(it.java)
+    }
 }

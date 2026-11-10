@@ -71,7 +71,7 @@ class UnitOfWorkExecutor(
             ?: throw IllegalArgumentException("Attempted to register multiple factories for ${it.key.simpleName}")
     }
 
-    /** The class of every unit of work a factory was registered for, for a boot check over the registrations. */
+    /** The classes of the units of work that have a registered factory, so an application can check them at startup. */
     val registered: Set<KClass<*>> get() = classToFactory.keys
 
     suspend fun <PRINCIPAL, PARAMS, RESULT, UOW> execute(
@@ -116,8 +116,9 @@ class UnitOfWorkExecutor(
                     uowSpan.updateName(name)
                     uowSpan.setAttribute(UOW_NAME, name)
                 }
-                val constructedParams = params(InstantiationContext.External(currentAttempt, principal, run))
-                val attempted = attempt(uow, principal, constructedParams, now, name, uowSpan)
+                val context = InstantiationContext.External(currentAttempt, principal, run)
+                val constructedParams = params(context)
+                val attempted = attempt(uow, principal, context, constructedParams, now, name, uowSpan)
                 val committed = when (attempted) {
                     is Attempted.Conflict -> {
                         val ex = attempted.ex
@@ -181,6 +182,7 @@ class UnitOfWorkExecutor(
     private suspend fun <PRINCIPAL, PARAMS, RESULT, UOW> attempt(
         uow: UOW,
         principal: PRINCIPAL,
+        context: InstantiationContext,
         params: PARAMS,
         now: Instant,
         name: String,
@@ -196,6 +198,7 @@ class UnitOfWorkExecutor(
                 val changes = performAttempt(
                     uow = uow,
                     principal = principal,
+                    context = context,
                     params = params,
                     name = name,
                     uowSpan = uowSpan,
@@ -220,6 +223,7 @@ class UnitOfWorkExecutor(
                     val changes = performAttempt(
                         uow = uow,
                         principal = principal,
+                        context = context,
                         params = params,
                         name = name,
                         uowSpan = uowSpan,
@@ -244,6 +248,7 @@ class UnitOfWorkExecutor(
     private suspend fun <PRINCIPAL, PARAMS, RESULT, UOW> performAttempt(
         uow: UOW,
         principal: PRINCIPAL,
+        context: InstantiationContext,
         params: PARAMS,
         name: String,
         uowSpan: Span,
@@ -252,7 +257,10 @@ class UnitOfWorkExecutor(
           RESULT : Any,
           UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *> {
         val changes = instrumentedPerform(name) { acquisitions ->
-            withContext(PrimaryConnectionRequiredFlag + acquisitions + uowSpan.asContextElement()) {
+            withContext(
+                PrimaryConnectionRequiredFlag + acquisitions + uowSpan.asContextElement() +
+                    InstantiationContext.Current(context),
+            ) {
                 performingSpan(name).use {
                     uow.tryPerform(principal, params)
                 }

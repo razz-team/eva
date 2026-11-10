@@ -24,6 +24,7 @@ class Proven<out PF : Proof<*, *, *>, M : Model<*, *>> private constructor(
     private val proof: Proof<*, *, M>,
     private val firstAttempt: Boolean,
     private val reload: suspend () -> M,
+    private val run: InstantiationContext.Run,
 ) {
 
     private var decided: M? = null
@@ -47,6 +48,10 @@ class Proven<out PF : Proof<*, *, *>, M : Model<*, *>> private constructor(
         proof.decideAgain(model)
         return model
     }
+
+    /** Returns true if [context] is an attempt of the run that bound this, under the proof's principal. */
+    internal fun isBoundIn(context: InstantiationContext?): Boolean =
+        context != null && context.run === run && context.principal == proof.principal
 
     val action: String get() = proof.action.name
 
@@ -82,7 +87,7 @@ class Proven<out PF : Proof<*, *, *>, M : Model<*, *>> private constructor(
                     "A proof for ${proof.action.name} binds a retry only of the run that spent it"
                 }
             }
-            return Proven(proof, firstAttempt, reload)
+            return Proven(proof, firstAttempt, reload, run)
         }
     }
 

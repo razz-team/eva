@@ -1,10 +1,12 @@
 package com.razz.eva.uow
 
 import com.razz.eva.domain.Principal
+import kotlin.coroutines.AbstractCoroutineContextElement
+import kotlin.coroutines.CoroutineContext
 
 /**
- * What a params block knows of the attempt it builds params for: its number, the principal it runs under, and the
- * run it belongs to, one per `execute` call and shared by its retries.
+ * The receiver of a params lambda. It holds the attempt number, the principal the unit of work runs under, and the
+ * run: one `execute` call with all its retries.
  */
 sealed class InstantiationContext(
     internal val attempt: Int,
@@ -20,6 +22,11 @@ sealed class InstantiationContext(
 
     /** One run of a unit of work, across its attempts. Compared by identity. */
     internal class Run
+
+    /** The context of the attempt whose `tryPerform` runs in this coroutine. The executor sets it. */
+    internal class Current(val context: InstantiationContext) : AbstractCoroutineContextElement(Current) {
+        companion object Key : CoroutineContext.Key<Current>
+    }
 
     internal companion object Factory {
         internal operator fun invoke(attempt: Int, principal: Principal<*>, run: Run): InstantiationContext =
