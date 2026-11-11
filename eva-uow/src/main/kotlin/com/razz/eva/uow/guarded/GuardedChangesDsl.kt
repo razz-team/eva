@@ -5,6 +5,7 @@ import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
 import com.razz.eva.domain.Witness
 import com.razz.eva.domain.Principal
+import com.razz.eva.uow.BaseUnitOfWork
 import com.razz.eva.uow.Changes
 import com.razz.eva.uow.ExecutionContext
 import com.razz.eva.uow.InstantiationContext
@@ -12,6 +13,7 @@ import com.razz.eva.uow.PersistedLookup
 import com.razz.eva.uow.UowParams
 import com.razz.eva.uow.modelsIn
 import com.razz.eva.uow.composable.ChangesDsl
+import com.razz.eva.uow.composable.ComposableUow
 import java.util.Collections
 import java.util.IdentityHashMap
 import kotlin.reflect.KClass
@@ -158,7 +160,8 @@ class GuardedChangesDsl<PF : Proof<*, *, *>> internal constructor(
         where PRINCIPAL : Principal<*>,
               PARAMS : UowParams<PARAMS>,
               RESULT : Any,
-              UOW : com.razz.eva.uow.composable.UnitOfWork<PRINCIPAL, PARAMS, RESULT> =
+              UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *>,
+              UOW : ComposableUow =
         dsl.execute(uowFactory, principal, params) { childName, childChanges ->
             val refused = registeredByChild(childChanges)
             check(refused.isEmpty()) {

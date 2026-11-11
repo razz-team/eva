@@ -132,15 +132,12 @@ class GuardedUnitOfWorkSpec : FunSpec({
             changes { body(params) }
     }
 
-    test("writes a proven model and returns changes of the sealed GuardedChanges type") {
+    test("writes a proven model") {
         val changes = uow().tryPerform(TestPrincipal, first.run { Params(moving(proof(employee)), "moves") })
-        changes.shouldBeInstanceOf<GuardedChanges<Employee>>()
         val change = changes.modelChangesToPersist.single().shouldBeInstanceOf<UpdateModel<*, *>>()
         change.model.shouldBeInstanceOf<Employee>().departmentId shouldBe away.id()
         change.modelEvents shouldBe listOf(DepartmentChanged(employee.id(), home.id(), away.id()))
         changes.result shouldBeSameInstanceAs change.model
-        GuardedChanges::class.sealedSubclasses.map { it.qualifiedName } shouldBe
-            listOf("com.razz.eva.uow.guarded.GuardedUnitOfWork.Produced")
     }
 
     test("uses the proof's model on the first attempt and never reloads it") {

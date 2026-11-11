@@ -3,13 +3,11 @@ package com.razz.eva.uow.guarded
 import com.razz.eva.domain.Model
 import com.razz.eva.domain.Principal
 import com.razz.eva.persistence.PersistenceException
-import com.razz.eva.uow.BaseUnitOfWork
-import com.razz.eva.uow.Changes
-import com.razz.eva.uow.ChangesAccumulator
 import com.razz.eva.uow.ExecutionContext
-import com.razz.eva.uow.PersistedLookup
 import com.razz.eva.uow.UowParams
+import com.razz.eva.uow.WrappingUnitOfWork
 import com.razz.eva.uow.composable.ChangesDsl
+import com.razz.eva.uow.composable.NotComposableUow
 import kotlin.reflect.KClass
 
 /**
@@ -21,7 +19,8 @@ import kotlin.reflect.KClass
  * the stored model changed after the proof was issued. A block registers at least one change: one that registers none,
  * for example over an empty `List<Proven>`, fails with "No changes to persist". Build the unit of work with the
  * [ExecutionContext] its factory receives: that context carries the attempt, and the block reads only the [Proven]
- * fields of params built in that attempt.
+ * fields of params built in that attempt. A guarded unit of work never runs as a child: it implements
+ * [NotComposableUow], so passing it to `execute` inside a block does not compile.
  */
 abstract class GuardedUnitOfWork<P, PF, PARAMS, RESULT>(
     private val executionContext: ExecutionContext,
@@ -33,7 +32,8 @@ abstract class GuardedUnitOfWork<P, PF, PARAMS, RESULT>(
      * constructor throws if a model of one of them can be guarded.
      */
     val unguardedWrites: Set<KClass<out Model<*, *>>>,
-) : BaseUnitOfWork<P, PARAMS, RESULT, GuardedChangesDsl<PF>>(executionContext, configuration)
+) : WrappingUnitOfWork<P, PARAMS, RESULT, GuardedChangesDsl<PF>>(executionContext, configuration),
+    NotComposableUow
     where P : Principal<*>,
           PF : Proof<*, *, *>,
           PARAMS : UowParams<PARAMS>,
@@ -47,8 +47,11 @@ abstract class GuardedUnitOfWork<P, PF, PARAMS, RESULT>(
         }
     }
 
-    /** The body of the unit of work. Write it as `= changes { ... }`: nothing else creates a [GuardedChanges]. */
-    abstract override suspend fun tryPerform(principal: P, params: PARAMS): GuardedChanges<RESULT>
+    /**
+     * The body of the unit of work. Write it as `= changes { ... }`: nothing else creates its [Block], so
+     * `noChanges()`, changes built by hand and the block of another unit of work are refused.
+     */
+    abstract override suspend fun tryPerform(principal: P, params: PARAMS): Block
 
     // onFailure gets the models the failed attempt read. It loads nothing again: no proof would allow a new read.
     final override suspend fun onFailure(params: PARAMS, ex: PersistenceException): RESULT =
@@ -60,27 +63,18 @@ abstract class GuardedUnitOfWork<P, PF, PARAMS, RESULT>(
      */
     open suspend fun onFailure(attempt: FailedAttempt, params: PARAMS, ex: PersistenceException): RESULT = throw ex
 
-    // The block registers its changes in a composable ChangesDsl, so a child run with execute merges as in any
+    // The guarded DSL wraps the block's composable ChangesDsl, so a child run with execute merges as in any
     // composable unit of work.
-    protected suspend fun changes(init: suspend GuardedChangesDsl<PF>.() -> RESULT): GuardedChanges<RESULT> =
-        Produced(
-            ChangesDsl.changes(executionContext) {
-                val dsl = GuardedChangesDsl<PF>(this, label(), unguardedWrites, guarding, executionContext.attempt)
-                val result = dsl.init()
-                val unwritten = dsl.readNotWritten()
-                check(unwritten.isEmpty()) {
-                    "${label()} read ${unwritten.map { it.stringValue() }} with model() and registered no change for " +
-                        "them. Call update(model) on each, or notChanged(model) to keep it as it is"
-                }
-                result
-            },
-        )
+    final override fun wrap(dsl: ChangesDsl): GuardedChangesDsl<PF> =
+        GuardedChangesDsl(dsl, label(), unguardedWrites, guarding, executionContext.attempt)
+
+    final override fun finish(dsl: GuardedChangesDsl<PF>, result: RESULT) {
+        val unwritten = dsl.readNotWritten()
+        check(unwritten.isEmpty()) {
+            "${label()} read ${unwritten.map { it.stringValue() }} with model() and registered no change for " +
+                "them. Call update(model) on each, or notChanged(model) to keep it as it is"
+        }
+    }
 
     private fun label() = name().ifEmpty { "A guarded unit of work" }
-
-    private class Produced<R>(private val changes: Changes<R>) : GuardedChanges<R>() {
-        override val result: R get() = changes.result
-        override val resultBuilder: ((PersistedLookup) -> Any?)? get() = changes.resultBuilder
-        override val accumulator: ChangesAccumulator? get() = changes.accumulator
-    }
 }
