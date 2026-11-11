@@ -13,8 +13,10 @@ object InstantiationContextFixtures {
         InstantiationContext(0, principal, InstantiationContext.Run())
 
     /** The context of a retry of [first]'s run, as the executor builds it: the same principal and run. */
-    fun afterRetry(first: InstantiationContext): InstantiationContext =
-        InstantiationContext(first.attempt + 1, first.principal, first.run)
+    fun afterRetry(first: InstantiationContext): InstantiationContext {
+        require(first is InstantiationContext.External) { "A retry follows a context the executor builds: use initial" }
+        return InstantiationContext(first.attempt + 1, first.principal, first.run)
+    }
 
     /**
      * Runs [block] in the attempt of this context, as the executor runs `tryPerform`. A guarded unit of work that

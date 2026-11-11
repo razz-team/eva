@@ -83,9 +83,6 @@ class GuardedUnitOfWorkSpec : FunSpec({
     fun boundElsewhere(id: String) = "MoveEmployeeUow cannot read the Proven for $id: its params were built in " +
         "another attempt or another run. Build them in the params lambda of the execute call that runs this unit of " +
         "work. In a spec, call tryPerform inside inAttempt(context), with the context that built the params"
-    fun dropped(uow: String, what: String) = "Composed unit of work [$uow] returned changes without $what that " +
-        "its parent had registered. Build the child's changes with changes { }, in a unit of work created with the " +
-        "ExecutionContext its factory receives."
     fun stale(uow: String, id: String) =
         "$uow registers $id at version 2, and model() returned it at version 1. Change the model that model() returned"
     fun used() = "This proof for test.write was already used to run a unit of work. One proof runs one unit of work: " +
@@ -444,11 +441,11 @@ class GuardedUnitOfWorkSpec : FunSpec({
         }.message shouldBe refusedWrite("TargetFirstGuardedUow", "MoveOtherEmployeeUow", employee.id().stringValue())
     }
 
-    test("refuses a child whose hand-built changes drop the proven model the block updated first") {
+    test("fails a block whose child's hand-built changes drop the proven model the block updated first") {
         shouldThrow<IllegalStateException> {
             targetFirst { ctx, _ -> HandBuiltChildUow(ctx, home) }
                 .tryPerform(TestPrincipal, first.params(proof(employee)))
-        }.message shouldBe dropped("HandBuiltChildUow", "models [${employee.id().stringValue()}]")
+        }.message shouldBe unwritten("TargetFirstGuardedUow", listOf(employee.id().stringValue()))
     }
 
     test("a block that catches a child's refusal writes its own changes and nothing of the child's") {
@@ -618,7 +615,8 @@ class GuardedUnitOfWorkSpec : FunSpec({
             retry.inAttempt { uow().tryPerform(TestPrincipal, params) }
         }.message shouldBe boundElsewhere(employee.id().stringValue())
         shouldThrow<IllegalStateException> {
-            InstantiationContext(0, TestPrincipal, first.run).inAttempt { uow().tryPerform(TestPrincipal, params) }
+            val sameRun = (first as InstantiationContext.External).run
+            InstantiationContext(0, TestPrincipal, sameRun).inAttempt { uow().tryPerform(TestPrincipal, params) }
         }.message shouldBe boundElsewhere(employee.id().stringValue())
         uow().tryPerform(TestPrincipal, params).result.departmentId shouldBe away.id()
     }

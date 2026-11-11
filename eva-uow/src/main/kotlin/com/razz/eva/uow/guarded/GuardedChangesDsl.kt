@@ -4,15 +4,14 @@ import com.razz.eva.domain.Model
 import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
 import com.razz.eva.domain.Principal
+import com.razz.eva.uow.Changes
 import com.razz.eva.uow.ChangesAccumulator
 import com.razz.eva.uow.ExecutionContext
 import com.razz.eva.uow.InstantiationContext
-import com.razz.eva.uow.ModelChange
 import com.razz.eva.uow.PersistedLookup
 import com.razz.eva.uow.UowParams
 import com.razz.eva.uow.UpdateModel
 import com.razz.eva.uow.composable.ChangesDsl
-import com.razz.eva.uow.composable.ChangesDsl.ChildRun
 import java.util.Collections
 import java.util.IdentityHashMap
 import kotlin.reflect.KClass
@@ -37,7 +36,10 @@ class GuardedChangesDsl<PF : Proof<*, *, *>> internal constructor(
     private val read = mutableMapOf<ModelId<*>, Proven<*, *>>()
 
     /** The ids of the models the block read with [model] and its changes do not hold, directly or in an aggregate. */
-    internal fun readNotWritten(): List<ModelId<*>> = (read.keys - dsl.registeredModelIds()).toList()
+    internal fun readNotWritten(): List<ModelId<*>> {
+        val written = dsl.changes.flattenChildModels().mapTo(mutableSetOf()) { it.id }
+        return (read.keys - written).toList()
+    }
 
     fun <MID, E, M> add(model: M): M
         where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
@@ -118,19 +120,15 @@ class GuardedChangesDsl<PF : Proof<*, *, *>> internal constructor(
         where PRINCIPAL : Principal<*>,
               PARAMS : UowParams<PARAMS>,
               RESULT : Any,
-              UOW : com.razz.eva.uow.composable.UnitOfWork<PRINCIPAL, PARAMS, RESULT> {
-        val run = dsl.runChild(uowFactory, principal, params)
-        // A Changes holds one change per model id, so the filter cannot hide a later change of the same id.
-        val guarded = run.changes.modelChangesToPersist.filter { guarding.canBeGuarded(it.model::class) }
-        if (guarded.isEmpty()) return dsl.merge(run)
-        val refused = run.registeredByChild(guarded)
-        check(refused.isEmpty()) {
-            "$uowName refuses composed unit of work [${run.uowName}]: it registered " +
-                "${refused.map { it.id().stringValue() }}, models that need a proof. A child may not add, update or " +
-                "keep one with notChanged: write it in $uowName, through a Proven field"
+              UOW : com.razz.eva.uow.composable.UnitOfWork<PRINCIPAL, PARAMS, RESULT> =
+        dsl.execute(uowFactory, principal, params) { childName, childChanges ->
+            val refused = registeredByChild(childChanges)
+            check(refused.isEmpty()) {
+                "$uowName refuses composed unit of work [$childName]: it registered " +
+                    "${refused.map { it.id().stringValue() }}, models that need a proof. A child may not add, " +
+                    "update or keep one with notChanged: write it in $uowName, through a Proven field"
+            }
         }
-        return dsl.merge(run)
-    }
 
     // The block writes the model at the version it read, so the optimistic lock fails the write if the stored model
     // changed after the proof allowed it.
@@ -158,10 +156,14 @@ class GuardedChangesDsl<PF : Proof<*, *, *>> internal constructor(
     }
 
     // The guarded models the child registered itself: those that are not the same instances the block had registered
-    // before the child ran. Models an aggregate owns count as the block's.
-    private fun ChildRun<*>.registeredByChild(guarded: List<ModelChange>): List<Model<*, *>> {
+    // before the child ran. Models an aggregate owns count as the block's. A Changes holds one change per model id, so
+    // the filter cannot hide a later change of the same id.
+    private fun registeredByChild(childChanges: Changes<*>): List<Model<*, *>> {
         val parents = Collections.newSetFromMap(IdentityHashMap<Model<*, *>, Boolean>())
-        parentChanges.flattenChildModels().mapTo(parents) { it.model }
-        return guarded.map { it.model }.filter { it !in parents }
+        dsl.changes.flattenChildModels().mapTo(parents) { it.model }
+        return childChanges.modelChangesToPersist
+            .filter { guarding.canBeGuarded(it.model::class) }
+            .map { it.model }
+            .filter { it !in parents }
     }
 }

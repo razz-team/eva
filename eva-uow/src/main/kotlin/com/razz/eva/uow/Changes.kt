@@ -100,28 +100,6 @@ class ChangesAccumulator private constructor(
 
     internal fun modelIds(): Set<ModelId<out Comparable<*>>> = modelChanges.keys
 
-    /**
-     * Returns the ids of the model changes in [earlier] that this accumulator lost: the id is absent, or its change no
-     * longer starts with the events [earlier] had. A change that is the same instance in both is kept.
-     */
-    internal fun modelIdsDroppedFrom(earlier: ChangesAccumulator): List<ModelId<out Comparable<*>>> =
-        earlier.modelChanges.filter { (id, change) ->
-            val kept = modelChanges[id]
-            if (kept === change) return@filter false
-            val events = kept?.modelEvents
-            events == null || events.size < change.modelEvents.size ||
-                change.modelEvents.indices.any { events[it] !== change.modelEvents[it] }
-        }.keys.toList()
-
-    /**
-     * Returns true if this accumulator's entity changes start with those of [earlier], the same instances in the same
-     * order. Two accumulators that hold the same list pass without a comparison.
-     */
-    internal fun keepsEntityChangesOf(earlier: ChangesAccumulator): Boolean =
-        entityChanges === earlier.entityChanges ||
-            entityChanges.size >= earlier.entityChanges.size &&
-            earlier.entityChanges.indices.all { entityChanges[it] === earlier.entityChanges[it] }
-
     fun <R> withResult(
         result: R,
         resultBuilder: ((PersistedLookup) -> Any?)? = null,

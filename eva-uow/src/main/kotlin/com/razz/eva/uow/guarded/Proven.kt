@@ -73,7 +73,7 @@ class Proven<out PF : Proof<*, *, *>, M : Model<*, *>> private constructor(
             proof: PF,
             reload: suspend () -> M,
         ): Proven<PF, M> {
-            check(this !is InstantiationContext.Internal) {
+            check(this is InstantiationContext.External) {
                 "proven(...) was called in the params of a composed child. A child takes no proof: call " +
                     "proven(...) in the params lambda of the unit of work the caller runs, and write the guarded " +
                     "model there"

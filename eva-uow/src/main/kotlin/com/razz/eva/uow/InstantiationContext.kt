@@ -4,21 +4,15 @@ import com.razz.eva.domain.Principal
 import kotlin.coroutines.AbstractCoroutineContextElement
 import kotlin.coroutines.CoroutineContext
 
-/**
- * The receiver of a params lambda. It holds the attempt number, the principal the unit of work runs under, and the
- * run: one `execute` call with all its retries.
- */
-sealed class InstantiationContext(
-    internal val attempt: Int,
-    internal val principal: Principal<*>,
-    internal val run: Run,
-) {
+sealed class InstantiationContext(internal val attempt: Int) {
 
-    internal class External(attempt: Int, principal: Principal<*>, run: Run) :
-        InstantiationContext(attempt, principal, run)
+    /**
+     * The context the executor builds for each attempt. It also holds the principal the unit of work runs under and
+     * the run: one `execute` call with all its retries.
+     */
+    internal class External(attempt: Int, val principal: Principal<*>, val run: Run) : InstantiationContext(attempt)
 
-    class Internal internal constructor(attempt: Int, principal: Principal<*>, run: Run) :
-        InstantiationContext(attempt, principal, run)
+    class Internal internal constructor(attempt: Int) : InstantiationContext(attempt)
 
     /** One run of a unit of work, across its attempts. Compared by identity. */
     internal class Run
@@ -29,7 +23,7 @@ sealed class InstantiationContext(
     }
 
     internal companion object Factory {
-        internal operator fun invoke(attempt: Int, principal: Principal<*>, run: Run): InstantiationContext =
+        internal operator fun invoke(attempt: Int, principal: Principal<*>, run: Run): External =
             External(attempt, principal, run)
     }
 }
