@@ -130,10 +130,13 @@ internal class ChangesAccumulator private constructor(
                 "Attempted to register ${if (model.isNew()) "new" else "unchanged"} " +
                     "model [${model.id().stringValue()}] as changed. " +
                     if (model.isNew()) {
-                        "It is not stored yet, so there is nothing to update. Register a new model with add"
+                        "It is not stored yet, so there is nothing to update. Register a new model with add. If " +
+                            "the block added it already, make every mutation first and add the last instance"
                     } else {
                         "It carries no change, so a mutation the block meant to make is missing. Call " +
-                            "notChanged(model), or update(model) { mutate() ?: this } to register whichever happened"
+                            "notChanged(model), or register the outcome of a mutation that can decline with " +
+                            "update(model) { mutate() ?: this } in a composable block; in a plain block drop " +
+                            "required = true"
                     }
             }
             return registering(UpdateModel(model))
@@ -302,7 +305,7 @@ internal class ChangesAccumulator private constructor(
             "No changes to persist: the changes { } block registered nothing, which usually means a mutation was " +
                 "not passed to add or update and would be lost. Register what the block wrote with add or update, " +
                 "and a model it read and kept with notChanged(model). When there is nothing to write, return " +
-                "noChanges(result) in place of changes { }"
+                "noChanges(result) in place of changes { }, where the unit of work's family allows it"
         }
         return AccumulatedChanges(result, resultBuilder, this)
     }

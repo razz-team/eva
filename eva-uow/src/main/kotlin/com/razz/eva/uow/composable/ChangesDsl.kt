@@ -137,8 +137,9 @@ class ChangesDsl internal constructor(
               UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *>,
               UOW : ComposableUow {
         val uow = uowFactory(executionContext.withInheritedChanges(changes))
-        // the bounds already demand ComposableUow; an unchecked cast of the factory can still get past them
-        check(ComposableUow::class.isInstance(uow)) {
+        // the bounds already demand ComposableUow; an unchecked cast of the factory, or a class that carries both
+        // markers under a suppressed compiler error, can still get past them
+        check(ComposableUow::class.isInstance(uow) && !NotComposableUow::class.isInstance(uow)) {
             "${uow.name().ifEmpty { "A child unit of work" }} is not composable: a composable parent executes only " +
                 "a unit of work that implements ComposableUow"
         }

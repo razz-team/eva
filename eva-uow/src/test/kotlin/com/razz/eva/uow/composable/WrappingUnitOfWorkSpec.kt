@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalCompilerApi::class)
+
 package com.razz.eva.uow.composable
 
 import com.razz.eva.domain.DepartmentId.Companion.randomDepartmentId
@@ -17,6 +19,9 @@ import com.razz.eva.uow.PersistedLookup
 import com.razz.eva.uow.Persisting
 import com.razz.eva.uow.TestPrincipal
 import com.razz.eva.uow.UnitOfWorkExecutor
+import com.razz.eva.uow.UowParams
+import com.tschuchort.compiletesting.KotlinCompilation
+import com.tschuchort.compiletesting.SourceFile
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
@@ -27,6 +32,8 @@ import io.mockk.coEvery
 import io.mockk.mockk
 import io.mockk.verify
 import io.opentelemetry.api.OpenTelemetry
+import org.jetbrains.kotlin.compiler.plugin.ExperimentalCompilerApi
+import java.io.OutputStream
 import java.time.Instant.ofEpochMilli
 
 internal class FamilyDsl(private val dsl: ChangesDsl) {
@@ -356,6 +363,66 @@ class WrappingUnitOfWorkSpec : FunSpec({
         }
         val ex = shouldThrow<IllegalStateException> { parent.tryPerform(TestPrincipal, DummyUow.Params) }
         checkNotNull(ex.message) shouldContain "NeverChildUow is not composable"
+    }
+
+    // the compiler refuses both markers on one class; with that error suppressed, the parent still refuses it
+    test("A composable parent refuses a unit that carries both markers under a suppressed compiler error") {
+        val compiled = KotlinCompilation().apply {
+            sources = listOf(
+                SourceFile.kotlin(
+                    "Probe.kt",
+                    """
+                    package probe
+
+                    import com.razz.eva.domain.TestModel.Factory.createdTestModel
+                    import com.razz.eva.uow.ExecutionContext
+                    import com.razz.eva.uow.TestPrincipal
+                    import com.razz.eva.uow.UowParams
+                    import com.razz.eva.uow.WrappingUnitOfWork
+                    import com.razz.eva.uow.composable.ChangesDsl
+                    import com.razz.eva.uow.composable.ComposableUow
+                    import com.razz.eva.uow.composable.NotComposableUow
+                    import com.razz.eva.uow.composable.UnitOfWork
+
+                    object Params : UowParams<Params>
+
+                    abstract class NeverChild(executionContext: ExecutionContext) :
+                        WrappingUnitOfWork<TestPrincipal, Params, String, ChangesDsl>(executionContext),
+                        NotComposableUow {
+                        final override fun wrap(dsl: ChangesDsl) = dsl
+                    }
+
+                    @Suppress("INCONSISTENT_TYPE_PARAMETER_VALUES")
+                    class DualChild(executionContext: ExecutionContext) : NeverChild(executionContext), ComposableUow {
+                        override suspend fun tryPerform(principal: TestPrincipal, params: Params) =
+                            changes { add(createdTestModel("dual", 1)).let { "child" } }
+                    }
+
+                    class ParentUow(executionContext: ExecutionContext) :
+                        UnitOfWork<TestPrincipal, Params, String>(executionContext) {
+                        override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                            execute({ ctx -> DualChild(ctx) }, principal) { Params }
+                        }
+                    }
+                    """.trimIndent(),
+                ),
+            )
+            inheritClassPath = true
+            jvmTarget = "21"
+            languageVersion = "2.2"
+            verbose = false
+            messageOutputStream = OutputStream.nullOutputStream()
+        }.compile()
+        compiled.exitCode shouldBe KotlinCompilation.ExitCode.OK
+        @Suppress("UNCHECKED_CAST")
+        val parent = compiled.classLoader.loadClass("probe.ParentUow")
+            .getConstructor(ExecutionContext::class.java)
+            .newInstance(executionContext) as BaseUnitOfWork<TestPrincipal, UowParams<Nothing>, String, *>
+        @Suppress("UNCHECKED_CAST")
+        val params = compiled.classLoader.loadClass("probe.Params").getField("INSTANCE").get(null) as UowParams<Nothing>
+        shouldThrow<IllegalStateException> { parent.tryPerform(TestPrincipal, params) }.message shouldBe
+            "DualChild is not composable: a composable parent executes only a unit of work that implements " +
+            "ComposableUow"
     }
 
     test("A plain UnitOfWork that claims the marker fails at the seed check, also under an empty parent") {
