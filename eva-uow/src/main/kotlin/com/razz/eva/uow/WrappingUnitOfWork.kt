@@ -13,8 +13,11 @@ import com.razz.eva.uow.composable.ChangesDsl
  * `abstract override suspend fun tryPerform(principal: PRINCIPAL, params: PARAMS): Block`. Then `noChanges()`,
  * any other [Changes] and the block of a family with other type arguments do not compile there. The executor and
  * a composable parent refuse a block that another unit of work built. A family that keeps `noChanges(result)`
- * leaves the return type as it is. A composable parent cannot execute a unit of work of this base: for that,
- * extend [com.razz.eva.uow.composable.WrappingUnitOfWork].
+ * leaves the return type as it is.
+ *
+ * A family whose units of work run as children of a composable parent also implements
+ * [com.razz.eva.uow.composable.ComposableUow]. Its block starts from the changes the parent hands in, so what it
+ * registers merges into the parent's changes.
  */
 abstract class WrappingUnitOfWork<PRINCIPAL, PARAMS, RESULT, C : Any>(
     private val executionContext: ExecutionContext,

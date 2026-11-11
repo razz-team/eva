@@ -90,4 +90,60 @@ class WrappingCompileRejectionSpec : FunSpec({
         result.shouldRejectWith("is not a subtype of the return type of the overridden member")
         result.errorCount() shouldBe 1
     }
+
+    fun compileExecute(familyMarker: String) = KotlinCompilation().apply {
+        sources = listOf(
+            SourceFile.kotlin(
+                "Probe.kt",
+                """
+                package probe
+
+                import com.razz.eva.domain.TestModel.Factory.createdTestModel
+                import com.razz.eva.uow.ExecutionContext
+                import com.razz.eva.uow.TestPrincipal
+                import com.razz.eva.uow.UowParams
+                import com.razz.eva.uow.WrappingUnitOfWork
+                import com.razz.eva.uow.composable.ChangesDsl
+                import com.razz.eva.uow.composable.ComposableUow
+                import com.razz.eva.uow.composable.UnitOfWork
+
+                object Params : UowParams<Params>
+
+                class FamilyDsl(val dsl: ChangesDsl)
+
+                abstract class Family<R : Any>(executionContext: ExecutionContext) :
+                    WrappingUnitOfWork<TestPrincipal, Params, R, FamilyDsl>(executionContext)$familyMarker {
+                    final override fun wrap(dsl: ChangesDsl) = FamilyDsl(dsl)
+                }
+
+                class ChildUow(executionContext: ExecutionContext) : Family<String>(executionContext) {
+                    override suspend fun tryPerform(principal: TestPrincipal, params: Params) =
+                        changes { dsl.add(createdTestModel("child", 1)).let { "child" } }
+                }
+
+                class ParentUow(executionContext: ExecutionContext) :
+                    UnitOfWork<TestPrincipal, Params, String>(executionContext) {
+                    override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                        execute({ ctx -> ChildUow(ctx) }, principal) { Params }
+                    }
+                }
+                """.trimIndent(),
+            ),
+        )
+        inheritClassPath = true
+        jvmTarget = "21"
+        languageVersion = "2.2"
+        verbose = false
+        messageOutputStream = OutputStream.nullOutputStream()
+    }.compile()
+
+    test("A unit of a family that implements ComposableUow compiles as an execute argument") {
+        compileExecute(", ComposableUow").exitCode shouldBe KotlinCompilation.ExitCode.OK
+    }
+
+    test("A unit of a family that does not implement ComposableUow does not compile as an execute argument") {
+        val result = compileExecute("")
+        result.shouldRejectWith("Return type mismatch: expected 'ComposableUow', actual 'ChildUow'.")
+        result.errorCount() shouldBe 1
+    }
 })

@@ -10,6 +10,7 @@ import com.razz.eva.domain.TestModel.Factory.createdTestModel
 import com.razz.eva.domain.TestModel.Factory.existingCreatedTestModel
 import com.razz.eva.events.UowEvent
 import com.razz.eva.uow.AddEntity
+import com.razz.eva.uow.BaseUnitOfWork
 import com.razz.eva.uow.Clocks.fixedUTC
 import com.razz.eva.uow.ExecutionContext
 import com.razz.eva.uow.PersistedLookup
@@ -57,7 +58,8 @@ internal abstract class CountingFamily<R : Any>(
 }
 
 internal abstract class ChildFamily<R : Any>(executionContext: ExecutionContext) :
-    WrappingUnitOfWork<TestPrincipal, DummyUow.Params, R, FamilyDsl>(executionContext) {
+    com.razz.eva.uow.WrappingUnitOfWork<TestPrincipal, DummyUow.Params, R, FamilyDsl>(executionContext),
+    ComposableUow {
     final override fun wrap(dsl: ChangesDsl) = FamilyDsl(dsl)
 }
 
@@ -80,7 +82,8 @@ internal abstract class WideFamily<R : Any>(
 }
 
 internal abstract class WideChildFamily<R : Any>(executionContext: ExecutionContext) :
-    WrappingUnitOfWork<TestPrincipal, DummyUow.Params, R, WideDsl>(executionContext) {
+    com.razz.eva.uow.WrappingUnitOfWork<TestPrincipal, DummyUow.Params, R, WideDsl>(executionContext),
+    ComposableUow {
     final override fun wrap(dsl: ChangesDsl) = WideDsl(dsl)
 }
 
@@ -88,6 +91,12 @@ internal abstract class WideChildFamily<R : Any>(executionContext: ExecutionCont
 internal class PlainTestUow(executionContext: ExecutionContext, private val model: TestModel) :
     com.razz.eva.uow.UnitOfWork<TestPrincipal, DummyUow.Params, TestModel>(executionContext) {
     override suspend fun tryPerform(principal: TestPrincipal, params: DummyUow.Params) = changes { add(model) }
+}
+
+// Not a wrapping family: a base that claims the marker and can return nothing but noChanges.
+internal class NoChangesComposableUow(executionContext: ExecutionContext, private val result: String) :
+    BaseUnitOfWork<TestPrincipal, DummyUow.Params, String, Unit>(executionContext), ComposableUow {
+    override suspend fun tryPerform(principal: TestPrincipal, params: DummyUow.Params) = noChanges(result)
 }
 
 class WrappingUnitOfWorkSpec : FunSpec({
@@ -294,5 +303,21 @@ class WrappingUnitOfWorkSpec : FunSpec({
             }
         }
         uow.tryPerform(TestPrincipal, DummyUow.Params).entityChangesToPersist shouldBe listOf(AddEntity(tag))
+    }
+
+    test("A unit of work that claims ComposableUow and returns noChanges runs as a child and changes nothing") {
+        val first = createdTestModel("parent", 1)
+        var fromChild: String? = null
+        val parent = object : DummyUow<TestModel>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                add(first)
+                fromChild = execute({ exCtx -> NoChangesComposableUow(exCtx, "nothing") }, TestPrincipal) { Params }
+                first
+            }
+        }
+        val changes = parent.tryPerform(TestPrincipal, DummyUow.Params)
+        fromChild shouldBe "nothing"
+        changes.modelChangesToPersist.map { it.model } shouldBe listOf(first)
+        changes.modelChangesToPersist.map { it.modelEvents.size } shouldBe listOf(1)
     }
 })

@@ -140,7 +140,7 @@ class ChangesDsl internal constructor(
         // the bounds already demand ComposableUow; an unchecked cast of the factory can still get past them
         check(ComposableUow::class.isInstance(uow)) {
             "${uow.name().ifEmpty { "A child unit of work" }} is not composable: a composable parent executes only " +
-                "a unit of work that extends composable.UnitOfWork or composable.WrappingUnitOfWork"
+                "a unit of work that implements ComposableUow"
         }
         val span = uowSpan(uow.name())
         return span.use {
