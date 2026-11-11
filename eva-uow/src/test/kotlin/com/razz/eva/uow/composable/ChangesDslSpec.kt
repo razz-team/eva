@@ -1044,7 +1044,9 @@ class ChangesDslSpec : FunSpec({
         val exception = shouldThrow<IllegalStateException> {
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
-        exception.message.shouldNotBeNull() shouldContain "dropped inherited changes"
+        exception.message shouldBe
+            "Composed child UnitOfWork did not start from its parent's changes; construct the child with the " +
+            "ExecutionContext given to the factory"
     }
 
     test("Should throw when a child with real changes was built with a substituted context") {
@@ -1068,7 +1070,7 @@ class ChangesDslSpec : FunSpec({
         val exception = shouldThrow<IllegalStateException> {
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
-        exception.message.shouldNotBeNull() shouldContain "dropped inherited changes"
+        exception.message.shouldNotBeNull() shouldContain "did not start from its parent's changes"
     }
 
     test("Should throw when a context-substituting child loses the parent's entity changes") {
@@ -1093,7 +1095,7 @@ class ChangesDslSpec : FunSpec({
         val exception = shouldThrow<IllegalStateException> {
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
-        exception.message.shouldNotBeNull() shouldContain "dropped inherited entity changes"
+        exception.message.shouldNotBeNull() shouldContain "did not start from its parent's changes"
     }
 
     test("Should throw when a context-substituting child produces conflicting changes for the same model") {
@@ -1118,8 +1120,7 @@ class ChangesDslSpec : FunSpec({
         val exception = shouldThrow<IllegalStateException> {
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
-        exception.message.shouldNotBeNull() shouldContain
-            "dropped inherited changes for model [${id.stringValue()}]"
+        exception.message.shouldNotBeNull() shouldContain "did not start from its parent's changes"
     }
 
     test("A stubbed child's changes merge without demoting or anchoring") {

@@ -28,5 +28,5 @@ fun <R> stubChanges(result: R, vararg alsoRegistered: Model<*, *>): Changes<R> {
         @Suppress("UNCHECKED_CAST")
         NoopModel(model as Model<ModelId<out Comparable<*>>, ModelEvent<ModelId<out Comparable<*>>>>)
     }
-    return RealisedChanges(result, changes, listOf(), resultBuilder = null, stubbed = true)
+    return RealisedChanges(result, changes, listOf(), resultBuilder = null, accumulator = null)
 }

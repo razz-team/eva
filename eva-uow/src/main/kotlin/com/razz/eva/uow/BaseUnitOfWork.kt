@@ -30,7 +30,8 @@ abstract class BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, C>(
 
     open suspend fun onFailure(params: PARAMS, ex: PersistenceException): RESULT = throw ex
 
-    private val NO_CHANGES: Changes<Unit> = RealisedChanges(Unit, listOf(), listOf())
+    // an empty accumulator, not none: the executor refuses changes without one as a stub
+    private val NO_CHANGES: Changes<Unit> = RealisedChanges(Unit, listOf(), listOf(), null, ChangesAccumulator())
 
     protected fun noChanges() = NO_CHANGES
 
@@ -41,7 +42,7 @@ abstract class BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, C>(
     protected fun <R> noChanges(result: R): Changes<R> {
         val inherited = executionContext.inheritedChanges
         checkNoDroppedWrite(result, "noChanges") { model -> inherited?.persistsWritesOf(model) ?: false }
-        return RealisedChanges(result, listOf(), listOf())
+        return RealisedChanges(result, listOf(), listOf(), null, ChangesAccumulator())
     }
 
     protected fun <R> Changes<R>.result(): R = this.result

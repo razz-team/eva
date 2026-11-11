@@ -19,8 +19,9 @@ abstract class Changes<R> {
     internal abstract val entityChangesToPersist: List<EntityChange>
     // Builder set by roundtrip { }; the executor runs it over persisted models. Any? since R is known only per call.
     internal open val resultBuilder: ((PersistedLookup) -> Any?)? get() = null
-    // Set by stubChanges: the executor refuses a stub as a real UoW's outcome.
-    internal open val stubbed: Boolean get() = false
+    // The accumulator a change block built these changes from, so a parent can take the child's registrations
+    // and see where the child started. Null only for stubChanges: the executor refuses that as a real outcome.
+    internal open val accumulator: ChangesAccumulator? get() = null
 }
 
 /**
@@ -59,7 +60,9 @@ class PersistedLookup internal constructor(
  * disagree with its model, because `stubChanges` builds claims without a check.
  *
  * [inheritedIds] are the ids that came from outside the block that holds this value: the parent's changes a
- * composed child starts from, and every id a merged child hands back. The block may extend a model it got
+ * composed child starts from, and every id a merged child registered. [seed] is the parent's value a composed
+ * child started from, so [merging] can tell a child that started from its parent's changes from one that did
+ * not. The block may extend a model it got
  * this way, so an update for an inherited id merges into the change held for it, and `notChanged` for it
  * keeps that change. Any other second registration of an id fails.
  */
@@ -67,8 +70,9 @@ internal class ChangesAccumulator private constructor(
     private val modelChanges: Map<ModelId<out Comparable<*>>, ModelChange>,
     private val entityChanges: List<EntityChange>,
     private val inheritedIds: Set<ModelId<out Comparable<*>>>,
+    private val seed: ChangesAccumulator?,
 ) {
-    internal constructor() : this(mapOf(), listOf(), setOf())
+    internal constructor() : this(mapOf(), listOf(), setOf(), null)
 
     private fun <MID : ModelId<out Comparable<*>>, E : ModelEvent<MID>, M : Model<MID, E>>
     withAddedModel(model: M): ChangesAccumulator {
@@ -87,22 +91,23 @@ internal class ChangesAccumulator private constructor(
 
     internal fun <E : CreatableEntity>
     addingEntity(entity: E): ChangesAccumulator {
-        return ChangesAccumulator(modelChanges, entityChanges + AddEntity(entity), inheritedIds)
+        return ChangesAccumulator(modelChanges, entityChanges + AddEntity(entity), inheritedIds, seed)
     }
 
     internal fun <E : UpdatableEntity>
     updatingEntity(entity: E): ChangesAccumulator {
-        return ChangesAccumulator(modelChanges, entityChanges + UpdateEntity(entity), inheritedIds)
+        return ChangesAccumulator(modelChanges, entityChanges + UpdateEntity(entity), inheritedIds, seed)
     }
 
     internal fun <E : DeletableEntity>
     deletingEntity(entity: E): ChangesAccumulator {
-        return ChangesAccumulator(modelChanges, entityChanges + DeleteEntity(entity), inheritedIds)
+        return ChangesAccumulator(modelChanges, entityChanges + DeleteEntity(entity), inheritedIds, seed)
     }
 
     internal fun <E : DeletableEntity, K : EntityKey<E>>
     deletingEntityByKey(key: K, entityClass: KClass<E>): ChangesAccumulator {
-        return ChangesAccumulator(modelChanges, entityChanges + DeleteEntityByKey(key, entityClass), inheritedIds)
+        val deletion = DeleteEntityByKey(key, entityClass)
+        return ChangesAccumulator(modelChanges, entityChanges + deletion, inheritedIds, seed)
     }
 
     /** Registers [model] as new. Fails when it is not new, or when its id is already registered. */
@@ -227,50 +232,42 @@ internal class ChangesAccumulator private constructor(
             LinkedHashMap(modelChanges).apply { put(modelId, change) },
             entityChanges,
             inheritedIds,
+            seed,
         )
     }
 
     /**
-     * Folds a composed child's outcome into the accumulated changes. A stubbed child merges
-     * additively: its claims for new ids join the set, and claims for known ids never demote the
-     * accumulated change. Stubbing is read from the flag [Changes.stubbed] records rather than
-     * inferred from the shape, so a real child whose only registration happens to be a claim is
-     * still held to the seeding check below. A
-     * child that made real changes must have seeded from this accumulator, so every accumulated model
-     * change must come back with its events preserved as a prefix and every accumulated entity change
-     * must survive; the child's set is then the continuation of this one and replaces it wholesale,
-     * preserving order. A child that registered nothing leaves this value as it is.
+     * Takes in a composed child's outcome. A child that registered nothing leaves this value as it is.
+     *
+     * A stub has no accumulator. Its claims join the set and never demote a change held here; a later
+     * update over the claim of a model that is still new makes it an add (see [updating]).
+     *
+     * Any other child built its changes with a change block, and that block must have started from this
+     * value: the parent's changes are then all in the child's, extended or kept as they were, so the child's
+     * registrations replace this value's. A child built over another ExecutionContext started from something
+     * else, and would drop what the parent registered, so it fails. The child's registrations are taken
+     * as it made them, before its aggregates' owned models are listed: the flatten runs once, over the
+     * block that persists or hands the changes on, as it does for a single block.
      *
      * Every id of the result counts as inherited from then on, the ones this block registered before the
      * child ran included: the child received them and may have extended them.
      */
     internal fun merging(uowName: String, subChanges: Changes<*>): ChangesAccumulator {
         if (subChanges.modelChangesToPersist.isEmpty() && subChanges.entityChangesToPersist.isEmpty()) return this
-        // an anonymous UoW has an empty simple name
-        val child = uowName.ifEmpty { "child UnitOfWork" }
-        if (subChanges.stubbed) {
+        val child = subChanges.accumulator
+        if (child == null) {
             val mergedModels = LinkedHashMap(modelChanges)
             for (change in subChanges.modelChangesToPersist) {
                 mergedModels.putIfAbsent(change.id, change)
             }
-            return ChangesAccumulator(mergedModels, entityChanges, mergedModels.keys)
+            return ChangesAccumulator(mergedModels, entityChanges, mergedModels.keys, seed)
         }
-        val childModels = subChanges.modelChangesToPersist.associateBy { it.id }
-        for ((id, prev) in modelChanges) {
-            val next = childModels[id]
-            val intact = next != null &&
-                (next.modelEvents isSameAs prev.modelEvents || next.modelEvents isSuccessorOf prev.modelEvents)
-            check(intact) {
-                "Composed $child dropped inherited changes for model [${id.stringValue()}]; " +
-                    "construct the child with the ExecutionContext given to the factory"
-            }
-        }
-        check(subChanges.entityChangesToPersist.containsAll(entityChanges)) {
-            "Composed $child dropped inherited entity changes; " +
+        check(child.seed === this) {
+            // an anonymous UoW has an empty simple name
+            "Composed ${uowName.ifEmpty { "child UnitOfWork" }} did not start from its parent's changes; " +
                 "construct the child with the ExecutionContext given to the factory"
         }
-        val mergedModels = subChanges.modelChangesToPersist.associateByTo(LinkedHashMap()) { it.id }
-        return ChangesAccumulator(mergedModels, subChanges.entityChangesToPersist, mergedModels.keys)
+        return ChangesAccumulator(child.modelChanges, child.entityChanges, child.modelChanges.keys, seed)
     }
 
     internal fun <R> withResult(
@@ -278,7 +275,7 @@ internal class ChangesAccumulator private constructor(
         resultBuilder: ((PersistedLookup) -> Any?)? = null,
     ): Changes<R> {
         require(modelChanges.isNotEmpty() || entityChanges.isNotEmpty()) { "No changes to persist" }
-        return RealisedChanges(result, flattenChildModels(), entityChanges, resultBuilder)
+        return RealisedChanges(result, flattenChildModels(), entityChanges, resultBuilder, this)
     }
 
     internal fun flattenChildModels(): List<ModelChange> {
@@ -339,6 +336,7 @@ internal class ChangesAccumulator private constructor(
                 },
                 entityChanges,
                 inheritedIds,
+                seed,
             )
             else -> throw IllegalStateException(existingChangeExceptionMessage(model.id()))
         }
@@ -351,7 +349,7 @@ internal class ChangesAccumulator private constructor(
          */
         internal fun seededFrom(parent: ChangesAccumulator?): ChangesAccumulator = when (parent) {
             null -> ChangesAccumulator()
-            else -> ChangesAccumulator(parent.modelChanges, parent.entityChanges, parent.modelChanges.keys)
+            else -> ChangesAccumulator(parent.modelChanges, parent.entityChanges, parent.modelChanges.keys, parent)
         }
     }
 }
@@ -379,8 +377,8 @@ internal class RealisedChanges<R>(
     override val result: R,
     override val modelChangesToPersist: List<ModelChange>,
     override val entityChangesToPersist: List<EntityChange>,
-    override val resultBuilder: ((PersistedLookup) -> Any?)? = null,
-    override val stubbed: Boolean = false,
+    override val resultBuilder: ((PersistedLookup) -> Any?)?,
+    override val accumulator: ChangesAccumulator?,
 ) : Changes<R>()
 
 // Reference-identity prefix checks over event lists: composed changes to one model are reconcilable

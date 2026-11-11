@@ -54,7 +54,7 @@ abstract class WrappingUnitOfWork<PRINCIPAL, PARAMS, RESULT, C : Any>(
         override val modelChangesToPersist: List<ModelChange> get() = changes.modelChangesToPersist
         override val entityChangesToPersist: List<EntityChange> get() = changes.entityChangesToPersist
         override val resultBuilder: ((PersistedLookup) -> Any?)? get() = changes.resultBuilder
-        override val stubbed: Boolean get() = changes.stubbed
+        override val accumulator: ChangesAccumulator? get() = changes.accumulator
     }
 }
 
