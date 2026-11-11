@@ -108,14 +108,13 @@ class GuardedChangesDsl<PF : Proof<*>> internal constructor(
         check(attempt != null) {
             "$uowName cannot read the Proven for $targetId: it was built with an ExecutionContext that carries no " +
                 "attempt. Build the unit of work in the factory of the execute call, with the ExecutionContext the " +
-                "factory receives. A composed child reads no Proven. In a spec, build it with " +
-                "executionContext.forAttempt(attempt)"
+                "factory receives. A composed child reads no Proven. In a spec, run it with " +
+                "`uow.firstAttempt(principal) { params }`"
         }
         check(belongsTo(attempt)) {
             "$uowName cannot read the Proven for $targetId: its params were built in another attempt or another " +
                 "run. Build them in the params lambda of the execute call that runs this unit of work. In a " +
-                "spec, build the unit of work with executionContext.forAttempt(attempt), with the context that " +
-                "built the params"
+                "spec, run it with `uow.firstAttempt(principal) { params }`"
         }
         readOrNull()?.let { earlier ->
             check(read[earlier.id()] === this) {

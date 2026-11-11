@@ -22,8 +22,8 @@ import com.razz.eva.domain.Version.Companion.V1
 import com.razz.eva.domain.Version.Companion.version
 import com.razz.eva.domain.addEmployee
 import com.razz.eva.persistence.PersistenceException.StaleRecordException
-import com.razz.eva.test.uow.afterRetry
-import com.razz.eva.test.uow.forAttempt
+import com.razz.eva.uow.InstantiationContextFixtures.afterRetry
+import com.razz.eva.uow.InstantiationContextFixtures.forAttempt
 import com.razz.eva.test.uow.initial
 import com.razz.eva.uow.AddEntity
 import com.razz.eva.uow.Clocks.fixedUTC
@@ -31,6 +31,8 @@ import com.razz.eva.uow.Clocks.millisUTC
 import com.razz.eva.uow.ExecutionContext
 import com.razz.eva.uow.InstantiationContext
 import com.razz.eva.uow.NoopModel
+import com.razz.eva.uow.firstAttempt
+import com.razz.eva.uow.retry
 import com.razz.eva.uow.stubChanges
 import com.razz.eva.uow.TestPrincipal
 import com.razz.eva.uow.UpdateModel
@@ -71,6 +73,8 @@ class GuardedUnitOfWorkSpec : FunSpec({
     val retryContext = noAttempt.forAttempt(retry)
     fun uow(unguarded: Set<KClass<out Model<*, *>>> = setOf(), context: ExecutionContext = executionContext) =
         MoveEmployeeUow(context, unguarded, away)
+    // The factory an execute call takes, for a test that runs an attempt as the executor does.
+    val move = { ctx: ExecutionContext -> uow(context = ctx) }
     fun InstantiationContext.moving(proof: TestProof<Employee>, reloaded: Employee = moved) =
         proven(proof) { reloaded }
     fun InstantiationContext.params(proof: TestProof<Employee>) = EmployeeParams(moving(proof))
@@ -93,18 +97,17 @@ class GuardedUnitOfWorkSpec : FunSpec({
         "that model() returned into the aggregate"
     fun boundElsewhere(id: String) = "MoveEmployeeUow cannot read the Proven for $id: its params were built in " +
         "another attempt or another run. Build them in the params lambda of the execute call that runs this unit of " +
-        "work. In a spec, build the unit of work with executionContext.forAttempt(attempt), with the context that " +
-        "built the params"
+        "work. In a spec, run it with `uow.firstAttempt(principal) { params }`"
     fun attemptless(uow: String, id: String) = "$uow cannot read the Proven for $id: it was built with an " +
         "ExecutionContext that carries no attempt. Build the unit of work in the factory of the execute call, with " +
-        "the ExecutionContext the factory receives. A composed child reads no Proven. In a spec, build it with " +
-        "executionContext.forAttempt(attempt)"
+        "the ExecutionContext the factory receives. A composed child reads no Proven. In a spec, run it with " +
+        "`uow.firstAttempt(principal) { params }`"
     fun stale(uow: String, id: String) =
         "$uow registers $id at version 2, and model() returned it at version 1. Change the model that model() returned"
     fun used() = "This proof for test.write was already used to run a unit of work. One proof runs one unit of work: " +
         "get a new proof for another run"
     fun notFirst() = "The proof for test.write was not wrapped with proven(...) in the first attempt of this run. " +
-        "Wrap the same proofs in every attempt. In a spec, build the first attempt's params before the retry's"
+        "Wrap the same proofs in every attempt. In a spec, run a retry with `uow.retry(principal) { params }`"
     fun storedDept(employees: List<Employee>) =
         DeptAggregate(home.id(), "Stored", randomEmployeeId(), 1, BUBALEH, employees, persistentState(V1, null))
     fun stubbedChild(name: String, vararg claims: Model<*, *>) = { ctx: ExecutionContext ->
@@ -143,16 +146,14 @@ class GuardedUnitOfWorkSpec : FunSpec({
     test("uses the proof's model on the first attempt and never reloads it") {
         val never: Employee by lazy { error("the first attempt does not reload") }
         val proof = proof(employee)
-        val changes = uow().tryPerform(TestPrincipal, first.run { Params(proven(proof) { never }, "moves") })
+        val changes = move.firstAttempt(noAttempt, TestPrincipal) { Params(proven(proof) { never }, "moves") }
         changes.result.id() shouldBe employee.id()
         proof.checkedAgain shouldBe listOf()
     }
 
     test("reloads a proven model on a retry and asks the proof again about the reloaded model") {
         val proof = proof(employee)
-        first.moving(proof)
-        val params = retry.run { Params(moving(proof, moved), "moves") }
-        val changes = uow(context = retryContext).tryPerform(TestPrincipal, params)
+        val changes = move.retry(noAttempt, TestPrincipal) { Params(moving(proof, moved), "moves") }
         proof.checkedAgain shouldBe listOf(moved)
         val change = changes.modelChangesToPersist.single().shouldBeInstanceOf<UpdateModel<*, *>>()
         change.modelEvents shouldBe listOf(DepartmentChanged(employee.id(), elsewhere.id(), away.id()))
@@ -160,19 +161,15 @@ class GuardedUnitOfWorkSpec : FunSpec({
 
     test("a retry whose reload the proof refuses writes nothing") {
         val proof = proof(employee, refused = setOf(elsewhere))
-        first.moving(proof)
-        val params = retry.run { Params(moving(proof), "moves") }
-        shouldThrow<Refused> { uow(context = retryContext).tryPerform(TestPrincipal, params) }
+        shouldThrow<Refused> { move.retry(noAttempt, TestPrincipal) { Params(moving(proof), "moves") } }
             .message shouldBe "moved out of reach"
     }
 
     test("a reload that answers another model is refused before the proof is asked") {
         val proof = proof(employee)
         val other = employee()
-        first.moving(proof)
-        val params = retry.run { Params(moving(proof, other), "moves") }
         shouldThrow<IllegalStateException> {
-            uow(context = retryContext).tryPerform(TestPrincipal, params)
+            move.retry(noAttempt, TestPrincipal) { Params(moving(proof, other), "moves") }
         }.message shouldBe "The reload of a Proven returned ${other.id().stringValue()}, and its proof is for " +
             "${employee.id().stringValue()}. The reload must load the proof's target by its id"
         proof.checkedAgain shouldBe listOf()
@@ -321,11 +318,9 @@ class GuardedUnitOfWorkSpec : FunSpec({
         val extraMoved = employee(id = extra.id(), department = elsewhere.id())
         val extraProof = proof(extra)
         val employeeProof = proof(employee)
-        first.run { Params(moving(employeeProof), "first", extra = proven(extraProof) { error("first") }) }
-        val params = retry.run {
+        move.retry(noAttempt, TestPrincipal) {
             Params(moving(employeeProof), "moves two", extra = proven(extraProof) { extraMoved })
         }
-        uow(context = retryContext).tryPerform(TestPrincipal, params)
         extraProof.checkedAgain shouldBe listOf(extraMoved)
     }
 

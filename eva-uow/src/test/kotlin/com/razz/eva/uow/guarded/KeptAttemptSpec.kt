@@ -78,8 +78,7 @@ class KeptAttemptSpec : FunSpec({
     }
     fun ended(uow: String, id: String) = "$uow cannot read the Proven for $id: its params were built in another " +
         "attempt or another run. Build them in the params lambda of the execute call that runs this unit of work. In " +
-        "a spec, build the unit of work with executionContext.forAttempt(attempt), with the context that built the " +
-        "params"
+        "a spec, run it with `uow.firstAttempt(principal) { params }`"
     fun returnedAnother(uow: String, owner: String) = "$uow returned the changes { } block of another unit of work " +
         "[$owner]; return the block its own changes { } built"
     fun builtElsewhere(uow: String) = "$uow was built with an ExecutionContext other than the one its factory " +
@@ -255,8 +254,8 @@ class KeptAttemptSpec : FunSpec({
             uowx.execute(TestPrincipal, wrapping) { EmployeeParams(proven(proof(employee)) { reloaded }) }
         }.message shouldBe "Anyone cannot read the Proven for ${employee.id().stringValue()}: it was built with an " +
             "ExecutionContext that carries no attempt. Build the unit of work in the factory of the execute call, " +
-            "with the ExecutionContext the factory receives. A composed child reads no Proven. In a spec, build it " +
-            "with executionContext.forAttempt(attempt)"
+            "with the ExecutionContext the factory receives. A composed child reads no Proven. In a spec, run it " +
+            "with `uow.firstAttempt(principal) { params }`"
         coVerify(exactly = 0) { repo.update(any(), any<Employee>()) }
     }
 

@@ -152,8 +152,8 @@ class GuardedExecutorSpec : FunSpec({
                 MoveEmployeeUow.Params(proven(if (binds++ == 0) proof else committed) { other }, "switches")
             }
         }.message shouldBe "The proof for test.write was not wrapped with proven(...) in the first attempt of " +
-            "this run. Wrap the same proofs in every attempt. In a spec, build the first attempt's params before " +
-            "the retry's"
+            "this run. Wrap the same proofs in every attempt. In a spec, run a retry with " +
+            "`uow.retry(principal) { params }`"
         committed.checkedAgain shouldBe listOf()
         coVerify(exactly = 1) { repo.update(any(), any<Employee>()) }
     }
@@ -179,8 +179,7 @@ class GuardedExecutorSpec : FunSpec({
             }
         }.message shouldBe "MoveEmployeeUow cannot read the Proven for ${employee.id().stringValue()}: its params " +
             "were built in another attempt or another run. Build them in the params lambda of the execute call that " +
-            "runs this unit of work. In a spec, build the unit of work with executionContext.forAttempt(attempt), " +
-            "with the context that built the params"
+            "runs this unit of work. In a spec, run it with `uow.firstAttempt(principal) { params }`"
         proof.checkedAgain shouldBe listOf()
         coVerify(exactly = 1) { repo.update(any(), any<Employee>()) }
     }
@@ -205,8 +204,7 @@ class GuardedExecutorSpec : FunSpec({
             uowx.execute(OtherPrincipal, anyone) { EmployeeParams(checkNotNull(leaked)) }
         }.message shouldBe "A guarded unit of work cannot read the Proven for ${employee.id().stringValue()}: " +
             "its params were built in another attempt or another run. Build them in the params lambda of the " +
-            "execute call that runs this unit of work. In a spec, build the unit of work with " +
-            "executionContext.forAttempt(attempt), with the context that built the params"
+            "execute call that runs this unit of work. In a spec, run it with `uow.firstAttempt(principal) { params }`"
         coVerify(exactly = 0) { repo.update(any(), any<Employee>()) }
     }
 
