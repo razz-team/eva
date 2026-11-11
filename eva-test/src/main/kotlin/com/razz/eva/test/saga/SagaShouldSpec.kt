@@ -1,6 +1,9 @@
 package com.razz.eva.test.saga
 
+import com.razz.eva.domain.ModelId
 import com.razz.eva.domain.Principal
+import com.razz.eva.domain.Witness
+import com.razz.eva.domain.mutating
 import com.razz.eva.saga.Saga
 import io.kotest.core.spec.style.ShouldSpec
 import kotlin.reflect.KFunction
@@ -12,8 +15,9 @@ import java.time.Clock
 import java.time.Clock.tickMillis
 import java.time.ZoneOffset.UTC
 
+/** The body runs with a witness for every model id type, so a test calls a witnessed mutator directly. */
 abstract class SagaShouldSpec<PRINCIPAL, PARAMS, IS, TS, SELF>(
-    body: SagaShouldSpec<PRINCIPAL, PARAMS, IS, TS, SELF>.() -> Unit,
+    body: context(Witness<ModelId<out Comparable<*>>>) SagaShouldSpec<PRINCIPAL, PARAMS, IS, TS, SELF>.() -> Unit,
 ) : ShouldSpec()
     where PRINCIPAL : Principal<*>,
           IS : Saga.Intermediary<SELF>,
@@ -60,6 +64,6 @@ abstract class SagaShouldSpec<PRINCIPAL, PARAMS, IS, TS, SELF>(
     }
 
     init {
-        body(this)
+        mutating { body() }
     }
 }

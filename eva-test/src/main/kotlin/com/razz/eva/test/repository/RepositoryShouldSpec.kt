@@ -1,5 +1,8 @@
 package com.razz.eva.test.repository
 
+import com.razz.eva.domain.ModelId
+import com.razz.eva.domain.Witness
+import com.razz.eva.domain.mutating
 import com.razz.eva.persistence.ConnectionMode
 import com.razz.eva.persistence.TransactionManager
 import com.razz.eva.persistence.executor.QueryExecutor
@@ -12,9 +15,10 @@ import java.time.Clock.tickMillis
 import java.time.Instant
 import java.time.ZoneOffset.UTC
 
+/** The body runs with a witness for every model id type, so a test calls a witnessed mutator directly. */
 abstract class RepositoryShouldSpec(
     helper: RepositoryHelper,
-    body: RepositoryShouldSpec.() -> Unit = {},
+    body: context(Witness<ModelId<out Comparable<*>>>) RepositoryShouldSpec.() -> Unit = {},
 ) : ShouldSpec() {
 
     val dslContext: DSLContext = helper.dslContext
@@ -25,7 +29,7 @@ abstract class RepositoryShouldSpec(
         get() = clock.instant()
 
     init {
-        this.body()
+        mutating { body() }
     }
 
     suspend fun <R> inTransaction(ctxInstant: Instant? = null, block: suspend (context: TransactionalContext) -> R): R {
