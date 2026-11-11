@@ -316,6 +316,20 @@ class ResultNetsSpec : FunSpec({
         persisted.captured.single().model shouldBeSameInstanceAs first
     }
 
+    test("A composed child declining on a clean read of a model its parent changed leaves the parent's change") {
+        val read = existingCreatedTestModel(param1 = "read", param2 = 1)
+        val first = read.changeParam1("parent")
+        val (persisting, persisted) = capturing()
+        executor(persisting).execute(
+            TestPrincipal,
+            uow<TestModel> {
+                update(first)
+                execute(uow<TestModel> { update(read) { this } }, TestPrincipal) { DummyUow.Params }
+            },
+        ) { DummyUow.Params }
+        persisted.captured.single().model shouldBeSameInstanceAs first
+    }
+
     test("A composed child declining on a model its parent added leaves it added") {
         val created = createdTestModel("new", 1)
         val (persisting, persisted) = capturing()
@@ -326,7 +340,7 @@ class ResultNetsSpec : FunSpec({
                 execute(uow<TestModel> { update(created) { this } }, TestPrincipal) { DummyUow.Params }
             },
         ) { DummyUow.Params }
-        persisted.captured.single().shouldBeInstanceOf<AddModel<*, *, *>>().model shouldBeSameInstanceAs created
+        persisted.captured.single().shouldBeInstanceOf<AddModel<*, *>>().model shouldBeSameInstanceAs created
     }
 
     test("A composed child declining on its own mutation of a model its parent claimed unchanged registers it") {
@@ -340,7 +354,7 @@ class ResultNetsSpec : FunSpec({
                 execute(uow<TestModel> { update(dirtied) { this } }, TestPrincipal) { DummyUow.Params }
             },
         ) { DummyUow.Params }
-        persisted.captured.single().shouldBeInstanceOf<UpdateModel<*, *, *>>().model shouldBeSameInstanceAs dirtied
+        persisted.captured.single().shouldBeInstanceOf<UpdateModel<*, *>>().model shouldBeSameInstanceAs dirtied
     }
 
     test("A composed child declining on its own unwitnessed extension of a model its parent added merges it") {
@@ -354,7 +368,7 @@ class ResultNetsSpec : FunSpec({
                 execute(uow<TestModel> { update(extended) { this } }, TestPrincipal) { DummyUow.Params }
             },
         ) { DummyUow.Params }
-        val change = persisted.captured.single().shouldBeInstanceOf<AddModel<*, *, *>>()
+        val change = persisted.captured.single().shouldBeInstanceOf<AddModel<*, *>>()
         change.model shouldBeSameInstanceAs extended
         change.modelEvents shouldHaveSize 2
     }
@@ -432,7 +446,7 @@ class ResultNetsSpec : FunSpec({
                 ) { DummyUow.Params }
             },
         ) { DummyUow.Params }
-        persisted.captured.single { it.id == hire.id() }.shouldBeInstanceOf<AddModel<*, *, *>>()
+        persisted.captured.single { it.id == hire.id() }.shouldBeInstanceOf<AddModel<*, *>>()
             .model shouldBeSameInstanceAs hire
     }
 
@@ -488,6 +502,26 @@ class ResultNetsSpec : FunSpec({
             executor(persistingReturning()).execute(
                 TestPrincipal,
                 uow<TestModel> { update(createdTestModel("new", 1)) { this } },
+            ) { DummyUow.Params }
+        }
+        checkNotNull(ex.message) shouldContain "register a new model with add"
+    }
+
+    test("Declining on a new employee that diverges from the one a new aggregate in the block owns names add") {
+        val bossId = EmployeeId()
+        val hire = mutating { newEmployee(Name("Eve", "Ray"), randomDepartmentId(), "eve@test.com", BUBALEH) }
+        val deptA = OwnedDepartment(randomDepartmentId(), "A", bossId, 1, BUBALEH, persistentState(V1, null))
+        val deptB = OwnedDepartment(randomDepartmentId(), "B", bossId, 1, BUBALEH, persistentState(V1, null))
+        val owned = mutating { hire.changeDepartment(deptA) }
+        val diverging = mutating { hire.changeDepartment(deptB) }
+        val dept = newDeptAggregate(name = "Engineering", boss = bossId, ration = BUBALEH, employees = listOf(owned))
+        val ex = shouldThrow<IllegalStateException> {
+            executor(persistingReturning()).execute(
+                TestPrincipal,
+                uow<Employee> {
+                    add(dept)
+                    update(diverging) { this }
+                },
             ) { DummyUow.Params }
         }
         checkNotNull(ex.message) shouldContain "register a new model with add"

@@ -10,17 +10,18 @@ import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
 import kotlin.reflect.KClass
 
-private fun existingChangeExceptionMessage(modelId: ModelId<*>) =
-    "Change for a given model [${modelId.stringValue()}] was already registered"
-
 abstract class Changes<R> {
     internal abstract val result: R
-    internal abstract val modelChangesToPersist: List<ModelChange>
-    internal abstract val entityChangesToPersist: List<EntityChange>
+    // A block's changes are the ones its accumulator lists. Only a stub, which has no accumulator, lists its own.
+    internal open val modelChangesToPersist: List<ModelChange>
+        get() = checkNotNull(accumulator).modelChangesToPersist
+    internal open val entityChangesToPersist: List<EntityChange>
+        get() = checkNotNull(accumulator).entityChangesToPersist
     // Builder set by roundtrip { }; the executor runs it over persisted models. Any? since R is known only per call.
     internal open val resultBuilder: ((PersistedLookup) -> Any?)? get() = null
-    // Set by stubChanges: the executor refuses a stub as a real UoW's outcome.
-    internal open val stubbed: Boolean get() = false
+    // The accumulator a change block built these changes from, so a parent can take the child's registrations
+    // and see where the child started. Null only for stubChanges: the executor refuses that as a real outcome.
+    internal abstract val accumulator: ChangesAccumulator?
 }
 
 /**
@@ -47,59 +48,176 @@ class PersistedLookup internal constructor(
     }
 }
 
-class ChangesAccumulator private constructor(
+/**
+ * The changes a change block has registered so far. It is immutable: a block hands it to a composed child
+ * and takes back what the child returns, so a child cannot change the parent's copy behind its back.
+ *
+ * The rules for how a registration combines with what is already here live in this class, so every change
+ * block applies the same ones. The DSLs call [adding], [updating], [claimingUnchanged], [declining],
+ * [merging] and the entity operations. The model operations and the flatten of an aggregate's owned models
+ * pick a change's kind from its model's state, and [merging] takes only changes a child built the same way.
+ * So an [AddModel] always holds a new model and an [UpdateModel] a changed one. Only a [NoopModel] claim can
+ * disagree with its model, because `stubChanges` builds claims without a check.
+ *
+ * [inheritedIds] are the ids that came from outside the block that holds this value: the parent's changes a
+ * composed child starts from, and every id a merged child registered. The block may extend a model it got
+ * this way, so an update for an inherited id merges into the change held for it, and `notChanged` for it
+ * keeps that change. Any other second registration of an id fails.
+ *
+ * [seed] is the parent's value a composed child started from. [merging] compares it with the parent's value
+ * when the child returns, and so tells a child that started from its parent's changes from one that did not.
+ */
+internal class ChangesAccumulator private constructor(
     private val modelChanges: Map<ModelId<out Comparable<*>>, ModelChange>,
     private val entityChanges: List<EntityChange>,
+    private val inheritedIds: Set<ModelId<out Comparable<*>>>,
+    private val seed: ChangesAccumulator?,
 ) {
-    constructor() : this(mapOf(), listOf())
+    internal constructor() : this(mapOf(), listOf(), setOf(), null)
 
-    fun <MID : ModelId<out Comparable<*>>, E : ModelEvent<MID>, M : Model<MID, E>>
-    withAddedModel(model: M): ChangesAccumulator {
-        return modelChanges(model, ::AddModel)
+    // every later value of a block is built here, so none can forget where the block started
+    private fun next(
+        modelChanges: Map<ModelId<out Comparable<*>>, ModelChange>,
+        entityChanges: List<EntityChange>,
+        inheritedIds: Set<ModelId<out Comparable<*>>>,
+    ) = ChangesAccumulator(modelChanges, entityChanges, inheritedIds, seed)
+
+    internal fun <E : CreatableEntity>
+    addingEntity(entity: E): ChangesAccumulator {
+        return next(modelChanges, entityChanges + AddEntity(entity), inheritedIds)
     }
 
-    fun <MID : ModelId<out Comparable<*>>, E : ModelEvent<MID>, M : Model<MID, E>>
-    withUpdatedModel(model: M): ChangesAccumulator {
-        return modelChanges(model, ::UpdateModel)
+    internal fun <E : UpdatableEntity>
+    updatingEntity(entity: E): ChangesAccumulator {
+        return next(modelChanges, entityChanges + UpdateEntity(entity), inheritedIds)
     }
 
-    fun <MID : ModelId<out Comparable<*>>, E : ModelEvent<MID>, M : Model<MID, E>>
-    withUnchangedModel(model: M): ChangesAccumulator {
-        return modelChanges(model) { m, _ -> NoopModel(m) }
+    internal fun <E : DeletableEntity>
+    deletingEntity(entity: E): ChangesAccumulator {
+        return next(modelChanges, entityChanges + DeleteEntity(entity), inheritedIds)
     }
 
-    fun <E : CreatableEntity>
-    withAddedEntity(entity: E): ChangesAccumulator {
-        return ChangesAccumulator(modelChanges, entityChanges + AddEntity(entity))
+    internal fun <E : DeletableEntity, K : EntityKey<E>>
+    deletingEntityByKey(key: K, entityClass: KClass<E>): ChangesAccumulator {
+        val deletion = DeleteEntityByKey(key, entityClass)
+        return next(modelChanges, entityChanges + deletion, inheritedIds)
     }
 
-    fun <E : UpdatableEntity>
-    withUpdatedEntity(entity: E): ChangesAccumulator {
-        return ChangesAccumulator(modelChanges, entityChanges + UpdateEntity(entity))
+    /** Registers [model] as new. Fails when it is not new, or when its id is already registered. */
+    internal fun <MID : ModelId<out Comparable<*>>, E : ModelEvent<MID>, M : Model<MID, E>>
+    adding(model: M): ChangesAccumulator {
+        require(model.isNew()) {
+            "Attempted to register ${if (model.isDirty()) "changed" else "unchanged"} " +
+                "model [${model.id().stringValue()}] as new. It is stored already, so inserting it would fail. " +
+                "Register a stored model with update, or with notChanged when it did not change"
+        }
+        return registering(AddModel(model))
     }
 
-    fun <E : DeletableEntity>
-    withDeletedEntity(entity: E): ChangesAccumulator {
-        return ChangesAccumulator(modelChanges, entityChanges + DeleteEntity(entity))
+    /**
+     * Registers [model] as changed. For an inherited id it replaces the change held for it. [model] must carry
+     * every event of that change and at least one more, compared by identity, or the merge fails. The merged
+     * change is an add when [model] is new and an update otherwise. That keeps the kind of the held change:
+     * a model only gains events in its own state, so a later state of an added model is new, and of an
+     * updated one is changed. A claim over a model that is still new comes from a stub, and production would
+     * insert it, so it becomes an add. For any other id [model] must be dirty and its id unregistered.
+     */
+    internal fun <MID : ModelId<out Comparable<*>>, E : ModelEvent<MID>, M : Model<MID, E>>
+    updating(model: M): ChangesAccumulator {
+        val existing = modelChanges[model.id()]
+        if (existing == null || model.id() !in inheritedIds) {
+            require(model.isDirty()) {
+                "Attempted to register ${if (model.isNew()) "new" else "unchanged"} " +
+                    "model [${model.id().stringValue()}] as changed. " +
+                    if (model.isNew()) {
+                        "It is not stored yet, so there is nothing to update. Register a new model with add"
+                    } else {
+                        "It carries no change, so a mutation the block meant to make is missing. Call " +
+                            "notChanged(model), or update(model) { mutate() ?: this } to register whichever happened"
+                    }
+            }
+            return registering(UpdateModel(model))
+        }
+        val newEvents = model.modelEvents()
+        check(newEvents isSuccessorOf existing.modelEvents) {
+            if (newEvents isSameAs existing.modelEvents) {
+                "No-op update for model [${model.id().stringValue()}]: no new events on top of the " +
+                    "existing change. Use notChanged(...) or guard update(...)."
+            } else {
+                "Failed to merge changes for model [${model.id().stringValue()}]: the parent or a composed " +
+                    "child changed this model before, and the instance given to update does not carry those " +
+                    "changes, so writing it would drop them. It was most likely read again by id. Update the " +
+                    "instance the parent passed in (constantModelParam), or the one execute or " +
+                    "roundtrip { p -> p(model) } returned"
+            }
+        }
+        // more events than the held change, so at least one: the model is new or changed, never clean
+        val merged = if (model.isNew()) AddModel(model) else UpdateModel(model)
+        return withReplacedModelChange(model.id(), merged)
     }
 
-    fun <E : DeletableEntity, K : EntityKey<E>>
-    withDeletedEntityByKey(key: K, entityClass: KClass<E>): ChangesAccumulator {
-        return ChangesAccumulator(modelChanges, entityChanges + DeleteEntityByKey(key, entityClass))
+    /**
+     * Registers [model] as unchanged. An inherited id that already has a change keeps that change, so a
+     * write registered outside this block still persists. [model] must then carry no write that change
+     * lacks: the instance it holds, a clean read, or an earlier state of it. A model with a write of its own
+     * fails, because the claim would drop that write. Otherwise [model] must be persisted and clean.
+     */
+    internal fun <MID : ModelId<out Comparable<*>>, E : ModelEvent<MID>, M : Model<MID, E>>
+    claimingUnchanged(model: M): ChangesAccumulator {
+        val held = modelChanges[model.id()]
+        if (held != null && model.id() in inheritedIds) {
+            check(model.isCoveredBy(held.model)) {
+                "notChanged got model [${model.id().stringValue()}] with a write the change its parent " +
+                    "registered does not carry: the write would be silently dropped. Register it with update, " +
+                    "or call notChanged with the instance the parent registered"
+            }
+            return this
+        }
+        require(model.isPersisted()) {
+            "Attempted to register ${if (model.isNew()) "new" else "changed"} " +
+                "model [${model.id().stringValue()}] as unchanged. It carries a write, and notChanged would " +
+                "drop it. Register a new model with add and a changed one with update"
+        }
+        return registering(NoopModel(model))
+    }
+
+    /**
+     * Registers [model] for `update(model) { }` when its lambda hands back the receiver itself. The first
+     * rule that applies decides:
+     * - a registration already covers [model] (see [isCoveredBy]), the parent's included: nothing changes;
+     * - the id is inherited: [model] carries an unwitnessed mutation of a model this block received, so it
+     *   merges into that model's change;
+     * - [model] is new and an aggregate here owns it, as this instance or a later one: it is added on its own,
+     *   so it persists even if that aggregate later stops owning it;
+     * - [model] is new otherwise: this fails, because a new model is registered with `add`;
+     * - [model] is dirty from an unwitnessed mutator: it still carries its own write, so it is an update;
+     * - an aggregate here owns a clean [model]: the aggregate persists whatever it changed, and an unchanged
+     *   claim would contradict it, so nothing changes;
+     * - otherwise [model] is registered as unchanged.
+     */
+    internal fun <MID : ModelId<out Comparable<*>>, E : ModelEvent<MID>, M : Model<MID, E>>
+    declining(model: M): ChangesAccumulator {
+        val registered = modelChanges[model.id()]
+        val owned = ownedInstanceOf(model.id())
+        return when {
+            registered != null && model.isCoveredBy(registered.model) -> this
+            model.id() in inheritedIds -> updating(model)
+            model.isNew() && owned != null && model.isCoveredBy(owned) -> adding(model)
+            model.isNew() -> error(
+                "update(model) { } handed back new model [${model.id().stringValue()}] unchanged; register a " +
+                    "new model with add",
+            )
+            model.isDirty() -> updating(model)
+            owned != null -> this
+            else -> claimingUnchanged(model)
+        }
     }
 
     internal fun changeFor(modelId: ModelId<out Comparable<*>>): ModelChange? = modelChanges[modelId]
 
-    /**
-     * Every change by id over the same flattened view [withResult] persists, so an owned child of a
-     * registered [Aggregate] counts as accounted. The guards must agree: resolving a child through
-     * the raw map alone reports a dropped write for a model the aggregate will persist.
-     */
-    /**
-     * The instance an aggregate registered here owns for [modelId], found by walking owned models without
-     * the flatten's contradiction checks, so it answers in any intermediate state of a block.
-     */
-    internal fun ownedInstanceOf(modelId: ModelId<out Comparable<*>>): Model<*, *>? {
+    // The instance an aggregate registered here owns for modelId. It walks owned models without the
+    // flatten's contradiction checks, so it answers in any intermediate state of a block.
+    private fun ownedInstanceOf(modelId: ModelId<out Comparable<*>>): Model<*, *>? {
         fun find(model: Model<*, *>): Model<*, *>? = when (model) {
             is Aggregate<*, *> -> model.ownedModels().firstNotNullOfOrNull { owned ->
                 if (owned.id() == modelId) owned else find(owned)
@@ -109,71 +227,87 @@ class ChangesAccumulator private constructor(
         return modelChanges.values.firstNotNullOfOrNull { find(it.model) }
     }
 
-    internal fun flattenedChanges(): Map<ModelId<out Comparable<*>>, ModelChange> =
-        flattenChildModels().associateBy { it.id }
+    /**
+     * The model changes this value persists: the registrations and the owned models of their aggregates, as
+     * [flattenChildModels] lists them. Flattened once, on the first question, since the value is immutable.
+     */
+    internal val modelChangesToPersist: List<ModelChange> by lazy { flattenChildModels() }
 
-    internal fun withReplacedModelChange(
+    internal val entityChangesToPersist: List<EntityChange> get() = entityChanges
+
+    // by id, since a caller asks for each model it holds
+    private val flattened by lazy { modelChangesToPersist.associateBy { it.id } }
+
+    /**
+     * True when the change set persists every write [model] carries: the change for its id holds [model] or a
+     * later state of it. It reads the flattened view [modelChangesToPersist], so an owned child of a registered
+     * [Aggregate] counts. Reading the raw registrations alone would report a dropped write for a model the
+     * aggregate persists.
+     */
+    internal fun persistsWritesOf(model: Model<*, *>): Boolean =
+        flattened[model.id()]?.let { model.isCoveredBy(it.model) } ?: false
+
+    private fun withReplacedModelChange(
         modelId: ModelId<out Comparable<*>>,
         change: ModelChange,
     ): ChangesAccumulator {
-        return ChangesAccumulator(
-            LinkedHashMap(modelChanges).apply { put(modelId, change) },
-            entityChanges,
-        )
+        return next(LinkedHashMap(modelChanges).apply { put(modelId, change) }, entityChanges, inheritedIds)
     }
 
-    internal fun modelIds(): Set<ModelId<out Comparable<*>>> = modelChanges.keys
-
     /**
-     * Folds a composed child's outcome into the accumulated changes. A stubbed child merges
-     * additively: its claims for new ids join the set, and claims for known ids never demote the
-     * accumulated change. Stubbing is read from the flag [Changes.stubbed] records rather than
-     * inferred from the shape, so a real child whose only registration happens to be a claim is
-     * still held to the seeding check below. A
-     * child that made real changes must have seeded from this accumulator, so every accumulated model
-     * change must come back with its events preserved as a prefix and every accumulated entity change
-     * must survive; the child's set is then the continuation of this one and replaces it wholesale,
-     * preserving order.
+     * Takes in a composed child's outcome. A child that registered nothing leaves this value as it is.
+     *
+     * A stub has no accumulator. Its claims join the set and never demote a change held here; a later
+     * update over the claim of a model that is still new makes it an add (see [updating]).
+     *
+     * Any other child built its changes with a change block, and that block must have started from this
+     * value: the parent's changes are then all in the child's, extended or kept as they were, so the child's
+     * registrations replace this value's. A child built over another ExecutionContext started from something
+     * else, and would drop what the parent registered, so it fails. So does a child whose parent registered
+     * something after the child started, from the params lambda or while the child ran: the child's changes
+     * lack that registration. The child's registrations are taken
+     * as it made them, before its aggregates' owned models are listed: the flatten runs once, over the
+     * block that persists or hands the changes on, as it does for a single block.
+     *
+     * Every id of the result counts as inherited from then on, the ones this block registered before the
+     * child ran included: the child received them and may have extended them.
      */
     internal fun merging(uowName: String, subChanges: Changes<*>): ChangesAccumulator {
-        // an anonymous UoW has an empty simple name
-        val child = uowName.ifEmpty { "child UnitOfWork" }
-        if (subChanges.stubbed) {
+        if (subChanges.modelChangesToPersist.isEmpty() && subChanges.entityChangesToPersist.isEmpty()) return this
+        val child = subChanges.accumulator
+        if (child == null) {
             val mergedModels = LinkedHashMap(modelChanges)
             for (change in subChanges.modelChangesToPersist) {
                 mergedModels.putIfAbsent(change.id, change)
             }
-            return ChangesAccumulator(mergedModels, entityChanges)
+            return next(mergedModels, entityChanges, mergedModels.keys)
         }
-        val childModels = subChanges.modelChangesToPersist.associateBy { it.id }
-        for ((id, prev) in modelChanges) {
-            val next = childModels[id]
-            val intact = next != null &&
-                (next.modelEvents isSameAs prev.modelEvents || next.modelEvents isSuccessorOf prev.modelEvents)
-            check(intact) {
-                "Composed $child dropped inherited changes for model [${id.stringValue()}]; " +
-                    "construct the child with the ExecutionContext given to the factory"
-            }
+        check(child.seed === this) {
+            // an anonymous UoW has an empty simple name
+            "Composed ${uowName.ifEmpty { "child UnitOfWork" }} did not start from the changes its parent holds " +
+                "now; a child extends composable.UnitOfWork or a WrappingUnitOfWork family and not the plain " +
+                "UnitOfWork, it is constructed with the ExecutionContext given to the factory, and its parent " +
+                "does not register from the params lambda or while the child runs"
         }
-        check(subChanges.entityChangesToPersist.containsAll(entityChanges)) {
-            "Composed $child dropped inherited entity changes; " +
-                "construct the child with the ExecutionContext given to the factory"
-        }
-        return ChangesAccumulator(
-            subChanges.modelChangesToPersist.associateByTo(LinkedHashMap()) { it.id },
-            subChanges.entityChangesToPersist,
-        )
+        return next(child.modelChanges, child.entityChanges, child.modelChanges.keys)
     }
 
-    fun <R> withResult(
+    internal fun <R> withResult(
         result: R,
-        resultBuilder: ((PersistedLookup) -> Any?)? = null,
+        resultBuilder: ((PersistedLookup) -> Any?)?,
     ): Changes<R> {
-        require(modelChanges.isNotEmpty() || entityChanges.isNotEmpty()) { "No changes to persist" }
-        return RealisedChanges(result, flattenChildModels(), entityChanges, resultBuilder)
+        // The flatten runs here, so an owned model that contradicts a registration fails where the block ends.
+        // Its list is empty exactly when no model is registered.
+        require(modelChangesToPersist.isNotEmpty() || entityChanges.isNotEmpty()) {
+            "No changes to persist: the changes { } block registered nothing, which usually means a mutation was " +
+                "not passed to add or update and would be lost. Register what the block wrote with add or update, " +
+                "and a model it read and kept with notChanged(model). When there is nothing to write, return " +
+                "noChanges(result) in place of changes { }"
+        }
+        return AccumulatedChanges(result, resultBuilder, this)
     }
 
-    internal fun flattenChildModels(): List<ModelChange> {
+    private fun flattenChildModels(): List<ModelChange> {
         val result = LinkedHashMap<ModelId<out Comparable<*>>, ModelChange>()
         // the instance each id persists as: a registration, or an owned child flattened for it
         val known: MutableMap<ModelId<out Comparable<*>>, Model<*, *>> =
@@ -212,35 +346,30 @@ class ChangesAccumulator private constructor(
         return result.values.toList()
     }
 
-    @Suppress("UNCHECKED_CAST")
-    private fun changeOf(model: Model<*, *>): ModelChange? {
-        val m = model as Model<ModelId<out Comparable<*>>, ModelEvent<ModelId<out Comparable<*>>>>
-        return when {
-            m.isNew() -> AddModel(m, m.modelEvents())
-            m.isDirty() -> UpdateModel(m, m.modelEvents())
-            else -> null
-        }
+    private fun changeOf(model: Model<*, *>): ModelChange? = when {
+        model.isNew() -> AddModel(model)
+        model.isDirty() -> UpdateModel(model)
+        else -> null
     }
 
-    private fun <E : ModelEvent<MID>, M : Model<MID, E>, MID : ModelId<out Comparable<*>>>
-    modelChanges(model: M, changer: (M, List<E>) -> ModelChange): ChangesAccumulator {
-        return when (modelChanges[model.id()]) {
-            null -> ChangesAccumulator(
-                LinkedHashMap(modelChanges).apply {
-                    put(model.id(), changer(model, model.modelEvents()))
-                },
-                entityChanges,
-            )
-            else -> throw IllegalStateException(existingChangeExceptionMessage(model.id()))
+    private fun registering(change: ModelChange): ChangesAccumulator {
+        check(change.id !in modelChanges) {
+            "Change for a given model [${change.id.stringValue()}] was already registered. The block registered " +
+                "it twice, and the second registration would replace the first and drop its write. Register a " +
+                "model once: make every mutation first, then call add or update with the last instance. A second " +
+                "update is accepted only for a model the parent or a composed child registered"
         }
+        return next(LinkedHashMap(modelChanges).apply { put(change.id, change) }, entityChanges, inheritedIds)
     }
 
     companion object {
-        internal fun from(changes: Changes<*>): ChangesAccumulator {
-            return ChangesAccumulator(
-                changes.modelChangesToPersist.associateByTo(LinkedHashMap()) { it.id },
-                changes.entityChangesToPersist,
-            )
+        /**
+         * The value a composed child's block starts from: the parent's changes, with every id marked as
+         * inherited. A block that runs on its own, with no parent, starts empty.
+         */
+        internal fun seededFrom(parent: ChangesAccumulator?): ChangesAccumulator = when (parent) {
+            null -> ChangesAccumulator()
+            else -> ChangesAccumulator(parent.modelChanges, parent.entityChanges, parent.modelChanges.keys, parent)
         }
     }
 }
@@ -264,12 +393,14 @@ internal fun verifyResultAccounted(result: Any?, changes: List<ModelChange>) {
     }
 }
 
-internal class RealisedChanges<R>(
+/**
+ * The changes a change block built, or the empty ones of `noChanges`: the result, the builder `roundtrip { }` set,
+ * and the accumulator, which lists the model and entity changes.
+ */
+internal class AccumulatedChanges<R>(
     override val result: R,
-    override val modelChangesToPersist: List<ModelChange>,
-    override val entityChangesToPersist: List<EntityChange>,
-    override val resultBuilder: ((PersistedLookup) -> Any?)? = null,
-    override val stubbed: Boolean = false,
+    override val resultBuilder: ((PersistedLookup) -> Any?)?,
+    override val accumulator: ChangesAccumulator,
 ) : Changes<R>()
 
 // Reference-identity prefix checks over event lists: composed changes to one model are reconcilable

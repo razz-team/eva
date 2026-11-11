@@ -11,11 +11,10 @@ import java.util.Collections
 import java.util.IdentityHashMap
 
 /**
- * The template every unit of work family instantiates. [C] documents the receiver of the change block
- * that the family's own `changes` builder accepts. The builder is deliberately not declared here:
- * each family types its block's receiver and result itself, a suspend block with receiver erases to
- * the same JVM signature whatever its return type, and nothing ever calls `changes` polymorphically,
- * so a single overridable declaration would buy nothing and force one shape on every family.
+ * The template of eva's unit of work bases. [C] names the receiver of the family's `changes` block for the
+ * reader; the base itself does not use it, and a family on [WrappingUnitOfWork] names its DSL there. A family
+ * outside eva extends [WrappingUnitOfWork], which wraps eva's DSL in the family's own, because only eva's DSLs
+ * can build [Changes].
  */
 abstract class BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, C>(
     private val executionContext: ExecutionContext,
@@ -35,23 +34,18 @@ abstract class BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, C>(
 
     open suspend fun onFailure(params: PARAMS, ex: PersistenceException): RESULT = throw ex
 
-    private val NO_CHANGES: Changes<Unit> = RealisedChanges(Unit, listOf(), listOf())
-
-    protected fun noChanges() = NO_CHANGES
+    protected fun noChanges(): Changes<Unit> = noChanges(Unit)
 
     // Under composition a dirty model handed back through noChanges may already be registered in the
     // parent's change set (threaded in via a ModelParam): its write persists via the parent when it is
     // the registered instance or an ancestor of it, the same rule the executor's result net applies. A
     // divergent instance under the same id carries events of its own that would be silently dropped.
     protected fun <R> noChanges(result: R): Changes<R> {
-        val inherited by lazy { executionContext.inheritedChanges?.flattenedChanges().orEmpty() }
-        checkNoDroppedWrite(result, "noChanges") { model ->
-            inherited[model.id()]?.let { model.isCoveredBy(it.model) } ?: false
-        }
-        return RealisedChanges(result, listOf(), listOf())
+        val inherited = executionContext.inheritedChanges
+        checkNoDroppedWrite(result, "noChanges") { model -> inherited?.persistsWritesOf(model) ?: false }
+        // an empty accumulator, not none: the executor refuses changes without one as a stub
+        return AccumulatedChanges(result, null, ChangesAccumulator())
     }
-
-    protected fun <R> Changes<R>.result(): R = this.result
 
     data class Configuration(
         val retry: Retry? = DEFAULT,

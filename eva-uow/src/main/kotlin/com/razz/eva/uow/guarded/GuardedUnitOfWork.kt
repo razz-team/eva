@@ -5,9 +5,8 @@ import com.razz.eva.domain.Principal
 import com.razz.eva.persistence.PersistenceException
 import com.razz.eva.uow.BaseUnitOfWork
 import com.razz.eva.uow.Changes
-import com.razz.eva.uow.EntityChange
+import com.razz.eva.uow.ChangesAccumulator
 import com.razz.eva.uow.ExecutionContext
-import com.razz.eva.uow.ModelChange
 import com.razz.eva.uow.PersistedLookup
 import com.razz.eva.uow.UowParams
 import com.razz.eva.uow.composable.ChangesDsl
@@ -81,9 +80,7 @@ abstract class GuardedUnitOfWork<P, PF, PARAMS, RESULT>(
 
     private class Produced<R>(private val changes: Changes<R>) : GuardedChanges<R>() {
         override val result: R get() = changes.result
-        override val modelChangesToPersist: List<ModelChange> get() = changes.modelChangesToPersist
-        override val entityChangesToPersist: List<EntityChange> get() = changes.entityChangesToPersist
         override val resultBuilder: ((PersistedLookup) -> Any?)? get() = changes.resultBuilder
-        override val stubbed: Boolean get() = changes.stubbed
+        override val accumulator: ChangesAccumulator? get() = changes.accumulator
     }
 }

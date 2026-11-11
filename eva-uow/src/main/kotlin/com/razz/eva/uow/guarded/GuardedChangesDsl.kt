@@ -38,7 +38,7 @@ class GuardedChangesDsl<PF : Proof<*, *, *>> internal constructor(
 
     /** The ids of the models the block read with [model] and its changes do not hold, directly or in an aggregate. */
     internal fun readNotWritten(): List<ModelId<*>> {
-        val written = dsl.changes.flattenChildModels().mapTo(mutableSetOf()) { it.id }
+        val written = dsl.changes.modelChangesToPersist.mapTo(mutableSetOf()) { it.id }
         return (read.keys - written).toList()
     }
 
@@ -199,7 +199,7 @@ class GuardedChangesDsl<PF : Proof<*, *, *>> internal constructor(
     // the filter cannot hide a later change of the same id.
     private fun registeredByChild(childChanges: Changes<*>): List<Model<*, *>> {
         val parents = Collections.newSetFromMap(IdentityHashMap<Model<*, *>, Boolean>())
-        dsl.changes.flattenChildModels().mapTo(parents) { it.model }
+        dsl.changes.modelChangesToPersist.mapTo(parents) { it.model }
         return childChanges.modelChangesToPersist
             .filter { guarding.canBeGuarded(it.model::class) }
             .map { it.model }

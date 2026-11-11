@@ -10,6 +10,9 @@ import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.matchers.shouldBe
 
+// AddModel and UpdateModel check nothing when they persist: every path that builds one picks its kind from
+// the model's state (ChangesSpec pins the refusals there). A NoopModel claim still checks, because
+// stubChanges claims new and changed models too.
 class ModelChangeSpec : BehaviorSpec({
 
     val persisting = object : ModelPersisting {
@@ -17,46 +20,9 @@ class ModelChangeSpec : BehaviorSpec({
         override fun <ID : ModelId<out Comparable<*>>, M : Model<ID, *>> update(model: M) = Unit
     }
 
-    Given("Model in PersistentState") {
-        val persistedModel = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
-
-        When("Principal tries to UPDATE persisted model via ModelChange") {
-            val change = UpdateModel(persistedModel, listOf())
-            val attempt = { change.persist(persisting) }
-
-            Then("IllegalArgumentException thrown") {
-                val ex = shouldThrow<IllegalArgumentException>(attempt)
-                ex.message shouldBe "Attempted to register unchanged " +
-                    "model [${persistedModel.id().stringValue()}] as changed"
-            }
-        }
-
-        When("Principal tries to ADD persisted model via ModelChange") {
-            val change = AddModel(persistedModel, listOf())
-            val attempt = { change.persist(persisting) }
-
-            Then("IllegalArgumentException thrown") {
-                val ex = shouldThrow<IllegalArgumentException>(attempt)
-                ex.message shouldBe "Attempted to register unchanged " +
-                    "model [${persistedModel.id().stringValue()}] as new"
-            }
-        }
-    }
-
     Given("Model in DirtyState") {
         val dirtyModel = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
             .changeParam1("mlg")
-
-        When("Principal tries to ADD dirty model via ModelChange") {
-            val change = AddModel(dirtyModel, listOf())
-            val attempt = { change.persist(persisting) }
-
-            Then("IllegalArgumentException thrown") {
-                val ex = shouldThrow<IllegalArgumentException>(attempt)
-                ex.message shouldBe "Attempted to register changed " +
-                    "model [${dirtyModel.id().stringValue()}] as new"
-            }
-        }
 
         When("Principal tries mark dirty model as not changed via ModelChange") {
             val change = NoopModel(dirtyModel)
@@ -72,17 +38,6 @@ class ModelChangeSpec : BehaviorSpec({
 
     Given("Model in NewState") {
         val newModel = createdTestModel("noscope", 360).changeParam1("mlg")
-
-        When("Principal tries to UPDATE new model via ModelChange") {
-            val change = UpdateModel(newModel, listOf())
-            val attempt = { change.persist(persisting) }
-
-            Then("IllegalArgumentException thrown") {
-                val ex = shouldThrow<IllegalArgumentException>(attempt)
-                ex.message shouldBe "Attempted to register new " +
-                    "model [${newModel.id().stringValue()}] as changed"
-            }
-        }
 
         When("Principal tries mark new model as not changed via ModelChange") {
             val change = NoopModel(newModel)

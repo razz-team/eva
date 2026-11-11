@@ -47,7 +47,9 @@ import com.razz.eva.uow.guarded.Proven.Companion.proven
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContainExactly
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldStartWith
 import io.kotest.matchers.types.shouldBeInstanceOf
 import io.kotest.matchers.types.shouldBeSameInstanceAs
 import io.opentelemetry.api.OpenTelemetry
@@ -133,7 +135,7 @@ class GuardedUnitOfWorkSpec : FunSpec({
     test("writes a proven model and returns changes of the sealed GuardedChanges type") {
         val changes = uow().tryPerform(TestPrincipal, first.run { Params(moving(proof(employee)), "moves") })
         changes.shouldBeInstanceOf<GuardedChanges<Employee>>()
-        val change = changes.modelChangesToPersist.single().shouldBeInstanceOf<UpdateModel<*, *, *>>()
+        val change = changes.modelChangesToPersist.single().shouldBeInstanceOf<UpdateModel<*, *>>()
         change.model.shouldBeInstanceOf<Employee>().departmentId shouldBe away.id()
         change.modelEvents shouldBe listOf(DepartmentChanged(employee.id(), home.id(), away.id()))
         changes.result shouldBeSameInstanceAs change.model
@@ -155,7 +157,7 @@ class GuardedUnitOfWorkSpec : FunSpec({
         val params = retry.run { Params(moving(proof, moved), "moves") }
         val changes = uow(context = retryContext).tryPerform(TestPrincipal, params)
         proof.checkedAgain shouldBe listOf(moved)
-        val change = changes.modelChangesToPersist.single().shouldBeInstanceOf<UpdateModel<*, *, *>>()
+        val change = changes.modelChangesToPersist.single().shouldBeInstanceOf<UpdateModel<*, *>>()
         change.modelEvents shouldBe listOf(DepartmentChanged(employee.id(), elsewhere.id(), away.id()))
     }
 
@@ -462,12 +464,12 @@ class GuardedUnitOfWorkSpec : FunSpec({
         }.message shouldBe refusedWrite("TargetFirstGuardedUow", "MoveOtherEmployeeUow", employee.id().stringValue())
     }
 
-    test("refuses a child whose hand-built changes drop the proven model the block updated first") {
+    test("refuses a child built without its factory's context, whose changes would drop the proven model") {
         shouldThrow<IllegalStateException> {
-            targetFirst { ctx, _ -> HandBuiltChildUow(ctx, home) }
+            targetFirst { _, _ -> RenameDepartmentUow(executionContext, home) }
                 .tryPerform(TestPrincipal, first.params(proof(employee)))
-        }.message shouldBe "Composed HandBuiltChildUow dropped inherited changes for model " +
-            "[${employee.id().stringValue()}]; construct the child with the ExecutionContext given to the factory"
+        }.message.shouldNotBeNull() shouldStartWith
+            "Composed RenameDepartmentUow did not start from the changes its parent holds now"
     }
 
     test("a block that catches a child's refusal writes its own changes and nothing of the child's") {
@@ -762,7 +764,7 @@ class GuardedUnitOfWorkSpec : FunSpec({
         }.message shouldBe boundElsewhere(employee.id().stringValue())
         shouldThrow<IllegalStateException> {
             val sameRun = (first as InstantiationContext.External).run
-            val again = noAttempt.forAttempt(InstantiationContext(0, TestPrincipal, sameRun))
+            val again = noAttempt.forAttempt(InstantiationContext.External(0, TestPrincipal, sameRun))
             uow(context = again).tryPerform(TestPrincipal, params)
         }.message shouldBe boundElsewhere(employee.id().stringValue())
         uow().tryPerform(TestPrincipal, params).result.departmentId shouldBe away.id()

@@ -24,9 +24,4 @@ sealed class InstantiationContext(internal val attempt: Int) {
 
     /** One run of a unit of work, across its attempts. Compared by identity. */
     internal class Run
-
-    internal companion object Factory {
-        internal operator fun invoke(attempt: Int, principal: Principal<*>, run: Run): InstantiationContext =
-            External(attempt, principal, run)
-    }
 }

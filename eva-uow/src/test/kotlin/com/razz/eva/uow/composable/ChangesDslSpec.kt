@@ -12,7 +12,6 @@ import com.razz.eva.domain.TestModel.ActiveTestModel
 import com.razz.eva.domain.TestModel.CreatedTestModel
 import com.razz.eva.domain.TestModel.Factory.createdTestModel
 import com.razz.eva.domain.TestModel.Factory.existingCreatedTestModel
-import com.razz.eva.domain.TestModelEvent
 import com.razz.eva.domain.TestModelEvent.TestModelCreated
 import com.razz.eva.domain.TestModelEvent.TestModelEvent1
 import com.razz.eva.domain.TestModelEvent.TestModelEvent2
@@ -49,10 +48,16 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeTypeOf
+import io.kotest.matchers.string.shouldStartWith
 import io.opentelemetry.api.OpenTelemetry
 import java.time.LocalDate
 
 class ChangesDslSpec : FunSpec({
+
+    val notStartedFromParent = "Composed child UnitOfWork did not start from the changes its parent holds now; " +
+        "a child extends composable.UnitOfWork or a WrappingUnitOfWork family and not the plain UnitOfWork, it is " +
+        "constructed with the ExecutionContext given to the factory, and its parent does not register from the " +
+        "params lambda or while the child runs"
 
     val now = millisUTC().instant()
     val clock = fixedUTC(now)
@@ -78,14 +83,8 @@ class ChangesDslSpec : FunSpec({
         val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
 
         changes.modelChangesToPersist shouldBe listOf(
-            AddModel(
-                model0,
-                listOf(
-                    TestModelCreated(model0.id()),
-                    TestModelStatusChanged(model0.id(), CREATED, ACTIVE),
-                ),
-            ),
-            UpdateModel(model1, listOf(TestModelStatusChanged(model1.id(), CREATED, ACTIVE))),
+            AddModel(model0),
+            UpdateModel(model1),
             NoopModel(model2),
         )
         changes.result shouldBe "K P A C U B O"
@@ -154,7 +153,7 @@ class ChangesDslSpec : FunSpec({
         val exception = shouldThrow<IllegalArgumentException> {
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
-        exception.message shouldBe "Attempted to register new model [${model.id().stringValue()}] as changed"
+        exception.message shouldStartWith "Attempted to register new model [${model.id().stringValue()}] as changed"
     }
 
     test("Should throw exception when new model marked as not changed without inherited change") {
@@ -169,7 +168,7 @@ class ChangesDslSpec : FunSpec({
         val exception = shouldThrow<IllegalArgumentException> {
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
-        exception.message shouldBe "Attempted to register new model [${model.id().stringValue()}] as unchanged"
+        exception.message shouldStartWith "Attempted to register new model [${model.id().stringValue()}] as unchanged"
     }
 
     test("Should throw exception when unchanged model added") {
@@ -184,7 +183,7 @@ class ChangesDslSpec : FunSpec({
         val exception = shouldThrow<IllegalArgumentException> {
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
-        exception.message shouldBe "Attempted to register unchanged model [${model.id().stringValue()}] as new"
+        exception.message shouldStartWith "Attempted to register unchanged model [${model.id().stringValue()}] as new"
     }
 
     test("Should throw exception when changed model added") {
@@ -199,7 +198,7 @@ class ChangesDslSpec : FunSpec({
         val exception = shouldThrow<IllegalArgumentException> {
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
-        exception.message shouldBe "Attempted to register changed model [${model.id().stringValue()}] as new"
+        exception.message shouldStartWith "Attempted to register changed model [${model.id().stringValue()}] as new"
     }
 
     test("Should throw exception when unchanged model updated") {
@@ -214,7 +213,8 @@ class ChangesDslSpec : FunSpec({
         val exception = shouldThrow<IllegalArgumentException> {
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
-        exception.message shouldBe "Attempted to register unchanged model [${model.id().stringValue()}] as changed"
+        exception.message shouldStartWith
+            "Attempted to register unchanged model [${model.id().stringValue()}] as changed"
     }
 
     test("Should throw exception when changed model marked as not changed") {
@@ -229,7 +229,8 @@ class ChangesDslSpec : FunSpec({
         val exception = shouldThrow<IllegalArgumentException> {
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
-        exception.message shouldBe "Attempted to register changed model [${model.id().stringValue()}] as unchanged"
+        exception.message shouldStartWith
+            "Attempted to register changed model [${model.id().stringValue()}] as unchanged"
     }
 
     test("Should throw exception when no models were added or updated with result") {
@@ -243,7 +244,7 @@ class ChangesDslSpec : FunSpec({
         val exception = shouldThrow<IllegalArgumentException> {
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
-        exception.message shouldBe "No changes to persist"
+        exception.message shouldStartWith "No changes to persist"
     }
 
     test("Should throw exception when no models were added or updated without result") {
@@ -255,7 +256,7 @@ class ChangesDslSpec : FunSpec({
         val exception = shouldThrow<IllegalArgumentException> {
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
-        exception.message shouldBe "No changes to persist"
+        exception.message shouldStartWith "No changes to persist"
     }
 
     test("Should return properly built RealisedChanges when unchanged model not changed") {
@@ -295,7 +296,7 @@ class ChangesDslSpec : FunSpec({
 
         changes.modelChangesToPersist shouldHaveSize 1
         val add = changes.modelChangesToPersist.first()
-            .shouldBeTypeOf<AddModel<TestModelId, ActiveTestModel, TestModelEvent>>()
+            .shouldBeTypeOf<AddModel<TestModelId, ActiveTestModel>>()
         add.id shouldBe model0.id()
         add.modelEvents shouldBe listOf(
             TestModelCreated(model0.id()),
@@ -325,7 +326,7 @@ class ChangesDslSpec : FunSpec({
 
         changes.modelChangesToPersist shouldHaveSize 1
         val add = changes.modelChangesToPersist.first()
-            .shouldBeTypeOf<AddModel<TestModelId, ActiveTestModel, TestModelEvent>>()
+            .shouldBeTypeOf<AddModel<TestModelId, ActiveTestModel>>()
         add.id shouldBe model0.id()
         add.modelEvents shouldBe listOf(
             TestModelCreated(model0.id()),
@@ -368,12 +369,12 @@ class ChangesDslSpec : FunSpec({
 
         changes.modelChangesToPersist shouldHaveSize 3
         val (update, add, noop) = changes.modelChangesToPersist
-        update.shouldBeTypeOf<UpdateModel<TestModelId, ActiveTestModel, TestModelEvent>>()
+        update.shouldBeTypeOf<UpdateModel<TestModelId, ActiveTestModel>>()
         update.id shouldBe model1.id()
         update.modelEvents shouldBe listOf(
             TestModelStatusChanged(model1.id(), CREATED, ACTIVE),
         )
-        add.shouldBeTypeOf<AddModel<TestModelId, ActiveTestModel, TestModelEvent>>()
+        add.shouldBeTypeOf<AddModel<TestModelId, ActiveTestModel>>()
         add.id shouldBe model0.id()
         add.modelEvents shouldBe listOf(
             TestModelCreated(model0.id()),
@@ -412,7 +413,7 @@ class ChangesDslSpec : FunSpec({
         val exception = shouldThrow<IllegalStateException> {
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
-        exception.message shouldBe "Failed to merge changes for model [${model.id().stringValue()}]"
+        exception.message shouldStartWith "Failed to merge changes for model [${model.id().stringValue()}]"
     }
 
     test("Should throw exception when same model updated with composable uow case first updates with 2 events") {
@@ -442,7 +443,7 @@ class ChangesDslSpec : FunSpec({
         val exception = shouldThrow<IllegalStateException> {
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
-        exception.message shouldBe "Failed to merge changes for model [${model.id().stringValue()}]"
+        exception.message shouldStartWith "Failed to merge changes for model [${model.id().stringValue()}]"
     }
 
     test("Should throw exception when same model updated with composable uow case second updates with 2 events") {
@@ -472,7 +473,7 @@ class ChangesDslSpec : FunSpec({
         val exception = shouldThrow<IllegalStateException> {
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
-        exception.message shouldBe "Failed to merge changes for model [${model.id().stringValue()}]"
+        exception.message shouldStartWith "Failed to merge changes for model [${model.id().stringValue()}]"
     }
 
     test("Should throw no-op message when inherited model re-registered with identical events") {
@@ -600,13 +601,7 @@ class ChangesDslSpec : FunSpec({
         val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
 
         changes.modelChangesToPersist shouldBe listOf(
-            AddModel(
-                model,
-                listOf(
-                    TestModelCreated(model.id()),
-                    TestModelStatusChanged(model.id(), CREATED, ACTIVE),
-                ),
-            ),
+            AddModel(model),
         )
         changes.entityChangesToPersist shouldBe listOf(AddEntity(tag))
         changes.result shouldBe "MIXED CHANGES"
@@ -701,13 +696,7 @@ class ChangesDslSpec : FunSpec({
         val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
 
         changes.modelChangesToPersist shouldBe listOf(
-            AddModel(
-                model,
-                listOf(
-                    TestModelCreated(model.id()),
-                    TestModelStatusChanged(model.id(), CREATED, ACTIVE),
-                ),
-            ),
+            AddModel(model),
         )
         changes.entityChangesToPersist shouldHaveSize 1
         changes.entityChangesToPersist.first().shouldBeTypeOf<DeleteEntityByKey<Tag, Tag.Key>>()
@@ -786,7 +775,7 @@ class ChangesDslSpec : FunSpec({
 
         changes.modelChangesToPersist shouldHaveSize 1
         val add = changes.modelChangesToPersist.first()
-            .shouldBeTypeOf<AddModel<TestModelId, ActiveTestModel, TestModelEvent>>()
+            .shouldBeTypeOf<AddModel<TestModelId, ActiveTestModel>>()
         add.id shouldBe model.id()
         add.modelEvents shouldBe listOf(
             TestModelCreated(model.id()),
@@ -817,7 +806,7 @@ class ChangesDslSpec : FunSpec({
 
         changes.modelChangesToPersist shouldHaveSize 1
         val add = changes.modelChangesToPersist.first()
-            .shouldBeTypeOf<AddModel<TestModelId, CreatedTestModel, TestModelEvent>>()
+            .shouldBeTypeOf<AddModel<TestModelId, CreatedTestModel>>()
         add.id shouldBe model.id()
         add.modelEvents shouldBe listOf(TestModelCreated(model.id()))
         changes.result shouldBe "outer"
@@ -845,7 +834,7 @@ class ChangesDslSpec : FunSpec({
 
         changes.modelChangesToPersist shouldHaveSize 1
         val update = changes.modelChangesToPersist.first()
-            .shouldBeTypeOf<UpdateModel<TestModelId, CreatedTestModel, TestModelEvent>>()
+            .shouldBeTypeOf<UpdateModel<TestModelId, CreatedTestModel>>()
         update.id shouldBe model.id()
         update.modelEvents shouldBe listOf(TestModelEvent1(model.id()))
         changes.result shouldBe "outer"
@@ -901,7 +890,7 @@ class ChangesDslSpec : FunSpec({
 
         changes.modelChangesToPersist shouldHaveSize 1
         val update = changes.modelChangesToPersist.first()
-            .shouldBeTypeOf<UpdateModel<TestModelId, CreatedTestModel, TestModelEvent>>()
+            .shouldBeTypeOf<UpdateModel<TestModelId, CreatedTestModel>>()
         update.id shouldBe model.id()
         update.modelEvents shouldBe listOf(
             TestModelEvent1(model.id()),
@@ -932,7 +921,7 @@ class ChangesDslSpec : FunSpec({
 
         changes.modelChangesToPersist shouldHaveSize 1
         val update = changes.modelChangesToPersist.first()
-            .shouldBeTypeOf<UpdateModel<TestModelId, CreatedTestModel, TestModelEvent>>()
+            .shouldBeTypeOf<UpdateModel<TestModelId, CreatedTestModel>>()
         update.id shouldBe model.id()
         update.modelEvents shouldBe listOf(TestModelEvent1(model.id()))
         changes.result shouldBe "outer"
@@ -957,7 +946,7 @@ class ChangesDslSpec : FunSpec({
 
         changes.modelChangesToPersist shouldHaveSize 1
         val update = changes.modelChangesToPersist.first()
-            .shouldBeTypeOf<UpdateModel<TestModelId, ActiveTestModel, TestModelEvent>>()
+            .shouldBeTypeOf<UpdateModel<TestModelId, ActiveTestModel>>()
         update.id shouldBe model.id()
         update.modelEvents shouldBe listOf(TestModelStatusChanged(model.id(), CREATED, ACTIVE))
         changes.result shouldBe "outer"
@@ -984,7 +973,8 @@ class ChangesDslSpec : FunSpec({
         val exception = shouldThrow<IllegalStateException> {
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
-        exception.message shouldBe "Change for a given model [${model.id().stringValue()}] was already registered"
+        exception.message shouldStartWith
+            "Change for a given model [${model.id().stringValue()}] was already registered"
     }
 
     test("Should throw exception when duplicate model registered in same DSL") {
@@ -1000,7 +990,8 @@ class ChangesDslSpec : FunSpec({
         val exception = shouldThrow<IllegalStateException> {
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
-        exception.message shouldBe "Change for a given model [${model.id().stringValue()}] was already registered"
+        exception.message shouldStartWith
+            "Change for a given model [${model.id().stringValue()}] was already registered"
     }
 
     test("noChanges accepts an owned child of an aggregate the parent registered") {
@@ -1015,7 +1006,7 @@ class ChangesDslSpec : FunSpec({
             modelState = persistentState(V1, null),
         ).rename("Eng v5")
         // the parent registers the aggregate, so the child's write is carried by the flattened set
-        val inherited = ChangesAccumulator().withUpdatedModel(dept)
+        val inherited = ChangesAccumulator().updating(dept)
 
         val child = object : DummyUow<Employee>(executionContext.withInheritedChanges(inherited)) {
             override suspend fun tryPerform(principal: TestPrincipal, params: Params) = noChanges(emp)
@@ -1044,7 +1035,7 @@ class ChangesDslSpec : FunSpec({
         val exception = shouldThrow<IllegalStateException> {
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
-        exception.message.shouldNotBeNull() shouldContain "dropped inherited changes"
+        exception.message shouldBe notStartedFromParent
     }
 
     test("Should throw when a child with real changes was built with a substituted context") {
@@ -1068,7 +1059,7 @@ class ChangesDslSpec : FunSpec({
         val exception = shouldThrow<IllegalStateException> {
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
-        exception.message.shouldNotBeNull() shouldContain "dropped inherited changes"
+        exception.message shouldBe notStartedFromParent
     }
 
     test("Should throw when a context-substituting child loses the parent's entity changes") {
@@ -1093,7 +1084,7 @@ class ChangesDslSpec : FunSpec({
         val exception = shouldThrow<IllegalStateException> {
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
-        exception.message.shouldNotBeNull() shouldContain "dropped inherited entity changes"
+        exception.message shouldBe notStartedFromParent
     }
 
     test("Should throw when a context-substituting child produces conflicting changes for the same model") {
@@ -1118,8 +1109,7 @@ class ChangesDslSpec : FunSpec({
         val exception = shouldThrow<IllegalStateException> {
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
-        exception.message.shouldNotBeNull() shouldContain
-            "dropped inherited changes for model [${id.stringValue()}]"
+        exception.message shouldBe notStartedFromParent
     }
 
     test("A stubbed child's changes merge without demoting or anchoring") {
@@ -1143,7 +1133,7 @@ class ChangesDslSpec : FunSpec({
         val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
 
         changes.modelChangesToPersist shouldBe listOf(
-            UpdateModel(model0, listOf(TestModelStatusChanged(model0.id(), CREATED, ACTIVE))),
+            UpdateModel(model0),
             NoopModel(fresh),
         )
         changes.result shouldBe "K P A C U B O"
@@ -1206,8 +1196,21 @@ class ChangesDslSpec : FunSpec({
 
         changes.result shouldBe "K P A C U B O"
         changes.modelChangesToPersist shouldBe listOf(
-            UpdateModel(model0, listOf(TestModelStatusChanged(model0.id(), CREATED, ACTIVE))),
+            UpdateModel(model0),
         )
+    }
+
+    test("A composable block that updates a model it already updated itself fails") {
+        val first = existingCreatedTestModel(param1 = "read", param2 = 1).changeParam1("first")
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                update(first)
+                update(first.changeParam1("second"))
+                "parent"
+            }
+        }
+        val ex = shouldThrow<IllegalStateException> { uow.tryPerform(TestPrincipal, DummyUow.Params) }
+        checkNotNull(ex.message) shouldContain "was already registered"
     }
 })
 

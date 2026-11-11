@@ -16,7 +16,6 @@ import com.razz.eva.uow.DummyEventRepository
 import com.razz.eva.uow.ExecutionContext
 import com.razz.eva.uow.ExecutionContextApi
 import com.razz.eva.uow.Persisting
-import com.razz.eva.uow.RealisedChanges
 import com.razz.eva.uow.Retry.StaleRecordFixedRetry
 import com.razz.eva.uow.TestPrincipal
 import com.razz.eva.uow.UnitOfWorkExecutor
@@ -273,7 +272,9 @@ class GuardedExecutorSpec : FunSpec({
         val mocked = mockk<UnitOfWork<TestPrincipal, ChildParams, String>>()
         every { mocked.name() } returns "Mocked"
         every { mocked.configuration() } returns Configuration.default()
-        coEvery { mocked.tryPerform(TestPrincipal, ChildParams) } returns RealisedChanges("mocked", listOf(), listOf())
-        uowx.execute(TestPrincipal, { _: ExecutionContext -> mocked }) { ChildParams } shouldBe "mocked"
+        coEvery { mocked.tryPerform(TestPrincipal, ChildParams) } coAnswers {
+            plain(detached).tryPerform(TestPrincipal, ChildParams)
+        }
+        uowx.execute(TestPrincipal, { _: ExecutionContext -> mocked }) { ChildParams } shouldBe "plain"
     }
 })

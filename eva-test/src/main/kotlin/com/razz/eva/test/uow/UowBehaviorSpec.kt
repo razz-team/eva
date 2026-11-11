@@ -1,6 +1,8 @@
 package com.razz.eva.test.uow
 
 import com.razz.eva.domain.Principal
+import com.razz.eva.test.WitnessedBody
+import com.razz.eva.test.runWitnessed
 import com.razz.eva.uow.Clocks.fixedUTC
 import com.razz.eva.uow.Clocks.millisUTC
 import com.razz.eva.uow.verify.EqualityVerifier
@@ -9,8 +11,9 @@ import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.matchers.shouldBe
 import io.opentelemetry.api.OpenTelemetry
 
+/** The body runs with a witness for every model id type, so a test calls a witnessed mutator directly. */
 abstract class UowBehaviorSpec(
-    body: UowBehaviorSpec.() -> Unit = {},
+    body: WitnessedBody<UowBehaviorSpec> = {},
 ) : BehaviorSpec(), UowSpecBase, EqualityVerifierAware {
 
     val now = millisUTC().instant()
@@ -27,6 +30,6 @@ abstract class UowBehaviorSpec(
     override val equalityVerifier: EqualityVerifier = KotestEqualityVerifier
 
     init {
-        this.body()
+        runWitnessed(body)
     }
 }

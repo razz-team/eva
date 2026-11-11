@@ -12,28 +12,22 @@ import com.razz.eva.domain.Principal
 import com.razz.eva.uow.OtelAttributes.MODEL_ID
 import com.razz.eva.tracing.getEvaTracer
 import com.razz.eva.tracing.use
-import com.razz.eva.uow.AddModel
 import com.razz.eva.uow.BaseUnitOfWork
 import com.razz.eva.uow.Changes
 import com.razz.eva.uow.ChangesAccumulator
 import com.razz.eva.uow.ExecutionContext
 import com.razz.eva.uow.InstantiationContext
-import com.razz.eva.uow.NoopModel
 import com.razz.eva.uow.PersistedLookup
-import com.razz.eva.uow.isCoveredBy
-import com.razz.eva.uow.isSameAs
-import com.razz.eva.uow.isSuccessorOf
-import com.razz.eva.uow.UpdateModel
 import com.razz.eva.uow.UowParams
+import com.razz.eva.uow.checkBuiltBy
 import io.opentelemetry.api.trace.Span
 import kotlin.reflect.KClass
 
 class ChangesDsl internal constructor(
     private val executionContext: ExecutionContext,
 ) {
-    internal var changes: ChangesAccumulator = executionContext.inheritedChanges ?: ChangesAccumulator()
+    internal var changes: ChangesAccumulator = ChangesAccumulator.seededFrom(executionContext.inheritedChanges)
         private set
-    private val inheritedModelIds: MutableSet<ModelId<out Comparable<*>>> = changes.modelIds().toMutableSet()
     // var: assigned by roundtrip { } mid-block; null means no roundtrip, so the executor default-roundtrips.
     private var resultBuilder: ((PersistedLookup) -> Any?)? = null
 
@@ -52,41 +46,13 @@ class ChangesDsl internal constructor(
 
     fun <MID, E, M> add(model: M): M
         where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
-        require(model.isNew()) {
-            "Attempted to register ${if (model.isDirty()) "changed" else "unchanged"} " +
-                "model [${model.id().stringValue()}] as new"
-        }
-        changes = changes.withAddedModel(model)
+        changes = changes.adding(model)
         return model
     }
 
     fun <MID, E, M> update(model: M): M
         where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
-        val existing = changes.changeFor(model.id())
-        if (existing != null && model.id() in inheritedModelIds) {
-            val newEvents = model.modelEvents()
-            check(newEvents isSuccessorOf existing.modelEvents) {
-                if (newEvents isSameAs existing.modelEvents) {
-                    "No-op update for model [${model.id().stringValue()}]: no new events on top of the " +
-                        "existing change. Use notChanged(...) or guard update(...)."
-                } else {
-                    "Failed to merge changes for model [${model.id().stringValue()}]"
-                }
-            }
-            val merged = when (existing) {
-                is AddModel<*, *, *> -> AddModel(model, newEvents)
-                is UpdateModel<*, *, *> -> UpdateModel(model, newEvents)
-                // a claim over a model that is still new comes from a stub; production would insert it
-                is NoopModel -> if (model.isNew()) AddModel(model, newEvents) else UpdateModel(model, newEvents)
-            }
-            changes = changes.withReplacedModelChange(model.id(), merged)
-        } else {
-            require(model.isDirty()) {
-                "Attempted to register ${if (model.isNew()) "new" else "unchanged"} " +
-                    "model [${model.id().stringValue()}] as changed"
-            }
-            changes = changes.withUpdatedModel(model)
-        }
+        changes = changes.updating(model)
         return model
     }
 
@@ -106,38 +72,15 @@ class ChangesDsl internal constructor(
     fun <MID, E, M, R> update(model: M, mutate: context(Witness<MID>) M.() -> R): R
         where M : Model<MID, E>, R : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
         val mutated = context(Witness<MID>()) { model.mutate() }
-        if (mutated === model) return registerDeclined(model)
+        if (mutated === model) {
+            changes = changes.declining(model)
+            return mutated
+        }
         check(mutated.id() == model.id()) {
             "update(model) { } returned model [${mutated.id().stringValue()}] instead of the mutated " +
                 "[${model.id().stringValue()}]"
         }
         return update(mutated)
-    }
-
-    private fun <MID, E, M> registerDeclined(model: M): M
-        where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
-        val registered = changes.changeFor(model.id())
-        val owned = changes.ownedInstanceOf(model.id())
-        return when {
-            // already registered as this instance or a later one, the parent's registration included
-            registered != null && model.isCoveredBy(registered.model) -> model
-            // a model the parent registered, extended here by an unwitnessed mutator: merge it
-            model.id() in inheritedModelIds -> update(model)
-            // a new model an aggregate in the change set owns, as this instance or a later one: registered on
-            // its own, so it persists even if that aggregate later stops owning it; the owned copy is then
-            // covered by it, or persists in its place when later
-            model.isNew() && owned != null && model.isCoveredBy(owned) -> add(model)
-            model.isNew() -> error(
-                "update(model) { } handed back new model [${model.id().stringValue()}] unchanged; register a " +
-                    "new model with add",
-            )
-            // dirty from an unwitnessed mutator: it still carries its own write
-            model.isDirty() -> update(model)
-            // a clean read of a model an aggregate in the change set owns: the aggregate persists whatever it
-            // changed, and an unchanged claim here would contradict it
-            owned != null -> model
-            else -> notChanged(model)
-        }
     }
 
     /**
@@ -155,29 +98,22 @@ class ChangesDsl internal constructor(
 
     fun <MID, E, M> notChanged(model: M): M
         where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
-        val existing = changes.changeFor(model.id())
-        if (existing == null || model.id() !in inheritedModelIds) {
-            require(model.isPersisted()) {
-                "Attempted to register ${if (model.isNew()) "new" else "changed"} " +
-                    "model [${model.id().stringValue()}] as unchanged"
-            }
-            changes = changes.withUnchangedModel(model)
-        }
+        changes = changes.claimingUnchanged(model)
         return model
     }
 
     fun <E : CreatableEntity> add(entity: E): E {
-        changes = changes.withAddedEntity(entity)
+        changes = changes.addingEntity(entity)
         return entity
     }
 
     fun <E : UpdatableEntity> update(entity: E): E {
-        changes = changes.withUpdatedEntity(entity)
+        changes = changes.updatingEntity(entity)
         return entity
     }
 
     fun <E : DeletableEntity> delete(entity: E): E {
-        changes = changes.withDeletedEntity(entity)
+        changes = changes.deletingEntity(entity)
         return entity
     }
 
@@ -188,7 +124,7 @@ class ChangesDsl internal constructor(
 
     @PublishedApi
     internal fun <E : DeletableEntity, K : EntityKey<E>> deleteByKeyInternal(key: K, entityClass: KClass<E>) {
-        changes = changes.withDeletedEntityByKey(key, entityClass)
+        changes = changes.deletingEntityByKey(key, entityClass)
     }
 
     suspend fun <PRINCIPAL, PARAMS, RESULT, UOW> execute(
@@ -218,23 +154,23 @@ class ChangesDsl internal constructor(
               UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *>,
               UOW : ComposableUow {
         val uow = uowFactory(executionContext.withInheritedChanges(changes))
+        // the bounds already demand ComposableUow; an unchecked cast of the factory can still get past them
+        check(ComposableUow::class.isInstance(uow)) {
+            "${uow.name().ifEmpty { "A child unit of work" }} is not composable: a composable parent executes only " +
+                "a unit of work that implements ComposableUow"
+        }
         val span = uowSpan(uow.name())
         return span.use {
             val subChanges = performingSpan(uow.name()).use {
                 uow.tryPerform(principal, params(InstantiationContext.Internal(0)))
             }
+            checkBuiltBy(uow, subChanges, uow.name())
             span.setAttribute(
                 MODEL_ID,
                 subChanges.modelChangesToPersist.map { it.id.stringValue() },
             )
             beforeMerge(uow.name(), subChanges)
-            if (subChanges.modelChangesToPersist.isNotEmpty() || subChanges.entityChangesToPersist.isNotEmpty()) {
-                // Additive merge: the accumulated changes always survive, so a child built with a
-                // context other than the one given to the factory can add changes but cannot make
-                // inherited ones vanish; a same-model conflict on diverged event streams fails loudly.
-                changes = changes.merging(uow.name(), subChanges)
-                inheritedModelIds.addAll(changes.modelIds())
-            }
+            changes = changes.merging(uow.name(), subChanges)
             // Under composition the caller gets this in-memory seed; the child's resultBuilder is not rerun.
             subChanges.result
         }
