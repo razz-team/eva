@@ -3,11 +3,7 @@ package com.razz.eva.uow
 import com.razz.eva.domain.TestModel.ActiveTestModel
 import com.razz.eva.domain.TestModel.Factory.createdTestModel
 import com.razz.eva.domain.TestModel.Factory.existingCreatedTestModel
-import com.razz.eva.domain.TestModelEvent.TestModelCreated
-import com.razz.eva.domain.TestModelEvent.TestModelStatusChanged
 import com.razz.eva.domain.TestModelId.Companion.randomTestModelId
-import com.razz.eva.domain.TestModelStatus.ACTIVE
-import com.razz.eva.domain.TestModelStatus.CREATED
 import com.razz.eva.domain.Version.Companion.V1
 import com.razz.eva.uow.Clocks.fixedUTC
 import com.razz.eva.uow.Clocks.millisUTC
@@ -44,14 +40,8 @@ class ChangesDslSpec : FunSpec({
         val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
 
         changes.modelChangesToPersist shouldBe listOf(
-            AddModel(
-                model0,
-                listOf(
-                    TestModelCreated(model0.id()),
-                    TestModelStatusChanged(model0.id(), CREATED, ACTIVE),
-                ),
-            ),
-            UpdateModel(model1, listOf(TestModelStatusChanged(model1.id(), CREATED, ACTIVE))),
+            AddModel(model0),
+            UpdateModel(model1),
             NoopModel(model2),
         )
         changes.result shouldBe "K P A C U B O"

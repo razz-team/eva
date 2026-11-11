@@ -90,12 +90,12 @@ internal class ChangesAccumulator private constructor(
 
     private fun <MID : ModelId<out Comparable<*>>, E : ModelEvent<MID>, M : Model<MID, E>>
     withAddedModel(model: M): ChangesAccumulator {
-        return modelChanges(model, ::AddModel)
+        return modelChanges(model) { m, _ -> AddModel(m) }
     }
 
     private fun <MID : ModelId<out Comparable<*>>, E : ModelEvent<MID>, M : Model<MID, E>>
     withUpdatedModel(model: M): ChangesAccumulator {
-        return modelChanges(model, ::UpdateModel)
+        return modelChanges(model) { m, _ -> UpdateModel(m) }
     }
 
     private fun <MID : ModelId<out Comparable<*>>, E : ModelEvent<MID>, M : Model<MID, E>>
@@ -173,7 +173,7 @@ internal class ChangesAccumulator private constructor(
             }
         }
         // more events than the held change, so at least one: the model is new or changed, never clean
-        val merged = if (model.isNew()) AddModel(model, newEvents) else UpdateModel(model, newEvents)
+        val merged = if (model.isNew()) AddModel(model) else UpdateModel(model)
         return withReplacedModelChange(model.id(), merged)
     }
 
@@ -367,14 +367,10 @@ internal class ChangesAccumulator private constructor(
         return result.values.toList()
     }
 
-    @Suppress("UNCHECKED_CAST")
-    private fun changeOf(model: Model<*, *>): ModelChange? {
-        val m = model as Model<ModelId<out Comparable<*>>, ModelEvent<ModelId<out Comparable<*>>>>
-        return when {
-            m.isNew() -> AddModel(m, m.modelEvents())
-            m.isDirty() -> UpdateModel(m, m.modelEvents())
-            else -> null
-        }
+    private fun changeOf(model: Model<*, *>): ModelChange? = when {
+        model.isNew() -> AddModel(model)
+        model.isDirty() -> UpdateModel(model)
+        else -> null
     }
 
     private fun <E : ModelEvent<MID>, M : Model<MID, E>, MID : ModelId<out Comparable<*>>>

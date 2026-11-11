@@ -109,7 +109,7 @@ class ChangesSpec : BehaviorSpec({
                 .withResult("patrice lumumba", null)
 
             Then("Changes matching added and result produced") {
-                changes.modelChangesToPersist shouldBe listOf(AddModel(newModel, listOf(newModelEvent)))
+                changes.modelChangesToPersist shouldBe listOf(AddModel(newModel))
                 changes.result shouldBe "patrice lumumba"
             }
         }
@@ -172,7 +172,7 @@ class ChangesSpec : BehaviorSpec({
                 .withResult("angela davis", null)
 
             Then("Changes matching updated and result produced") {
-                changes.modelChangesToPersist shouldBe listOf(UpdateModel(dirtyModel, listOf(dirtyModelEvent)))
+                changes.modelChangesToPersist shouldBe listOf(UpdateModel(dirtyModel))
                 changes.result shouldBe "angela davis"
             }
         }
@@ -306,15 +306,15 @@ class ChangesSpec : BehaviorSpec({
 
                         Then("original changes contain only models were added to it directly") {
                             finalChanges0.modelChangesToPersist shouldBe listOf(
-                                AddModel(newModel, listOf(newModelEvent)),
-                                UpdateModel(model3, listOf(model3Event)),
+                                AddModel(newModel),
+                                UpdateModel(model3),
                             )
                             finalChanges0.result shouldBe listOf("Gurbanguly", "Berdimuhamedow")
                         }
                         And("derived changes contain only models were added to it directly") {
                             changes1.modelChangesToPersist shouldBe listOf(
-                                AddModel(newModel, listOf(newModelEvent)),
-                                UpdateModel(model1, listOf(model1Event)),
+                                AddModel(newModel),
+                                UpdateModel(model1),
                             )
                             changes1.result shouldBe model2
                         }
@@ -343,7 +343,7 @@ class ChangesSpec : BehaviorSpec({
             val result = acc.changeFor(model1.id())
 
             Then("the change is returned") {
-                result shouldBe AddModel(model1, listOf(model1Event))
+                result shouldBe AddModel(model1)
             }
         }
 
@@ -364,7 +364,7 @@ class ChangesSpec : BehaviorSpec({
 
             Then("the change is replaced and stays an add") {
                 result.modelChangesToPersist shouldBe
-                    listOf(AddModel(updatedModel1, listOf(model1Event, statusChanged)))
+                    listOf(AddModel(updatedModel1))
                 result.result shouldBe "replaced"
             }
         }
@@ -377,7 +377,7 @@ class ChangesSpec : BehaviorSpec({
             val result = acc.updating(activated).withResult("replaced", null)
 
             Then("the change is replaced and stays an update") {
-                result.modelChangesToPersist shouldBe listOf(UpdateModel(activated, activated.modelEvents()))
+                result.modelChangesToPersist shouldBe listOf(UpdateModel(activated))
                 result.modelChangesToPersist.single().modelEvents shouldHaveSize 2
             }
         }
@@ -525,7 +525,7 @@ class ChangesSpec : BehaviorSpec({
                     .withResult("mixed changes", null)
 
                 Then("Changes contain both model and entity changes") {
-                    changes.modelChangesToPersist shouldBe listOf(AddModel(model, listOf(modelEvent)))
+                    changes.modelChangesToPersist shouldBe listOf(AddModel(model))
                     changes.entityChangesToPersist shouldBe listOf(AddEntity(tag1))
                     changes.result shouldBe "mixed changes"
                 }
@@ -541,7 +541,7 @@ class ChangesSpec : BehaviorSpec({
 
                 Then("Changes contain both model and entity updates") {
                     changes.modelChangesToPersist shouldBe listOf(
-                        UpdateModel(existingModel, listOf(statusEvent)),
+                        UpdateModel(existingModel),
                     )
                     changes.entityChangesToPersist shouldBe listOf(UpdateEntity(tag1))
                     changes.result shouldBe "mixed updates"
@@ -570,11 +570,11 @@ class ChangesSpec : BehaviorSpec({
                 changes.modelChangesToPersist shouldHaveSize 2
 
                 val parentChange = changes.modelChangesToPersist[0]
-                parentChange.shouldBeInstanceOf<AddModel<*, *, *>>()
+                parentChange.shouldBeInstanceOf<AddModel<*, *>>()
                 parentChange.model shouldBe deptWithEmployee
 
                 val childChange = changes.modelChangesToPersist[1]
-                childChange.shouldBeInstanceOf<AddModel<*, *, *>>()
+                childChange.shouldBeInstanceOf<AddModel<*, *>>()
                 childChange.model shouldBe deptWithEmployee.employees[0]
             }
 
@@ -643,7 +643,7 @@ class ChangesSpec : BehaviorSpec({
 
             Then("The later instance persists once, in the earlier registration's place") {
                 changes.modelChangesToPersist.map { it.model } shouldBe listOf(moved, owner)
-                changes.modelChangesToPersist[0].shouldBeInstanceOf<AddModel<*, *, *>>()
+                changes.modelChangesToPersist[0].shouldBeInstanceOf<AddModel<*, *>>()
                 changes.modelChangesToPersist[0].modelEvents shouldHaveSize 2
             }
         }
@@ -689,7 +689,7 @@ class ChangesSpec : BehaviorSpec({
                     val employeeChanges = accumulator.withResult("both", null).modelChangesToPersist
                         .filter { it.id == employee.id() }
                     employeeChanges.map { it.model } shouldBe listOf(moved)
-                    employeeChanges.single().shouldBeInstanceOf<UpdateModel<*, *, *>>()
+                    employeeChanges.single().shouldBeInstanceOf<UpdateModel<*, *>>()
                 }
             }
         }
@@ -791,11 +791,11 @@ class ChangesSpec : BehaviorSpec({
                 changes.modelChangesToPersist shouldHaveSize 2
 
                 val parentChange = changes.modelChangesToPersist[0]
-                parentChange.shouldBeInstanceOf<UpdateModel<*, *, *>>()
+                parentChange.shouldBeInstanceOf<UpdateModel<*, *>>()
                 parentChange.model shouldBe renamedWithEmp
 
                 val childChange = changes.modelChangesToPersist[1]
-                childChange.shouldBeInstanceOf<AddModel<*, *, *>>()
+                childChange.shouldBeInstanceOf<AddModel<*, *>>()
                 childChange.model shouldBe emp
             }
         }
@@ -828,7 +828,7 @@ class ChangesSpec : BehaviorSpec({
                 changes.modelChangesToPersist shouldHaveSize 1
 
                 val parentChange = changes.modelChangesToPersist[0]
-                parentChange.shouldBeInstanceOf<UpdateModel<*, *, *>>()
+                parentChange.shouldBeInstanceOf<UpdateModel<*, *>>()
                 parentChange.model shouldBe renamedDept
             }
         }
@@ -894,15 +894,15 @@ class ChangesSpec : BehaviorSpec({
                 changes.modelChangesToPersist shouldHaveSize 3
 
                 val wrapperChange = changes.modelChangesToPersist[0]
-                wrapperChange.shouldBeInstanceOf<AddModel<*, *, *>>()
+                wrapperChange.shouldBeInstanceOf<AddModel<*, *>>()
                 wrapperChange.model shouldBe wrapper
 
                 val deptChange = changes.modelChangesToPersist[1]
-                deptChange.shouldBeInstanceOf<AddModel<*, *, *>>()
+                deptChange.shouldBeInstanceOf<AddModel<*, *>>()
                 deptChange.model shouldBe deptWithEmployee
 
                 val empChange = changes.modelChangesToPersist[2]
-                empChange.shouldBeInstanceOf<AddModel<*, *, *>>()
+                empChange.shouldBeInstanceOf<AddModel<*, *>>()
                 empChange.model shouldBe deptWithEmployee.employees[0]
             }
         }

@@ -12,24 +12,24 @@ internal sealed interface ModelChange {
     val id: ModelId<out Comparable<*>>
 }
 
-internal data class AddModel<MID : ModelId<out Comparable<*>>, M : Model<MID, *>, E : ModelEvent<MID>>(
+internal data class AddModel<MID : ModelId<out Comparable<*>>, M : Model<MID, *>>(
     override val model: M,
-    override val modelEvents: List<E>,
 ) : ModelChange {
 
     override val id: ModelId<out Comparable<*>> = model.id()
+    override val modelEvents: List<ModelEvent<out ModelId<out Comparable<*>>>> get() = model.modelEvents()
 
     override fun persist(persisting: ModelPersisting) {
         persisting.add(model)
     }
 }
 
-internal data class UpdateModel<MID : ModelId<out Comparable<*>>, M : Model<MID, *>, E : ModelEvent<MID>>(
+internal data class UpdateModel<MID : ModelId<out Comparable<*>>, M : Model<MID, *>>(
     override val model: M,
-    override val modelEvents: List<E>,
 ) : ModelChange {
 
     override val id: ModelId<out Comparable<*>> = model.id()
+    override val modelEvents: List<ModelEvent<out ModelId<out Comparable<*>>>> get() = model.modelEvents()
 
     override fun persist(persisting: ModelPersisting) {
         persisting.update(model)

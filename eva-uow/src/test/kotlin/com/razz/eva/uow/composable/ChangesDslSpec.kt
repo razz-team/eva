@@ -12,7 +12,6 @@ import com.razz.eva.domain.TestModel.ActiveTestModel
 import com.razz.eva.domain.TestModel.CreatedTestModel
 import com.razz.eva.domain.TestModel.Factory.createdTestModel
 import com.razz.eva.domain.TestModel.Factory.existingCreatedTestModel
-import com.razz.eva.domain.TestModelEvent
 import com.razz.eva.domain.TestModelEvent.TestModelCreated
 import com.razz.eva.domain.TestModelEvent.TestModelEvent1
 import com.razz.eva.domain.TestModelEvent.TestModelEvent2
@@ -84,14 +83,8 @@ class ChangesDslSpec : FunSpec({
         val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
 
         changes.modelChangesToPersist shouldBe listOf(
-            AddModel(
-                model0,
-                listOf(
-                    TestModelCreated(model0.id()),
-                    TestModelStatusChanged(model0.id(), CREATED, ACTIVE),
-                ),
-            ),
-            UpdateModel(model1, listOf(TestModelStatusChanged(model1.id(), CREATED, ACTIVE))),
+            AddModel(model0),
+            UpdateModel(model1),
             NoopModel(model2),
         )
         changes.result shouldBe "K P A C U B O"
@@ -303,7 +296,7 @@ class ChangesDslSpec : FunSpec({
 
         changes.modelChangesToPersist shouldHaveSize 1
         val add = changes.modelChangesToPersist.first()
-            .shouldBeTypeOf<AddModel<TestModelId, ActiveTestModel, TestModelEvent>>()
+            .shouldBeTypeOf<AddModel<TestModelId, ActiveTestModel>>()
         add.id shouldBe model0.id()
         add.modelEvents shouldBe listOf(
             TestModelCreated(model0.id()),
@@ -333,7 +326,7 @@ class ChangesDslSpec : FunSpec({
 
         changes.modelChangesToPersist shouldHaveSize 1
         val add = changes.modelChangesToPersist.first()
-            .shouldBeTypeOf<AddModel<TestModelId, ActiveTestModel, TestModelEvent>>()
+            .shouldBeTypeOf<AddModel<TestModelId, ActiveTestModel>>()
         add.id shouldBe model0.id()
         add.modelEvents shouldBe listOf(
             TestModelCreated(model0.id()),
@@ -376,12 +369,12 @@ class ChangesDslSpec : FunSpec({
 
         changes.modelChangesToPersist shouldHaveSize 3
         val (update, add, noop) = changes.modelChangesToPersist
-        update.shouldBeTypeOf<UpdateModel<TestModelId, ActiveTestModel, TestModelEvent>>()
+        update.shouldBeTypeOf<UpdateModel<TestModelId, ActiveTestModel>>()
         update.id shouldBe model1.id()
         update.modelEvents shouldBe listOf(
             TestModelStatusChanged(model1.id(), CREATED, ACTIVE),
         )
-        add.shouldBeTypeOf<AddModel<TestModelId, ActiveTestModel, TestModelEvent>>()
+        add.shouldBeTypeOf<AddModel<TestModelId, ActiveTestModel>>()
         add.id shouldBe model0.id()
         add.modelEvents shouldBe listOf(
             TestModelCreated(model0.id()),
@@ -608,13 +601,7 @@ class ChangesDslSpec : FunSpec({
         val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
 
         changes.modelChangesToPersist shouldBe listOf(
-            AddModel(
-                model,
-                listOf(
-                    TestModelCreated(model.id()),
-                    TestModelStatusChanged(model.id(), CREATED, ACTIVE),
-                ),
-            ),
+            AddModel(model),
         )
         changes.entityChangesToPersist shouldBe listOf(AddEntity(tag))
         changes.result shouldBe "MIXED CHANGES"
@@ -709,13 +696,7 @@ class ChangesDslSpec : FunSpec({
         val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
 
         changes.modelChangesToPersist shouldBe listOf(
-            AddModel(
-                model,
-                listOf(
-                    TestModelCreated(model.id()),
-                    TestModelStatusChanged(model.id(), CREATED, ACTIVE),
-                ),
-            ),
+            AddModel(model),
         )
         changes.entityChangesToPersist shouldHaveSize 1
         changes.entityChangesToPersist.first().shouldBeTypeOf<DeleteEntityByKey<Tag, Tag.Key>>()
@@ -794,7 +775,7 @@ class ChangesDslSpec : FunSpec({
 
         changes.modelChangesToPersist shouldHaveSize 1
         val add = changes.modelChangesToPersist.first()
-            .shouldBeTypeOf<AddModel<TestModelId, ActiveTestModel, TestModelEvent>>()
+            .shouldBeTypeOf<AddModel<TestModelId, ActiveTestModel>>()
         add.id shouldBe model.id()
         add.modelEvents shouldBe listOf(
             TestModelCreated(model.id()),
@@ -825,7 +806,7 @@ class ChangesDslSpec : FunSpec({
 
         changes.modelChangesToPersist shouldHaveSize 1
         val add = changes.modelChangesToPersist.first()
-            .shouldBeTypeOf<AddModel<TestModelId, CreatedTestModel, TestModelEvent>>()
+            .shouldBeTypeOf<AddModel<TestModelId, CreatedTestModel>>()
         add.id shouldBe model.id()
         add.modelEvents shouldBe listOf(TestModelCreated(model.id()))
         changes.result shouldBe "outer"
@@ -853,7 +834,7 @@ class ChangesDslSpec : FunSpec({
 
         changes.modelChangesToPersist shouldHaveSize 1
         val update = changes.modelChangesToPersist.first()
-            .shouldBeTypeOf<UpdateModel<TestModelId, CreatedTestModel, TestModelEvent>>()
+            .shouldBeTypeOf<UpdateModel<TestModelId, CreatedTestModel>>()
         update.id shouldBe model.id()
         update.modelEvents shouldBe listOf(TestModelEvent1(model.id()))
         changes.result shouldBe "outer"
@@ -909,7 +890,7 @@ class ChangesDslSpec : FunSpec({
 
         changes.modelChangesToPersist shouldHaveSize 1
         val update = changes.modelChangesToPersist.first()
-            .shouldBeTypeOf<UpdateModel<TestModelId, CreatedTestModel, TestModelEvent>>()
+            .shouldBeTypeOf<UpdateModel<TestModelId, CreatedTestModel>>()
         update.id shouldBe model.id()
         update.modelEvents shouldBe listOf(
             TestModelEvent1(model.id()),
@@ -940,7 +921,7 @@ class ChangesDslSpec : FunSpec({
 
         changes.modelChangesToPersist shouldHaveSize 1
         val update = changes.modelChangesToPersist.first()
-            .shouldBeTypeOf<UpdateModel<TestModelId, CreatedTestModel, TestModelEvent>>()
+            .shouldBeTypeOf<UpdateModel<TestModelId, CreatedTestModel>>()
         update.id shouldBe model.id()
         update.modelEvents shouldBe listOf(TestModelEvent1(model.id()))
         changes.result shouldBe "outer"
@@ -965,7 +946,7 @@ class ChangesDslSpec : FunSpec({
 
         changes.modelChangesToPersist shouldHaveSize 1
         val update = changes.modelChangesToPersist.first()
-            .shouldBeTypeOf<UpdateModel<TestModelId, ActiveTestModel, TestModelEvent>>()
+            .shouldBeTypeOf<UpdateModel<TestModelId, ActiveTestModel>>()
         update.id shouldBe model.id()
         update.modelEvents shouldBe listOf(TestModelStatusChanged(model.id(), CREATED, ACTIVE))
         changes.result shouldBe "outer"
@@ -1152,7 +1133,7 @@ class ChangesDslSpec : FunSpec({
         val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
 
         changes.modelChangesToPersist shouldBe listOf(
-            UpdateModel(model0, listOf(TestModelStatusChanged(model0.id(), CREATED, ACTIVE))),
+            UpdateModel(model0),
             NoopModel(fresh),
         )
         changes.result shouldBe "K P A C U B O"
@@ -1215,7 +1196,7 @@ class ChangesDslSpec : FunSpec({
 
         changes.result shouldBe "K P A C U B O"
         changes.modelChangesToPersist shouldBe listOf(
-            UpdateModel(model0, listOf(TestModelStatusChanged(model0.id(), CREATED, ACTIVE))),
+            UpdateModel(model0),
         )
     }
 

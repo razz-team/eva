@@ -120,7 +120,7 @@ open class UowSpecBase<R> private constructor(
         val model = when (
             val next = checkNotNull(modelChangeHistory.pollFirst()) { "Expecting [AddModel] got nothing" }
         ) {
-            is AddModel<*, *, *> -> {
+            is AddModel<*, *> -> {
                 next.persist(peekingModelPersisting)
                 peekingModelPersisting.peek()
             }
@@ -136,7 +136,7 @@ open class UowSpecBase<R> private constructor(
         val model = when (
             val next = checkNotNull(modelChangeHistory.pollFirst()) { "Expecting [UpdateModel] got nothing" }
         ) {
-            is UpdateModel<*, *, *> -> {
+            is UpdateModel<*, *> -> {
                 next.persist(peekingModelPersisting)
                 peekingModelPersisting.peek()
             }

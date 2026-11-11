@@ -83,7 +83,7 @@ class ComposedChildSpec : FunSpec({
                 execute(child, TestPrincipal) { DummyUow.Params }
             }.modelChangesToPersist
         }
-        outcomes.forEach { it shouldBe listOf(UpdateModel(changed, listOf(changed.modelEvents().single()))) }
+        outcomes.forEach { it shouldBe listOf(UpdateModel(changed)) }
     }
 
     test("A child cannot claim unchanged a model with a write the parent's change for it lacks") {

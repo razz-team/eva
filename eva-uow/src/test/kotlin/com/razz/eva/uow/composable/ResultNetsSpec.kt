@@ -340,7 +340,7 @@ class ResultNetsSpec : FunSpec({
                 execute(uow<TestModel> { update(created) { this } }, TestPrincipal) { DummyUow.Params }
             },
         ) { DummyUow.Params }
-        persisted.captured.single().shouldBeInstanceOf<AddModel<*, *, *>>().model shouldBeSameInstanceAs created
+        persisted.captured.single().shouldBeInstanceOf<AddModel<*, *>>().model shouldBeSameInstanceAs created
     }
 
     test("A composed child declining on its own mutation of a model its parent claimed unchanged registers it") {
@@ -354,7 +354,7 @@ class ResultNetsSpec : FunSpec({
                 execute(uow<TestModel> { update(dirtied) { this } }, TestPrincipal) { DummyUow.Params }
             },
         ) { DummyUow.Params }
-        persisted.captured.single().shouldBeInstanceOf<UpdateModel<*, *, *>>().model shouldBeSameInstanceAs dirtied
+        persisted.captured.single().shouldBeInstanceOf<UpdateModel<*, *>>().model shouldBeSameInstanceAs dirtied
     }
 
     test("A composed child declining on its own unwitnessed extension of a model its parent added merges it") {
@@ -368,7 +368,7 @@ class ResultNetsSpec : FunSpec({
                 execute(uow<TestModel> { update(extended) { this } }, TestPrincipal) { DummyUow.Params }
             },
         ) { DummyUow.Params }
-        val change = persisted.captured.single().shouldBeInstanceOf<AddModel<*, *, *>>()
+        val change = persisted.captured.single().shouldBeInstanceOf<AddModel<*, *>>()
         change.model shouldBeSameInstanceAs extended
         change.modelEvents shouldHaveSize 2
     }
@@ -446,7 +446,7 @@ class ResultNetsSpec : FunSpec({
                 ) { DummyUow.Params }
             },
         ) { DummyUow.Params }
-        persisted.captured.single { it.id == hire.id() }.shouldBeInstanceOf<AddModel<*, *, *>>()
+        persisted.captured.single { it.id == hire.id() }.shouldBeInstanceOf<AddModel<*, *>>()
             .model shouldBeSameInstanceAs hire
     }
 
