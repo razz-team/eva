@@ -59,11 +59,13 @@ class ChangesSpec : BehaviorSpec({
                 "when it did not change"
             shouldThrow<IllegalArgumentException> { ChangesAccumulator().updating(newModel) }
                 .message shouldBe "Attempted to register new model [${id(newModel)}] as changed. It is not stored " +
-                "yet, so there is nothing to update. Register a new model with add"
+                "yet, so there is nothing to update. Register a new model with add. If the block added it already, " +
+                "make every mutation first and add the last instance"
             shouldThrow<IllegalArgumentException> { ChangesAccumulator().updating(unchangedModel) }
                 .message shouldBe "Attempted to register unchanged model [${id(unchangedModel)}] as changed. It " +
                 "carries no change, so a mutation the block meant to make is missing. Call notChanged(model), or " +
-                "update(model) { mutate() ?: this } to register whichever happened"
+                "register the outcome of a mutation that can decline with update(model) { mutate() ?: this } in a " +
+                "composable block; in a plain block drop required = true"
             shouldThrow<IllegalArgumentException> { ChangesAccumulator().claimingUnchanged(dirtyModel) }
                 .message shouldBe "Attempted to register changed model [${id(dirtyModel)}] as unchanged. It " +
                 "carries a write, and notChanged would drop it. Register a new model with add and a changed one " +
@@ -72,7 +74,8 @@ class ChangesSpec : BehaviorSpec({
                 .message shouldBe "No changes to persist: the changes { } block registered nothing, which usually " +
                 "means a mutation was not passed to add or update and would be lost. Register what the block " +
                 "wrote with add or update, and a model it read and kept with notChanged(model). When there is " +
-                "nothing to write, return noChanges(result) in place of changes { }"
+                "nothing to write, return noChanges(result) in place of changes { }, where the unit of work's family " +
+                "allows it"
             val readAgain = existingCreatedTestModel(dirtyModel.id(), "noscope", 360, V1).activate()
             val child = ChangesAccumulator.seededFrom(ChangesAccumulator().updating(dirtyModel))
             shouldThrow<IllegalStateException> { child.updating(readAgain) }
