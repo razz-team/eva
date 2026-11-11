@@ -1,5 +1,6 @@
 package com.razz.eva.uow.guarded
 
+import com.razz.eva.domain.Department
 import com.razz.eva.domain.Employee
 import com.razz.eva.domain.EmployeeId
 import com.razz.eva.domain.Principal
@@ -43,7 +44,9 @@ import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * A context or a Proven kept past its attempt reads nothing: the executor ends each attempt when it finishes, so a
- * guarded unit of work built by hand with a kept context, or given a kept Proven, is refused.
+ * guarded unit of work built by hand with a kept context, or given a kept Proven, is refused. The executor also
+ * refuses the block of a guarded unit of work that another unit returns. Ending the attempt still counts where the
+ * block never reaches the executor: a guarded block run by hand that hands the model it read to a plain block.
  */
 class KeptAttemptSpec : FunSpec({
 
@@ -68,7 +71,11 @@ class KeptAttemptSpec : FunSpec({
         OpenTelemetry.noop(),
     )
     val retrying = Configuration(retry = StaleRecordFixedRetry(1, ofMillis(0)))
-    beforeTest { clearMocks(repo) }
+    var stashed: Employee? = null
+    beforeTest {
+        clearMocks(repo)
+        stashed = null
+    }
     fun ended(uow: String, id: String) = "$uow cannot read the Proven for $id: its params were built in another " +
         "attempt or another run. Build them in the params lambda of the execute call that runs this unit of work. In " +
         "a spec, build the unit of work with executionContext.forAttempt(attempt), with the context that built the " +
@@ -97,6 +104,30 @@ class KeptAttemptSpec : FunSpec({
         override suspend fun tryPerform(principal: Principal<*>, params: EmployeeParams) =
             inner().tryPerform(principal, pick(params))
     }
+
+    // A plain unit of work whose block runs a guarded one by hand, which hands over the model it read, and then
+    // writes that model itself.
+    class Stashing(
+        ctx: ExecutionContext,
+        configuration: Configuration,
+        private val inner: () -> GuardedUnitOfWork<Principal<*>, TestProof<*>, EmployeeParams, Employee>,
+        private val pick: (EmployeeParams) -> EmployeeParams,
+        private val away: Department<*>,
+    ) : UnitOfWork<Principal<*>, EmployeeParams, Employee>(ctx, configuration) {
+        override fun name() = "Stashing"
+        override suspend fun tryPerform(principal: Principal<*>, params: EmployeeParams) = changes {
+            inner().tryPerform(principal, pick(params))
+            update(checkNotNull(stashed)) { changeDepartment(away) }
+        }
+    }
+    fun stashing(ctx: ExecutionContext) =
+        object : GuardedUnitOfWork<Principal<*>, TestProof<*>, EmployeeParams, Employee>(
+            ctx, Configuration.default(), EmployeesGuarded, setOf(),
+        ) {
+            override fun name() = "Anyone"
+            override suspend fun tryPerform(principal: Principal<*>, params: EmployeeParams) =
+                changes { notChanged(params.employee.model().also { stashed = it }) }
+        }
 
     // Runs a guarded unit of work whose params lambda wraps a proof and then throws, and returns its context and the
     // Proven it leaked.
@@ -148,6 +179,44 @@ class KeptAttemptSpec : FunSpec({
             uowx.execute(OtherPrincipal, wrapping) { EmployeeParams(leaked) }
         }.message shouldBe ended("Anyone", employee.id().stringValue())
         coVerify(exactly = 0) { repo.update(any(), any<Employee>()) }
+    }
+
+    test("a plain unit of work that writes what a guarded one read with the context of an ended run writes nothing") {
+        val (kept, leaked) = leakingRun()
+        val writing = { ctx: ExecutionContext ->
+            Stashing(ctx, Configuration.default(), { stashing(kept) }, { it }, away)
+        }
+        shouldThrow<IllegalStateException> {
+            uowx.execute(OtherPrincipal, writing) { EmployeeParams(leaked) }
+        }.message shouldBe ended("Anyone", employee.id().stringValue())
+        coVerify(exactly = 0) { repo.update(any(), any<Employee>()) }
+    }
+
+    test("a retry of a plain unit of work that writes what a guarded one read with a kept context writes nothing") {
+        coEvery { repo.update(any(), any<Employee>()) } throws StaleRecordException(setOf(second.id()), "employee")
+        val first = proof(employee)
+        var reloads = 0
+        var kept: ExecutionContext? = null
+        var unread: Proven<TestProof<Employee>, Employee>? = null
+        var attempts = 0
+        val writing = { ctx: ExecutionContext ->
+            val held = kept ?: ctx.also { kept = it }
+            val pick = { params: EmployeeParams -> if (attempts > 1) EmployeeParams(checkNotNull(unread)) else params }
+            Stashing(held, retrying, { stashing(held) }, pick, away)
+        }
+        shouldThrow<IllegalStateException> {
+            uowx.execute(TestPrincipal, writing) {
+                attempts++
+                val forFirst = proven(first) { reloads++; reloaded }
+                if (unread == null) unread = forFirst
+                if (attempts == 1) EmployeeParams(proven(proof(second)) { second }) else EmployeeParams(forFirst)
+            }
+        }.message shouldBe ended("Anyone", employee.id().stringValue())
+        attempts shouldBe 2
+        reloads shouldBe 0
+        first.checkedAgain shouldBe listOf()
+        // the first attempt's write of the other employee, which goes stale
+        coVerify(exactly = 1) { repo.update(any(), any<Employee>()) }
     }
 
     test("a plain unit of work that keeps the first attempt's context for its retry is refused and writes nothing") {
