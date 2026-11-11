@@ -109,6 +109,22 @@ class ComposedChildSpec : FunSpec({
         }.persisted() shouldBe listOf(AddModel::class to firstExtended, AddModel::class to secondExtended)
     }
 
+    test("A child that composes a child of its own is merged into its parent") {
+        val own = createdTestModel("parent", 1)
+        val middle = createdTestModel("middle", 2)
+        val leaf = createdTestModel("leaf", 3)
+        val leafUow = uow<Any> { add(leaf) }
+        val middleUow = uow<Any> {
+            add(middle)
+            execute(leafUow, TestPrincipal) { DummyUow.Params }
+        }
+        perform {
+            add(own)
+            execute(middleUow, TestPrincipal) { DummyUow.Params }
+        }.persisted() shouldBe
+            listOf(AddModel::class to own, AddModel::class to middle, AddModel::class to leaf)
+    }
+
     context("An aggregate a child added, and the new model it owns") {
         val hire = newHire()
         val dept = newDeptAggregate(name = "Eng", boss = bossId, ration = BUBALEH, employees = listOf(hire))
