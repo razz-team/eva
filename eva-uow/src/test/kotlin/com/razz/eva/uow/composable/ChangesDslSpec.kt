@@ -21,6 +21,8 @@ import com.razz.eva.domain.TestModelStatus.CREATED
 import com.razz.eva.domain.Version.Companion.V1
 import com.razz.eva.uow.AddEntity
 import com.razz.eva.uow.AddModel
+import com.razz.eva.uow.Changes
+import com.razz.eva.uow.ChangesAccumulator
 import com.razz.eva.uow.Clocks.fixedUTC
 import com.razz.eva.uow.Clocks.millisUTC
 import com.razz.eva.uow.DeleteEntity
@@ -43,9 +45,205 @@ import java.time.LocalDate
 
 class ChangesDslSpec : FunSpec({
 
+    fun dropped(uow: String, what: String) = "Composed unit of work [$uow] returned changes without $what that " +
+        "its parent had registered. Build the child's changes with changes { }, in a unit of work created with the " +
+        "ExecutionContext its factory receives."
+
     val now = millisUTC().instant()
     val clock = fixedUTC(now)
     val executionContext = ExecutionContext(clock, OpenTelemetry.noop())
+
+    test("A composed child built over the context it is given keeps every change its parent had registered") {
+        val departmentId = randomDepartmentId()
+        val own = createdTestModel("own", 1)
+        val existing = existingCreatedTestModel(randomTestModelId(), "existing", 2, V1)
+        val childAdded = createdTestModel("child", 3)
+        val tag = Tag.environmentTag(departmentId.id, "production")
+        val childTag = Tag.priorityTag(departmentId.id, 1)
+        val innerUow = { ctx: ExecutionContext ->
+            object : DummyUow<String>(ctx) {
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                    add(childAdded)
+                    add(childTag)
+                    "child"
+                }
+            }
+        }
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                add(own)
+                update(existing.activate())
+                add(tag)
+                execute(innerUow, TestPrincipal) { Params }
+                "parent"
+            }
+        }
+        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
+
+        changes.modelChangesToPersist.map { it.id } shouldBe listOf(own.id(), existing.id(), childAdded.id())
+        changes.modelChangesToPersist.map { it.modelEvents } shouldBe listOf(
+            listOf(TestModelCreated(own.id())),
+            listOf(TestModelStatusChanged(existing.id(), CREATED, ACTIVE)),
+            listOf(TestModelCreated(childAdded.id())),
+        )
+        changes.entityChangesToPersist shouldBe listOf(AddEntity(tag), AddEntity(childTag))
+        changes.result shouldBe "parent"
+    }
+
+    test("execute refuses a composed child that returns changes built by hand without its parent's") {
+        val own = createdTestModel("own", 1)
+        val childAdded = createdTestModel("child", 2)
+        val innerUow = { ctx: ExecutionContext ->
+            object : DummyUow<String>(ctx) {
+                override fun name() = "HandBuilt"
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params): Changes<String> =
+                    ChangesAccumulator().withAddedModel(childAdded).withResult("hand built")
+            }
+        }
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                add(own)
+                execute(innerUow, TestPrincipal) { Params }
+            }
+        }
+
+        shouldThrow<IllegalStateException> { uow.tryPerform(TestPrincipal, DummyUow.Params) }
+            .message shouldBe dropped("HandBuilt", "models [${own.id().stringValue()}]")
+    }
+
+    test("execute refuses a composed child built over a captured context instead of the one it is given") {
+        val own = createdTestModel("own", 1)
+        val existing = existingCreatedTestModel(randomTestModelId(), "existing", 2, V1)
+        val childAdded = createdTestModel("child", 3)
+        val innerUow = { _: ExecutionContext ->
+            object : DummyUow<String>(executionContext) {
+                override fun name() = "Captured"
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                    add(childAdded)
+                    "captured"
+                }
+            }
+        }
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                add(own)
+                update(existing.activate())
+                execute(innerUow, TestPrincipal) { Params }
+            }
+        }
+
+        shouldThrow<IllegalStateException> { uow.tryPerform(TestPrincipal, DummyUow.Params) }
+            .message shouldBe
+            dropped("Captured", "models [${own.id().stringValue()}, ${existing.id().stringValue()}]")
+    }
+
+    test("execute refuses a composed child that registers its parent's model without the parent's events") {
+        val existing = existingCreatedTestModel(randomTestModelId(), "existing", 2, V1)
+        val innerUow = { _: ExecutionContext ->
+            object : DummyUow<String>(executionContext) {
+                override fun name() = "Captured"
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                    update(existing.changeParam1("child"))
+                    "captured"
+                }
+            }
+        }
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                update(existing.activate())
+                execute(innerUow, TestPrincipal) { Params }
+            }
+        }
+
+        shouldThrow<IllegalStateException> { uow.tryPerform(TestPrincipal, DummyUow.Params) }
+            .message shouldBe dropped("Captured", "models [${existing.id().stringValue()}]")
+    }
+
+    test("execute refuses a composed child that calls notChanged on the model its parent updated") {
+        val existing = existingCreatedTestModel(randomTestModelId(), "existing", 2, V1)
+        val activated = existing.activate()
+        val innerUow = { ctx: ExecutionContext ->
+            object : DummyUow<String>(ctx) {
+                override fun name() = "HandBuilt"
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params): Changes<String> =
+                    ChangesAccumulator().withUnchangedModel(activated).withResult("hand built")
+            }
+        }
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                update(activated)
+                execute(innerUow, TestPrincipal) { Params }
+            }
+        }
+
+        shouldThrow<IllegalStateException> { uow.tryPerform(TestPrincipal, DummyUow.Params) }
+            .message shouldBe dropped("HandBuilt", "models [${existing.id().stringValue()}]")
+    }
+
+    test("execute refuses a composed child that drops the entity changes its parent had registered") {
+        val tag = Tag.environmentTag(randomDepartmentId().id, "production")
+        val childAdded = createdTestModel("child", 1)
+        val innerUow = { ctx: ExecutionContext ->
+            object : DummyUow<String>(ctx) {
+                override fun name() = "HandBuilt"
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params): Changes<String> =
+                    ChangesAccumulator().withAddedModel(childAdded).withResult("hand built")
+            }
+        }
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                add(tag)
+                execute(innerUow, TestPrincipal) { Params }
+            }
+        }
+
+        shouldThrow<IllegalStateException> { uow.tryPerform(TestPrincipal, DummyUow.Params) }
+            .message shouldBe dropped("HandBuilt", "entity changes")
+    }
+
+    test("execute refuses a composed child that replaces its parent's entity changes with as many others") {
+        val departmentId = randomDepartmentId()
+        val tag = Tag.environmentTag(departmentId.id, "production")
+        val otherTag = Tag.priorityTag(departmentId.id, 1)
+        val innerUow = { ctx: ExecutionContext ->
+            object : DummyUow<String>(ctx) {
+                override fun name() = "HandBuilt"
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params): Changes<String> =
+                    ChangesAccumulator().withAddedEntity(otherTag).withResult("hand built")
+            }
+        }
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                add(tag)
+                execute(innerUow, TestPrincipal) { Params }
+            }
+        }
+
+        shouldThrow<IllegalStateException> { uow.tryPerform(TestPrincipal, DummyUow.Params) }
+            .message shouldBe dropped("HandBuilt", "entity changes")
+    }
+
+    test("execute refuses a composed child that hands back an equal but distinct copy of its parent's entity changes") {
+        val tag = Tag.environmentTag(randomDepartmentId().id, "production")
+        val activated = existingCreatedTestModel(randomTestModelId(), "existing", 2, V1).activate()
+        val innerUow = { ctx: ExecutionContext ->
+            object : DummyUow<String>(ctx) {
+                override fun name() = "HandBuilt"
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params): Changes<String> =
+                    ChangesAccumulator().withUpdatedModel(activated).withAddedEntity(tag).withResult("hand built")
+            }
+        }
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                update(activated)
+                add(tag)
+                execute(innerUow, TestPrincipal) { Params }
+            }
+        }
+
+        shouldThrow<IllegalStateException> { uow.tryPerform(TestPrincipal, DummyUow.Params) }
+            .message shouldBe dropped("HandBuilt", "entity changes")
+    }
 
     test("""
         Should return properly built RealisedChanges when

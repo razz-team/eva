@@ -141,7 +141,9 @@ class ChangesDsl internal constructor(
                 subChanges.modelChangesToPersist.map { it.id.stringValue() },
             )
             if (subChanges.modelChangesToPersist.isNotEmpty() || subChanges.entityChangesToPersist.isNotEmpty()) {
-                changes = ChangesAccumulator.from(subChanges)
+                val merged = ChangesAccumulator.from(subChanges)
+                merged.checkKeepsAllOf(changes, uow.name())
+                changes = merged
                 inheritedModelIds.addAll(changes.modelIds())
             }
             // Under composition the caller gets this in-memory seed; the child's resultBuilder is not rerun.
@@ -158,6 +160,20 @@ class ChangesDsl internal constructor(
             val dsl = ChangesDsl(executionContext)
             val res = init(dsl)
             return dsl.withResult(res)
+        }
+    }
+
+    private fun ChangesAccumulator.checkKeepsAllOf(parent: ChangesAccumulator, uowName: String) {
+        val droppedModelIds = modelIdsDroppedFrom(parent)
+        val keepsEntityChanges = keepsEntityChangesOf(parent)
+        check(droppedModelIds.isEmpty() && keepsEntityChanges) {
+            val dropped = listOfNotNull(
+                droppedModelIds.takeIf { it.isNotEmpty() }?.let { ids -> "models ${ids.map { it.stringValue() }}" },
+                "entity changes".takeUnless { keepsEntityChanges },
+            )
+            "Composed unit of work [$uowName] returned changes without ${dropped.joinToString(" and ")} that its " +
+                "parent had registered. Build the child's changes with changes { }, in a unit of work created with " +
+                "the ExecutionContext its factory receives."
         }
     }
 
