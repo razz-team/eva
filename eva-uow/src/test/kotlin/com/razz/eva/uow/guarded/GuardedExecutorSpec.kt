@@ -180,7 +180,7 @@ class GuardedExecutorSpec : FunSpec({
             }
         }.message shouldBe "MoveEmployeeUow cannot read the Proven for ${employee.id().stringValue()}: its params " +
             "were built in another attempt or another run. Build them in the params lambda of the execute call that " +
-            "runs this unit of work. In a spec, build the unit of work with executionContext.forAttempt(context), " +
+            "runs this unit of work. In a spec, build the unit of work with executionContext.forAttempt(attempt), " +
             "with the context that built the params"
         proof.checkedAgain shouldBe listOf()
         coVerify(exactly = 1) { repo.update(any(), any<Employee>()) }
@@ -207,7 +207,7 @@ class GuardedExecutorSpec : FunSpec({
         }.message shouldBe "A guarded unit of work cannot read the Proven for ${employee.id().stringValue()}: " +
             "its params were built in another attempt or another run. Build them in the params lambda of the " +
             "execute call that runs this unit of work. In a spec, build the unit of work with " +
-            "executionContext.forAttempt(context), with the context that built the params"
+            "executionContext.forAttempt(attempt), with the context that built the params"
         coVerify(exactly = 0) { repo.update(any(), any<Employee>()) }
     }
 

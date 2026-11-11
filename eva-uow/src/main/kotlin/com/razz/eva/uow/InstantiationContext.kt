@@ -8,7 +8,17 @@ sealed class InstantiationContext(internal val attempt: Int) {
      * The context the executor builds for each attempt. It also holds the principal the unit of work runs under and
      * the run: one `execute` call with all its retries.
      */
-    internal class External(attempt: Int, val principal: Principal<*>, val run: Run) : InstantiationContext(attempt)
+    internal class External(attempt: Int, val principal: Principal<*>, val run: Run) : InstantiationContext(attempt) {
+
+        /** True after the executor finished this attempt. No block reads a `Proven` of an ended attempt. */
+        @Volatile
+        var ended: Boolean = false
+            private set
+
+        fun end() {
+            ended = true
+        }
+    }
 
     class Internal internal constructor(attempt: Int) : InstantiationContext(attempt)
 

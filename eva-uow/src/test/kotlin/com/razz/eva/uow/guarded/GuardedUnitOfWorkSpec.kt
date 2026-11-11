@@ -91,8 +91,12 @@ class GuardedUnitOfWorkSpec : FunSpec({
         "that model() returned into the aggregate"
     fun boundElsewhere(id: String) = "MoveEmployeeUow cannot read the Proven for $id: its params were built in " +
         "another attempt or another run. Build them in the params lambda of the execute call that runs this unit of " +
-        "work. In a spec, build the unit of work with executionContext.forAttempt(context), with the context that " +
+        "work. In a spec, build the unit of work with executionContext.forAttempt(attempt), with the context that " +
         "built the params"
+    fun attemptless(uow: String, id: String) = "$uow cannot read the Proven for $id: it was built with an " +
+        "ExecutionContext that carries no attempt. Build the unit of work in the factory of the execute call, with " +
+        "the ExecutionContext the factory receives. A composed child reads no Proven. In a spec, build it with " +
+        "executionContext.forAttempt(attempt)"
     fun stale(uow: String, id: String) =
         "$uow registers $id at version 2, and model() returned it at version 1. Change the model that model() returned"
     fun used() = "This proof for test.write was already used to run a unit of work. One proof runs one unit of work: " +
@@ -767,7 +771,7 @@ class GuardedUnitOfWorkSpec : FunSpec({
     test("a unit of work built with a context that carries no attempt reads no Proven") {
         val params = first.run { Params(moving(proof(employee)), "moves") }
         shouldThrow<IllegalStateException> { uow(context = noAttempt).tryPerform(TestPrincipal, params) }
-            .message shouldBe boundElsewhere(employee.id().stringValue())
+            .message shouldBe attemptless("MoveEmployeeUow", employee.id().stringValue())
         uow().tryPerform(TestPrincipal, params).result.departmentId shouldBe away.id()
     }
 

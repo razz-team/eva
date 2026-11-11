@@ -52,8 +52,9 @@ class Proven<out PF : Proof<*, *, *>, M : Model<*, *>> private constructor(
         return model
     }
 
-    /** Returns true if [attempt] is the attempt whose params lambda created this Proven. */
-    internal fun belongsTo(attempt: InstantiationContext?): Boolean = attempt === context
+    /** Returns true if [attempt] is the attempt whose params lambda created this Proven, and it has not ended. */
+    internal fun belongsTo(attempt: InstantiationContext?): Boolean =
+        attempt === context && (context as? InstantiationContext.External)?.ended != true
 
     val action: String get() = proof.action.name
 

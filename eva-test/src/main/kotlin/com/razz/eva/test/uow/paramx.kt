@@ -16,8 +16,9 @@ fun initial(principal: Principal<*>): InstantiationContext = InstantiationContex
 fun afterRetry(first: InstantiationContext): InstantiationContext = InstantiationContextFixtures.afterRetry(first)
 
 /**
- * This context for the attempt of [context], as the executor builds one for each attempt. A guarded unit of work reads
- * a `Proven` field only in the attempt that built its params, so a spec that calls `tryPerform` itself builds the unit
- * of work with this context: `Uow(executionContext.forAttempt(first)).tryPerform(principal, first.params())`.
+ * Returns a copy of this context that carries the attempt of [attempt], as the executor builds one for each attempt.
+ * A guarded unit of work reads a `Proven` field only in the attempt that built its params, so a spec that calls
+ * `tryPerform` itself builds the unit of work with this context:
+ * `Uow(executionContext.forAttempt(first)).tryPerform(principal, first.params())`.
  */
-fun ExecutionContext.forAttempt(context: InstantiationContext): ExecutionContext = attemptOf(context)
+fun ExecutionContext.forAttempt(attempt: InstantiationContext): ExecutionContext = attemptOf(attempt)
