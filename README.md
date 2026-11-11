@@ -697,7 +697,19 @@ class DebitAccountUow(
     }
 ```
 
-The eva-test spec bases (`UowShouldSpec`, `UowBehaviorSpec`, `RepositorySpec`, `RepositoryShouldSpec`, `SagaShouldSpec`, `SagaBehaviorSpec`) run the spec body with a witness for every id type, so a test in such a spec calls a witnessed mutator or factory directly. Below language version 2.4, a spec on these bases needs `-Xcontext-parameters` only once it calls one. Other tests use `mutating { }` from the eva-domain test-fixtures artifact. Migration is one mutator at a time: `raiseEvent` and `newState` stay for the rest, and a model with both kinds compiles. Below language version 2.4, a build that declares a witnessed mutator or calls `update(model) { }` or `add { }` needs `-Xcontext-parameters`; a build that uses only the bare `add(model)` / `update(model)` does not. From language version 2.4 on, drop the flag: the compiler warns that it is redundant, and `allWarningsAsErrors` turns that into an error. detekt 1.23 reports a false `SpacingAroundColon` on every `context(_: Witness<...>)` line that a declaration-level `@Suppress` does not reach; suppress it per file with `@file:Suppress("SpacingAroundColon")`.
+The eva-test spec bases (`UowShouldSpec`, `UowBehaviorSpec`, `RepositorySpec`, `RepositoryShouldSpec`, `SagaShouldSpec`, `SagaBehaviorSpec`) run the spec body with a witness for every id type, so a test in such a spec calls a witnessed mutator or factory directly. Below language version 2.4, a spec on these bases needs `-Xcontext-parameters` only once it calls one.
+
+An app's own spec base supplies the witness the same way, with eva-test's `WitnessedBody` and `runWitnessed`:
+
+```kotlin
+abstract class AppSpec(body: WitnessedBody<AppSpec>) : ShouldSpec() {
+    init { runWitnessed(body) }
+}
+```
+
+A base built on that one passes its body up with an unchecked cast, `AppSpec(body as WitnessedBody<AppSpec>)` under `@Suppress("UNCHECKED_CAST")`, as it does with a plain receiver lambda: the receiver is the subclass at run time.
+
+Other tests use `mutating { }` from the eva-domain test-fixtures artifact. Migration is one mutator at a time: `raiseEvent` and `newState` stay for the rest, and a model with both kinds compiles. Below language version 2.4, a build that declares a witnessed mutator or calls `update(model) { }` or `add { }` needs `-Xcontext-parameters`; a build that uses only the bare `add(model)` / `update(model)` does not. From language version 2.4 on, drop the flag: the compiler warns that it is redundant, and `allWarningsAsErrors` turns that into an error. detekt 1.23 reports a false `SpacingAroundColon` on every `context(_: Witness<...>)` line that a declaration-level `@Suppress` does not reach; suppress it per file with `@file:Suppress("SpacingAroundColon")`.
 
 The guard stops a mutation from being forgotten, not from being smuggled out on purpose. Its limits:
 
