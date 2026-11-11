@@ -20,7 +20,7 @@ object InstantiationContextFixtures {
     /**
      * Returns a copy of this context that carries the attempt of [attempt], as the executor builds one for each
      * attempt. A guarded unit of work built with it reads the [com.razz.eva.uow.guarded.Proven] fields of params built
-     * with [attempt]. The attempt of a fixture never ends.
+     * with [attempt].
      */
     fun ExecutionContext.forAttempt(attempt: InstantiationContext): ExecutionContext = copy(attempt = attempt)
 }

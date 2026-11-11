@@ -101,8 +101,8 @@ class GuardedChangesDsl<PF : Proof<*>> internal constructor(
      * here. After this call `update` accepts the model, in this block only. The block must call `update` or
      * `notChanged` on it, or the block fails. The unit of work knows its attempt from the [ExecutionContext] it was
      * built with. A [Proven] from params built in another attempt or another run, or that another block has read, is
-     * refused: build the params anew for each attempt. So is a [Proven] of an attempt that has ended. A unit of work
-     * built with a context that carries no attempt, as a composed child is, reads no [Proven].
+     * refused: build the params anew for each attempt. A unit of work built with a context that carries no attempt,
+     * as a composed child is, reads no [Proven].
      */
     suspend fun <M : Model<*, *>> Proven<PF, M>.model(): M {
         check(attempt != null) {

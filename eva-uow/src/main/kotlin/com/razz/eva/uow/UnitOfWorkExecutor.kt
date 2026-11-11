@@ -112,57 +112,52 @@ class UnitOfWorkExecutor(
             while (true) {
                 val now = clock.instant()
                 val context = InstantiationContext.External(currentAttempt, principal, run)
-                // The attempt ends in the finally: a context or a Proven kept from it reads nothing later.
-                try {
-                    val executionContext = ExecutionContext(Clocks.fixedUTC(now), openTelemetry, attempt = context)
-                    val uow = uowFactory(executionContext)
-                    if (currentAttempt == 0) {
-                        name = uow.name()
-                        uowSpan.updateName(name)
-                        uowSpan.setAttribute(UOW_NAME, name)
-                    }
-                    checkBuiltFor(uow, context)
-                    val constructedParams = params(context)
-                    val attempted = attempt(uow, principal, constructedParams, now, name, uowSpan)
-                    val committed = when (attempted) {
-                        is Attempted.Conflict -> {
-                            val ex = attempted.ex
-                            uowSpan.addEvent(
-                                "persistence.exception",
-                                Attributes.of(
-                                    SpanAttributes.peristenceException,
-                                    ex::class.simpleName ?: "Unknown",
-                                    SpanAttributes.modelIds,
-                                    (ex as? PersistenceException.ModelAware)?.modelIds?.map { it.stringValue() }
-                                        ?: listOf(),
-                                ),
-                            )
-                            val config = uow.configuration()
-                            val willRetry = config.retry.shouldRetry(currentAttempt, ex)
-                            incrementPersistenceExceptionMetric(ex, name, currentAttempt, willRetry)
-                            if (willRetry) {
-                                currentAttempt += 1
-                                logger.warn(ex) {
-                                    "Retrying UnitOfWork: ${uow.name()}. Attempt: $currentAttempt"
-                                }
-                                continue
+                val executionContext = ExecutionContext(Clocks.fixedUTC(now), openTelemetry, attempt = context)
+                val uow = uowFactory(executionContext)
+                if (currentAttempt == 0) {
+                    name = uow.name()
+                    uowSpan.updateName(name)
+                    uowSpan.setAttribute(UOW_NAME, name)
+                }
+                checkBuiltFor(uow, context)
+                val constructedParams = params(context)
+                val attempted = attempt(uow, principal, constructedParams, now, name, uowSpan)
+                val committed = when (attempted) {
+                    is Attempted.Conflict -> {
+                        val ex = attempted.ex
+                        uowSpan.addEvent(
+                            "persistence.exception",
+                            Attributes.of(
+                                SpanAttributes.peristenceException,
+                                ex::class.simpleName ?: "Unknown",
+                                SpanAttributes.modelIds,
+                                (ex as? PersistenceException.ModelAware)?.modelIds?.map { it.stringValue() }
+                                    ?: listOf(),
+                            ),
+                        )
+                        val config = uow.configuration()
+                        val willRetry = config.retry.shouldRetry(currentAttempt, ex)
+                        incrementPersistenceExceptionMetric(ex, name, currentAttempt, willRetry)
+                        if (willRetry) {
+                            currentAttempt += 1
+                            logger.warn(ex) {
+                                "Retrying UnitOfWork: ${uow.name()}. Attempt: $currentAttempt"
                             }
-                            return uow.onFailure(constructedParams, ex)
+                            continue
                         }
-                        is Attempted.Committed -> attempted
+                        return uow.onFailure(constructedParams, ex)
                     }
-                    persisting.publish(committed.uowEvent)
-                    uowSpan.setAttribute(
-                        UOW_ID,
-                        committed.uowEvent.id.toString(),
-                    )
-                    return if (uow.configuration().returnRoundtrippedModels) {
-                        result(committed.changes, committed.persisted)
-                    } else {
-                        committed.changes.result
-                    }
-                } finally {
-                    context.end()
+                    is Attempted.Committed -> attempted
+                }
+                persisting.publish(committed.uowEvent)
+                uowSpan.setAttribute(
+                    UOW_ID,
+                    committed.uowEvent.id.toString(),
+                )
+                return if (uow.configuration().returnRoundtrippedModels) {
+                    result(committed.changes, committed.persisted)
+                } else {
+                    committed.changes.result
                 }
             }
         } catch (ex: Exception) {

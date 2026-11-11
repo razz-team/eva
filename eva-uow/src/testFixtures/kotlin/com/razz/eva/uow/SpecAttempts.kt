@@ -36,12 +36,7 @@ suspend fun <P, PARAMS, RESULT, UOW> ((ExecutionContext) -> UOW).retry(
           RESULT : Any,
           UOW : BaseUnitOfWork<P, PARAMS, RESULT, *> {
     val run = newRun()
-    val first = InstantiationContext.External(0, principal, run)
-    try {
-        first.params()
-    } finally {
-        first.end()
-    }
+    InstantiationContext.External(0, principal, run).params()
     return runAttempt(executionContext, this, principal, params, InstantiationContext.External(1, principal, run))
 }
 
@@ -58,13 +53,9 @@ private suspend fun <P, PARAMS, RESULT, UOW> runAttempt(
           PARAMS : UowParams<PARAMS>,
           RESULT : Any,
           UOW : BaseUnitOfWork<P, PARAMS, RESULT, *> {
-    try {
-        val uow = uowFactory(executionContext.copy(attempt = context))
-        checkBuiltFor(uow, context)
-        val changes = uow.tryPerform(principal, context.params())
-        checkOutcome(uow, changes, uow.name())
-        return changes
-    } finally {
-        context.end()
-    }
+    val uow = uowFactory(executionContext.copy(attempt = context))
+    checkBuiltFor(uow, context)
+    val changes = uow.tryPerform(principal, context.params())
+    checkOutcome(uow, changes, uow.name())
+    return changes
 }
