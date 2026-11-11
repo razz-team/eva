@@ -1,7 +1,11 @@
+@file:OptIn(com.razz.eva.uow.TestDoubleApi::class)
+
 package com.razz.eva.uow.guarded
 
 import com.razz.eva.domain.mutating
 import com.razz.eva.domain.Department
+import com.razz.eva.domain.Department.OrphanedDepartment
+import com.razz.eva.domain.Department.OwnedDepartment
 import com.razz.eva.domain.DepartmentEvent.NameChanged
 import com.razz.eva.domain.DeptAggregate
 import com.razz.eva.domain.DeptAggregate.Companion.newDeptAggregate
@@ -27,6 +31,7 @@ import com.razz.eva.uow.InstantiationContextFixtures.afterRetry
 import com.razz.eva.uow.InstantiationContextFixtures.inAttempt
 import com.razz.eva.uow.InstantiationContextFixtures.initial
 import com.razz.eva.uow.NoopModel
+import com.razz.eva.uow.stubChanges
 import com.razz.eva.uow.TestPrincipal
 import com.razz.eva.uow.UpdateModel
 import com.razz.eva.uow.composable.ChangesDsl
@@ -92,6 +97,13 @@ class GuardedUnitOfWorkSpec : FunSpec({
         "Wrap the same proofs in every attempt. In a spec, build the first attempt's params before the retry's"
     fun storedDept(employees: List<Employee>) =
         DeptAggregate(home.id(), "Stored", randomEmployeeId(), 1, BUBALEH, employees, persistentState(V1, null))
+    fun stubbedChild(name: String, vararg claims: Model<*, *>) = { ctx: ExecutionContext ->
+        object : UnitOfWork<TestPrincipal, ChildParams, String>(ctx) {
+            override fun name() = name
+            override suspend fun tryPerform(principal: TestPrincipal, params: ChildParams) =
+                stubChanges("stubbed", *claims)
+        }
+    }
     fun plainChild(name: String, body: suspend ChangesDsl.() -> String) = { ctx: ExecutionContext ->
         object : UnitOfWork<TestPrincipal, ChildParams, String>(ctx) {
             override fun name() = name
@@ -609,6 +621,76 @@ class GuardedUnitOfWorkSpec : FunSpec({
             block { params -> update(params.employee.model()) { stale } }
                 .tryPerform(TestPrincipal, first.params(proof(employee)))
         }.message shouldBe stale("Block", employee.id().stringValue())
+    }
+
+    test("update(model) { } refuses a mutation that returns a guarded type the block holds no proof for") {
+        val orphan = department("Orphan")
+        shouldThrow<IllegalStateException> {
+            block(unguarded = setOf(OrphanedDepartment::class), guarding = Guarding(OwnedDepartment::class)) { params ->
+                update(orphan) { addBoss(employee) }
+                update(params.employee.model()) { changeDepartment(away) }
+            }.tryPerform(TestPrincipal, first.params(proof(employee)))
+        }.message shouldBe ungated("Block", orphan.id().stringValue(), "OwnedDepartment")
+    }
+
+    test("update(model) { } refuses a mutation that returns a type that is not in unguardedWrites") {
+        val orphan = department("Orphan")
+        shouldThrow<IllegalStateException> {
+            block(unguarded = setOf(OrphanedDepartment::class)) { params ->
+                update(orphan) { addBoss(employee) }
+                update(params.employee.model()) { changeDepartment(away) }
+            }.tryPerform(TestPrincipal, first.params(proof(employee)))
+        }.message shouldBe unlisted("Block", orphan.id().stringValue(), "OwnedDepartment")
+    }
+
+    test("checks every model an aggregate owns, past a new one that comes first") {
+        val other = employee(department = home.id())
+        val hired = mutating { newEmployee(Name("Eve", "Green"), home.id(), "eve@test.com", BUBALEH) }
+        val dept = newDeptAggregate(name = "Fresh", boss = randomEmployeeId(), ration = BUBALEH)
+            .addEmployee(hired)
+            .addEmployee(mutating { other.changeDepartment(away) })
+        shouldThrow<IllegalStateException> {
+            block { params ->
+                add(dept)
+                update(params.employee.model()) { changeDepartment(away) }
+            }.tryPerform(TestPrincipal, first.params(proof(employee)))
+        }.message shouldBe ownedUnread(dept.id().stringValue(), other.id().stringValue())
+    }
+
+    test("add { } refuses before it adds, so a block that catches the refusal holds nothing of the aggregate") {
+        val other = employee(department = home.id())
+        val dept = newDeptAggregate(name = "Fresh", boss = randomEmployeeId(), ration = BUBALEH)
+            .addEmployee(mutating { other.changeDepartment(away) })
+        var refusal: Throwable? = null
+        val changes = block { params ->
+            refusal = runCatching { add { dept } }.exceptionOrNull()
+            update(params.employee.model()) { changeDepartment(away) }
+        }.tryPerform(TestPrincipal, first.params(proof(employee)))
+        refusal?.message shouldBe ownedUnread(dept.id().stringValue(), other.id().stringValue())
+        changes.modelChangesToPersist.map { it.id } shouldBe listOf(employee.id())
+    }
+
+    test("refuses a stubbed child that claims a guarded model, and keeps the block's changes") {
+        val other = employee(department = home.id())
+        var refusal: Throwable? = null
+        val changes = block { params ->
+            val moved = update(params.employee.model()) { changeDepartment(away) }
+            refusal = runCatching { execute(stubbedChild("Stub", other), TestPrincipal) { ChildParams } }
+                .exceptionOrNull()
+            moved
+        }.tryPerform(TestPrincipal, first.params(proof(employee)))
+        refusal?.message shouldBe refusedWrite("Block", "Stub", other.id().stringValue())
+        changes.modelChangesToPersist.map { it.id } shouldBe listOf(employee.id())
+    }
+
+    test("refuses a stubbed child that claims the stored copy of the proven model") {
+        shouldThrow<IllegalStateException> {
+            block { params ->
+                val moved = update(params.employee.model()) { changeDepartment(away) }
+                execute(stubbedChild("Stub", employee), TestPrincipal) { ChildParams }
+                moved
+            }.tryPerform(TestPrincipal, first.params(proof(employee)))
+        }.message shouldBe refusedWrite("Block", "Stub", employee.id().stringValue())
     }
 
     test("update(model) { } that hands back the proven model keeps it unchanged") {

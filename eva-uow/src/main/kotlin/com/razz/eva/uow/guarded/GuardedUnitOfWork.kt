@@ -85,5 +85,6 @@ abstract class GuardedUnitOfWork<P, PF, PARAMS, RESULT>(
         override val modelChangesToPersist: List<ModelChange> get() = changes.modelChangesToPersist
         override val entityChangesToPersist: List<EntityChange> get() = changes.entityChangesToPersist
         override val resultBuilder: ((PersistedLookup) -> Any?)? get() = changes.resultBuilder
+        override val stubbed: Boolean get() = changes.stubbed
     }
 }

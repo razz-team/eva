@@ -20,10 +20,10 @@ import kotlin.reflect.KClass
  * The receiver of a [GuardedUnitOfWork]'s `changes { }` block. It works as the composable [ChangesDsl] does, with these
  * limits. `update` accepts a model the block read from a [Proven] with [model], at the version it had when read, and
  * a model whose type the unit of work lists in `unguardedWrites`; it refuses every other model. `add` accepts every
- * new model. `update(model) { }` and `add { }` supply a [Witness] as the composable DSL's do, with the same limits. A
- * model an aggregate owns is checked as if the block registered it itself. [execute] runs a child unit of work and
- * refuses a child that registers a model of a guarded type ([Guarding]). It has no entity functions: a child registers
- * entities. [PF] is the proof type whose [Proven] fields the block can read.
+ * new model. `update(model) { }` and `add { }` run their lambda with a [Witness], as the composable DSL's do, and check
+ * the model as `update` and `add` do. A model an aggregate owns is checked as if the block registered it itself.
+ * [execute] runs a child unit of work and refuses a child that registers a model of a guarded type ([Guarding]). It has
+ * no entity functions: a child registers entities. [PF] is the proof type whose [Proven] fields the block can read.
  */
 class GuardedChangesDsl<PF : Proof<*, *, *>> internal constructor(
     private val dsl: ChangesDsl,
@@ -62,16 +62,17 @@ class GuardedChangesDsl<PF : Proof<*, *, *>> internal constructor(
     }
 
     /**
-     * Runs [mutate] on [model] with a [Witness] for its id type and registers what it returns, as the composable
-     * `update(model) { }` does. [model] must be one `update` accepts, and the model [mutate] returns is checked as
-     * `update` checks it. If [mutate] returns [model] itself, the composable rules for a declined mutation apply.
+     * Runs [mutate] on [model] with a [Witness] for its id type and registers the model it returns, as the composable
+     * `update(model) { }` does. `update` must accept [model]; if not, this throws before [mutate] runs. The model
+     * [mutate] returns is checked as `update` checks it. If [mutate] returns [model] itself, nothing changed: a stored
+     * model is kept as `notChanged` keeps it.
      */
     fun <MID, E, M, R> update(model: M, mutate: context(Witness<MID>) M.() -> R): R
         where M : Model<MID, E>, R : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
         checkMayUpdate(model)
         return dsl.update(model) {
             mutate().also { mutated ->
-                checkReadVersion(mutated)
+                checkMayUpdate(mutated)
                 checkOwnedModels(mutated)
             }
         }
