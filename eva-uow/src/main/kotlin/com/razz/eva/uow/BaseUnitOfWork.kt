@@ -31,10 +31,7 @@ abstract class BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, C>(
 
     open suspend fun onFailure(params: PARAMS, ex: PersistenceException): RESULT = throw ex
 
-    // an empty accumulator, not none: the executor refuses changes without one as a stub
-    private val NO_CHANGES: Changes<Unit> = AccumulatedChanges(Unit, null, ChangesAccumulator())
-
-    protected fun noChanges() = NO_CHANGES
+    protected fun noChanges(): Changes<Unit> = noChanges(Unit)
 
     // Under composition a dirty model handed back through noChanges may already be registered in the
     // parent's change set (threaded in via a ModelParam): its write persists via the parent when it is
@@ -43,6 +40,7 @@ abstract class BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, C>(
     protected fun <R> noChanges(result: R): Changes<R> {
         val inherited = executionContext.inheritedChanges
         checkNoDroppedWrite(result, "noChanges") { model -> inherited?.persistsWritesOf(model) ?: false }
+        // an empty accumulator, not none: the executor refuses changes without one as a stub
         return AccumulatedChanges(result, null, ChangesAccumulator())
     }
 
