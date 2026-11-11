@@ -85,6 +85,34 @@ class ComposedChildSpec : FunSpec({
         outcomes.forEach { it shouldBe listOf(UpdateModel(changed, listOf(changed.modelEvents().single()))) }
     }
 
+    test("A child cannot claim unchanged a model with a write the parent's change for it lacks") {
+        val read = existingCreatedTestModel(param1 = "read", param2 = 1)
+        val changed = read.changeParam1("parent")
+        val divergent = read.changeParam1("child")
+        val ex = shouldThrow<IllegalStateException> {
+            perform {
+                update(changed)
+                execute(uow<Any> { notChanged(divergent) }, TestPrincipal) { DummyUow.Params }
+            }
+        }
+        ex.message shouldBe "notChanged got model [${read.id().stringValue()}] with a write the change its " +
+            "parent registered does not carry: the write would be silently dropped. Register it with update, or " +
+            "call notChanged with the instance the parent registered"
+    }
+
+    test("A child may claim unchanged the parent's instance, a clean read, or an earlier state of it") {
+        val read = existingCreatedTestModel(param1 = "read", param2 = 1)
+        val changed = read.changeParam1("parent")
+        val later = changed.changeParam2(2)
+        listOf(later, read, changed).forEach { claimed ->
+            perform {
+                update(changed)
+                execute(uow<Any> { update(later) }, TestPrincipal) { DummyUow.Params }
+                execute(uow<Any> { notChanged(claimed) }, TestPrincipal) { DummyUow.Params }
+            }.persisted() shouldBe listOf(UpdateModel::class to later)
+        }
+    }
+
     test("A stubbed child's claim of a model the parent does not hold joins the set as a claim") {
         val other = existingCreatedTestModel(param1 = "other", param2 = 2)
         val created = createdTestModel("own", 1)

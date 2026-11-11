@@ -162,11 +162,21 @@ internal class ChangesAccumulator private constructor(
 
     /**
      * Registers [model] as unchanged. An inherited id that already has a change keeps that change, so a
-     * write registered outside this block still persists. Otherwise [model] must be persisted and clean.
+     * write registered outside this block still persists. [model] must then carry no write that change
+     * lacks: the instance it holds, a clean read, or an earlier state of it. A model with a write of its own
+     * fails, because the claim would drop that write. Otherwise [model] must be persisted and clean.
      */
     internal fun <MID : ModelId<out Comparable<*>>, E : ModelEvent<MID>, M : Model<MID, E>>
     claimingUnchanged(model: M): ChangesAccumulator {
-        if (model.id() in modelChanges && model.id() in inheritedIds) return this
+        val held = modelChanges[model.id()]
+        if (held != null && model.id() in inheritedIds) {
+            check(model.isCoveredBy(held.model)) {
+                "notChanged got model [${model.id().stringValue()}] with a write the change its parent " +
+                    "registered does not carry: the write would be silently dropped. Register it with update, " +
+                    "or call notChanged with the instance the parent registered"
+            }
+            return this
+        }
         require(model.isPersisted()) {
             "Attempted to register ${if (model.isNew()) "new" else "changed"} " +
                 "model [${model.id().stringValue()}] as unchanged"
