@@ -30,7 +30,7 @@ abstract class BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, C>(
 
     internal fun configuration(): Configuration = configuration
 
-    /** The context this unit of work was built with, so the executor can check it is the one the factory got. */
+    /** The context this unit of work was built with, so the executor can check the attempt it carries. */
     internal fun executionContext(): ExecutionContext = executionContext
 
     open suspend fun onFailure(params: PARAMS, ex: PersistenceException): RESULT = throw ex

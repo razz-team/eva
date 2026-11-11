@@ -32,7 +32,7 @@ class WriteTxScopeSpec : PersistenceBaseSpec({
     fun txIdObservingUowx(scope: WriteTxScope) = UnitOfWorkExecutor(
         factories = listOf(
             TxIdObservingUow::class withFactory {
-                TxIdObservingUow(it, module.queryExecutor, module.dslContext, scope)
+                TxIdObservingUow(module.executionContext, module.queryExecutor, module.dslContext, scope)
             },
         ),
         persisting = module.persisting,
@@ -98,7 +98,7 @@ class WriteTxScopeSpec : PersistenceBaseSpec({
         fun composedTxIdObservingUowx(scope: WriteTxScope) = UnitOfWorkExecutor(
             factories = listOf(
                 ComposedTxIdObservingUow::class withFactory {
-                    ComposedTxIdObservingUow(it, module.queryExecutor, module.dslContext, scope)
+                    ComposedTxIdObservingUow(module.executionContext, module.queryExecutor, module.dslContext, scope)
                 },
             ),
             persisting = module.persisting,

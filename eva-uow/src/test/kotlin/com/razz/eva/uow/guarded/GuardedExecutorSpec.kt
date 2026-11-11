@@ -16,6 +16,7 @@ import com.razz.eva.uow.DummyEventRepository
 import com.razz.eva.uow.ExecutionContext
 import com.razz.eva.uow.ExecutionContextApi
 import com.razz.eva.uow.Persisting
+import com.razz.eva.uow.RealisedChanges
 import com.razz.eva.uow.Retry.StaleRecordFixedRetry
 import com.razz.eva.uow.TestPrincipal
 import com.razz.eva.uow.UnitOfWorkExecutor
@@ -31,6 +32,7 @@ import io.kotest.matchers.shouldBe
 import io.mockk.clearMocks
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.every
 import io.mockk.mockk
 import io.opentelemetry.api.OpenTelemetry
 import java.time.Duration.ofMillis
@@ -227,7 +229,7 @@ class GuardedExecutorSpec : FunSpec({
         coVerify(exactly = 1) { repo.update(any(), any<Employee>()) }
     }
 
-    test("a factory that builds the unit of work with a context of another run is refused before the params lambda") {
+    test("a factory that builds a guarded unit with a context of another run, or with none, is refused before params") {
         coEvery { repo.update(any(), any<Employee>()) } returns persisted
         var kept: ExecutionContext? = null
         val keeping = { ctx: ExecutionContext -> MoveEmployeeUow(ctx.also { kept = it }, setOf(), away) }
@@ -244,12 +246,34 @@ class GuardedExecutorSpec : FunSpec({
         @OptIn(ExecutionContextApi::class)
         val detached = uowx.executionContext()
         shouldThrow<IllegalStateException> {
-            uowx.execute(TestPrincipal, { _: ExecutionContext -> plain(detached) }) {
+            uowx.execute(TestPrincipal, { _: ExecutionContext -> MoveEmployeeUow(detached, setOf(), away) }) {
                 built++
-                ChildParams
+                MoveEmployeeUow.Params(proven(proof(employee)) { reloaded }, "third")
             }
-        }.message shouldBe builtElsewhere("Plain")
+        }.message shouldBe builtElsewhere("MoveEmployeeUow")
         built shouldBe 0
         coVerify(exactly = 1) { repo.update(any(), any<Employee>()) }
+    }
+
+    test("a guarded unit of work whose factory gives it the context with another clock reads its Proven and writes") {
+        coEvery { repo.update(any(), any<Employee>()) } returns persisted
+        val other = fixedUTC(clock.instant().plusSeconds(60))
+        @OptIn(ExecutionContextApi::class)
+        val reclocked = { ctx: ExecutionContext -> MoveEmployeeUow(ctx.withClock(other), setOf(), away) }
+        uowx.execute(TestPrincipal, reclocked) {
+            MoveEmployeeUow.Params(proven(proof(employee)) { reloaded }, "moves")
+        } shouldBe persisted
+        coVerify(exactly = 1) { repo.update(any(), any<Employee>()) }
+    }
+
+    test("the executor runs a plain unit of work built with a kept context, and a mocked one, without a check") {
+        @OptIn(ExecutionContextApi::class)
+        val detached = uowx.executionContext()
+        uowx.execute(TestPrincipal, { _: ExecutionContext -> plain(detached) }) { ChildParams } shouldBe "plain"
+        val mocked = mockk<UnitOfWork<TestPrincipal, ChildParams, String>>()
+        every { mocked.name() } returns "Mocked"
+        every { mocked.configuration() } returns Configuration.default()
+        coEvery { mocked.tryPerform(TestPrincipal, ChildParams) } returns RealisedChanges("mocked", listOf(), listOf())
+        uowx.execute(TestPrincipal, { _: ExecutionContext -> mocked }) { ChildParams } shouldBe "mocked"
     }
 })

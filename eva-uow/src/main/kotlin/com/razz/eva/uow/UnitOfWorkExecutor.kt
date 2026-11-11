@@ -26,6 +26,7 @@ import com.razz.eva.uow.OtelAttributes.UOW_NAME
 import com.razz.eva.uow.OtelAttributes.UOW_OPERATION
 import com.razz.eva.uow.OtelAttributes.WILL_RETRY
 import com.razz.eva.uow.UnitOfWorkExecutor.ClassToUow
+import com.razz.eva.uow.guarded.GuardedUnitOfWork
 import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
@@ -119,10 +120,13 @@ class UnitOfWorkExecutor(
                     uowSpan.setAttribute(UOW_NAME, name)
                 }
                 // A guarded unit of work reads its attempt from the ExecutionContext it holds. One built with a
-                // context kept from another attempt or run would read the proofs of that attempt.
-                check(uow.executionContext() === executionContext) {
-                    "${uow.name()} was built with an ExecutionContext other than the one its factory received. " +
-                        "Build the unit of work in the factory, with the ExecutionContext the factory receives"
+                // context kept from another attempt or run would read the proofs of that attempt. No other unit of
+                // work reads the attempt, so the check leaves them alone.
+                if (uow is GuardedUnitOfWork<*, *, *, *>) {
+                    check(uow.executionContext().attempt === context) {
+                        "${uow.name()} was built with an ExecutionContext other than the one its factory received. " +
+                            "Build the unit of work in the factory, with the ExecutionContext the factory receives"
+                    }
                 }
                 val constructedParams = params(context)
                 val attempted = attempt(uow, principal, constructedParams, now, name, uowSpan)
