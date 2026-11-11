@@ -34,11 +34,10 @@ class ChangesDsl internal constructor(private var changes: ChangesAccumulator) {
 
     companion object {
         internal suspend inline fun <R> changes(
-            changes: ChangesAccumulator,
             @Suppress("REDUNDANT_INLINE_SUSPEND_FUNCTION_TYPE")
             init: suspend ChangesDsl.() -> R,
         ): Changes<R> {
-            val dsl = ChangesDsl(changes)
+            val dsl = ChangesDsl(ChangesAccumulator())
             val res = init(dsl)
             return dsl.changes.withResult(res, null)
         }
