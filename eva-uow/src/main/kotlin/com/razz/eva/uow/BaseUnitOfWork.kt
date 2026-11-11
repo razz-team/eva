@@ -30,6 +30,9 @@ abstract class BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, C>(
 
     internal fun configuration(): Configuration = configuration
 
+    /** The context this unit of work was built with, so the executor can check it is the one the factory got. */
+    internal fun executionContext(): ExecutionContext = executionContext
+
     open suspend fun onFailure(params: PARAMS, ex: PersistenceException): RESULT = throw ex
 
     private val NO_CHANGES: Changes<Unit> = RealisedChanges(Unit, listOf(), listOf())

@@ -23,14 +23,12 @@ import com.razz.eva.uow.Clocks.fixedUTC
 import com.razz.eva.uow.Clocks.millisUTC
 import com.razz.eva.uow.CreateEmployeeUow
 import com.razz.eva.uow.CreateSoloDepartmentUow
-import com.razz.eva.uow.ExecutionContext
 import com.razz.eva.uow.HireEmployeesUow
 import com.razz.eva.uow.Persisting
 import com.razz.eva.uow.UnitOfWorkExecutor
 import com.razz.eva.uow.WriteTxScope
 import com.razz.eva.uow.params.kotlinx.KotlinxParamsSerializer
 import com.razz.eva.uow.withFactory
-import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.sdk.testing.exporter.InMemoryMetricReader
 import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter
 import java.sql.Timestamp
@@ -50,7 +48,6 @@ class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
 
     val now = millisUTC().instant()
     val clock = fixedUTC(now)
-    val executionContext = ExecutionContext(clock, OpenTelemetry.noop())
 
     val departmentPreUpdate = PreModifyCallback<UUID, DepartmentId, Department<*>>()
 
@@ -100,13 +97,13 @@ class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
 
     val factories = listOf(
         CreateEmployeeUow::class withFactory {
-            CreateEmployeeUow(executionContext, departmentRepo)
+            CreateEmployeeUow(it, departmentRepo)
         },
         CreateSoloDepartmentUow::class withFactory {
-            CreateSoloDepartmentUow(executionContext, employeeRepo, departmentRepo)
+            CreateSoloDepartmentUow(it, employeeRepo, departmentRepo)
         },
         HireEmployeesUow::class withFactory {
-            HireEmployeesUow(executionContext, departmentRepo, employeeRepo, 0, true, WriteTxScope.FLUSH)
+            HireEmployeesUow(it, departmentRepo, employeeRepo, 0, true, WriteTxScope.FLUSH)
         },
     )
 
@@ -164,7 +161,7 @@ class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
     val uowxRetries = UnitOfWorkExecutor(
         factories = listOf(
             HireEmployeesUow::class withFactory {
-                HireEmployeesUow(executionContext, departmentRepo, employeeRepo, 1, false, WriteTxScope.FLUSH)
+                HireEmployeesUow(it, departmentRepo, employeeRepo, 1, false, WriteTxScope.FLUSH)
             },
         ),
         persisting = persisting,
@@ -192,7 +189,7 @@ class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
     val uowxFullUowScope = UnitOfWorkExecutor(
         factories = listOf(
             HireEmployeesUow::class withFactory {
-                HireEmployeesUow(executionContext, departmentRepo, employeeRepo, 1, true, WriteTxScope.FULL_UOW)
+                HireEmployeesUow(it, departmentRepo, employeeRepo, 1, true, WriteTxScope.FULL_UOW)
             },
         ),
         persisting = publishingPersisting,
@@ -203,7 +200,7 @@ class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
     val uowxFullUowScopeNoRetries = UnitOfWorkExecutor(
         factories = listOf(
             HireEmployeesUow::class withFactory {
-                HireEmployeesUow(executionContext, departmentRepo, employeeRepo, 0, true, WriteTxScope.FULL_UOW)
+                HireEmployeesUow(it, departmentRepo, employeeRepo, 0, true, WriteTxScope.FULL_UOW)
             },
         ),
         persisting = publishingPersisting,
@@ -214,7 +211,7 @@ class TestModule(config: DatabaseConfig) : TransactionalModule(config) {
     val uowxRollingBack = UnitOfWorkExecutor(
         factories = listOf(
             HireEmployeesUow::class withFactory {
-                HireEmployeesUow(executionContext, departmentRepo, employeeRepo, 0, false, WriteTxScope.FLUSH)
+                HireEmployeesUow(it, departmentRepo, employeeRepo, 0, false, WriteTxScope.FLUSH)
             },
         ),
         persisting = Persisting(

@@ -110,15 +110,22 @@ class UnitOfWorkExecutor(
             val run = InstantiationContext.Run()
             while (true) {
                 val now = clock.instant()
-                val uow = uowFactory(ExecutionContext(Clocks.fixedUTC(now), openTelemetry))
+                val context = InstantiationContext.External(currentAttempt, principal, run)
+                val executionContext = ExecutionContext(Clocks.fixedUTC(now), openTelemetry, attempt = context)
+                val uow = uowFactory(executionContext)
                 if (currentAttempt == 0) {
                     name = uow.name()
                     uowSpan.updateName(name)
                     uowSpan.setAttribute(UOW_NAME, name)
                 }
-                val context = InstantiationContext.External(currentAttempt, principal, run)
+                // A guarded unit of work reads its attempt from the ExecutionContext it holds. One built with a
+                // context kept from another attempt or run would read the proofs of that attempt.
+                check(uow.executionContext() === executionContext) {
+                    "${uow.name()} was built with an ExecutionContext other than the one its factory received. " +
+                        "Build the unit of work in the factory, with the ExecutionContext the factory receives"
+                }
                 val constructedParams = params(context)
-                val attempted = attempt(uow, principal, context, constructedParams, now, name, uowSpan)
+                val attempted = attempt(uow, principal, constructedParams, now, name, uowSpan)
                 val committed = when (attempted) {
                     is Attempted.Conflict -> {
                         val ex = attempted.ex
@@ -182,7 +189,6 @@ class UnitOfWorkExecutor(
     private suspend fun <PRINCIPAL, PARAMS, RESULT, UOW> attempt(
         uow: UOW,
         principal: PRINCIPAL,
-        context: InstantiationContext,
         params: PARAMS,
         now: Instant,
         name: String,
@@ -198,7 +204,6 @@ class UnitOfWorkExecutor(
                 val changes = performAttempt(
                     uow = uow,
                     principal = principal,
-                    context = context,
                     params = params,
                     name = name,
                     uowSpan = uowSpan,
@@ -223,7 +228,6 @@ class UnitOfWorkExecutor(
                     val changes = performAttempt(
                         uow = uow,
                         principal = principal,
-                        context = context,
                         params = params,
                         name = name,
                         uowSpan = uowSpan,
@@ -248,7 +252,6 @@ class UnitOfWorkExecutor(
     private suspend fun <PRINCIPAL, PARAMS, RESULT, UOW> performAttempt(
         uow: UOW,
         principal: PRINCIPAL,
-        context: InstantiationContext,
         params: PARAMS,
         name: String,
         uowSpan: Span,
@@ -257,10 +260,7 @@ class UnitOfWorkExecutor(
           RESULT : Any,
           UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *> {
         val changes = instrumentedPerform(name) { acquisitions ->
-            withContext(
-                PrimaryConnectionRequiredFlag + acquisitions + uowSpan.asContextElement() +
-                    InstantiationContext.Current(context),
-            ) {
+            withContext(PrimaryConnectionRequiredFlag + acquisitions + uowSpan.asContextElement()) {
                 performingSpan(name).use {
                     uow.tryPerform(principal, params)
                 }

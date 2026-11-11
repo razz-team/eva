@@ -97,14 +97,17 @@ class GuardedChangesDsl<PF : Proof<*, *, *>> internal constructor(
      * Returns the model this attempt may write. On the first attempt it is the model the proof was issued for. On a
      * retry it is the model the reload returns, after the proof allowed the action on it again; a refusal throws
      * here. After this call `update` accepts the model, in this block only. The block must call `update` or
-     * `notChanged` on it, or the block fails. A [Proven] from params built in another attempt or another run, or that
-     * another block has read, is refused: build the params anew for each attempt.
+     * `notChanged` on it, or the block fails. The unit of work knows its attempt from the [ExecutionContext] it was
+     * built with. A [Proven] from params built in another attempt or another run, or that another block has read, is
+     * refused: build the params anew for each attempt. A unit of work built with a context that carries no attempt
+     * reads no [Proven].
      */
     suspend fun <M : Model<*, *>> Proven<PF, M>.model(): M {
         check(belongsTo(attempt)) {
             "$uowName cannot read the Proven for $targetId: its params were built in another attempt or another " +
                 "run. Build them in the params lambda of the execute call that runs this unit of work. In a " +
-                "spec, call tryPerform inside inAttempt(context), with the context that built the params"
+                "spec, build the unit of work with executionContext.forAttempt(context), with the context that " +
+                "built the params"
         }
         readOrNull()?.let { earlier ->
             check(read[earlier.id()] === this) {

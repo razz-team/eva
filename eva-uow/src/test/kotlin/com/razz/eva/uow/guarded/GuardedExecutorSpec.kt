@@ -14,10 +14,12 @@ import com.razz.eva.uow.Clocks.fixedUTC
 import com.razz.eva.uow.Clocks.millisUTC
 import com.razz.eva.uow.DummyEventRepository
 import com.razz.eva.uow.ExecutionContext
+import com.razz.eva.uow.ExecutionContextApi
 import com.razz.eva.uow.Persisting
 import com.razz.eva.uow.Retry.StaleRecordFixedRetry
 import com.razz.eva.uow.TestPrincipal
 import com.razz.eva.uow.UnitOfWorkExecutor
+import com.razz.eva.uow.composable.UnitOfWork
 import com.razz.eva.uow.guarded.Fixtures.department
 import com.razz.eva.uow.guarded.Fixtures.employee
 import com.razz.eva.uow.guarded.Fixtures.proof
@@ -58,6 +60,12 @@ class GuardedExecutorSpec : FunSpec({
     val retrying = Configuration(retry = StaleRecordFixedRetry(1, ofMillis(0)))
 
     beforeTest { clearMocks(repo) }
+    fun builtElsewhere(uow: String) = "$uow was built with an ExecutionContext other than the one its factory " +
+        "received. Build the unit of work in the factory, with the ExecutionContext the factory receives"
+    fun plain(context: ExecutionContext) = object : UnitOfWork<TestPrincipal, ChildParams, String>(context) {
+        override fun name() = "Plain"
+        override suspend fun tryPerform(principal: TestPrincipal, params: ChildParams) = noChanges("plain")
+    }
 
     test("a stale first write retries with the reloaded model, which the proof allows again, and persists that model") {
         val reloads = mutableListOf<Int>()
@@ -170,8 +178,8 @@ class GuardedExecutorSpec : FunSpec({
             }
         }.message shouldBe "MoveEmployeeUow cannot read the Proven for ${employee.id().stringValue()}: its params " +
             "were built in another attempt or another run. Build them in the params lambda of the execute call that " +
-            "runs this unit of work. In a spec, call tryPerform inside inAttempt(context), with the context that " +
-            "built the params"
+            "runs this unit of work. In a spec, build the unit of work with executionContext.forAttempt(context), " +
+            "with the context that built the params"
         proof.checkedAgain shouldBe listOf()
         coVerify(exactly = 1) { repo.update(any(), any<Employee>()) }
     }
@@ -196,8 +204,52 @@ class GuardedExecutorSpec : FunSpec({
             uowx.execute(OtherPrincipal, anyone) { EmployeeParams(checkNotNull(leaked)) }
         }.message shouldBe "A guarded unit of work cannot read the Proven for ${employee.id().stringValue()}: " +
             "its params were built in another attempt or another run. Build them in the params lambda of the " +
-            "execute call that runs this unit of work. In a spec, call tryPerform inside inAttempt(context), with " +
-            "the context that built the params"
+            "execute call that runs this unit of work. In a spec, build the unit of work with " +
+            "executionContext.forAttempt(context), with the context that built the params"
         coVerify(exactly = 0) { repo.update(any(), any<Employee>()) }
+    }
+
+    test("a retry whose factory builds the unit of work with the first attempt's context is refused before it reads") {
+        coEvery { repo.update(any(), any<Employee>()) } throws StaleRecordException(setOf(employee.id()), "employee")
+        val proof = proof(employee)
+        var kept: ExecutionContext? = null
+        var reloads = 0
+        val keeping = { ctx: ExecutionContext ->
+            MoveEmployeeUow(kept ?: ctx.also { kept = it }, setOf(), away, retrying)
+        }
+        shouldThrow<IllegalStateException> {
+            uowx.execute(TestPrincipal, keeping) {
+                MoveEmployeeUow.Params(proven(proof) { reloads++; reloaded }, "moves")
+            }
+        }.message shouldBe builtElsewhere("MoveEmployeeUow")
+        reloads shouldBe 0
+        proof.checkedAgain shouldBe listOf()
+        coVerify(exactly = 1) { repo.update(any(), any<Employee>()) }
+    }
+
+    test("a factory that builds the unit of work with a context of another run is refused before the params lambda") {
+        coEvery { repo.update(any(), any<Employee>()) } returns persisted
+        var kept: ExecutionContext? = null
+        val keeping = { ctx: ExecutionContext -> MoveEmployeeUow(ctx.also { kept = it }, setOf(), away) }
+        uowx.execute(TestPrincipal, keeping) {
+            MoveEmployeeUow.Params(proven(proof(employee)) { reloaded }, "first")
+        }
+        var built = 0
+        shouldThrow<IllegalStateException> {
+            uowx.execute(TestPrincipal, { _: ExecutionContext -> MoveEmployeeUow(checkNotNull(kept), setOf(), away) }) {
+                built++
+                MoveEmployeeUow.Params(proven(proof(employee)) { reloaded }, "second")
+            }
+        }.message shouldBe builtElsewhere("MoveEmployeeUow")
+        @OptIn(ExecutionContextApi::class)
+        val detached = uowx.executionContext()
+        shouldThrow<IllegalStateException> {
+            uowx.execute(TestPrincipal, { _: ExecutionContext -> plain(detached) }) {
+                built++
+                ChildParams
+            }
+        }.message shouldBe builtElsewhere("Plain")
+        built shouldBe 0
+        coVerify(exactly = 1) { repo.update(any(), any<Employee>()) }
     }
 })

@@ -595,7 +595,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
             val uowx = UnitOfWorkExecutor(
                 persisting = persisting,
                 factories = listOf(
-                    CreateDepartmentUow::class withFactory { unitOfWork },
+                    CreateDepartmentUow::class withFactory { unitOfWork.builtWith(it) },
                 ),
                 clock = clock,
                 openTelemetry = OpenTelemetry.noop(),
@@ -917,7 +917,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
             val metricReader = InMemoryMetricReader.create()
             val uowx = UnitOfWorkExecutor(
                 persisting = persisting,
-                factories = listOf(CreateDepartmentUow::class withFactory { unitOfWork }),
+                factories = listOf(CreateDepartmentUow::class withFactory { unitOfWork.builtWith(it) }),
                 clock = clock,
                 openTelemetry = OpenTelemetryTestConfiguration.create(metricReader = metricReader),
             )
@@ -1094,7 +1094,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
             }
             val uowx = UnitOfWorkExecutor(
                 persisting = persisting,
-                factories = listOf(CreateDepartmentUow::class withFactory { unitOfWork }),
+                factories = listOf(CreateDepartmentUow::class withFactory { unitOfWork.builtWith(it) }),
                 clock = clock,
                 openTelemetry = OpenTelemetry.noop(),
             )
@@ -1438,3 +1438,7 @@ private fun InMemoryMetricReader.persistenceExceptionPoints(): List<ExcPoint> =
         }
 
 private data class DeptResult(val dept: OwnedDepartment, val note: String)
+
+// A mock stands for a unit of work its factory builds with the ExecutionContext the factory receives.
+private fun <U : BaseUnitOfWork<*, *, *, *>> U.builtWith(context: ExecutionContext): U =
+    also { every { executionContext() } returns context }

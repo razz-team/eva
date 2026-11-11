@@ -7,12 +7,10 @@ import com.razz.eva.uow.BaseUnitOfWork
 import com.razz.eva.uow.Changes
 import com.razz.eva.uow.EntityChange
 import com.razz.eva.uow.ExecutionContext
-import com.razz.eva.uow.InstantiationContext
 import com.razz.eva.uow.ModelChange
 import com.razz.eva.uow.PersistedLookup
 import com.razz.eva.uow.UowParams
 import com.razz.eva.uow.composable.ChangesDsl
-import kotlinx.coroutines.currentCoroutineContext
 import kotlin.reflect.KClass
 
 /**
@@ -22,7 +20,9 @@ import kotlin.reflect.KClass
  * of work: `override suspend fun tryPerform(principal, params) = changes { ... }`. In that `changes` block
  * `params.x.model()` returns the model, and the block must call `update` or `notChanged` on it, so the write fails if
  * the stored model changed after the proof was issued. A block registers at least one change: one that registers none,
- * for example over an empty `List<Proven>`, fails with "No changes to persist".
+ * for example over an empty `List<Proven>`, fails with "No changes to persist". Build the unit of work with the
+ * [ExecutionContext] its factory receives: that context carries the attempt, and the block reads only the [Proven]
+ * fields of params built in that attempt.
  */
 abstract class GuardedUnitOfWork<P, PF, PARAMS, RESULT>(
     private val executionContext: ExecutionContext,
@@ -66,8 +66,7 @@ abstract class GuardedUnitOfWork<P, PF, PARAMS, RESULT>(
     protected suspend fun changes(init: suspend GuardedChangesDsl<PF>.() -> RESULT): GuardedChanges<RESULT> =
         Produced(
             ChangesDsl.changes(executionContext) {
-                val attempt = currentCoroutineContext()[InstantiationContext.Current]?.context
-                val dsl = GuardedChangesDsl<PF>(this, label(), unguardedWrites, guarding, attempt)
+                val dsl = GuardedChangesDsl<PF>(this, label(), unguardedWrites, guarding, executionContext.attempt)
                 val result = dsl.init()
                 val unwritten = dsl.readNotWritten()
                 check(unwritten.isEmpty()) {

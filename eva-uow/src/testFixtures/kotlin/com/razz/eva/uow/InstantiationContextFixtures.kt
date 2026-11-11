@@ -1,7 +1,6 @@
 package com.razz.eva.uow
 
 import com.razz.eva.domain.Principal
-import kotlinx.coroutines.withContext
 
 object InstantiationContextFixtures {
 
@@ -19,9 +18,8 @@ object InstantiationContextFixtures {
     }
 
     /**
-     * Runs [block] in the attempt of this context, as the executor runs `tryPerform`. A guarded unit of work that
-     * [block] runs can then read the [com.razz.eva.uow.guarded.Proven] fields of params built in this run.
+     * This context for the attempt of [context], as the executor builds one for each attempt. A guarded unit of work
+     * built with it reads the [com.razz.eva.uow.guarded.Proven] fields of params built with [context].
      */
-    suspend fun <T> InstantiationContext.inAttempt(block: suspend () -> T): T =
-        withContext(InstantiationContext.Current(this)) { block() }
+    fun ExecutionContext.forAttempt(context: InstantiationContext): ExecutionContext = copy(attempt = context)
 }
