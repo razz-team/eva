@@ -28,5 +28,15 @@ fun <R> stubChanges(result: R, vararg alsoRegistered: Model<*, *>): Changes<R> {
         @Suppress("UNCHECKED_CAST")
         NoopModel(model as Model<ModelId<out Comparable<*>>, ModelEvent<ModelId<out Comparable<*>>>>)
     }
-    return RealisedChanges(result, changes, listOf(), resultBuilder = null, accumulator = null)
+    return StubbedChanges(result, changes)
+}
+
+// Claims only, and no accumulator: by that the executor refuses a stub as a real outcome, and a composable parent
+// merges it as claims.
+private class StubbedChanges<R>(
+    override val result: R,
+    override val modelChangesToPersist: List<ModelChange>,
+) : Changes<R>() {
+    override val entityChangesToPersist: List<EntityChange> get() = listOf()
+    override val accumulator: ChangesAccumulator? get() = null
 }
