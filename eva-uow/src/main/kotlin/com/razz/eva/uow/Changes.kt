@@ -11,7 +11,10 @@ import com.razz.eva.domain.ModelId
 import kotlin.reflect.KClass
 
 private fun existingChangeExceptionMessage(modelId: ModelId<*>) =
-    "Change for a given model [${modelId.stringValue()}] was already registered"
+    "Change for a given model [${modelId.stringValue()}] was already registered. The block registered it twice, " +
+        "and the second registration would replace the first and drop its write. Register a model once: make " +
+        "every mutation first, then call add or update with the last instance. A second update is accepted only " +
+        "for a model the parent or a composed child registered"
 
 abstract class Changes<R> {
     internal abstract val result: R
@@ -126,7 +129,8 @@ internal class ChangesAccumulator private constructor(
     adding(model: M): ChangesAccumulator {
         require(model.isNew()) {
             "Attempted to register ${if (model.isDirty()) "changed" else "unchanged"} " +
-                "model [${model.id().stringValue()}] as new"
+                "model [${model.id().stringValue()}] as new. It is stored already, so inserting it would fail. " +
+                "Register a stored model with update, or with notChanged when it did not change"
         }
         return withAddedModel(model)
     }
@@ -145,7 +149,13 @@ internal class ChangesAccumulator private constructor(
         if (existing == null || model.id() !in inheritedIds) {
             require(model.isDirty()) {
                 "Attempted to register ${if (model.isNew()) "new" else "unchanged"} " +
-                    "model [${model.id().stringValue()}] as changed"
+                    "model [${model.id().stringValue()}] as changed. " +
+                    if (model.isNew()) {
+                        "It is not stored yet, so there is nothing to update. Register a new model with add"
+                    } else {
+                        "It carries no change, so a mutation the block meant to make is missing. Call " +
+                            "notChanged(model), or update(model) { mutate() ?: this } to register whichever happened"
+                    }
             }
             return withUpdatedModel(model)
         }
@@ -155,7 +165,11 @@ internal class ChangesAccumulator private constructor(
                 "No-op update for model [${model.id().stringValue()}]: no new events on top of the " +
                     "existing change. Use notChanged(...) or guard update(...)."
             } else {
-                "Failed to merge changes for model [${model.id().stringValue()}]"
+                "Failed to merge changes for model [${model.id().stringValue()}]: the parent or a composed " +
+                    "child changed this model before, and the instance given to update does not carry those " +
+                    "changes, so writing it would drop them. It was most likely read again by id. Update the " +
+                    "instance the parent passed in (constantModelParam), or the one execute or " +
+                    "roundtrip { p -> p(model) } returned"
             }
         }
         // more events than the held change, so at least one: the model is new or changed, never clean
@@ -182,7 +196,8 @@ internal class ChangesAccumulator private constructor(
         }
         require(model.isPersisted()) {
             "Attempted to register ${if (model.isNew()) "new" else "changed"} " +
-                "model [${model.id().stringValue()}] as unchanged"
+                "model [${model.id().stringValue()}] as unchanged. It carries a write, and notChanged would " +
+                "drop it. Register a new model with add and a changed one with update"
         }
         return withUnchangedModel(model)
     }
@@ -304,7 +319,12 @@ internal class ChangesAccumulator private constructor(
     ): Changes<R> {
         // The flatten runs here, so an owned model that contradicts a registration fails where the block ends.
         // Its list is empty exactly when no model is registered.
-        require(modelChangesToPersist.isNotEmpty() || entityChanges.isNotEmpty()) { "No changes to persist" }
+        require(modelChangesToPersist.isNotEmpty() || entityChanges.isNotEmpty()) {
+            "No changes to persist: the changes { } block registered nothing, which usually means a mutation was " +
+                "not passed to add or update and would be lost. Register what the block wrote with add or update, " +
+                "and a model it read and kept with notChanged(model). When there is nothing to write, return " +
+                "noChanges(result) in place of changes { }"
+        }
         return AccumulatedChanges(result, resultBuilder, this)
     }
 

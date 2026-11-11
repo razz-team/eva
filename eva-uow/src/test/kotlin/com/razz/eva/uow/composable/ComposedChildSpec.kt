@@ -29,6 +29,7 @@ import com.razz.eva.uow.stubChanges
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldStartWith
 import io.opentelemetry.api.OpenTelemetry
 import java.time.Instant.ofEpochMilli
 
@@ -193,7 +194,7 @@ class ComposedChildSpec : FunSpec({
                         register()
                     }
                 }
-                ex.message shouldBe "Attempted to register new model [${hire.id().stringValue()}] as changed"
+                ex.message shouldStartWith "Attempted to register new model [${hire.id().stringValue()}] as changed"
             }
         }
 
@@ -204,7 +205,7 @@ class ComposedChildSpec : FunSpec({
                     notChanged(hire)
                 }
             }
-            ex.message shouldBe "Attempted to register new model [${hire.id().stringValue()}] as unchanged"
+            ex.message shouldStartWith "Attempted to register new model [${hire.id().stringValue()}] as unchanged"
         }
 
         test("The parent changes the owned model through its aggregate") {

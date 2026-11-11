@@ -49,6 +49,7 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeTypeOf
+import io.kotest.matchers.string.shouldStartWith
 import io.opentelemetry.api.OpenTelemetry
 import java.time.LocalDate
 
@@ -159,7 +160,7 @@ class ChangesDslSpec : FunSpec({
         val exception = shouldThrow<IllegalArgumentException> {
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
-        exception.message shouldBe "Attempted to register new model [${model.id().stringValue()}] as changed"
+        exception.message shouldStartWith "Attempted to register new model [${model.id().stringValue()}] as changed"
     }
 
     test("Should throw exception when new model marked as not changed without inherited change") {
@@ -174,7 +175,7 @@ class ChangesDslSpec : FunSpec({
         val exception = shouldThrow<IllegalArgumentException> {
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
-        exception.message shouldBe "Attempted to register new model [${model.id().stringValue()}] as unchanged"
+        exception.message shouldStartWith "Attempted to register new model [${model.id().stringValue()}] as unchanged"
     }
 
     test("Should throw exception when unchanged model added") {
@@ -189,7 +190,7 @@ class ChangesDslSpec : FunSpec({
         val exception = shouldThrow<IllegalArgumentException> {
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
-        exception.message shouldBe "Attempted to register unchanged model [${model.id().stringValue()}] as new"
+        exception.message shouldStartWith "Attempted to register unchanged model [${model.id().stringValue()}] as new"
     }
 
     test("Should throw exception when changed model added") {
@@ -204,7 +205,7 @@ class ChangesDslSpec : FunSpec({
         val exception = shouldThrow<IllegalArgumentException> {
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
-        exception.message shouldBe "Attempted to register changed model [${model.id().stringValue()}] as new"
+        exception.message shouldStartWith "Attempted to register changed model [${model.id().stringValue()}] as new"
     }
 
     test("Should throw exception when unchanged model updated") {
@@ -219,7 +220,8 @@ class ChangesDslSpec : FunSpec({
         val exception = shouldThrow<IllegalArgumentException> {
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
-        exception.message shouldBe "Attempted to register unchanged model [${model.id().stringValue()}] as changed"
+        exception.message shouldStartWith
+            "Attempted to register unchanged model [${model.id().stringValue()}] as changed"
     }
 
     test("Should throw exception when changed model marked as not changed") {
@@ -234,7 +236,8 @@ class ChangesDslSpec : FunSpec({
         val exception = shouldThrow<IllegalArgumentException> {
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
-        exception.message shouldBe "Attempted to register changed model [${model.id().stringValue()}] as unchanged"
+        exception.message shouldStartWith
+            "Attempted to register changed model [${model.id().stringValue()}] as unchanged"
     }
 
     test("Should throw exception when no models were added or updated with result") {
@@ -248,7 +251,7 @@ class ChangesDslSpec : FunSpec({
         val exception = shouldThrow<IllegalArgumentException> {
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
-        exception.message shouldBe "No changes to persist"
+        exception.message shouldStartWith "No changes to persist"
     }
 
     test("Should throw exception when no models were added or updated without result") {
@@ -260,7 +263,7 @@ class ChangesDslSpec : FunSpec({
         val exception = shouldThrow<IllegalArgumentException> {
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
-        exception.message shouldBe "No changes to persist"
+        exception.message shouldStartWith "No changes to persist"
     }
 
     test("Should return properly built RealisedChanges when unchanged model not changed") {
@@ -417,7 +420,7 @@ class ChangesDslSpec : FunSpec({
         val exception = shouldThrow<IllegalStateException> {
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
-        exception.message shouldBe "Failed to merge changes for model [${model.id().stringValue()}]"
+        exception.message shouldStartWith "Failed to merge changes for model [${model.id().stringValue()}]"
     }
 
     test("Should throw exception when same model updated with composable uow case first updates with 2 events") {
@@ -447,7 +450,7 @@ class ChangesDslSpec : FunSpec({
         val exception = shouldThrow<IllegalStateException> {
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
-        exception.message shouldBe "Failed to merge changes for model [${model.id().stringValue()}]"
+        exception.message shouldStartWith "Failed to merge changes for model [${model.id().stringValue()}]"
     }
 
     test("Should throw exception when same model updated with composable uow case second updates with 2 events") {
@@ -477,7 +480,7 @@ class ChangesDslSpec : FunSpec({
         val exception = shouldThrow<IllegalStateException> {
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
-        exception.message shouldBe "Failed to merge changes for model [${model.id().stringValue()}]"
+        exception.message shouldStartWith "Failed to merge changes for model [${model.id().stringValue()}]"
     }
 
     test("Should throw no-op message when inherited model re-registered with identical events") {
@@ -989,7 +992,8 @@ class ChangesDslSpec : FunSpec({
         val exception = shouldThrow<IllegalStateException> {
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
-        exception.message shouldBe "Change for a given model [${model.id().stringValue()}] was already registered"
+        exception.message shouldStartWith
+            "Change for a given model [${model.id().stringValue()}] was already registered"
     }
 
     test("Should throw exception when duplicate model registered in same DSL") {
@@ -1005,7 +1009,8 @@ class ChangesDslSpec : FunSpec({
         val exception = shouldThrow<IllegalStateException> {
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
-        exception.message shouldBe "Change for a given model [${model.id().stringValue()}] was already registered"
+        exception.message shouldStartWith
+            "Change for a given model [${model.id().stringValue()}] was already registered"
     }
 
     test("noChanges accepts an owned child of an aggregate the parent registered") {

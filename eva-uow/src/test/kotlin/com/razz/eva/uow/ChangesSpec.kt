@@ -35,10 +35,54 @@ import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
+import io.kotest.matchers.string.shouldStartWith
 import java.time.LocalDate
 import java.util.UUID
 
 class ChangesSpec : BehaviorSpec({
+
+    Given("A registration a block cannot make") {
+        val newModel = createdTestModel("name", 420)
+        val dirtyModel = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1).activate()
+        val unchangedModel = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1)
+        fun id(model: Model<*, *>) = model.id().stringValue()
+
+        Then("each message says what the block did, what would go wrong and what to write") {
+            shouldThrow<IllegalStateException> { ChangesAccumulator().adding(newModel).adding(newModel) }
+                .message shouldBe "Change for a given model [${id(newModel)}] was already registered. The block " +
+                "registered it twice, and the second registration would replace the first and drop its write. " +
+                "Register a model once: make every mutation first, then call add or update with the last " +
+                "instance. A second update is accepted only for a model the parent or a composed child registered"
+            shouldThrow<IllegalArgumentException> { ChangesAccumulator().adding(dirtyModel) }
+                .message shouldBe "Attempted to register changed model [${id(dirtyModel)}] as new. It is stored " +
+                "already, so inserting it would fail. Register a stored model with update, or with notChanged " +
+                "when it did not change"
+            shouldThrow<IllegalArgumentException> { ChangesAccumulator().updating(newModel) }
+                .message shouldBe "Attempted to register new model [${id(newModel)}] as changed. It is not stored " +
+                "yet, so there is nothing to update. Register a new model with add"
+            shouldThrow<IllegalArgumentException> { ChangesAccumulator().updating(unchangedModel) }
+                .message shouldBe "Attempted to register unchanged model [${id(unchangedModel)}] as changed. It " +
+                "carries no change, so a mutation the block meant to make is missing. Call notChanged(model), or " +
+                "update(model) { mutate() ?: this } to register whichever happened"
+            shouldThrow<IllegalArgumentException> { ChangesAccumulator().claimingUnchanged(dirtyModel) }
+                .message shouldBe "Attempted to register changed model [${id(dirtyModel)}] as unchanged. It " +
+                "carries a write, and notChanged would drop it. Register a new model with add and a changed one " +
+                "with update"
+            shouldThrow<IllegalArgumentException> { ChangesAccumulator().withResult("nothing", null) }
+                .message shouldBe "No changes to persist: the changes { } block registered nothing, which usually " +
+                "means a mutation was not passed to add or update and would be lost. Register what the block " +
+                "wrote with add or update, and a model it read and kept with notChanged(model). When there is " +
+                "nothing to write, return noChanges(result) in place of changes { }"
+            val readAgain = existingCreatedTestModel(dirtyModel.id(), "noscope", 360, V1).activate()
+            val child = ChangesAccumulator.seededFrom(ChangesAccumulator().updating(dirtyModel))
+            shouldThrow<IllegalStateException> { child.updating(readAgain) }
+                .message shouldBe "Failed to merge changes for model [${id(dirtyModel)}]: the parent or a composed " +
+                "child changed this model before, and the instance given to update does not carry those " +
+                "changes, so writing it would drop them. It was most likely read again by id. Update the " +
+                "instance the parent passed in (constantModelParam), or the one execute or " +
+                "roundtrip { p -> p(model) } returned"
+        }
+    }
 
     Given("An arbitrary model") {
         val newModel = createdTestModel("name", 420)
@@ -55,7 +99,7 @@ class ChangesSpec : BehaviorSpec({
 
             Then("IllegalArgumentException thrown") {
                 val exception = shouldThrow<IllegalArgumentException>(attempt)
-                exception.message shouldBe "No changes to persist"
+                exception.message shouldStartWith "No changes to persist"
             }
         }
 
@@ -79,7 +123,7 @@ class ChangesSpec : BehaviorSpec({
 
             Then("IllegalStateException thrown") {
                 val exception = shouldThrow<IllegalStateException>(attempt)
-                exception.message shouldBe "Change for a given " +
+                exception.message shouldStartWith "Change for a given " +
                     "model [${newModel.id().stringValue()}] was already registered"
             }
         }
@@ -97,7 +141,7 @@ class ChangesSpec : BehaviorSpec({
 
             Then("IllegalStateException thrown") {
                 val exception = shouldThrow<IllegalStateException>(attempt)
-                exception.message shouldBe "Change for a given " +
+                exception.message shouldStartWith "Change for a given " +
                     "model [${newModel.id().stringValue()}] was already registered"
             }
         }
@@ -107,7 +151,7 @@ class ChangesSpec : BehaviorSpec({
 
             Then("IllegalArgumentException thrown") {
                 val exception = shouldThrow<IllegalArgumentException>(attempt)
-                exception.message shouldBe
+                exception.message shouldStartWith
                     "Attempted to register unchanged model [${unchangedModel.id().stringValue()}] as new"
             }
         }
@@ -117,7 +161,7 @@ class ChangesSpec : BehaviorSpec({
 
             Then("IllegalArgumentException thrown") {
                 val exception = shouldThrow<IllegalArgumentException>(attempt)
-                exception.message shouldBe
+                exception.message shouldStartWith
                     "Attempted to register changed model [${dirtyModel.id().stringValue()}] as new"
             }
         }
@@ -138,7 +182,7 @@ class ChangesSpec : BehaviorSpec({
 
             Then("IllegalArgumentException thrown") {
                 val exception = shouldThrow<IllegalArgumentException>(attempt)
-                exception.message shouldBe
+                exception.message shouldStartWith
                     "Attempted to register unchanged model [${unchangedModel.id().stringValue()}] as changed"
             }
         }
@@ -148,7 +192,7 @@ class ChangesSpec : BehaviorSpec({
 
             Then("IllegalArgumentException thrown") {
                 val exception = shouldThrow<IllegalArgumentException>(attempt)
-                exception.message shouldBe
+                exception.message shouldStartWith
                     "Attempted to register new model [${newModel.id().stringValue()}] as changed"
             }
         }
@@ -162,7 +206,7 @@ class ChangesSpec : BehaviorSpec({
 
             Then("IllegalStateException thrown") {
                 val exception = shouldThrow<IllegalStateException>(attempt)
-                exception.message shouldBe "Change for a given " +
+                exception.message shouldStartWith "Change for a given " +
                     "model [${dirtyModel.id().stringValue()}] was already registered"
             }
         }
@@ -187,7 +231,7 @@ class ChangesSpec : BehaviorSpec({
 
             Then("IllegalStateException thrown") {
                 val exception = shouldThrow<IllegalStateException>(attempt)
-                exception.message shouldBe "Change for a given " +
+                exception.message shouldStartWith "Change for a given " +
                     "model [${unchangedModel.id().stringValue()}] was already registered"
             }
         }
@@ -201,7 +245,7 @@ class ChangesSpec : BehaviorSpec({
 
             Then("IllegalStateException thrown") {
                 val exception = shouldThrow<IllegalStateException>(attempt)
-                exception.message shouldBe "Change for a given " +
+                exception.message shouldStartWith "Change for a given " +
                     "model [${unchangedModel.id().stringValue()}] was already registered"
             }
         }
@@ -215,7 +259,7 @@ class ChangesSpec : BehaviorSpec({
 
             Then("The state check fails before the second registration does") {
                 val exception = shouldThrow<IllegalArgumentException>(attempt)
-                exception.message shouldBe
+                exception.message shouldStartWith
                     "Attempted to register unchanged model [${unchangedModel.id().stringValue()}] as changed"
             }
         }
@@ -225,7 +269,7 @@ class ChangesSpec : BehaviorSpec({
 
             Then("IllegalArgumentException thrown") {
                 val exception = shouldThrow<IllegalArgumentException>(attempt)
-                exception.message shouldBe
+                exception.message shouldStartWith
                     "Attempted to register changed model [${dirtyModel.id().stringValue()}] as unchanged"
             }
         }
@@ -235,7 +279,7 @@ class ChangesSpec : BehaviorSpec({
 
             Then("IllegalArgumentException thrown") {
                 val exception = shouldThrow<IllegalArgumentException>(attempt)
-                exception.message shouldBe
+                exception.message shouldStartWith
                     "Attempted to register new model [${newModel.id().stringValue()}] as unchanged"
             }
         }

@@ -15,6 +15,7 @@ import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldStartWith
 import io.opentelemetry.api.OpenTelemetry
 
 class ChangesDslSpec : FunSpec({
@@ -83,7 +84,8 @@ class ChangesDslSpec : FunSpec({
         val exception = shouldThrow<IllegalArgumentException> {
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
-        exception.message shouldBe "Attempted to register unchanged model [${model.id().stringValue()}] as changed"
+        exception.message shouldStartWith
+            "Attempted to register unchanged model [${model.id().stringValue()}] as changed"
     }
 
     test("Should throw exception when unchanged model added") {
@@ -98,7 +100,7 @@ class ChangesDslSpec : FunSpec({
         val exception = shouldThrow<IllegalArgumentException> {
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
-        exception.message shouldBe "Attempted to register unchanged model [${model.id().stringValue()}] as new"
+        exception.message shouldStartWith "Attempted to register unchanged model [${model.id().stringValue()}] as new"
     }
 
     test("Should throw exception when changed model added") {
@@ -113,7 +115,7 @@ class ChangesDslSpec : FunSpec({
         val exception = shouldThrow<IllegalArgumentException> {
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
-        exception.message shouldBe "Attempted to register changed model [${model.id().stringValue()}] as new"
+        exception.message shouldStartWith "Attempted to register changed model [${model.id().stringValue()}] as new"
     }
 
     test("Should throw exception when changed model marked as not changed") {
@@ -128,7 +130,8 @@ class ChangesDslSpec : FunSpec({
         val exception = shouldThrow<IllegalArgumentException> {
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
-        exception.message shouldBe "Attempted to register changed model [${model.id().stringValue()}] as unchanged"
+        exception.message shouldStartWith
+            "Attempted to register changed model [${model.id().stringValue()}] as unchanged"
     }
 
     test("Should throw exception when new model marked as not changed") {
@@ -143,7 +146,7 @@ class ChangesDslSpec : FunSpec({
         val exception = shouldThrow<IllegalArgumentException> {
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
-        exception.message shouldBe "Attempted to register new model [${model.id().stringValue()}] as unchanged"
+        exception.message shouldStartWith "Attempted to register new model [${model.id().stringValue()}] as unchanged"
     }
 
     test("Should throw exception when new model updated") {
@@ -158,7 +161,7 @@ class ChangesDslSpec : FunSpec({
         val exception = shouldThrow<IllegalArgumentException> {
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
-        exception.message shouldBe "Attempted to register new model [${model.id().stringValue()}] as changed"
+        exception.message shouldStartWith "Attempted to register new model [${model.id().stringValue()}] as changed"
     }
 
     test("Should throw exception when no models were added or updated with result") {
@@ -172,7 +175,7 @@ class ChangesDslSpec : FunSpec({
         val exception = shouldThrow<IllegalArgumentException> {
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
-        exception.message shouldBe "No changes to persist"
+        exception.message shouldStartWith "No changes to persist"
     }
 
     test("Should throw exception when no models were added or updated without result") {
@@ -184,7 +187,7 @@ class ChangesDslSpec : FunSpec({
         val exception = shouldThrow<IllegalArgumentException> {
             uow.tryPerform(TestPrincipal, DummyUnitUow.Params)
         }
-        exception.message shouldBe "No changes to persist"
+        exception.message shouldStartWith "No changes to persist"
     }
 
     test("Should return properly built RealisedChanges when unchanged model not changed") {
