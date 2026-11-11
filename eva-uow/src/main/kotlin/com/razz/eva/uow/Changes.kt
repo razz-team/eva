@@ -10,12 +10,6 @@ import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
 import kotlin.reflect.KClass
 
-private fun existingChangeExceptionMessage(modelId: ModelId<*>) =
-    "Change for a given model [${modelId.stringValue()}] was already registered. The block registered it twice, " +
-        "and the second registration would replace the first and drop its write. Register a model once: make " +
-        "every mutation first, then call add or update with the last instance. A second update is accepted only " +
-        "for a model the parent or a composed child registered"
-
 abstract class Changes<R> {
     internal abstract val result: R
     // A block's changes are the ones its accumulator lists. Only a stub, which has no accumulator, lists its own.
@@ -88,21 +82,6 @@ internal class ChangesAccumulator private constructor(
         inheritedIds: Set<ModelId<out Comparable<*>>>,
     ) = ChangesAccumulator(modelChanges, entityChanges, inheritedIds, seed)
 
-    private fun <MID : ModelId<out Comparable<*>>, E : ModelEvent<MID>, M : Model<MID, E>>
-    withAddedModel(model: M): ChangesAccumulator {
-        return modelChanges(model) { m, _ -> AddModel(m) }
-    }
-
-    private fun <MID : ModelId<out Comparable<*>>, E : ModelEvent<MID>, M : Model<MID, E>>
-    withUpdatedModel(model: M): ChangesAccumulator {
-        return modelChanges(model) { m, _ -> UpdateModel(m) }
-    }
-
-    private fun <MID : ModelId<out Comparable<*>>, E : ModelEvent<MID>, M : Model<MID, E>>
-    withUnchangedModel(model: M): ChangesAccumulator {
-        return modelChanges(model) { m, _ -> NoopModel(m) }
-    }
-
     internal fun <E : CreatableEntity>
     addingEntity(entity: E): ChangesAccumulator {
         return next(modelChanges, entityChanges + AddEntity(entity), inheritedIds)
@@ -132,7 +111,7 @@ internal class ChangesAccumulator private constructor(
                 "model [${model.id().stringValue()}] as new. It is stored already, so inserting it would fail. " +
                 "Register a stored model with update, or with notChanged when it did not change"
         }
-        return withAddedModel(model)
+        return registering(AddModel(model))
     }
 
     /**
@@ -157,7 +136,7 @@ internal class ChangesAccumulator private constructor(
                             "notChanged(model), or update(model) { mutate() ?: this } to register whichever happened"
                     }
             }
-            return withUpdatedModel(model)
+            return registering(UpdateModel(model))
         }
         val newEvents = model.modelEvents()
         check(newEvents isSuccessorOf existing.modelEvents) {
@@ -199,7 +178,7 @@ internal class ChangesAccumulator private constructor(
                 "model [${model.id().stringValue()}] as unchanged. It carries a write, and notChanged would " +
                 "drop it. Register a new model with add and a changed one with update"
         }
-        return withUnchangedModel(model)
+        return registering(NoopModel(model))
     }
 
     /**
@@ -373,16 +352,14 @@ internal class ChangesAccumulator private constructor(
         else -> null
     }
 
-    private fun <E : ModelEvent<MID>, M : Model<MID, E>, MID : ModelId<out Comparable<*>>>
-    modelChanges(model: M, changer: (M, List<E>) -> ModelChange): ChangesAccumulator {
-        return when (modelChanges[model.id()]) {
-            null -> next(
-                LinkedHashMap(modelChanges).apply { put(model.id(), changer(model, model.modelEvents())) },
-                entityChanges,
-                inheritedIds,
-            )
-            else -> throw IllegalStateException(existingChangeExceptionMessage(model.id()))
+    private fun registering(change: ModelChange): ChangesAccumulator {
+        check(change.id !in modelChanges) {
+            "Change for a given model [${change.id.stringValue()}] was already registered. The block registered " +
+                "it twice, and the second registration would replace the first and drop its write. Register a " +
+                "model once: make every mutation first, then call add or update with the last instance. A second " +
+                "update is accepted only for a model the parent or a composed child registered"
         }
+        return next(LinkedHashMap(modelChanges).apply { put(change.id, change) }, entityChanges, inheritedIds)
     }
 
     companion object {
