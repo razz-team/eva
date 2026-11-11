@@ -58,53 +58,53 @@ class PersistedLookup internal constructor(
  *
  * [inheritedIds] are the ids that came from outside the block that holds this value: the parent's changes a
  * composed child starts from, and every id a merged child hands back. The block may extend a model it got
- * this way, so a registration for an inherited id merges into the change held for it. For any other id a
- * second registration fails.
+ * this way, so an update for an inherited id merges into the change held for it, and `notChanged` for it
+ * keeps that change. Any other second registration of an id fails.
  */
 internal class ChangesAccumulator private constructor(
     private val modelChanges: Map<ModelId<out Comparable<*>>, ModelChange>,
     private val entityChanges: List<EntityChange>,
     private val inheritedIds: Set<ModelId<out Comparable<*>>>,
 ) {
-    constructor() : this(mapOf(), listOf(), setOf())
+    internal constructor() : this(mapOf(), listOf(), setOf())
 
-    fun <MID : ModelId<out Comparable<*>>, E : ModelEvent<MID>, M : Model<MID, E>>
+    internal fun <MID : ModelId<out Comparable<*>>, E : ModelEvent<MID>, M : Model<MID, E>>
     withAddedModel(model: M): ChangesAccumulator {
         return modelChanges(model, ::AddModel)
     }
 
-    fun <MID : ModelId<out Comparable<*>>, E : ModelEvent<MID>, M : Model<MID, E>>
+    internal fun <MID : ModelId<out Comparable<*>>, E : ModelEvent<MID>, M : Model<MID, E>>
     withUpdatedModel(model: M): ChangesAccumulator {
         return modelChanges(model, ::UpdateModel)
     }
 
-    fun <MID : ModelId<out Comparable<*>>, E : ModelEvent<MID>, M : Model<MID, E>>
+    internal fun <MID : ModelId<out Comparable<*>>, E : ModelEvent<MID>, M : Model<MID, E>>
     withUnchangedModel(model: M): ChangesAccumulator {
         return modelChanges(model) { m, _ -> NoopModel(m) }
     }
 
-    fun <E : CreatableEntity>
+    internal fun <E : CreatableEntity>
     withAddedEntity(entity: E): ChangesAccumulator {
         return ChangesAccumulator(modelChanges, entityChanges + AddEntity(entity), inheritedIds)
     }
 
-    fun <E : UpdatableEntity>
+    internal fun <E : UpdatableEntity>
     withUpdatedEntity(entity: E): ChangesAccumulator {
         return ChangesAccumulator(modelChanges, entityChanges + UpdateEntity(entity), inheritedIds)
     }
 
-    fun <E : DeletableEntity>
+    internal fun <E : DeletableEntity>
     withDeletedEntity(entity: E): ChangesAccumulator {
         return ChangesAccumulator(modelChanges, entityChanges + DeleteEntity(entity), inheritedIds)
     }
 
-    fun <E : DeletableEntity, K : EntityKey<E>>
+    internal fun <E : DeletableEntity, K : EntityKey<E>>
     withDeletedEntityByKey(key: K, entityClass: KClass<E>): ChangesAccumulator {
         return ChangesAccumulator(modelChanges, entityChanges + DeleteEntityByKey(key, entityClass), inheritedIds)
     }
 
     /** Registers [model] as new. Fails when it is not new, or when its id is already registered. */
-    fun <MID : ModelId<out Comparable<*>>, E : ModelEvent<MID>, M : Model<MID, E>>
+    internal fun <MID : ModelId<out Comparable<*>>, E : ModelEvent<MID>, M : Model<MID, E>>
     adding(model: M): ChangesAccumulator {
         require(model.isNew()) {
             "Attempted to register ${if (model.isDirty()) "changed" else "unchanged"} " +
@@ -114,12 +114,12 @@ internal class ChangesAccumulator private constructor(
     }
 
     /**
-     * Registers [model] as changed. For an inherited id it replaces the change held for it, and keeps the
-     * kind of that change: [model] must carry every event of that change and at least one more, compared by
+     * Registers [model] as changed. For an inherited id it replaces the change held for it and keeps the
+     * kind of that change. [model] must carry every event of that change and at least one more, compared by
      * identity, or the merge fails. A claim over a model that is still new comes from a stub, and production
      * would insert it, so it becomes an add. For any other id [model] must be dirty and its id unregistered.
      */
-    fun <MID : ModelId<out Comparable<*>>, E : ModelEvent<MID>, M : Model<MID, E>>
+    internal fun <MID : ModelId<out Comparable<*>>, E : ModelEvent<MID>, M : Model<MID, E>>
     updating(model: M): ChangesAccumulator {
         val existing = modelChanges[model.id()]
         if (existing == null || model.id() !in inheritedIds) {
@@ -147,10 +147,10 @@ internal class ChangesAccumulator private constructor(
     }
 
     /**
-     * Registers [model] as unchanged. An inherited id that already has a change keeps that change, because
-     * the parent's write must still persist. Otherwise [model] must be persisted and clean.
+     * Registers [model] as unchanged. An inherited id that already has a change keeps that change, so a
+     * write registered outside this block still persists. Otherwise [model] must be persisted and clean.
      */
-    fun <MID : ModelId<out Comparable<*>>, E : ModelEvent<MID>, M : Model<MID, E>>
+    internal fun <MID : ModelId<out Comparable<*>>, E : ModelEvent<MID>, M : Model<MID, E>>
     claimingUnchanged(model: M): ChangesAccumulator {
         if (model.id() in modelChanges && model.id() in inheritedIds) return this
         require(model.isPersisted()) {
@@ -174,7 +174,7 @@ internal class ChangesAccumulator private constructor(
      *   claim would contradict it, so nothing changes;
      * - otherwise [model] is registered as unchanged.
      */
-    fun <MID : ModelId<out Comparable<*>>, E : ModelEvent<MID>, M : Model<MID, E>>
+    internal fun <MID : ModelId<out Comparable<*>>, E : ModelEvent<MID>, M : Model<MID, E>>
     declining(model: M): ChangesAccumulator {
         val registered = modelChanges[model.id()]
         val owned = ownedInstanceOf(model.id())
@@ -225,8 +225,6 @@ internal class ChangesAccumulator private constructor(
         )
     }
 
-    internal fun modelIds(): Set<ModelId<out Comparable<*>>> = modelChanges.keys
-
     /**
      * Folds a composed child's outcome into the accumulated changes. A stubbed child merges
      * additively: its claims for new ids join the set, and claims for known ids never demote the
@@ -270,7 +268,7 @@ internal class ChangesAccumulator private constructor(
         return ChangesAccumulator(mergedModels, subChanges.entityChangesToPersist, mergedModels.keys)
     }
 
-    fun <R> withResult(
+    internal fun <R> withResult(
         result: R,
         resultBuilder: ((PersistedLookup) -> Any?)? = null,
     ): Changes<R> {
@@ -342,14 +340,6 @@ internal class ChangesAccumulator private constructor(
     }
 
     companion object {
-        internal fun from(changes: Changes<*>): ChangesAccumulator {
-            return ChangesAccumulator(
-                changes.modelChangesToPersist.associateByTo(LinkedHashMap()) { it.id },
-                changes.entityChangesToPersist,
-                setOf(),
-            )
-        }
-
         /**
          * The value a composed child's block starts from: the parent's changes, with every id marked as
          * inherited. A block that runs on its own, with no parent, starts empty.

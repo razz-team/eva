@@ -1209,6 +1209,19 @@ class ChangesDslSpec : FunSpec({
             UpdateModel(model0, listOf(TestModelStatusChanged(model0.id(), CREATED, ACTIVE))),
         )
     }
+
+    test("A composable block that updates a model it already updated itself fails") {
+        val first = existingCreatedTestModel(param1 = "read", param2 = 1).changeParam1("first")
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                update(first)
+                update(first.changeParam1("second"))
+                "parent"
+            }
+        }
+        val ex = shouldThrow<IllegalStateException> { uow.tryPerform(TestPrincipal, DummyUow.Params) }
+        checkNotNull(ex.message) shouldContain "was already registered"
+    }
 })
 
 private data class RoundtripResult(val model: com.razz.eva.domain.TestModel, val label: String)

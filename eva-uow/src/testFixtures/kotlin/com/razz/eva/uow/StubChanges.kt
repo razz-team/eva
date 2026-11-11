@@ -7,8 +7,7 @@ import com.razz.eva.domain.ModelId
 /**
  * Builds the [Changes] a TEST DOUBLE of a UoW returns (a mocked composed child, a stubbed executor
  * call). The changes DSL is deliberately unusable for doubles: it refuses an empty change set, which
- * breeds throwaway "anchor" registrations, and hand-assembled accumulators must re-enumerate what the
- * double is supposed to have registered.
+ * breeds throwaway "anchor" registrations.
  *
  * A stub declares child behaviour instead of performing it, so every model reachable from [result]
  * (through iterables, maps, arrays, pairs, triples and an aggregate's owned models) is registered as an unchanged claim

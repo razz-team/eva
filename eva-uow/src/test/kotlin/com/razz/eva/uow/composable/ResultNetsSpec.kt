@@ -507,6 +507,26 @@ class ResultNetsSpec : FunSpec({
         checkNotNull(ex.message) shouldContain "register a new model with add"
     }
 
+    test("Declining on a new employee that diverges from the one a new aggregate in the block owns names add") {
+        val bossId = EmployeeId()
+        val hire = mutating { newEmployee(Name("Eve", "Ray"), randomDepartmentId(), "eve@test.com", BUBALEH) }
+        val deptA = OwnedDepartment(randomDepartmentId(), "A", bossId, 1, BUBALEH, persistentState(V1, null))
+        val deptB = OwnedDepartment(randomDepartmentId(), "B", bossId, 1, BUBALEH, persistentState(V1, null))
+        val owned = mutating { hire.changeDepartment(deptA) }
+        val diverging = mutating { hire.changeDepartment(deptB) }
+        val dept = newDeptAggregate(name = "Engineering", boss = bossId, ration = BUBALEH, employees = listOf(owned))
+        val ex = shouldThrow<IllegalStateException> {
+            executor(persistingReturning()).execute(
+                TestPrincipal,
+                uow<Employee> {
+                    add(dept)
+                    update(diverging) { this }
+                },
+            ) { DummyUow.Params }
+        }
+        checkNotNull(ex.message) shouldContain "register a new model with add"
+    }
+
     test("A new employee owned by an unregistered aggregate in the result fails") {
         val bossId = EmployeeId()
         val hire = mutating { newEmployee(Name("Ida", "Wells"), randomDepartmentId(), "ida@test.com", BUBALEH) }

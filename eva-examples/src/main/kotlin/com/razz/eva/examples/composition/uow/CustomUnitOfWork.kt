@@ -11,7 +11,7 @@ import com.razz.eva.uow.composable.UnitOfWork
  * A composable family with its own change block. It extends eva's composable [UnitOfWork], so its units of
  * work run as children of any composable parent, and [customChanges] runs inside the inherited
  * `changes { }`. The block needs its own name: a second `changes` that differs only in the receiver of its
- * lambda makes every `changes { }` call ambiguous.
+ * lambda does not compile.
  */
 abstract class CustomUnitOfWork<PRINCIPAL, PARAMS, RESULT>(
     executionContext: ExecutionContext,

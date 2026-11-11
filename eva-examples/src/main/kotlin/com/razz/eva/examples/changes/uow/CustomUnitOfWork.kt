@@ -10,7 +10,7 @@ import com.razz.eva.uow.UowParams
 /**
  * A family with its own change block. It extends eva's [UnitOfWork], and [customChanges] runs inside the
  * inherited `changes { }`. The block needs its own name: a second `changes` that differs only in the
- * receiver of its lambda makes every `changes { }` call ambiguous.
+ * receiver of its lambda does not compile.
  */
 abstract class CustomUnitOfWork<PRINCIPAL, PARAMS, RESULT>(
     executionContext: ExecutionContext,

@@ -318,23 +318,6 @@ class ChangesSpec : BehaviorSpec({
             }
         }
 
-        When("modelIds is called on empty accumulator") {
-            val result = ChangesAccumulator().modelIds()
-
-            Then("empty set is returned") {
-                result shouldBe emptySet()
-            }
-        }
-
-        When("modelIds is called on accumulator with models") {
-            val acc = ChangesAccumulator().withAddedModel(model1).withUpdatedModel(model2)
-            val result = acc.modelIds()
-
-            Then("set of model ids is returned") {
-                result shouldBe setOf(model1.id(), model2.id())
-            }
-        }
-
         When("withReplacedModelChange is called for existing model") {
             val acc = ChangesAccumulator().withAddedModel(model1)
             val updatedModel1 = model1.activate()
@@ -345,57 +328,6 @@ class ChangesSpec : BehaviorSpec({
             Then("the change is replaced") {
                 result.modelChangesToPersist shouldBe listOf(replacement)
                 result.result shouldBe "replaced"
-            }
-        }
-
-        When("from is called with Changes") {
-            val changes = ChangesAccumulator()
-                .withAddedModel(model1)
-                .withUpdatedModel(model2)
-                .withResult("original")
-
-            val restored = ChangesAccumulator.from(changes).withResult("restored")
-
-            Then("accumulator contains same model changes") {
-                restored.modelChangesToPersist shouldBe listOf(
-                    AddModel(model1, listOf(model1Event)),
-                    UpdateModel(model2, listOf(model2Event)),
-                )
-                restored.result shouldBe "restored"
-            }
-        }
-
-        When("from is called with Changes that include entities") {
-            val subjectId = UUID.randomUUID()
-            val tag = Tag(subjectId, "key", "value")
-            val changes = ChangesAccumulator()
-                .withAddedModel(model1)
-                .withAddedEntity(tag)
-                .withResult("with-entities")
-
-            val restored = ChangesAccumulator.from(changes).withResult("restored")
-
-            Then("accumulator contains both model and entity changes") {
-                restored.modelChangesToPersist shouldBe listOf(
-                    AddModel(model1, listOf(model1Event)),
-                )
-                restored.entityChangesToPersist shouldBe listOf(AddEntity(tag))
-                restored.result shouldBe "restored"
-            }
-        }
-
-        When("from is called with Changes that include updated entity") {
-            val subjectId2 = UUID.randomUUID()
-            val updatedTag = Tag(subjectId2, "key", "updated-value")
-            val changes = ChangesAccumulator()
-                .withUpdatedEntity(updatedTag)
-                .withResult("with-updated-entity")
-
-            val restored = ChangesAccumulator.from(changes).withResult("restored")
-
-            Then("accumulator contains updated entity change") {
-                restored.entityChangesToPersist shouldBe listOf(UpdateEntity(updatedTag))
-                restored.result shouldBe "restored"
             }
         }
     }

@@ -722,7 +722,7 @@ Runtime verification backs this up for every family: when the executor has the m
 
 The witness itself is opt-in, but these changes reach every consumer:
 
-- **Custom UoW families.** `ChangesAccumulator` is internal, so a family can no longer build its `Changes` itself, and `BaseUnitOfWork` no longer declares an abstract `changes`. A family that extended `BaseUnitOfWork` and filled a `ChangesAccumulator` fails to compile. Extend `UnitOfWork`, or `composable.UnitOfWork` for a family whose units of work run as children, and wrap its change block: the family's own DSL takes the `ChangesDsl` that `changes { }` gives it, and each of its operations calls the `add`, `update` or `notChanged` of that DSL, so it gets the same checks. Give the family's block function a name of its own: a second `changes` that differs only in the receiver of its lambda makes every `changes { }` call ambiguous.
+- **Custom UoW families.** `ChangesAccumulator` is internal, so a family can no longer build its `Changes` itself, and `BaseUnitOfWork` no longer declares an abstract `changes`. A family that extended `BaseUnitOfWork` and filled a `ChangesAccumulator` fails to compile. Extend `UnitOfWork`, or `composable.UnitOfWork` for a family whose units of work compose children or run as children, and wrap its change block: the family's own DSL takes the `ChangesDsl` that `changes { }` gives it, and each of its operations calls the `add`, `update` or `notChanged` of that DSL, so it gets the same checks. Give the family's block function a name of its own: a second `changes` that differs only in the receiver of its lambda does not compile (`Accidental override`), and renaming it for the JVM with `@JvmName` makes every `changes { }` call ambiguous.
 
   ```kotlin
   abstract class CustomUnitOfWork<PRINCIPAL, PARAMS, RESULT>(
@@ -735,7 +735,7 @@ The witness itself is opt-in, but these changes reach every consumer:
   }
   ```
 
-  Both examples are in eva-examples: `changes/uow` wraps the plain DSL, `composition/uow` wraps the composable one. No single source shape compiles against both 0.40 and 0.41; binaries compiled against 0.40 still link. `ComposableUow` is sealed, so only the bases eva ships, and the families that extend them, can be composed as children.
+  Both examples are in eva-examples: `changes/uow` wraps the plain DSL, `composition/uow` wraps the composable one. No single source shape compiles against both 0.40 and 0.41, and a custom family compiled against 0.40 fails with `NoSuchMethodError`, so recompile it. `ComposableUow` is sealed, so only the bases eva ships, and the families that extend them, can be composed as children.
 - **New runtime failures** (`IllegalStateException`, before anything is persisted). Each of these silently dropped a write on 0.40:
   - a result holding a new or dirty model that no `add` / `update` registered, including inside nested collections, maps, arrays, pairs, triples and an aggregate's owned models;
   - a result holding a model that carries a write its registered instance lacks;

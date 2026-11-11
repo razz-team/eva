@@ -13,6 +13,7 @@ import com.razz.eva.uow.Clocks.fixedUTC
 import com.razz.eva.uow.Clocks.millisUTC
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.shouldBe
 import io.opentelemetry.api.OpenTelemetry
 
@@ -214,5 +215,18 @@ class ChangesDslSpec : FunSpec({
         // the executor refuses this over the merged change set; a block on its own does not,
         // so a parent can still register what a child handed back
         uow.tryPerform(TestPrincipal, DummyUow.Params).result shouldBe dirty
+    }
+
+    test("A plain block that updates a model it already updated itself fails") {
+        val first = existingCreatedTestModel(param1 = "read", param2 = 1).changeParam1("first")
+        val uow = object : DummyUow(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                update(first)
+                update(first.changeParam1("second"), required = true)
+                "plain"
+            }
+        }
+        val ex = shouldThrow<IllegalStateException> { uow.tryPerform(TestPrincipal, DummyUow.Params) }
+        checkNotNull(ex.message) shouldContain "was already registered"
     }
 })
