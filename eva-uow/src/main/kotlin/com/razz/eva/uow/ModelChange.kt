@@ -20,10 +20,6 @@ internal data class AddModel<MID : ModelId<out Comparable<*>>, M : Model<MID, *>
     override val id: ModelId<out Comparable<*>> = model.id()
 
     override fun persist(persisting: ModelPersisting) {
-        require(model.isNew()) {
-            "Attempted to register ${if (model.isDirty()) "changed" else "unchanged"} " +
-                "model [${model.id().stringValue()}] as new"
-        }
         persisting.add(model)
     }
 }
@@ -36,10 +32,6 @@ internal data class UpdateModel<MID : ModelId<out Comparable<*>>, M : Model<MID,
     override val id: ModelId<out Comparable<*>> = model.id()
 
     override fun persist(persisting: ModelPersisting) {
-        require(model.isDirty()) {
-            "Attempted to register ${if (model.isNew()) "new" else "unchanged"} " +
-                "model [${model.id().stringValue()}] as changed"
-        }
         persisting.update(model)
     }
 }
@@ -49,6 +41,9 @@ internal data class NoopModel(
 ) : ModelChange {
 
     override val id: ModelId<out Comparable<*>> = model.id()
+
+    // The DSLs check this when they register a claim, but stubChanges claims every model its result reaches,
+    // new and changed ones included. A claim a parent does not extend reaches here, and must not pass silently.
     override fun persist(persisting: ModelPersisting) {
         require(model.isPersisted()) {
             "Attempted to register ${if (model.isNew()) "new" else "changed"} " +

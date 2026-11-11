@@ -1015,7 +1015,7 @@ class ChangesDslSpec : FunSpec({
             modelState = persistentState(V1, null),
         ).rename("Eng v5")
         // the parent registers the aggregate, so the child's write is carried by the flattened set
-        val inherited = ChangesAccumulator().withUpdatedModel(dept)
+        val inherited = ChangesAccumulator().updating(dept)
 
         val child = object : DummyUow<Employee>(executionContext.withInheritedChanges(inherited)) {
             override suspend fun tryPerform(principal: TestPrincipal, params: Params) = noChanges(emp)

@@ -52,9 +52,11 @@ class PersistedLookup internal constructor(
  * and takes back what the child returns, so a child cannot change the parent's copy behind its back.
  *
  * The rules for how a registration combines with what is already here live in this class, so every change
- * block applies the same ones. The DSLs call [adding], [updating], [claimingUnchanged], [declining] and
- * [merging]. Those operations are built from the `with*` methods, which record a change as given and check
- * only that a model's id is not registered yet.
+ * block applies the same ones. The DSLs call [adding], [updating], [claimingUnchanged], [declining],
+ * [merging] and the entity operations. The model operations and the flatten of an aggregate's owned models
+ * pick a change's kind from its model's state, and [merging] takes only changes a child built the same way.
+ * So an [AddModel] always holds a new model and an [UpdateModel] a changed one. Only a [NoopModel] claim can
+ * disagree with its model, because `stubChanges` builds claims without a check.
  *
  * [inheritedIds] are the ids that came from outside the block that holds this value: the parent's changes a
  * composed child starts from, and every id a merged child hands back. The block may extend a model it got
@@ -68,38 +70,38 @@ internal class ChangesAccumulator private constructor(
 ) {
     internal constructor() : this(mapOf(), listOf(), setOf())
 
-    internal fun <MID : ModelId<out Comparable<*>>, E : ModelEvent<MID>, M : Model<MID, E>>
+    private fun <MID : ModelId<out Comparable<*>>, E : ModelEvent<MID>, M : Model<MID, E>>
     withAddedModel(model: M): ChangesAccumulator {
         return modelChanges(model, ::AddModel)
     }
 
-    internal fun <MID : ModelId<out Comparable<*>>, E : ModelEvent<MID>, M : Model<MID, E>>
+    private fun <MID : ModelId<out Comparable<*>>, E : ModelEvent<MID>, M : Model<MID, E>>
     withUpdatedModel(model: M): ChangesAccumulator {
         return modelChanges(model, ::UpdateModel)
     }
 
-    internal fun <MID : ModelId<out Comparable<*>>, E : ModelEvent<MID>, M : Model<MID, E>>
+    private fun <MID : ModelId<out Comparable<*>>, E : ModelEvent<MID>, M : Model<MID, E>>
     withUnchangedModel(model: M): ChangesAccumulator {
         return modelChanges(model) { m, _ -> NoopModel(m) }
     }
 
     internal fun <E : CreatableEntity>
-    withAddedEntity(entity: E): ChangesAccumulator {
+    addingEntity(entity: E): ChangesAccumulator {
         return ChangesAccumulator(modelChanges, entityChanges + AddEntity(entity), inheritedIds)
     }
 
     internal fun <E : UpdatableEntity>
-    withUpdatedEntity(entity: E): ChangesAccumulator {
+    updatingEntity(entity: E): ChangesAccumulator {
         return ChangesAccumulator(modelChanges, entityChanges + UpdateEntity(entity), inheritedIds)
     }
 
     internal fun <E : DeletableEntity>
-    withDeletedEntity(entity: E): ChangesAccumulator {
+    deletingEntity(entity: E): ChangesAccumulator {
         return ChangesAccumulator(modelChanges, entityChanges + DeleteEntity(entity), inheritedIds)
     }
 
     internal fun <E : DeletableEntity, K : EntityKey<E>>
-    withDeletedEntityByKey(key: K, entityClass: KClass<E>): ChangesAccumulator {
+    deletingEntityByKey(key: K, entityClass: KClass<E>): ChangesAccumulator {
         return ChangesAccumulator(modelChanges, entityChanges + DeleteEntityByKey(key, entityClass), inheritedIds)
     }
 
@@ -114,10 +116,12 @@ internal class ChangesAccumulator private constructor(
     }
 
     /**
-     * Registers [model] as changed. For an inherited id it replaces the change held for it and keeps the
-     * kind of that change. [model] must carry every event of that change and at least one more, compared by
-     * identity, or the merge fails. A claim over a model that is still new comes from a stub, and production
-     * would insert it, so it becomes an add. For any other id [model] must be dirty and its id unregistered.
+     * Registers [model] as changed. For an inherited id it replaces the change held for it. [model] must carry
+     * every event of that change and at least one more, compared by identity, or the merge fails. The merged
+     * change is an add when [model] is new and an update otherwise. That keeps the kind of the held change:
+     * a model only gains events in its own state, so a later state of an added model is new, and of an
+     * updated one is changed. A claim over a model that is still new comes from a stub, and production would
+     * insert it, so it becomes an add. For any other id [model] must be dirty and its id unregistered.
      */
     internal fun <MID : ModelId<out Comparable<*>>, E : ModelEvent<MID>, M : Model<MID, E>>
     updating(model: M): ChangesAccumulator {
@@ -138,11 +142,8 @@ internal class ChangesAccumulator private constructor(
                 "Failed to merge changes for model [${model.id().stringValue()}]"
             }
         }
-        val merged = when (existing) {
-            is AddModel<*, *, *> -> AddModel(model, newEvents)
-            is UpdateModel<*, *, *> -> UpdateModel(model, newEvents)
-            is NoopModel -> if (model.isNew()) AddModel(model, newEvents) else UpdateModel(model, newEvents)
-        }
+        // more events than the held change, so at least one: the model is new or changed, never clean
+        val merged = if (model.isNew()) AddModel(model, newEvents) else UpdateModel(model, newEvents)
         return withReplacedModelChange(model.id(), merged)
     }
 
@@ -207,14 +208,18 @@ internal class ChangesAccumulator private constructor(
     }
 
     /**
-     * Every change by id over the same flattened view [withResult] persists, so an owned child of a
-     * registered [Aggregate] counts as accounted. The guards must agree: resolving a child through
-     * the raw map alone reports a dropped write for a model the aggregate will persist.
+     * True when the change set persists every write [model] carries: the change for its id holds [model] or a
+     * later state of it. It reads the flattened view [withResult] persists, so an owned child of a registered
+     * [Aggregate] counts. Reading the raw registrations alone would report a dropped write for a model the
+     * aggregate persists.
      */
-    internal fun flattenedChanges(): Map<ModelId<out Comparable<*>>, ModelChange> =
-        flattenChildModels().associateBy { it.id }
+    internal fun persistsWritesOf(model: Model<*, *>): Boolean =
+        flattened[model.id()]?.let { model.isCoveredBy(it.model) } ?: false
 
-    internal fun withReplacedModelChange(
+    // flattened once, on the first question: the value is immutable, and a caller asks for each model it holds
+    private val flattened by lazy { flattenChildModels().associateBy { it.id } }
+
+    private fun withReplacedModelChange(
         modelId: ModelId<out Comparable<*>>,
         change: ModelChange,
     ): ChangesAccumulator {

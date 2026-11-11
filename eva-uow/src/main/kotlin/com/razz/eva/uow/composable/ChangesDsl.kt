@@ -102,17 +102,17 @@ class ChangesDsl internal constructor(
     }
 
     fun <E : CreatableEntity> add(entity: E): E {
-        changes = changes.withAddedEntity(entity)
+        changes = changes.addingEntity(entity)
         return entity
     }
 
     fun <E : UpdatableEntity> update(entity: E): E {
-        changes = changes.withUpdatedEntity(entity)
+        changes = changes.updatingEntity(entity)
         return entity
     }
 
     fun <E : DeletableEntity> delete(entity: E): E {
-        changes = changes.withDeletedEntity(entity)
+        changes = changes.deletingEntity(entity)
         return entity
     }
 
@@ -123,7 +123,7 @@ class ChangesDsl internal constructor(
 
     @PublishedApi
     internal fun <E : DeletableEntity, K : EntityKey<E>> deleteByKeyInternal(key: K, entityClass: KClass<E>) {
-        changes = changes.withDeletedEntityByKey(key, entityClass)
+        changes = changes.deletingEntityByKey(key, entityClass)
     }
 
     suspend fun <PRINCIPAL, PARAMS, RESULT, UOW> execute(

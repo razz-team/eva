@@ -39,10 +39,8 @@ abstract class BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, C>(
     // the registered instance or an ancestor of it, the same rule the executor's result net applies. A
     // divergent instance under the same id carries events of its own that would be silently dropped.
     protected fun <R> noChanges(result: R): Changes<R> {
-        val inherited by lazy { executionContext.inheritedChanges?.flattenedChanges().orEmpty() }
-        checkNoDroppedWrite(result, "noChanges") { model ->
-            inherited[model.id()]?.let { model.isCoveredBy(it.model) } ?: false
-        }
+        val inherited = executionContext.inheritedChanges
+        checkNoDroppedWrite(result, "noChanges") { model -> inherited?.persistsWritesOf(model) ?: false }
         return RealisedChanges(result, listOf(), listOf())
     }
 
