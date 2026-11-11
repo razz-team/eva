@@ -11,6 +11,7 @@ import com.razz.eva.tracing.use
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.ShouldSpec
 import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.opentelemetry.api.common.AttributeKey
@@ -172,19 +173,20 @@ internal class SagaSpanSpec : ShouldSpec({
         runs.single().parentSpanId shouldBe caller.spanContext.spanId
     }
 
-    should("record each restart as an event chaining the new run id to its predecessor") {
+    should("record each restart as an event chaining the new attempt id to its predecessor") {
         val (exporter, saga) = exporterAndSaga()
 
         saga.resume(principal, restartingParams())
 
         val run = exporter.finishedSpanItems.single { it.name == "TestSaga" }
-        val firstRunId = run.attributes.get(AttributeKey.stringKey("saga.run_id"))
-        firstRunId shouldNotBe null
+        val runId = run.attributes.get(AttributeKey.stringKey("saga.run_id"))
+        runId shouldNotBe null
         val restarts = run.events.filter { it.name == "saga.restart" }
         restarts.size shouldBe 1
-        restarts.single().attributes.get(AttributeKey.stringKey("saga.parent_run_id")) shouldBe firstRunId
-        restarts.single().attributes.get(AttributeKey.stringKey("saga.run_id")) shouldNotBe firstRunId
-        restarts.single().attributes.get(AttributeKey.longKey("saga.attempt")) shouldBe 1L
+        val restart = restarts.single()
+        val parentAttemptId = restart.attributes.get(AttributeKey.stringKey("saga.parent_attempt_id")).shouldNotBeNull()
+        restart.attributes.get(AttributeKey.stringKey("saga.attempt_id")).shouldNotBeNull() shouldNotBe parentAttemptId
+        restart.attributes.get(AttributeKey.longKey("saga.attempt")) shouldBe 1L
     }
 
     should("hold the name captured at resume when the saga renames itself across a restart") {

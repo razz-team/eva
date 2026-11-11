@@ -7,7 +7,8 @@ import com.razz.eva.saga.ObserverOutcome.THREW
 import com.razz.eva.saga.ObserverOutcome.TIMED_OUT
 import com.razz.eva.saga.OtelAttributes.SAGA_ATTEMPT
 import com.razz.eva.saga.OtelAttributes.SAGA_ATTEMPT_COUNT
-import com.razz.eva.saga.OtelAttributes.SAGA_PARENT_RUN_ID
+import com.razz.eva.saga.OtelAttributes.SAGA_ATTEMPT_ID
+import com.razz.eva.saga.OtelAttributes.SAGA_PARENT_ATTEMPT_ID
 import com.razz.eva.saga.OtelAttributes.SAGA_RUN_ID
 import com.razz.eva.saga.OtelAttributes.SAGA_TERMINAL
 import com.razz.eva.saga.OtelAttributes.UNKNOWN
@@ -66,10 +67,10 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
         RESTART_BACKOFF.takeIf { attempt < MAX_RESTARTS }
 
     suspend fun resume(principal: PRINCIPAL, params: PARAMS): TS {
-        val sagaRun = SagaRun(SagaRunId.random(), null, 0, sagaName, principal, params)
+        val sagaRun = SagaRun.first(sagaName, principal, params)
         return sagaExecutionContext.otel.withSpan(
             spanName = sagaRun.sagaName,
-            parameters = { setAttribute(SAGA_RUN_ID, sagaRun.id.toString()) },
+            parameters = { setAttribute(SAGA_RUN_ID, sagaRun.runId.toString()) },
         ) {
             val runStartedAt = System.nanoTime()
             advance(sagaRun, null, setOf(), runStartedAt, runStartedAt)
@@ -98,17 +99,12 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
             ) {
                 is SagaOutcome.Ended -> recordTerminal(sagaOutcome.terminal)
                 is SagaOutcome.Restart -> {
-                    val restartedSagaRun = sagaRun.copy(
-                        id = SagaRunId.random(),
-                        parentId = sagaRun.id,
-                        attempt = sagaRun.attempt + 1,
-                    )
-                    recordRestart(restartedSagaRun, sagaRun.id, stepOutcome.ex)
+                    val restartedSagaRun = sagaRun.restarted()
+                    recordRestart(restartedSagaRun, stepOutcome.ex)
                     delay(sagaOutcome.backoff.toMillis().milliseconds)
                     advance(restartedSagaRun, null, setOf(), System.nanoTime(), runStartedAt)
                 }
             }
-
             is StepOutcome.Resolved -> {
                 val nextStep = stepOutcome.step
                 val nextTrail = trail + nextStep::class
@@ -261,7 +257,6 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
 
     private fun recordRestart(
         restartedSagaRun: SagaRun<PRINCIPAL, PARAMS>,
-        parentRunId: SagaRunId,
         cause: Exception,
     ) {
         sagaExecutionContext.recordRestart(
@@ -273,8 +268,8 @@ abstract class Saga<PRINCIPAL, PARAMS, IS, TS, SELF>(
             .addEvent(
                 Events.RESTART,
                 Attributes.of(
-                    SAGA_RUN_ID, restartedSagaRun.id.toString(),
-                    SAGA_PARENT_RUN_ID, parentRunId.toString(),
+                    SAGA_ATTEMPT_ID, restartedSagaRun.attemptId.toString(),
+                    SAGA_PARENT_ATTEMPT_ID, restartedSagaRun.parentAttemptId.toString(),
                     SAGA_ATTEMPT, restartedSagaRun.attempt.toLong(),
                 ),
             )

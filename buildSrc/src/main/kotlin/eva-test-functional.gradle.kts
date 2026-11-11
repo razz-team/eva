@@ -1,4 +1,7 @@
+import org.gradle.api.tasks.testing.logging.TestExceptionFormat
+import org.gradle.api.tasks.testing.logging.TestLogEvent.FAILED
 import org.gradle.api.tasks.testing.logging.TestLogEvent.STANDARD_ERROR
+import org.gradle.api.tasks.testing.logging.TestLogEvent.STANDARD_OUT
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
@@ -27,8 +30,12 @@ val testFunctional = tasks.register<Test>("testFunctional") {
     classpath = sourceSets["testFunctional"].runtimeClasspath
 
     testLogging {
-        events(STANDARD_ERROR)
+        events(FAILED, STANDARD_OUT, STANDARD_ERROR)
+        exceptionFormat = TestExceptionFormat.FULL
+        showCauses = true
+        showStackTraces = true
     }
+    jvmArgumentProviders.add(LogbackTestConfig(rootProject.file("buildSrc/src/main/resources/logback-test.xml")))
 }
 
 tasks.check { dependsOn(testFunctional) }

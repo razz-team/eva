@@ -27,4 +27,13 @@ jobs:
         uses: gradle/actions/setup-gradle@v5
 
       - name: Build project
-        run: ./gradlew build --parallel
+        run: ./gradlew build
+
+      # Published by test_report.yml - this run's token is read-only for fork PRs.
+      - name: Upload test results
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: '**/build/test-results/**/*.xml'
+          if-no-files-found: ignore
