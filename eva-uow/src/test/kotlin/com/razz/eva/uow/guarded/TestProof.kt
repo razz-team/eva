@@ -11,7 +11,7 @@ internal class TestProof<M : Model<*, *>>(
     override val principal: Principal<*>,
     override val target: M,
     private val recheck: (M) -> Unit,
-) : Proof<Principal<*>, Write, M>() {
+) : Proof<M>() {
 
     override val action = Write
 

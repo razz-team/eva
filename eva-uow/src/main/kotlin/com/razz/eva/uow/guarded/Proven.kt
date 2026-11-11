@@ -20,8 +20,8 @@ import kotlinx.serialization.encoding.encodeStructure
  * model id.
  */
 @Serializable(with = Proven.Audit::class)
-class Proven<out PF : Proof<*, *, *>, M : Model<*, *>> private constructor(
-    private val proof: Proof<*, *, M>,
+class Proven<out PF : Proof<*>, M : Model<*, *>> private constructor(
+    private val proof: Proof<M>,
     private val reload: suspend () -> M,
     private val context: InstantiationContext,
 ) {
@@ -70,7 +70,7 @@ class Proven<out PF : Proof<*, *, *>, M : Model<*, *>> private constructor(
          * of the same run may wrap it again); or if it is called in the params of a child run with `execute` inside a
          * block.
          */
-        fun <PF : Proof<*, *, M>, M : Model<*, *>> InstantiationContext.proven(
+        fun <PF : Proof<M>, M : Model<*, *>> InstantiationContext.proven(
             proof: PF,
             reload: suspend () -> M,
         ): Proven<PF, M> {
@@ -106,7 +106,7 @@ class Proven<out PF : Proof<*, *, *>, M : Model<*, *>> private constructor(
             level = DeprecationLevel.ERROR,
         )
         @Suppress("UnusedParameter")
-        fun <PF : Proof<*, *, M>, M : Model<*, *>> InstantiationContext.Internal.proven(
+        fun <PF : Proof<M>, M : Model<*, *>> InstantiationContext.Internal.proven(
             proof: PF,
             reload: suspend () -> M,
         ): Nothing = error("proven(...) was called in the params of a composed child")

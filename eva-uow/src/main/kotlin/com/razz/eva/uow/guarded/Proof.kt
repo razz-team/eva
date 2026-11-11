@@ -12,11 +12,13 @@ import java.util.concurrent.atomic.AtomicReference
  * attempt's params mark it as used, and only a retry of the same run can wrap it again. On a retry eva loads the
  * model again and calls [checkAgain].
  */
-abstract class Proof<out P : Principal<*>, out A : Action, M : Model<*, *>> {
+abstract class Proof<M : Model<*, *>> {
 
-    abstract val principal: P
+    /** The principal the action was allowed for. A subclass may narrow the type. */
+    abstract val principal: Principal<*>
 
-    abstract val action: A
+    /** The action that was allowed. A subclass may narrow the type to the application's action type. */
+    abstract val action: Action
 
     /**
      * The model the action was allowed on. It must be the stored model, with no unsaved changes. The first attempt

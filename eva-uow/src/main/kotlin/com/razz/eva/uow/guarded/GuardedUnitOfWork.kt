@@ -35,7 +35,7 @@ abstract class GuardedUnitOfWork<P, PF, PARAMS, RESULT>(
 ) : WrappingUnitOfWork<P, PARAMS, RESULT, GuardedChangesDsl<PF>>(executionContext, configuration),
     NotComposableUow
     where P : Principal<*>,
-          PF : Proof<*, *, *>,
+          PF : Proof<*>,
           PARAMS : UowParams<PARAMS>,
           RESULT : Any {
 

@@ -6,7 +6,6 @@ import com.razz.eva.domain.Employee
 import com.razz.eva.domain.EmployeeId
 import com.razz.eva.domain.ModelState.PersistentState.Companion.persistentState
 import com.razz.eva.domain.Name
-import com.razz.eva.domain.Principal
 import com.razz.eva.domain.Ration.BUBALEH
 import com.razz.eva.domain.Version.Companion.V1
 import com.razz.eva.uow.InstantiationContextFixtures.initial
@@ -26,7 +25,7 @@ class JacksonGuardedAuditSpec : ShouldSpec({
         override val name = "test.write"
     }
 
-    class Allowed(override val target: Employee, write: Action) : Proof<Principal<*>, Action, Employee>() {
+    class Allowed(override val target: Employee, write: Action) : Proof<Employee>() {
         override val principal = TestPrincipal
         override val action = write
         override suspend fun checkAgain(reloaded: Employee) = Unit

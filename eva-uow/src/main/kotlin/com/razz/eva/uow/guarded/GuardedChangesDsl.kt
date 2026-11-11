@@ -27,7 +27,7 @@ import kotlin.reflect.KClass
  * [execute] runs a child unit of work and refuses a child that registers a model of a guarded type ([Guarding]). It has
  * no entity functions: a child registers entities. [PF] is the proof type whose [Proven] fields the block can read.
  */
-class GuardedChangesDsl<PF : Proof<*, *, *>> internal constructor(
+class GuardedChangesDsl<PF : Proof<*>> internal constructor(
     private val dsl: ChangesDsl,
     private val uowName: String,
     private val unguarded: Set<KClass<out Model<*, *>>>,

@@ -36,7 +36,7 @@ class GuardedCompileRejectionSpec : FunSpec({
 
                 object Write : Action { override val name = "probe.write" }
 
-                class Allowed(override val target: TestModel) : Proof<TestPrincipal, Write, TestModel>() {
+                class Allowed(override val target: TestModel) : Proof<TestModel>() {
                     override val principal = TestPrincipal
                     override val action = Write
                     override suspend fun checkAgain(reloaded: TestModel) = Unit
