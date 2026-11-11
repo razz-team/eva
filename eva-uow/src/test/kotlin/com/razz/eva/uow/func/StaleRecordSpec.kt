@@ -1,5 +1,6 @@
 package com.razz.eva.uow.func
 
+import com.razz.eva.domain.mutating
 import com.razz.eva.domain.Department.Companion.newDepartment
 import com.razz.eva.domain.Employee.Companion.newEmployee
 import com.razz.eva.domain.EmployeeId
@@ -34,12 +35,14 @@ class StaleRecordSpec : PersistenceBaseSpec({
         )
 
         And("Model will be updated before uow transaction is completed") {
-            val employeeOutOfUow = newEmployee(
-                name = Name("Igor", "Dmitri${nextInt(100)}"),
-                departmentId = department.id(),
-                email = "igor.dmitri${nextInt(100)}@razz.com",
-                ration = SHAKSHOUKA,
-            )
+            val employeeOutOfUow = mutating {
+                newEmployee(
+                    name = Name("Igor", "Dmitri${nextInt(100)}"),
+                    departmentId = department.id(),
+                    email = "igor.dmitri${nextInt(100)}@razz.com",
+                    ration = SHAKSHOUKA,
+                )
+            }
 
             var updatedOutOfUow = false
             module.departmentPreUpdate.onPreUpdate(department.id()) {
@@ -88,10 +91,18 @@ class StaleRecordSpec : PersistenceBaseSpec({
                         listOf(Name("Ser", "Pryt")),
                     )
                 }.single()
-                val updatedSp1times = writableRepository.update(existingSp.changeDepartment(randomDepartment))
-                val updatedSp2times = writableRepository.update(updatedSp1times.changeDepartment(department))
-                val updatedSp3times = writableRepository.update(updatedSp2times.changeDepartment(randomDepartment))
-                val updatedSp4times = writableRepository.update(updatedSp3times.changeDepartment(department))
+                val updatedSp1times = writableRepository.update(
+                    existingSp.mutating { changeDepartment(randomDepartment) },
+                )
+                val updatedSp2times = writableRepository.update(
+                    updatedSp1times.mutating { changeDepartment(department) },
+                )
+                val updatedSp3times = writableRepository.update(
+                    updatedSp2times.mutating { changeDepartment(randomDepartment) },
+                )
+                val updatedSp4times = writableRepository.update(
+                    updatedSp3times.mutating { changeDepartment(department) },
+                )
                 updatedSp4times.version() shouldBe version(5)
                 val avengers = module.uowxRetries.execute(HireEmployeesUow::class, TestPrincipal) {
                     HireEmployeesUow.Params(

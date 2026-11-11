@@ -1,5 +1,6 @@
 package com.razz.eva.uow
 
+import com.razz.eva.domain.mutating
 import com.razz.eva.domain.Department.OwnedDepartment
 import com.razz.eva.domain.DepartmentEvent.EmployeeAdded
 import com.razz.eva.domain.DepartmentEvent.EmployeeRemoved
@@ -69,9 +70,9 @@ class UnitOfWorkDemoSpec : UowBehaviorSpec({
 
             Then("Zoomer and boomer moved, new dep got two emps, old dep lost two with transfer tags") {
                 changes verifyInOrder {
-                    updatesEq(zoomer.changeDepartment(newDep))
+                    updatesEq(zoomer.mutating { changeDepartment(newDep) })
                     addsEq(Tag.tag(newDepId.id, "transfer-${zoomerId.id}", "from-${oldDepId.id}"))
-                    updatesEq(boomer.changeDepartment(newDep))
+                    updatesEq(boomer.mutating { changeDepartment(newDep) })
                     addsEq(Tag.tag(newDepId.id, "transfer-${boomerId.id}", "from-${oldDepId.id}"))
                     updates<Tag> {
                         this shouldBe Tag.tag(newDepId.id, "last-transfer", "batch-2")
