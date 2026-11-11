@@ -650,7 +650,7 @@ class CheckoutUow(
 
 The `execute` function takes a UoW factory, a principal, and params. Child UoWs inherit accumulated changes from the parent, and their changes are merged back. All changes from parent and child UoWs are persisted in a single transaction.
 
-Child UoWs must also extend `com.razz.eva.uow.composable.UnitOfWork`. Construct the child with the `ExecutionContext` handed to the factory: a child that made real changes must carry every inherited change forward with its events preserved, or `execute` fails loudly. In tests, build a stubbed child's return value with `stubChanges(result, ...)` rather than hand-assembling accumulators; its claims merge without demoting the parent's changes. `stubChanges` is gated by `@TestDoubleApi` (opt-in from test sources only) and the executor refuses it as a real UoW's outcome:
+Child UoWs must also extend `com.razz.eva.uow.composable.UnitOfWork`. Construct the child with the `ExecutionContext` handed to the factory: a child that made real changes must carry every inherited change forward with its events preserved, or `execute` fails loudly. In tests, build a stubbed child's return value with `stubChanges(result, ...)`; its claims merge without demoting the parent's changes. `stubChanges` is gated by `@TestDoubleApi` (opt-in from test sources only) and the executor refuses it as a real UoW's outcome:
 
 ```kotlin
 class DebitAccountUow(
@@ -722,13 +722,26 @@ Runtime verification backs this up for every family: when the executor has the m
 
 The witness itself is opt-in, but these changes reach every consumer:
 
-- **Custom UoW families.** `BaseUnitOfWork` no longer declares an abstract `changes`, because each family shapes that function itself. A family that declared `final override suspend fun changes` fails to compile with `'changes' overrides nothing`; drop the `override`, keep the body, and keep it `protected`. No single source shape compiles against both 0.40 and 0.41; binaries compiled against 0.40 still link. `ComposableUow` is sealed, so only the bases eva ships can be composed as children.
+- **Custom UoW families.** `ChangesAccumulator` is internal, so a family can no longer build its `Changes` itself, and `BaseUnitOfWork` no longer declares an abstract `changes`. A family that extended `BaseUnitOfWork` and filled a `ChangesAccumulator` fails to compile. Extend `UnitOfWork`, or `composable.UnitOfWork` for a family whose units of work run as children, and wrap its change block: the family's own DSL takes the `ChangesDsl` that `changes { }` gives it, and each of its operations calls the `add`, `update` or `notChanged` of that DSL, so it gets the same checks. Give the family's block function a name of its own: a second `changes` that differs only in the receiver of its lambda makes every `changes { }` call ambiguous.
+
+  ```kotlin
+  abstract class CustomUnitOfWork<PRINCIPAL, PARAMS, RESULT>(
+      executionContext: ExecutionContext,
+  ) : UnitOfWork<PRINCIPAL, PARAMS, RESULT>(executionContext)
+      where PRINCIPAL : Principal<*>, PARAMS : UowParams<PARAMS>, RESULT : Any {
+
+      protected suspend fun customChanges(init: suspend CustomChangesDsl.() -> RESULT): Changes<RESULT> =
+          changes { CustomChangesDsl(this).init() }
+  }
+  ```
+
+  Both examples are in eva-examples: `changes/uow` wraps the plain DSL, `composition/uow` wraps the composable one. No single source shape compiles against both 0.40 and 0.41; binaries compiled against 0.40 still link. `ComposableUow` is sealed, so only the bases eva ships, and the families that extend them, can be composed as children.
 - **New runtime failures** (`IllegalStateException`, before anything is persisted). Each of these silently dropped a write on 0.40:
   - a result holding a new or dirty model that no `add` / `update` registered, including inside nested collections, maps, arrays, pairs, triples and an aggregate's owned models;
   - a result holding a model that carries a write its registered instance lacks;
   - `noChanges(result)` with a dirty model that is neither registered in the parent's change set nor an ancestor of the registered instance;
   - an `Aggregate` owning an instance that diverges from another instance of the same id in the change set (a registration, a model a composed child flattened, or another aggregate's owned instance), or a changed instance of a model claimed `notChanged`. An owned instance that extends the other one persists in its place, which 0.40 dropped; a model a composed child flattened out of an aggregate, or one an earlier registration of an aggregate owned, stays registered even when the aggregate's later state no longer owns it.
-- **Composed children.** `execute` fails with `Composed <child> dropped inherited changes` when a child that made changes was not constructed with the `ExecutionContext` handed to its factory; 0.40 silently replaced the parent's changes with the child's. A test double for a composed child must be built with `stubChanges` (eva-uow test fixtures, `@OptIn(TestDoubleApi::class)`), not a hand-assembled `ChangesAccumulator`, and the executor refuses a stub as a real UoW's outcome.
+- **Composed children.** `execute` fails with `Composed <child> dropped inherited changes` when a child that made changes was not constructed with the `ExecutionContext` handed to its factory; 0.40 silently replaced the parent's changes with the child's. Build the return value of a test double for a composed child with `stubChanges` (eva-uow test fixtures, `@OptIn(TestDoubleApi::class)`): `ChangesAccumulator` is internal, so a spec can no longer assemble one by hand. The executor refuses a stub as a real UoW's outcome.
 - **UoW specs.** `verifyInOrder` fails a spec whose result holds a model carrying a write its registered instance lacks, the same rule the executor applies. Two correct shapes fail it: a composed child that claims `notChanged(m)` and hands a mutation of `m` back for its parent to register, and a parent whose stubbed child returns an instance that does not descend from the one the parent registered. A stub claims every model its result reaches as unchanged, an aggregate's owned models included, so a parent that then extends one of those through the aggregate fails flattening in the spec but not in production. Build the stub's result from the parent's instance, register such a child model with its own `update(child) { }`, and verify such a child through its parent. A parent that extends a stub's new model registers it as an add, as production inserts it, so its spec verifies `adds`.
 - **A model member named `raise`.** The compiler warns `CONTEXTUAL_OVERLOAD_SHADOWED` on a model that declares or overrides its own `raise`, because `Model.raise` now exists: at language version 2.4 always, below it when `-Xcontext-parameters` is on. Under `allWarningsAsErrors` that is an error. Rename the member, or suppress the warning on the class when the model never calls the witnessed `raise`.
 

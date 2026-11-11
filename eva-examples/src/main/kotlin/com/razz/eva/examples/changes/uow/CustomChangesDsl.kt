@@ -3,22 +3,21 @@ package com.razz.eva.examples.changes.uow
 import com.razz.eva.domain.Model
 import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
-import com.razz.eva.uow.Changes
-import com.razz.eva.uow.ChangesAccumulator
+import com.razz.eva.uow.ChangesDsl
 
-class CustomChangesDsl internal constructor(private var changes: ChangesAccumulator) {
+/**
+ * A family's own change block, built on eva's [ChangesDsl]. Every operation ends in a call to the wrapped
+ * DSL, so a registration here gets the same checks as one in a plain `changes { }` block.
+ */
+class CustomChangesDsl internal constructor(private val changes: ChangesDsl) {
 
     fun <MID, E, M> add(model: M): M
-        where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
-        changes = changes.withAddedModel(model)
-        return model
-    }
+        where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> =
+        changes.add(model)
 
     fun <MID, E, M> update(model: M): M
-        where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
-        changes = changes.withUpdatedModel(model)
-        return model
-    }
+        where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> =
+        changes.update(model, required = true)
 
     class ChainOfUpdatesDsl<MID, E, M> internal constructor(private var acc: M)
         where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
@@ -34,29 +33,14 @@ class CustomChangesDsl internal constructor(private var changes: ChangesAccumula
         val dsl = ChainOfUpdatesDsl(model)
         val res = dsl.init()
         return if (res === model) {
-            changes = changes.withUnchangedModel(model)
+            changes.notChanged(model)
             null
         } else {
-            changes = changes.withUpdatedModel(res)
-            res
+            changes.update(res, required = true)
         }
     }
 
     fun <MID, E, M> notChanged(model: M): M
-        where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
-        changes = changes.withUnchangedModel(model)
-        return model
-    }
-
-    companion object {
-        internal suspend inline fun <R> changes(
-            changes: ChangesAccumulator,
-            @Suppress("REDUNDANT_INLINE_SUSPEND_FUNCTION_TYPE")
-            init: suspend CustomChangesDsl.() -> R,
-        ): Changes<R> {
-            val dsl = CustomChangesDsl(changes)
-            val res = init(dsl)
-            return dsl.changes.withResult(res)
-        }
-    }
+        where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> =
+        changes.notChanged(model)
 }

@@ -1,17 +1,17 @@
 package com.razz.eva.examples.composition.inventory
 
 import com.razz.eva.examples.ServicePrincipal
+import com.razz.eva.examples.composition.uow.CustomUnitOfWork
 import com.razz.eva.examples.composition.inventory.Inventory.InventoryItem
 import com.razz.eva.examples.composition.inventory.ReduceInventoryUow.Params
 import com.razz.eva.uow.ExecutionContext
-import com.razz.eva.uow.composable.UnitOfWork
 import com.razz.eva.uow.params.kotlinx.UowParams
 import kotlinx.serialization.Serializable
 
 class ReduceInventoryUow(
     private val inventoryQueries: (Inventory.Id) -> Inventory,
     executionContext: ExecutionContext,
-) : UnitOfWork<ServicePrincipal, Params, Inventory.Id>(executionContext) {
+) : CustomUnitOfWork<ServicePrincipal, Params, Inventory.Id>(executionContext) {
 
     @Serializable
     data class Params(
@@ -19,7 +19,7 @@ class ReduceInventoryUow(
         val items: Map<InventoryItem, Long>,
     ) : UowParams<Params>
 
-    override suspend fun tryPerform(principal: ServicePrincipal, params: Params) = changes {
+    override suspend fun tryPerform(principal: ServicePrincipal, params: Params) = customChanges {
         val inventory = inventoryQueries(params.inventoryId)
         update(inventory.checkout(params.items)).id()
     }
