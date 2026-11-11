@@ -11,6 +11,7 @@ import com.razz.eva.domain.EmployeeId
 import com.razz.eva.domain.ModelState.PersistentState.Companion.persistentState
 import com.razz.eva.domain.Name
 import com.razz.eva.domain.Ration.BUBALEH
+import com.razz.eva.domain.Tag
 import com.razz.eva.domain.TestModel.Factory.createdTestModel
 import com.razz.eva.domain.TestModel.Factory.existingCreatedTestModel
 import com.razz.eva.domain.Version.Companion.V1
@@ -18,6 +19,7 @@ import com.razz.eva.domain.mutating
 import com.razz.eva.uow.AddModel
 import com.razz.eva.uow.Changes
 import com.razz.eva.uow.Clocks.fixedUTC
+import com.razz.eva.uow.DeleteEntity
 import com.razz.eva.uow.ExecutionContext
 import com.razz.eva.uow.NoopModel
 import com.razz.eva.uow.TestDoubleApi
@@ -123,6 +125,27 @@ class ComposedChildSpec : FunSpec({
             execute(middleUow, TestPrincipal) { DummyUow.Params }
         }.persisted() shouldBe
             listOf(AddModel::class to own, AddModel::class to middle, AddModel::class to leaf)
+    }
+
+    test("A child that composes a stubbed child is merged into its parent") {
+        val own = createdTestModel("parent", 1)
+        val claimed = existingCreatedTestModel(param1 = "claimed", param2 = 2)
+        val stub = { exCtx: ExecutionContext ->
+            object : DummyUow<Any>(exCtx) {
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params) = stubChanges<Any>(claimed)
+            }
+        }
+        perform {
+            add(own)
+            execute(uow<Any> { execute(stub, TestPrincipal) { DummyUow.Params } }, TestPrincipal) { DummyUow.Params }
+        }.persisted() shouldBe listOf(AddModel::class to own, NoopModel::class to claimed)
+    }
+
+    test("A child that deletes an entity is merged into its parent") {
+        val tag = Tag.priorityTag(randomDepartmentId().id, 1)
+        perform {
+            execute(uow<Any> { delete(tag) }, TestPrincipal) { DummyUow.Params }
+        }.entityChangesToPersist shouldBe listOf(DeleteEntity(tag))
     }
 
     context("An aggregate a child added, and the new model it owns") {

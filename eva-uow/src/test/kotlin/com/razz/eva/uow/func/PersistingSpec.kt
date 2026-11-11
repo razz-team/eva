@@ -217,7 +217,7 @@ class PersistingSpec : BehaviorSpec({
                         .claimingUnchanged(existingCreatedTestModel(param1 = "b", param2 = 2L))
                         .adding(department2)
                         .updating(boss2)
-                        .withResult(Unit)
+                        .withResult(Unit, null)
                         .modelChangesToPersist,
                     entityChanges = listOf(
                         AddEntity(tag1),

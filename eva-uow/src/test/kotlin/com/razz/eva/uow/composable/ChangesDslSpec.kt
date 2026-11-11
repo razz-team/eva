@@ -54,6 +54,10 @@ import java.time.LocalDate
 
 class ChangesDslSpec : FunSpec({
 
+    val notStartedFromParent = "Composed child UnitOfWork did not start from the changes its parent holds now; " +
+        "construct the child with the ExecutionContext given to the factory, and do not register in the " +
+        "parent's block from the params lambda or while the child runs"
+
     val now = millisUTC().instant()
     val clock = fixedUTC(now)
     val executionContext = ExecutionContext(clock, OpenTelemetry.noop())
@@ -1044,9 +1048,7 @@ class ChangesDslSpec : FunSpec({
         val exception = shouldThrow<IllegalStateException> {
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
-        exception.message shouldBe
-            "Composed child UnitOfWork did not start from its parent's changes; construct the child with the " +
-            "ExecutionContext given to the factory"
+        exception.message shouldBe notStartedFromParent
     }
 
     test("Should throw when a child with real changes was built with a substituted context") {
@@ -1070,7 +1072,7 @@ class ChangesDslSpec : FunSpec({
         val exception = shouldThrow<IllegalStateException> {
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
-        exception.message.shouldNotBeNull() shouldContain "did not start from its parent's changes"
+        exception.message shouldBe notStartedFromParent
     }
 
     test("Should throw when a context-substituting child loses the parent's entity changes") {
@@ -1095,7 +1097,7 @@ class ChangesDslSpec : FunSpec({
         val exception = shouldThrow<IllegalStateException> {
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
-        exception.message.shouldNotBeNull() shouldContain "did not start from its parent's changes"
+        exception.message shouldBe notStartedFromParent
     }
 
     test("Should throw when a context-substituting child produces conflicting changes for the same model") {
@@ -1120,7 +1122,7 @@ class ChangesDslSpec : FunSpec({
         val exception = shouldThrow<IllegalStateException> {
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
-        exception.message.shouldNotBeNull() shouldContain "did not start from its parent's changes"
+        exception.message shouldBe notStartedFromParent
     }
 
     test("A stubbed child's changes merge without demoting or anchoring") {

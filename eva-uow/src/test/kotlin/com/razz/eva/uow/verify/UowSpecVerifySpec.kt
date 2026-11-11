@@ -34,7 +34,7 @@ class UowSpecVerifySpec : BehaviorSpec({
 
     Given("A change adding a new model, returned by the unit of work") {
         val added = createdTestModel("MLG", 420)
-        val changes = ChangesAccumulator().adding(added).withResult(added)
+        val changes = ChangesAccumulator().adding(added).withResult(added, null)
 
         When("addsAndReturns verifies with a block that counts its own invocations") {
             var invocations = 0
@@ -109,7 +109,7 @@ class UowSpecVerifySpec : BehaviorSpec({
 
     Given("A change raising two events, verified with a single nested emits") {
         val added = createdTestModel("MLG", 420).activate()
-        val changes = ChangesAccumulator().adding(added).withResult(added)
+        val changes = ChangesAccumulator().adding(added).withResult(added, null)
 
         When("The verify block asserts only the first of the two events") {
             val verifying = {
@@ -144,7 +144,7 @@ class UowSpecVerifySpec : BehaviorSpec({
 
     Given("A change updating a model, returned by the unit of work") {
         val updated = existingCreatedTestModel(randomTestModelId(), "noscope", 360, V1).activate()
-        val changes = ChangesAccumulator().updating(updated).withResult(updated)
+        val changes = ChangesAccumulator().updating(updated).withResult(updated, null)
 
         When("updatesAndReturns verifies with a block that counts its own invocations") {
             var invocations = 0
@@ -291,7 +291,7 @@ class UowSpecVerifySpec : BehaviorSpec({
         val added = createdTestModel("MLG", 420)
         val changes = ChangesAccumulator()
             .adding(added)
-            .withResult(added.changeParam1("NOT REGISTERED"))
+            .withResult(added.changeParam1("NOT REGISTERED"), null)
 
         When("addsAndReturns verifies the change") {
             val verifying = {
@@ -315,7 +315,7 @@ class UowSpecVerifySpec : BehaviorSpec({
         val id = randomTestModelId()
         val updated = existingCreatedTestModel(id, "noscope", 360, V1).activate()
         val divergent = existingCreatedTestModel(id, "noscope", 360, V1).activate()
-        val changes = ChangesAccumulator().updating(updated).withResult(divergent)
+        val changes = ChangesAccumulator().updating(updated).withResult(divergent, null)
 
         When("updatesAndReturns verifies the change") {
             val verifying = {
@@ -338,7 +338,7 @@ class UowSpecVerifySpec : BehaviorSpec({
         // persisted, not new: the executor refuses an unregistered NEW model in a result, so a real UoW
         // could never hand the verify DSL the id mismatch this pins
         val unrelated = existingCreatedTestModel(randomTestModelId(), "MLG", 420, V1)
-        val changes = ChangesAccumulator().adding(added).withResult(unrelated)
+        val changes = ChangesAccumulator().adding(added).withResult(unrelated, null)
 
         When("addsAndReturns verifies the change") {
             val verifying = {
@@ -362,7 +362,7 @@ class UowSpecVerifySpec : BehaviorSpec({
 
     Given("A change whose result is null") {
         val added = createdTestModel("MLG", 420)
-        val changes = ChangesAccumulator().adding(added).withResult<Any?>(null)
+        val changes = ChangesAccumulator().adding(added).withResult<Any?>(null, null)
 
         When("addsAndReturns verifies the change") {
             val verifying = {
@@ -383,7 +383,7 @@ class UowSpecVerifySpec : BehaviorSpec({
 
     Given("A change whose result is neither a model nor of the right id") {
         val added = createdTestModel("MLG", 420)
-        val changes = ChangesAccumulator().adding(added).withResult(added.id())
+        val changes = ChangesAccumulator().adding(added).withResult(added.id(), null)
 
         When("addsAndReturns is given a mismatching id as well") {
             val verifying = {
