@@ -15,8 +15,11 @@ private fun existingChangeExceptionMessage(modelId: ModelId<*>) =
 
 abstract class Changes<R> {
     internal abstract val result: R
-    internal abstract val modelChangesToPersist: List<ModelChange>
-    internal abstract val entityChangesToPersist: List<EntityChange>
+    // A block's changes are the ones its accumulator lists. Only a stub, which has no accumulator, lists its own.
+    internal open val modelChangesToPersist: List<ModelChange>
+        get() = checkNotNull(accumulator).modelChangesToPersist
+    internal open val entityChangesToPersist: List<EntityChange>
+        get() = checkNotNull(accumulator).entityChangesToPersist
     // Builder set by roundtrip { }; the executor runs it over persisted models. Any? since R is known only per call.
     internal open val resultBuilder: ((PersistedLookup) -> Any?)? get() = null
     // The accumulator a change block built these changes from, so a parent can take the child's registrations
@@ -230,12 +233,20 @@ internal class ChangesAccumulator private constructor(
         return modelChanges.values.firstNotNullOfOrNull { find(it.model) }
     }
 
-    // flattened once, on the first question: the value is immutable, and a caller asks for each model it holds
-    private val flattened by lazy { flattenChildModels().associateBy { it.id } }
+    /**
+     * The model changes this value persists: the registrations and the owned models of their aggregates, as
+     * [flattenChildModels] lists them. Flattened once, on the first question, since the value is immutable.
+     */
+    internal val modelChangesToPersist: List<ModelChange> by lazy { flattenChildModels() }
+
+    internal val entityChangesToPersist: List<EntityChange> get() = entityChanges
+
+    // by id, since a caller asks for each model it holds
+    private val flattened by lazy { modelChangesToPersist.associateBy { it.id } }
 
     /**
      * True when the change set persists every write [model] carries: the change for its id holds [model] or a
-     * later state of it. It reads the flattened view [withResult] persists, so an owned child of a registered
+     * later state of it. It reads the flattened view [modelChangesToPersist], so an owned child of a registered
      * [Aggregate] counts. Reading the raw registrations alone would report a dropped write for a model the
      * aggregate persists.
      */
@@ -290,11 +301,13 @@ internal class ChangesAccumulator private constructor(
         result: R,
         resultBuilder: ((PersistedLookup) -> Any?)?,
     ): Changes<R> {
-        require(modelChanges.isNotEmpty() || entityChanges.isNotEmpty()) { "No changes to persist" }
-        return RealisedChanges(result, flattenChildModels(), entityChanges, resultBuilder, this)
+        // The flatten runs here, so an owned model that contradicts a registration fails where the block ends.
+        // Its list is empty exactly when no model is registered.
+        require(modelChangesToPersist.isNotEmpty() || entityChanges.isNotEmpty()) { "No changes to persist" }
+        return AccumulatedChanges(result, resultBuilder, this)
     }
 
-    internal fun flattenChildModels(): List<ModelChange> {
+    private fun flattenChildModels(): List<ModelChange> {
         val result = LinkedHashMap<ModelId<out Comparable<*>>, ModelChange>()
         // the instance each id persists as: a registration, or an owned child flattened for it
         val known: MutableMap<ModelId<out Comparable<*>>, Model<*, *>> =
@@ -386,12 +399,14 @@ internal fun verifyResultAccounted(result: Any?, changes: List<ModelChange>) {
     }
 }
 
-internal class RealisedChanges<R>(
+/**
+ * The changes a change block built, or the empty ones of `noChanges`: the result, the builder `roundtrip { }` set,
+ * and the accumulator, which lists the model and entity changes.
+ */
+internal class AccumulatedChanges<R>(
     override val result: R,
-    override val modelChangesToPersist: List<ModelChange>,
-    override val entityChangesToPersist: List<EntityChange>,
     override val resultBuilder: ((PersistedLookup) -> Any?)?,
-    override val accumulator: ChangesAccumulator?,
+    override val accumulator: ChangesAccumulator,
 ) : Changes<R>()
 
 // Reference-identity prefix checks over event lists: composed changes to one model are reconcilable

@@ -51,8 +51,6 @@ abstract class WrappingUnitOfWork<PRINCIPAL, PARAMS, RESULT, C : Any>(
     inner class Block internal constructor(private val changes: Changes<RESULT>) : Changes<RESULT>() {
         internal val owner: WrappingUnitOfWork<*, *, *, *> get() = this@WrappingUnitOfWork
         override val result: RESULT get() = changes.result
-        override val modelChangesToPersist: List<ModelChange> get() = changes.modelChangesToPersist
-        override val entityChangesToPersist: List<EntityChange> get() = changes.entityChangesToPersist
         override val resultBuilder: ((PersistedLookup) -> Any?)? get() = changes.resultBuilder
         override val accumulator: ChangesAccumulator? get() = changes.accumulator
     }
