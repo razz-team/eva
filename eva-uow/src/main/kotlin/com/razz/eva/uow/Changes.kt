@@ -291,8 +291,9 @@ internal class ChangesAccumulator private constructor(
         check(child.seed === this) {
             // an anonymous UoW has an empty simple name
             "Composed ${uowName.ifEmpty { "child UnitOfWork" }} did not start from the changes its parent holds " +
-                "now; construct the child with the ExecutionContext given to the factory, and do not register in " +
-                "the parent's block from the params lambda or while the child runs"
+                "now; a child extends composable.UnitOfWork or a WrappingUnitOfWork family and not the plain " +
+                "UnitOfWork, it is constructed with the ExecutionContext given to the factory, and its parent " +
+                "does not register from the params lambda or while the child runs"
         }
         return next(child.modelChanges, child.entityChanges, child.modelChanges.keys)
     }

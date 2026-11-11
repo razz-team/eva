@@ -6,10 +6,14 @@ package com.razz.eva.uow.composable
  * child must start from the parent's changes: construct it with the `ExecutionContext` handed to the factory.
  * [UnitOfWork] implements it. A family on [com.razz.eva.uow.WrappingUnitOfWork] opts in by implementing it too.
  *
- * Any class may implement this marker, and that opens nothing. Only eva's change DSLs build a
- * [com.razz.eva.uow.Changes] that carries changes, so a unit of work outside them can return only `noChanges`,
- * which merges as nothing, or a test stub. A block that does carry changes also records the changes it started
- * from, and `execute` refuses a child whose block did not start from the parent's: a plain
- * [com.razz.eva.uow.UnitOfWork] that claims this marker, or a child built with another context, fails there.
+ * Any class may implement this marker, and that opens nothing a parent does not check. Only eva's change DSLs
+ * build a [com.razz.eva.uow.Changes] that carries changes, so a unit of work outside them returns `noChanges`,
+ * which merges as nothing, a test stub, or changes another unit of work built. A block that carries changes
+ * records the changes it started from, and a block of a [com.razz.eva.uow.WrappingUnitOfWork] records the unit
+ * that built it. `execute` refuses the changes of a plain [com.razz.eva.uow.UnitOfWork], of a block another unit
+ * built, or of a child built with another context.
+ *
+ * A unit of work can implement it on its own, whatever its family does. A family that must never run as a child
+ * implements [NotComposableUow]: then a unit of it that adds this marker does not compile.
  */
-interface ComposableUow
+interface ComposableUow : Composition<ComposableUow>

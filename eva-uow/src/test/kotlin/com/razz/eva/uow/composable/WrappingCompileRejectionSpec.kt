@@ -91,7 +91,7 @@ class WrappingCompileRejectionSpec : FunSpec({
         result.errorCount() shouldBe 1
     }
 
-    fun compileExecute(familyMarker: String) = KotlinCompilation().apply {
+    fun compileExecute(familyMarker: String, unitMarker: String = "") = KotlinCompilation().apply {
         sources = listOf(
             SourceFile.kotlin(
                 "Probe.kt",
@@ -105,6 +105,7 @@ class WrappingCompileRejectionSpec : FunSpec({
                 import com.razz.eva.uow.WrappingUnitOfWork
                 import com.razz.eva.uow.composable.ChangesDsl
                 import com.razz.eva.uow.composable.ComposableUow
+                import com.razz.eva.uow.composable.NotComposableUow
                 import com.razz.eva.uow.composable.UnitOfWork
 
                 object Params : UowParams<Params>
@@ -116,7 +117,7 @@ class WrappingCompileRejectionSpec : FunSpec({
                     final override fun wrap(dsl: ChangesDsl) = FamilyDsl(dsl)
                 }
 
-                class ChildUow(executionContext: ExecutionContext) : Family<String>(executionContext) {
+                class ChildUow(executionContext: ExecutionContext) : Family<String>(executionContext)$unitMarker {
                     override suspend fun tryPerform(principal: TestPrincipal, params: Params) =
                         changes { dsl.add(createdTestModel("child", 1)).let { "child" } }
                 }
@@ -144,6 +145,22 @@ class WrappingCompileRejectionSpec : FunSpec({
     test("A unit of a family that does not implement ComposableUow does not compile as an execute argument") {
         val result = compileExecute("")
         result.shouldRejectWith("Return type mismatch: expected 'ComposableUow', actual 'ChildUow'.")
+        result.errorCount() shouldBe 1
+    }
+
+    // the one error is the execute argument, so the family and its unit compile
+    test("A unit of a family that implements NotComposableUow does not compile as an execute argument") {
+        val result = compileExecute(", NotComposableUow")
+        result.shouldRejectWith("Return type mismatch: expected 'ComposableUow', actual 'ChildUow'.")
+        result.errorCount() shouldBe 1
+    }
+
+    test("A unit of a family that implements NotComposableUow cannot make itself composable") {
+        val result = compileExecute(", NotComposableUow", unitMarker = ", ComposableUow")
+        result.shouldRejectWith(
+            "Type parameter 'A' of 'interface Composition<A> : Any' has inconsistent values: NotComposableUow, " +
+                "ComposableUow.",
+        )
         result.errorCount() shouldBe 1
     }
 })

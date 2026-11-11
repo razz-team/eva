@@ -737,7 +737,7 @@ The witness itself is opt-in, but these changes reach every consumer:
   }
   ```
 
-  Both examples are in eva-examples: `changes/uow` returns `Block`, `composition/uow` runs as a child. No single source shape compiles against both 0.40 and 0.41, and a custom family compiled against 0.40 fails with `NoSuchMethodError`, so recompile it. `ComposableUow` is an open marker: `composable.UnitOfWork` implements it, the plain `UnitOfWork` does not, and `execute` refuses a child whose block did not start from the parent's changes.
+  Both examples are in eva-examples: `changes/uow` returns `Block`, `composition/uow` runs as a child. No single source shape compiles against both 0.40 and 0.41, and a custom family compiled against 0.40 fails with `NoSuchMethodError`, so recompile it. Any unit of work can implement `ComposableUow`: `composable.UnitOfWork` does, the plain `UnitOfWork` does not. `execute` refuses a child whose block did not start from the parent's changes, so a plain `UnitOfWork` that implements it fails at run time. A family that must never run as a child implements `NotComposableUow`.
 - **New runtime failures** (`IllegalStateException`, before anything is persisted). Each of these silently dropped a write on 0.40:
   - a result holding a new or dirty model that no `add` / `update` registered, including inside nested collections, maps, arrays, pairs, triples and an aggregate's owned models;
   - a result holding a model that carries a write its registered instance lacks;

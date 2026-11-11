@@ -17,7 +17,9 @@ import com.razz.eva.uow.composable.ChangesDsl
  *
  * A family whose units of work run as children of a composable parent also implements
  * [com.razz.eva.uow.composable.ComposableUow]. Its block starts from the changes the parent hands in, so what it
- * registers merges into the parent's changes.
+ * registers merges into the parent's changes. `finish` then judges the child's block only: the parent can still
+ * extend a model the child registered. A family that must never run as a child implements
+ * [com.razz.eva.uow.composable.NotComposableUow].
  */
 abstract class WrappingUnitOfWork<PRINCIPAL, PARAMS, RESULT, C : Any>(
     private val executionContext: ExecutionContext,

@@ -55,8 +55,9 @@ import java.time.LocalDate
 class ChangesDslSpec : FunSpec({
 
     val notStartedFromParent = "Composed child UnitOfWork did not start from the changes its parent holds now; " +
-        "construct the child with the ExecutionContext given to the factory, and do not register in the " +
-        "parent's block from the params lambda or while the child runs"
+        "a child extends composable.UnitOfWork or a WrappingUnitOfWork family and not the plain UnitOfWork, it is " +
+        "constructed with the ExecutionContext given to the factory, and its parent does not register from the " +
+        "params lambda or while the child runs"
 
     val now = millisUTC().instant()
     val clock = fixedUTC(now)

@@ -93,10 +93,33 @@ internal class PlainTestUow(executionContext: ExecutionContext, private val mode
     override suspend fun tryPerform(principal: TestPrincipal, params: DummyUow.Params) = changes { add(model) }
 }
 
-// Not a wrapping family: a base that claims the marker and can return nothing but noChanges.
+// Not a wrapping family: a base that claims the marker and returns noChanges.
 internal class NoChangesComposableUow(executionContext: ExecutionContext, private val result: String) :
     BaseUnitOfWork<TestPrincipal, DummyUow.Params, String, Unit>(executionContext), ComposableUow {
     override suspend fun tryPerform(principal: TestPrincipal, params: DummyUow.Params) = noChanges(result)
+}
+
+// A family that must never run as a child.
+internal abstract class NeverChildFamily<R : Any>(executionContext: ExecutionContext) :
+    com.razz.eva.uow.WrappingUnitOfWork<TestPrincipal, DummyUow.Params, R, FamilyDsl>(executionContext),
+    NotComposableUow {
+    final override fun wrap(dsl: ChangesDsl) = FamilyDsl(dsl)
+}
+
+internal class NeverChildUow(executionContext: ExecutionContext, private val model: TestModel) :
+    NeverChildFamily<TestModel>(executionContext) {
+    override suspend fun tryPerform(principal: TestPrincipal, params: DummyUow.Params) = changes { add(model) }
+}
+
+// Plain units of work that claim the marker: their blocks never start from a parent's changes.
+internal class PlainMarkedUow(executionContext: ExecutionContext, private val model: TestModel) :
+    com.razz.eva.uow.UnitOfWork<TestPrincipal, DummyUow.Params, TestModel>(executionContext), ComposableUow {
+    override suspend fun tryPerform(principal: TestPrincipal, params: DummyUow.Params) = changes { add(model) }
+}
+
+internal class PlainMarkedCleanUow(executionContext: ExecutionContext, private val model: TestModel) :
+    com.razz.eva.uow.UnitOfWork<TestPrincipal, DummyUow.Params, TestModel>(executionContext), ComposableUow {
+    override suspend fun tryPerform(principal: TestPrincipal, params: DummyUow.Params) = changes { update(model) }
 }
 
 class WrappingUnitOfWorkSpec : FunSpec({
@@ -319,5 +342,42 @@ class WrappingUnitOfWorkSpec : FunSpec({
         fromChild shouldBe "nothing"
         changes.modelChangesToPersist.map { it.model } shouldBe listOf(first)
         changes.modelChangesToPersist.map { it.modelEvents.size } shouldBe listOf(1)
+    }
+
+    test("A composable parent refuses a unit of a family that implements NotComposableUow, past an unchecked cast") {
+        val created = createdTestModel("never a child", 1)
+        @Suppress("UNCHECKED_CAST")
+        val child = { exCtx: ExecutionContext -> NeverChildUow(exCtx, created) } as
+            (ExecutionContext) -> DummyUow<TestModel>
+        val parent = object : DummyUow<TestModel>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                execute(child, TestPrincipal) { Params }
+            }
+        }
+        val ex = shouldThrow<IllegalStateException> { parent.tryPerform(TestPrincipal, DummyUow.Params) }
+        checkNotNull(ex.message) shouldContain "NeverChildUow is not composable"
+    }
+
+    test("A plain UnitOfWork that claims the marker fails at the seed check, also under an empty parent") {
+        val parent = object : DummyUow<TestModel>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                execute({ exCtx -> PlainMarkedUow(exCtx, createdTestModel("plain", 1)) }, TestPrincipal) { Params }
+            }
+        }
+        val ex = shouldThrow<IllegalStateException> { parent.tryPerform(TestPrincipal, DummyUow.Params) }
+        checkNotNull(ex.message) shouldContain "did not start from the changes its parent holds now; a child " +
+            "extends composable.UnitOfWork or a WrappingUnitOfWork family and not the plain UnitOfWork"
+    }
+
+    test("A plain UnitOfWork that claims the marker and only claims a clean model also fails") {
+        val read = existingCreatedTestModel(param1 = "read", param2 = 1)
+        val parent = object : DummyUow<TestModel>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                add(createdTestModel("parent", 1))
+                execute({ exCtx -> PlainMarkedCleanUow(exCtx, read) }, TestPrincipal) { Params }
+            }
+        }
+        val ex = shouldThrow<IllegalStateException> { parent.tryPerform(TestPrincipal, DummyUow.Params) }
+        checkNotNull(ex.message) shouldContain "did not start from the changes its parent holds now"
     }
 })
