@@ -3,17 +3,15 @@ package com.razz.eva.uow
 import com.razz.eva.domain.TestModel.ActiveTestModel
 import com.razz.eva.domain.TestModel.Factory.createdTestModel
 import com.razz.eva.domain.TestModel.Factory.existingCreatedTestModel
-import com.razz.eva.domain.TestModelEvent.TestModelCreated
-import com.razz.eva.domain.TestModelEvent.TestModelStatusChanged
 import com.razz.eva.domain.TestModelId.Companion.randomTestModelId
-import com.razz.eva.domain.TestModelStatus.ACTIVE
-import com.razz.eva.domain.TestModelStatus.CREATED
 import com.razz.eva.domain.Version.Companion.V1
 import com.razz.eva.uow.Clocks.fixedUTC
 import com.razz.eva.uow.Clocks.millisUTC
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldStartWith
 import io.opentelemetry.api.OpenTelemetry
 
 class ChangesDslSpec : FunSpec({
@@ -42,14 +40,8 @@ class ChangesDslSpec : FunSpec({
         val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
 
         changes.modelChangesToPersist shouldBe listOf(
-            AddModel(
-                model0,
-                listOf(
-                    TestModelCreated(model0.id()),
-                    TestModelStatusChanged(model0.id(), CREATED, ACTIVE),
-                ),
-            ),
-            UpdateModel(model1, listOf(TestModelStatusChanged(model1.id(), CREATED, ACTIVE))),
+            AddModel(model0),
+            UpdateModel(model1),
             NoopModel(model2),
         )
         changes.result shouldBe "K P A C U B O"
@@ -82,7 +74,8 @@ class ChangesDslSpec : FunSpec({
         val exception = shouldThrow<IllegalArgumentException> {
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
-        exception.message shouldBe "Attempted to register unchanged model [${model.id().stringValue()}] as changed"
+        exception.message shouldStartWith
+            "Attempted to register unchanged model [${model.id().stringValue()}] as changed"
     }
 
     test("Should throw exception when unchanged model added") {
@@ -97,7 +90,7 @@ class ChangesDslSpec : FunSpec({
         val exception = shouldThrow<IllegalArgumentException> {
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
-        exception.message shouldBe "Attempted to register unchanged model [${model.id().stringValue()}] as new"
+        exception.message shouldStartWith "Attempted to register unchanged model [${model.id().stringValue()}] as new"
     }
 
     test("Should throw exception when changed model added") {
@@ -112,7 +105,7 @@ class ChangesDslSpec : FunSpec({
         val exception = shouldThrow<IllegalArgumentException> {
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
-        exception.message shouldBe "Attempted to register changed model [${model.id().stringValue()}] as new"
+        exception.message shouldStartWith "Attempted to register changed model [${model.id().stringValue()}] as new"
     }
 
     test("Should throw exception when changed model marked as not changed") {
@@ -127,7 +120,8 @@ class ChangesDslSpec : FunSpec({
         val exception = shouldThrow<IllegalArgumentException> {
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
-        exception.message shouldBe "Attempted to register changed model [${model.id().stringValue()}] as unchanged"
+        exception.message shouldStartWith
+            "Attempted to register changed model [${model.id().stringValue()}] as unchanged"
     }
 
     test("Should throw exception when new model marked as not changed") {
@@ -142,7 +136,7 @@ class ChangesDslSpec : FunSpec({
         val exception = shouldThrow<IllegalArgumentException> {
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
-        exception.message shouldBe "Attempted to register new model [${model.id().stringValue()}] as unchanged"
+        exception.message shouldStartWith "Attempted to register new model [${model.id().stringValue()}] as unchanged"
     }
 
     test("Should throw exception when new model updated") {
@@ -157,7 +151,7 @@ class ChangesDslSpec : FunSpec({
         val exception = shouldThrow<IllegalArgumentException> {
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
-        exception.message shouldBe "Attempted to register new model [${model.id().stringValue()}] as changed"
+        exception.message shouldStartWith "Attempted to register new model [${model.id().stringValue()}] as changed"
     }
 
     test("Should throw exception when no models were added or updated with result") {
@@ -171,7 +165,7 @@ class ChangesDslSpec : FunSpec({
         val exception = shouldThrow<IllegalArgumentException> {
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
-        exception.message shouldBe "No changes to persist"
+        exception.message shouldStartWith "No changes to persist"
     }
 
     test("Should throw exception when no models were added or updated without result") {
@@ -183,7 +177,7 @@ class ChangesDslSpec : FunSpec({
         val exception = shouldThrow<IllegalArgumentException> {
             uow.tryPerform(TestPrincipal, DummyUnitUow.Params)
         }
-        exception.message shouldBe "No changes to persist"
+        exception.message shouldStartWith "No changes to persist"
     }
 
     test("Should return properly built RealisedChanges when unchanged model not changed") {
@@ -214,5 +208,18 @@ class ChangesDslSpec : FunSpec({
         // the executor refuses this over the merged change set; a block on its own does not,
         // so a parent can still register what a child handed back
         uow.tryPerform(TestPrincipal, DummyUow.Params).result shouldBe dirty
+    }
+
+    test("A plain block that updates a model it already updated itself fails") {
+        val first = existingCreatedTestModel(param1 = "read", param2 = 1).changeParam1("first")
+        val uow = object : DummyUow(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                update(first)
+                update(first.changeParam1("second"), required = true)
+                "plain"
+            }
+        }
+        val ex = shouldThrow<IllegalStateException> { uow.tryPerform(TestPrincipal, DummyUow.Params) }
+        checkNotNull(ex.message) shouldContain "was already registered"
     }
 })

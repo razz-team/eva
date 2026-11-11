@@ -5,7 +5,6 @@ import com.razz.eva.domain.Department.OwnedDepartment
 import com.razz.eva.domain.DepartmentId.Companion.randomDepartmentId
 import com.razz.eva.domain.Employee
 import com.razz.eva.domain.Employee.Companion.newEmployee
-import com.razz.eva.domain.EmployeeEvent.DepartmentChanged
 import com.razz.eva.domain.EmployeeId
 import com.razz.eva.domain.ModelState.PersistentState.Companion.persistentState
 import com.razz.eva.domain.Name
@@ -46,10 +45,7 @@ class WitnessSpec : FunSpec({
 
         changes.result.departmentId shouldBe department.id()
         changes.modelChangesToPersist shouldBe listOf(
-            UpdateModel(
-                changes.result,
-                listOf(DepartmentChanged(employee.id(), employee.departmentId, department.id())),
-            ),
+            UpdateModel(changes.result),
         )
     }
 
@@ -65,7 +61,7 @@ class WitnessSpec : FunSpec({
         val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
 
         changes.result.boss shouldBe employee.id()
-        val change = changes.modelChangesToPersist.single().shouldBeInstanceOf<UpdateModel<*, *, *>>()
+        val change = changes.modelChangesToPersist.single().shouldBeInstanceOf<UpdateModel<*, *>>()
         change.model shouldBe changes.result
     }
 
@@ -94,7 +90,7 @@ class WitnessSpec : FunSpec({
         val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
 
         changes.result shouldBe dirty
-        changes.modelChangesToPersist.single().shouldBeInstanceOf<UpdateModel<*, *, *>>().model shouldBe dirty
+        changes.modelChangesToPersist.single().shouldBeInstanceOf<UpdateModel<*, *>>().model shouldBe dirty
     }
 
     test("update(model) { } refuses a mutation that came back as a different model") {
@@ -124,7 +120,7 @@ class WitnessSpec : FunSpec({
         val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
 
         changes.result.isNew() shouldBe true
-        val change = changes.modelChangesToPersist.single().shouldBeInstanceOf<AddModel<*, *, *>>()
+        val change = changes.modelChangesToPersist.single().shouldBeInstanceOf<AddModel<*, *>>()
         change.model shouldBe changes.result
     }
 })
