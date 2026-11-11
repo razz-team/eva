@@ -18,7 +18,7 @@ abstract class CustomUnitOfWork<PRINCIPAL, PARAMS, RESULT>(
 ) : WrappingUnitOfWork<PRINCIPAL, PARAMS, RESULT, CustomChangesDsl>(executionContext, configuration)
     where PRINCIPAL : Principal<*>, PARAMS : UowParams<PARAMS>, RESULT : Any {
 
-    abstract override suspend fun tryPerform(principal: PRINCIPAL, params: PARAMS): Block<RESULT>
+    abstract override suspend fun tryPerform(principal: PRINCIPAL, params: PARAMS): Block
 
-    override fun wrap(dsl: ChangesDsl) = CustomChangesDsl(dsl)
+    final override fun wrap(dsl: ChangesDsl) = CustomChangesDsl(dsl)
 }

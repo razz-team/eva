@@ -12,7 +12,7 @@ import java.io.OutputStream
 // A family that declares tryPerform as returning Block can be satisfied only by its own changes { }.
 class WrappingCompileRejectionSpec : FunSpec({
 
-    fun compile(body: String) = KotlinCompilation().apply {
+    fun compile(body: String, outside: String = "") = KotlinCompilation().apply {
         sources = listOf(
             SourceFile.kotlin(
                 "Probe.kt",
@@ -32,14 +32,16 @@ class WrappingCompileRejectionSpec : FunSpec({
 
                 abstract class StrictFamily<R : Any>(executionContext: ExecutionContext) :
                     WrappingUnitOfWork<TestPrincipal, Params, R, StrictDsl>(executionContext) {
-                    abstract override suspend fun tryPerform(principal: TestPrincipal, params: Params): Block<R>
+                    abstract override suspend fun tryPerform(principal: TestPrincipal, params: Params): Block
 
-                    override fun wrap(dsl: ChangesDsl) = StrictDsl(dsl)
+                    final override fun wrap(dsl: ChangesDsl) = StrictDsl(dsl)
                 }
 
-                class ProbeUow(executionContext: ExecutionContext) : StrictFamily<String>(executionContext) {
+                class ProbeUow(private val executionContext: ExecutionContext) : StrictFamily<String>(executionContext) {
                     override suspend fun tryPerform(principal: TestPrincipal, params: Params) = $body
                 }
+
+                $outside
                 """.trimIndent(),
             ),
         )
@@ -59,7 +61,7 @@ class WrappingCompileRejectionSpec : FunSpec({
         val result = compile("""noChanges("ok")""")
         result.shouldRejectWith(
             "is not a subtype of the return type of the overridden member 'suspend fun tryPerform(principal: " +
-                "TestPrincipal, params: Params): WrappingUnitOfWork.Block<String>'",
+                "TestPrincipal, params: Params): WrappingUnitOfWork.Block<TestPrincipal, Params, String, StrictDsl>'",
         )
         result.errorCount() shouldBe 1
     }
@@ -67,8 +69,25 @@ class WrappingCompileRejectionSpec : FunSpec({
     test("A Block cannot be built outside eva") {
         val result = compile("""Block(noChanges("ok"))""")
         result.shouldRejectWith(
-            "Cannot access 'constructor<R>(changes: Changes<R>): WrappingUnitOfWork.Block<R>': it is internal",
+            "Cannot access 'WrappingUnitOfWork<TestPrincipal, Params, String, StrictDsl>.constructor(changes: " +
+                "Changes<String>): WrappingUnitOfWork.Block<TestPrincipal, Params, String, StrictDsl>': it is internal",
         )
+        result.errorCount() shouldBe 1
+    }
+
+    test("The block of a family with another DSL does not compile as the result of a family that returns Block") {
+        val result = compile(
+            "Raw(executionContext).tryPerform(principal, params)",
+            """
+            class Raw(executionContext: ExecutionContext) :
+                WrappingUnitOfWork<TestPrincipal, Params, String, ChangesDsl>(executionContext) {
+                final override fun wrap(dsl: ChangesDsl) = dsl
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params): Block =
+                    changes { add(createdTestModel("smuggled", 1)).let { "ok" } }
+            }
+            """.trimIndent(),
+        )
+        result.shouldRejectWith("is not a subtype of the return type of the overridden member")
         result.errorCount() shouldBe 1
     }
 })

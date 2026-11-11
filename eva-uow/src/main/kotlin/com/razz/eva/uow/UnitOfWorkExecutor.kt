@@ -257,6 +257,7 @@ class UnitOfWorkExecutor(
         check(!changes.stubbed) {
             "$name returned stubChanges; it builds test doubles only, a real UnitOfWork must go through changes { }"
         }
+        checkBuiltBy(uow, changes, name)
         // over the merged set, so a plain family's child may hand a model back for its parent to register
         verifyResultAccounted(changes.result, changes.modelChangesToPersist)
         verifyResultInstances(changes.result, changes.modelChangesToPersist)

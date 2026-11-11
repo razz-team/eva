@@ -19,6 +19,7 @@ import com.razz.eva.uow.ExecutionContext
 import com.razz.eva.uow.InstantiationContext
 import com.razz.eva.uow.PersistedLookup
 import com.razz.eva.uow.UowParams
+import com.razz.eva.uow.checkBuiltBy
 import io.opentelemetry.api.trace.Span
 import kotlin.reflect.KClass
 
@@ -136,11 +137,17 @@ class ChangesDsl internal constructor(
               UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *>,
               UOW : ComposableUow {
         val uow = uowFactory(executionContext.withInheritedChanges(changes))
+        // the bounds already demand ComposableUow; an unchecked cast of the factory can still get past them
+        check(ComposableUow::class.isInstance(uow)) {
+            "${uow.name().ifEmpty { "A child unit of work" }} is not composable: a composable parent executes only " +
+                "a unit of work that extends composable.UnitOfWork or composable.WrappingUnitOfWork"
+        }
         val span = uowSpan(uow.name())
         return span.use {
             val subChanges = performingSpan(uow.name()).use {
                 uow.tryPerform(principal, params(InstantiationContext.Internal(0)))
             }
+            checkBuiltBy(uow, subChanges, uow.name())
             span.setAttribute(
                 MODEL_ID,
                 subChanges.modelChangesToPersist.map { it.id.stringValue() },
