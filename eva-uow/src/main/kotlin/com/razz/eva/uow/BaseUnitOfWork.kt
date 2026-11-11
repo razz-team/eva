@@ -44,8 +44,6 @@ abstract class BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, C>(
         return AccumulatedChanges(result, null, ChangesAccumulator())
     }
 
-    protected fun <R> Changes<R>.result(): R = this.result
-
     data class Configuration(
         val retry: Retry? = DEFAULT,
         val supportsOutOfOrderPersisting: Boolean = false,
