@@ -8,6 +8,7 @@ import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
 import com.razz.eva.domain.UpdatableEntity
 import com.razz.eva.uow.Changes
+import com.razz.eva.uow.verifyResultInstances
 import kotlin.jvm.java
 
 interface EqualityVerifierAware {
@@ -22,6 +23,12 @@ infix fun <R> Changes<R>.verifyInOrder(block: UowSpec<R>.() -> Unit) {
     val spec = UowSpec(this)
     block(spec)
     spec.verifyEnd()
+    // after the spec's own checks, which name the mismatch in more detail: the executor's instance net over
+    // the spec's own change set. It can fail a correct child that claims notChanged(m) and hands a mutation
+    // of m back, or a parent whose stubbed child returns an instance not descended from the parent's; the
+    // README says so. The unregistered-model net does not run here, since a composed child may hand a model
+    // back for its parent to register.
+    verifyResultInstances(result, modelChangesToPersist)
 }
 
 class UowSpec<R> internal constructor(

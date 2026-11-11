@@ -63,7 +63,7 @@ abstract class GuardedUnitOfWork<P, PF, PARAMS, RESULT>(
 
     // The block registers its changes in a composable ChangesDsl, so a child run with execute merges as in any
     // composable unit of work.
-    final override suspend fun changes(init: suspend GuardedChangesDsl<PF>.() -> RESULT): GuardedChanges<RESULT> =
+    protected suspend fun changes(init: suspend GuardedChangesDsl<PF>.() -> RESULT): GuardedChanges<RESULT> =
         Produced(
             ChangesDsl.changes(executionContext) {
                 val attempt = currentCoroutineContext()[InstantiationContext.Current]?.context

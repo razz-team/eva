@@ -1,5 +1,6 @@
 package com.razz.eva.repository
 
+import com.razz.eva.domain.mutating
 import com.razz.eva.domain.DepartmentId.Companion.randomDepartmentId
 import com.razz.eva.domain.DeptAggregate.Companion.newDeptAggregate
 import com.razz.eva.domain.Employee.Companion.newEmployee
@@ -44,12 +45,14 @@ class DeptAggregateRepositorySpec : RepositorySpec(TestEvaRepositoryHelper, {
                 }
 
                 And("Employees are added separately") {
-                    val employee = newEmployee(
-                        name = Name("Bob", "Jones"),
-                        departmentId = deptId,
-                        email = "bob@test.com",
-                        ration = BUBALEH,
-                    )
+                    val employee = mutating {
+                        newEmployee(
+                            name = Name("Bob", "Jones"),
+                            departmentId = deptId,
+                            email = "bob@test.com",
+                            ration = BUBALEH,
+                        )
+                    }
                     inTransaction { ctx ->
                         employeeRepo.add(ctx, employee)
                     }
@@ -88,12 +91,14 @@ class DeptAggregateRepositorySpec : RepositorySpec(TestEvaRepositoryHelper, {
                 inTransaction { ctx ->
                     employeeRepo.add(
                         ctx,
-                        newEmployee(
-                            name = Name("Dave", "Wilson"),
-                            departmentId = dept1.id(),
-                            email = "dave@test.com",
-                            ration = BUBALEH,
-                        ),
+                        mutating {
+                            newEmployee(
+                                name = Name("Dave", "Wilson"),
+                                departmentId = dept1.id(),
+                                email = "dave@test.com",
+                                ration = BUBALEH,
+                            )
+                        },
                     )
                 }
 
@@ -128,12 +133,14 @@ class DeptAggregateRepositorySpec : RepositorySpec(TestEvaRepositoryHelper, {
                 inTransaction { ctx ->
                     employeeRepo.add(
                         ctx,
-                        newEmployee(
-                            name = Name("Eve", "Davis"),
-                            departmentId = dept.id(),
-                            email = "eve@test.com",
-                            ration = BUBALEH,
-                        ),
+                        mutating {
+                            newEmployee(
+                                name = Name("Eve", "Davis"),
+                                departmentId = dept.id(),
+                                email = "eve@test.com",
+                                ration = BUBALEH,
+                            )
+                        },
                     )
                 }
 
@@ -169,12 +176,14 @@ class DeptAggregateRepositorySpec : RepositorySpec(TestEvaRepositoryHelper, {
                     boss = bossId,
                     ration = BUBALEH,
                 )
-                val employee = newEmployee(
-                    name = Name("Alice", "Smith"),
-                    departmentId = dept.id(),
-                    email = "alice@owned.com",
-                    ration = BUBALEH,
-                )
+                val employee = mutating {
+                    newEmployee(
+                        name = Name("Alice", "Smith"),
+                        departmentId = dept.id(),
+                        email = "alice@owned.com",
+                        ration = BUBALEH,
+                    )
+                }
                 val deptWithEmp = dept.addEmployee(employee)
 
                 val persisted = inTransaction { ctx ->
