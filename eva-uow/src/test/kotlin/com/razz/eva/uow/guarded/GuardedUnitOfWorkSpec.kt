@@ -1,5 +1,6 @@
 package com.razz.eva.uow.guarded
 
+import com.razz.eva.domain.mutating
 import com.razz.eva.domain.Department
 import com.razz.eva.domain.DepartmentEvent.NameChanged
 import com.razz.eva.domain.DeptAggregate
@@ -200,7 +201,7 @@ class GuardedUnitOfWorkSpec : FunSpec({
                 moving(proof)
                 ChildParams
             }
-            update(params.employee.model().changeDepartment(away))
+            update(params.employee.model()) { changeDepartment(away) }
         }
         shouldThrow<IllegalStateException> { parent.tryPerform(TestPrincipal, first.params(proof(employee))) }
             .message shouldBe "proven(...) was called in the params of a composed child. A child takes no proof: " +
@@ -210,7 +211,7 @@ class GuardedUnitOfWorkSpec : FunSpec({
     }
 
     test("refuses to wrap a proof on a model that is not stored") {
-        val hired = newEmployee(Name("Eve", "Green"), home.id(), "eve@test.com", BUBALEH)
+        val hired = mutating { newEmployee(Name("Eve", "Green"), home.id(), "eve@test.com", BUBALEH) }
         shouldThrow<IllegalArgumentException> { first.run { proven(TestProof(TestPrincipal, hired) { }) { hired } } }
             .message shouldBe "The proof for test.write is on ${hired.id().stringValue()}, which is new or has " +
             "unsaved changes. Get the proof on the model as it was loaded"
@@ -282,7 +283,7 @@ class GuardedUnitOfWorkSpec : FunSpec({
         shouldThrow<IllegalStateException> {
             block { params ->
                 update(dept.rename("Renamed"))
-                update(params.employee.model().changeDepartment(away))
+                update(params.employee.model()) { changeDepartment(away) }
             }.tryPerform(TestPrincipal, first.params(proof(employee)))
         }.message shouldBe unlisted("Block", dept.id().stringValue(), "DeptAggregate")
     }
@@ -384,11 +385,11 @@ class GuardedUnitOfWorkSpec : FunSpec({
 
     test("a unit of work with no Proven field adds models, updates models of listed types, and no guarded model") {
         val renamed = department("Old")
-        val hired = newEmployee(Name("Eve", "Green"), home.id(), "eve@test.com", BUBALEH)
+        val hired = mutating { newEmployee(Name("Eve", "Green"), home.id(), "eve@test.com", BUBALEH) }
         val unproven = UnprovenUow(executionContext) { add(hired); update(renamed.rename("Renamed")) }
         unproven.tryPerform(TestPrincipal, ChildParams).modelChangesToPersist.map { it.id } shouldContainExactly
             listOf(hired.id(), renamed.id())
-        val writing = UnprovenUow(executionContext) { update(employee.changeDepartment(away)) }
+        val writing = UnprovenUow(executionContext) { update(employee) { changeDepartment(away) } }
         shouldThrow<IllegalStateException> { writing.tryPerform(TestPrincipal, ChildParams) }
             .message shouldBe ungated("UnprovenUow", employee.id().stringValue(), "Employee")
     }
@@ -441,11 +442,12 @@ class GuardedUnitOfWorkSpec : FunSpec({
         }.message shouldBe refusedWrite("TargetFirstGuardedUow", "MoveOtherEmployeeUow", employee.id().stringValue())
     }
 
-    test("fails a block whose child's hand-built changes drop the proven model the block updated first") {
+    test("refuses a child whose hand-built changes drop the proven model the block updated first") {
         shouldThrow<IllegalStateException> {
             targetFirst { ctx, _ -> HandBuiltChildUow(ctx, home) }
                 .tryPerform(TestPrincipal, first.params(proof(employee)))
-        }.message shouldBe unwritten("TargetFirstGuardedUow", listOf(employee.id().stringValue()))
+        }.message shouldBe "Composed HandBuiltChildUow dropped inherited changes for model " +
+            "[${employee.id().stringValue()}]; construct the child with the ExecutionContext given to the factory"
     }
 
     test("a block that catches a child's refusal writes its own changes and nothing of the child's") {
@@ -468,7 +470,7 @@ class GuardedUnitOfWorkSpec : FunSpec({
     }
 
     test("refuses a child that adds a guarded model") {
-        val hired = newEmployee(Name("Eve", "Green"), home.id(), "eve@test.com", BUBALEH)
+        val hired = mutating { newEmployee(Name("Eve", "Green"), home.id(), "eve@test.com", BUBALEH) }
         shouldThrow<IllegalStateException> {
             composing(plainChild("Hire") { add(hired); "hired" })
                 .tryPerform(TestPrincipal, first.params(proof(employee)))
@@ -494,7 +496,7 @@ class GuardedUnitOfWorkSpec : FunSpec({
                 execute({ MoveOtherEmployeeUow(it, other, away) }, TestPrincipal) { ChildParams }
             }.exceptionOrNull()
             execute({ RenameDepartmentUow(it, home) }, TestPrincipal) { ChildParams }
-            update(params.employee.model().changeDepartment(away))
+            update(params.employee.model()) { changeDepartment(away) }
         }.tryPerform(TestPrincipal, first.params(proof(employee)))
         refusal?.message shouldBe refusedWrite("Block", "MoveOtherEmployeeUow", other.id().stringValue())
         changes.modelChangesToPersist.map { it.id } shouldBe listOf(home.id(), employee.id())
@@ -503,24 +505,24 @@ class GuardedUnitOfWorkSpec : FunSpec({
 
     test("does not count the owned models of an aggregate the block added as a child's writes") {
         val dept = newDeptAggregate(name = "Dept", boss = randomEmployeeId(), ration = BUBALEH).let { d ->
-            d.addEmployee(newEmployee(Name("Eve", "Green"), d.id(), "eve@test.com", BUBALEH))
+            d.addEmployee(mutating { newEmployee(Name("Eve", "Green"), d.id(), "eve@test.com", BUBALEH) })
         }
         val changes = block { params ->
             add(dept)
             execute({ RenameDepartmentUow(it, home) }, TestPrincipal) { ChildParams }
-            update(params.employee.model().changeDepartment(away))
+            update(params.employee.model()) { changeDepartment(away) }
         }.tryPerform(TestPrincipal, first.params(proof(employee)))
         changes.modelChangesToPersist.map { it.id } shouldBe
             listOf(dept.id(), dept.employees.single().id(), home.id(), employee.id())
     }
 
     test("refuses a child that adds an unguarded aggregate owning a new guarded model, naming the owned model") {
-        val hired = newEmployee(Name("Eve", "Green"), home.id(), "eve@test.com", BUBALEH)
+        val hired = mutating { newEmployee(Name("Eve", "Green"), home.id(), "eve@test.com", BUBALEH) }
         val dept = newDeptAggregate(name = "Dept", boss = randomEmployeeId(), ration = BUBALEH).addEmployee(hired)
         shouldThrow<IllegalStateException> {
             block { params ->
                 execute(plainChild("Found") { add(dept); "founded" }, TestPrincipal) { ChildParams }
-                update(params.employee.model().changeDepartment(away))
+                update(params.employee.model()) { changeDepartment(away) }
             }.tryPerform(TestPrincipal, first.params(proof(employee)))
         }.message shouldBe refusedWrite("Block", "Found", hired.id().stringValue())
     }
@@ -542,40 +544,94 @@ class GuardedUnitOfWorkSpec : FunSpec({
     test("refuses an added aggregate that owns a changed guarded model the block did not read with model()") {
         val other = employee(department = home.id())
         val dept = newDeptAggregate(name = "Fresh", boss = randomEmployeeId(), ration = BUBALEH)
-            .addEmployee(other.changeDepartment(away))
+            .addEmployee(mutating { other.changeDepartment(away) })
         shouldThrow<IllegalStateException> {
             block { params ->
                 add(dept)
-                update(params.employee.model().changeDepartment(away))
+                update(params.employee.model()) { changeDepartment(away) }
             }.tryPerform(TestPrincipal, first.params(proof(employee)))
         }.message shouldBe ownedUnread(dept.id().stringValue(), other.id().stringValue())
     }
 
     test("refuses a stored aggregate kept with notChanged that owns a changed guarded model the block did not read") {
         val other = employee(department = home.id())
-        val dept = storedDept(listOf(other.changeDepartment(away)))
+        val dept = storedDept(listOf(mutating { other.changeDepartment(away) }))
         shouldThrow<IllegalStateException> {
             block { params ->
                 notChanged(dept)
-                update(params.employee.model().changeDepartment(away))
+                update(params.employee.model()) { changeDepartment(away) }
             }.tryPerform(TestPrincipal, first.params(proof(employee)))
         }.message shouldBe ownedUnread(dept.id().stringValue(), other.id().stringValue())
     }
 
     test("refuses an update of a listed aggregate that owns a changed guarded model the block did not read") {
         val other = employee(department = home.id())
-        val dept = storedDept(listOf(other.changeDepartment(away)))
+        val dept = storedDept(listOf(mutating { other.changeDepartment(away) }))
         shouldThrow<IllegalStateException> {
             block(unguarded = setOf(DeptAggregate::class)) { params ->
                 update(dept.rename("Renamed"))
-                update(params.employee.model().changeDepartment(away))
+                update(params.employee.model()) { changeDepartment(away) }
+            }.tryPerform(TestPrincipal, first.params(proof(employee)))
+        }.message shouldBe ownedUnread(dept.id().stringValue(), other.id().stringValue())
+    }
+
+    test("update(model) { } refuses a guarded model the block did not read, before it runs the mutation") {
+        val other = employee(department = home.id())
+        var mutated = false
+        shouldThrow<IllegalStateException> {
+            block { params ->
+                update(other) {
+                    mutated = true
+                    changeDepartment(away)
+                }
+                update(params.employee.model()) { changeDepartment(away) }
+            }.tryPerform(TestPrincipal, first.params(proof(employee)))
+        }.message shouldBe ungated("Block", other.id().stringValue(), "Employee")
+        mutated shouldBe false
+    }
+
+    test("update(model) { } refuses a mutation whose aggregate owns a changed guarded model the block did not read") {
+        val other = employee(department = home.id())
+        val dept = storedDept(listOf(mutating { other.changeDepartment(away) }))
+        shouldThrow<IllegalStateException> {
+            block(unguarded = setOf(DeptAggregate::class)) { params ->
+                update(dept) { rename("Renamed") }
+                update(params.employee.model()) { changeDepartment(away) }
+            }.tryPerform(TestPrincipal, first.params(proof(employee)))
+        }.message shouldBe ownedUnread(dept.id().stringValue(), other.id().stringValue())
+    }
+
+    test("update(model) { } refuses a mutation that returns the proven model at another version") {
+        val stale = Employee(
+            employee.id(), employee.name, home.id(), employee.email, BUBALEH, persistentState(version(2), null),
+        )
+        shouldThrow<IllegalStateException> {
+            block { params -> update(params.employee.model()) { stale } }
+                .tryPerform(TestPrincipal, first.params(proof(employee)))
+        }.message shouldBe stale("Block", employee.id().stringValue())
+    }
+
+    test("update(model) { } that hands back the proven model keeps it unchanged") {
+        val changes = block { params -> update(params.employee.model()) { this } }
+            .tryPerform(TestPrincipal, first.params(proof(employee)))
+        changes.modelChangesToPersist.single().shouldBeInstanceOf<NoopModel>().id shouldBe employee.id()
+    }
+
+    test("add { } refuses a created aggregate that owns a changed guarded model the block did not read") {
+        val other = employee(department = home.id())
+        val dept = newDeptAggregate(name = "Fresh", boss = randomEmployeeId(), ration = BUBALEH)
+            .addEmployee(mutating { other.changeDepartment(away) })
+        shouldThrow<IllegalStateException> {
+            block { params ->
+                add { dept }
+                update(params.employee.model()) { changeDepartment(away) }
             }.tryPerform(TestPrincipal, first.params(proof(employee)))
         }.message shouldBe ownedUnread(dept.id().stringValue(), other.id().stringValue())
     }
 
     test("writes a proven model through the aggregate that owns it, at the version model() returned") {
         val changes = block(unguarded = setOf(DeptAggregate::class)) { params ->
-            val moved = params.employee.model().changeDepartment(away)
+            val moved = params.employee.model().let { mutating { it.changeDepartment(away) } }
             update(storedDept(listOf(moved)).rename("Renamed"))
             moved
         }.tryPerform(TestPrincipal, first.params(proof(employee)))
@@ -585,7 +641,7 @@ class GuardedUnitOfWorkSpec : FunSpec({
     test("refuses a block whose child rebuilds its aggregate without the proven model the aggregate owned") {
         shouldThrow<IllegalStateException> {
             block(unguarded = setOf(DeptAggregate::class)) { params ->
-                val moved = params.employee.model().changeDepartment(away)
+                val moved = params.employee.model().let { mutating { it.changeDepartment(away) } }
                 val dept = update(storedDept(listOf(moved)).rename("Renamed"))
                 val rebuilt = DeptAggregate(
                     dept.id(), "Again", dept.boss, 1, BUBALEH, listOf<Employee>(),
@@ -601,7 +657,7 @@ class GuardedUnitOfWorkSpec : FunSpec({
         shouldThrow<IllegalStateException> {
             block(guarding = Guarding(Department::class)) { params ->
                 execute({ RenameDepartmentUow(it, home) }, TestPrincipal) { ChildParams }
-                update(params.employee.model().changeDepartment(away))
+                update(params.employee.model()) { changeDepartment(away) }
             }.tryPerform(TestPrincipal, first.params(proof(employee)))
         }.message shouldBe refusedWrite("Block", "RenameDepartmentUow", home.id().stringValue())
     }

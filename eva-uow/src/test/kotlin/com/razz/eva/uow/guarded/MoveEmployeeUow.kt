@@ -55,22 +55,22 @@ internal class MoveEmployeeUow(
     override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
         params.extra?.let { extra ->
             when (params.how) {
-                How.PROVEN -> update(extra.model().changeDepartment(department))
-                How.UNREAD -> update(checkNotNull(params.unread).changeDepartment(department))
+                How.PROVEN -> update(extra.model()) { changeDepartment(department) }
+                How.UNREAD -> update(checkNotNull(params.unread)) { changeDepartment(department) }
                 How.DECOY -> {
                     extra.model()
-                    update(checkNotNull(params.decoy).changeDepartment(department))
+                    update(checkNotNull(params.decoy)) { changeDepartment(department) }
                 }
             }
         }
         params.adds?.let { add(it) }
-        params.beside?.let { update(it.changeDepartment(department)) }
+        params.beside?.let { update(it) { changeDepartment(department) } }
         params.renames?.let { update(it.rename("Renamed")) }
         val employee = params.employee.model()
         when {
             params.holds -> notChanged(params.stale ?: employee)
             params.skips -> employee
-            else -> update((params.stale ?: employee).changeDepartment(department))
+            else -> update(params.stale ?: employee) { changeDepartment(department) }
         }
     }
 

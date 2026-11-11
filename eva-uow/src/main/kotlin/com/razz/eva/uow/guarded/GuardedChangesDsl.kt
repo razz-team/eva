@@ -3,14 +3,14 @@ package com.razz.eva.uow.guarded
 import com.razz.eva.domain.Model
 import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
+import com.razz.eva.domain.Witness
 import com.razz.eva.domain.Principal
 import com.razz.eva.uow.Changes
-import com.razz.eva.uow.ChangesAccumulator
 import com.razz.eva.uow.ExecutionContext
 import com.razz.eva.uow.InstantiationContext
 import com.razz.eva.uow.PersistedLookup
 import com.razz.eva.uow.UowParams
-import com.razz.eva.uow.UpdateModel
+import com.razz.eva.uow.modelsIn
 import com.razz.eva.uow.composable.ChangesDsl
 import java.util.Collections
 import java.util.IdentityHashMap
@@ -20,9 +20,10 @@ import kotlin.reflect.KClass
  * The receiver of a [GuardedUnitOfWork]'s `changes { }` block. It works as the composable [ChangesDsl] does, with these
  * limits. `update` accepts a model the block read from a [Proven] with [model], at the version it had when read, and
  * a model whose type the unit of work lists in `unguardedWrites`; it refuses every other model. `add` accepts every
- * new model. A model an aggregate owns is checked as if the block registered it itself. [execute] runs a child unit
- * of work and refuses a child that registers a model of a guarded type ([Guarding]). It has no entity functions: a
- * child registers entities. [PF] is the proof type whose [Proven] fields the block can read.
+ * new model. `update(model) { }` and `add { }` supply a [Witness] as the composable DSL's do, with the same limits. A
+ * model an aggregate owns is checked as if the block registered it itself. [execute] runs a child unit of work and
+ * refuses a child that registers a model of a guarded type ([Guarding]). It has no entity functions: a child registers
+ * entities. [PF] is the proof type whose [Proven] fields the block can read.
  */
 class GuardedChangesDsl<PF : Proof<*, *, *>> internal constructor(
     private val dsl: ChangesDsl,
@@ -47,8 +48,38 @@ class GuardedChangesDsl<PF : Proof<*, *, *>> internal constructor(
         return dsl.add(model)
     }
 
+    /** Adds the model [create] returns, as `add(model)` does. [create] runs with a [Witness] for its id type. */
+    fun <MID, E, M> add(create: context(Witness<MID>) () -> M): M
+        where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> =
+        dsl.add { create().also { checkOwnedModels(it) } }
+
     fun <MID, E, M> update(model: M): M
         where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
+        checkMayUpdate(model)
+        checkOwnedModels(model)
+        dsl.update(model)
+        return model
+    }
+
+    /**
+     * Runs [mutate] on [model] with a [Witness] for its id type and registers what it returns, as the composable
+     * `update(model) { }` does. [model] must be one `update` accepts, and the model [mutate] returns is checked as
+     * `update` checks it. If [mutate] returns [model] itself, the composable rules for a declined mutation apply.
+     */
+    fun <MID, E, M, R> update(model: M, mutate: context(Witness<MID>) M.() -> R): R
+        where M : Model<MID, E>, R : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
+        checkMayUpdate(model)
+        return dsl.update(model) {
+            mutate().also { mutated ->
+                checkReadVersion(mutated)
+                checkOwnedModels(mutated)
+            }
+        }
+    }
+
+    // update accepts a model the block read with model(), at the version model() returned, or one of an unguarded
+    // type.
+    private fun checkMayUpdate(model: Model<*, *>) {
         val wasRead = checkReadVersion(model)
         check(wasRead || unguarded.any { it.isInstance(model) }) {
             val remedy = if (guarding.canBeGuarded(model::class)) {
@@ -59,9 +90,6 @@ class GuardedChangesDsl<PF : Proof<*, *, *>> internal constructor(
             "$uowName may not update ${model.id().stringValue()}: the block did not read it from a Proven with " +
                 "model(), and ${model::class.simpleName} is not in unguardedWrites. $remedy"
         }
-        checkOwnedModels(model)
-        dsl.update(model)
-        return model
     }
 
     /**
@@ -142,16 +170,15 @@ class GuardedChangesDsl<PF : Proof<*, *, *>> internal constructor(
     }
 
     // Registering an aggregate registers the models it owns. A changed one of a guarded type must have been read
-    // with model() at that version. A new one is allowed, as add allows every new model. An accumulator that holds only
-    // [model] lists what registering it writes: [model] first, then the models it owns.
-    private fun <MID, E, M> checkOwnedModels(model: M)
-    where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
-        ChangesAccumulator().withUnchangedModel(model).flattenChildModels().drop(1)
-            .filter { it is UpdateModel<*, *, *> && guarding.canBeGuarded(it.model::class) }
+    // with model() at that version. A new one is allowed, as add allows every new model. modelsIn lists [model] first,
+    // then the models it owns.
+    private fun checkOwnedModels(model: Model<*, *>) {
+        modelsIn(model).drop(1)
+            .filter { it.isDirty() && !it.isNew() && guarding.canBeGuarded(it::class) }
             .forEach { owned ->
-                check(checkReadVersion(owned.model)) {
+                check(checkReadVersion(owned)) {
                     "$uowName registers ${model.id().stringValue()}, which owns the changed model " +
-                        "${owned.id.stringValue()}, and the block did not read that model with model(). Read it " +
+                        "${owned.id().stringValue()}, and the block did not read that model with model(). Read it " +
                         "through its Proven field, and put the model that model() returned into the aggregate"
                 }
             }

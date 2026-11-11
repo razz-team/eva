@@ -28,6 +28,6 @@ internal class ComposingGuardedUow<R : Any>(
         } catch (ex: IllegalStateException) {
             if (!swallowing) throw ex
         }
-        update(params.employee.model().changeDepartment(department))
+        update(params.employee.model()) { changeDepartment(department) }
     }
 }

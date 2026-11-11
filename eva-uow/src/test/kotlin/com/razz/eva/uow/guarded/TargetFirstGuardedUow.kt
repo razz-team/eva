@@ -22,7 +22,7 @@ internal class TargetFirstGuardedUow<R : Any>(
 ) {
 
     override suspend fun tryPerform(principal: TestPrincipal, params: EmployeeParams) = changes {
-        val moved = update(params.employee.model().changeDepartment(department))
+        val moved = update(params.employee.model()) { changeDepartment(department) }
         execute({ child(it, moved) }, principal) { ChildParams }
         moved
     }

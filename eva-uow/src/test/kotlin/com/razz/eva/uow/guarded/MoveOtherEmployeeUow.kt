@@ -14,6 +14,6 @@ internal class MoveOtherEmployeeUow(
 ) : UnitOfWork<TestPrincipal, ChildParams, Employee>(executionContext) {
 
     override suspend fun tryPerform(principal: TestPrincipal, params: ChildParams) = changes {
-        update(employee.changeDepartment(department))
+        update(employee) { changeDepartment(department) }
     }
 }

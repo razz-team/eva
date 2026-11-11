@@ -81,7 +81,7 @@ class GuardedExecutorSpec : FunSpec({
                 ctx, Configuration.default(), EmployeesGuarded, setOf(),
             ) {
                 override suspend fun tryPerform(principal: TestPrincipal, params: EmployeeParams) = changes {
-                    val moved = update(params.employee.model().changeDepartment(away))
+                    val moved = update(params.employee.model()) { changeDepartment(away) }
                     roundtrip { p -> listOf(p(moved)) }
                 }
             }
@@ -189,7 +189,7 @@ class GuardedExecutorSpec : FunSpec({
                 ctx, Configuration.default(), EmployeesGuarded, setOf(),
             ) {
                 override suspend fun tryPerform(principal: Principal<*>, params: EmployeeParams) =
-                    changes { update(params.employee.model().changeDepartment(away)) }
+                    changes { update(params.employee.model()) { changeDepartment(away) } }
             }
         }
         shouldThrow<IllegalStateException> {

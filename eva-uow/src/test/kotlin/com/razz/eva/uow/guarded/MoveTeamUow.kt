@@ -19,6 +19,7 @@ internal class MoveTeamUow(
 ) {
 
     override suspend fun tryPerform(principal: TestPrincipal, params: TeamParams) = changes {
-        params.team.map { it.model() }.filter { it.id() != skipping }.map { update(it.changeDepartment(department)) }
+        params.team.map { it.model() }.filter { it.id() != skipping }
+            .map { update(it) { changeDepartment(department) } }
     }
 }
