@@ -316,6 +316,20 @@ class ResultNetsSpec : FunSpec({
         persisted.captured.single().model shouldBeSameInstanceAs first
     }
 
+    test("A composed child declining on a clean read of a model its parent changed leaves the parent's change") {
+        val read = existingCreatedTestModel(param1 = "read", param2 = 1)
+        val first = read.changeParam1("parent")
+        val (persisting, persisted) = capturing()
+        executor(persisting).execute(
+            TestPrincipal,
+            uow<TestModel> {
+                update(first)
+                execute(uow<TestModel> { update(read) { this } }, TestPrincipal) { DummyUow.Params }
+            },
+        ) { DummyUow.Params }
+        persisted.captured.single().model shouldBeSameInstanceAs first
+    }
+
     test("A composed child declining on a model its parent added leaves it added") {
         val created = createdTestModel("new", 1)
         val (persisting, persisted) = capturing()
