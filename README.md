@@ -618,6 +618,7 @@ val persisting = Persisting(
 | `com.razz.eva.uow.UnitOfWork` (plain) | the plain `ChangesDsl`; `update(model)` of an unchanged model registers it as unchanged | no | no |
 | `com.razz.eva.uow.composable.UnitOfWork` | the composable `ChangesDsl` | yes | yes, it implements `ComposableUow` |
 | `com.razz.eva.uow.WrappingUnitOfWork` | the family's own DSL, wrapped around the composable `ChangesDsl` | yes, if the family's DSL offers `execute` | only if the family implements `ComposableUow`; never if it implements `NotComposableUow` |
+| `com.razz.eva.uow.guarded.GuardedUnitOfWork` | `GuardedChangesDsl`, a wrapping family's DSL: a guarded model is written only through a `Proven` field (see [Guarded unit of work](#guarded-unit-of-work)) | yes; a child may not register a guarded model | never: it implements `NotComposableUow` |
 
 A parent is a composable unit of work or a wrapping family; a child is any unit of work that implements `ComposableUow`. A child's `Configuration` and `onFailure` are not used under a parent: the parent's run decides retries and failure.
 
@@ -777,6 +778,8 @@ The witness itself is opt-in, but these changes reach every consumer:
 - **`ComposableUow` is an open marker.** Any unit of work can implement it: `composable.UnitOfWork` does, the plain `UnitOfWork` does not. `execute` refuses a child whose block did not start from the parent's changes, so a plain `UnitOfWork` that implements it fails at run time. A family that must never run as a child implements `NotComposableUow`.
 - **Composed children.** The failure for a child that was not constructed with the `ExecutionContext` handed to its factory is now `Composed <child> did not start from the changes its parent holds now`; on 0.41 it said `dropped inherited changes`. A parent now takes in what a child registered, not the models the child's aggregates own, so it treats those models as a single block does: it cannot `update` or claim `notChanged` a new model that an aggregate a child added owns, nor claim `notChanged` a stale read of a model a child's aggregate changed. Change such a model through its aggregate. After a child ran, a model that an aggregate no longer owns is not persisted. Two rare orders change. An owned model that the parent registers after the child ran is persisted at the place of the parent's registration, not next to its aggregate, so a row registered in between that references a new owned model is inserted before it. An owned model that moves to a new aggregate is persisted after that aggregate. `stubChanges` is the only way to build a test double's return value: a spec can no longer assemble a `ChangesAccumulator` by hand.
 - **`Changes.result()` is gone.** `BaseUnitOfWork` declared a protected `Changes<R>.result()` that no unit of work called. A unit of work that called another one's `tryPerform` to read its result runs it with `execute` and takes the value `execute` returns.
+- **Guarded units of work (new).** `com.razz.eva.uow.guarded` adds `GuardedUnitOfWork`, `Proof`, `Proven`, `Guarding`, `Action` and `FailedAttempt`; see [Guarded unit of work](#guarded-unit-of-work). The executor refuses a guarded unit of work that was built with a context other than the one its factory received, and a unit of work that returns the block of a guarded one, so a guarded block is written only when the executor ran its unit of work.
+- **Spec runner (new).** The eva-test spec bases run an attempt as the executor does: `factory.firstAttempt(principal) { params }` and `factory.retry(principal) { params }`. eva-test's `UowSpecBase` now declares `executionContext`; a class that implements it directly, not through `UowShouldSpec` or `UowBehaviorSpec`, declares that property. eva-test's `initial(principal)` builds the context of a first attempt for a spec that builds params only.
 - **Messages.** The registration failures of a change block ("was already registered", "Failed to merge changes", "No changes to persist", "Attempted to register ...") keep their old first sentence and go on to say what to write. A spec that pins the full old text with `shouldBe` fails; pin the first sentence with `shouldStartWith`.
 
 #### Returning persisted models with `roundtrip { }`
@@ -801,6 +804,69 @@ class CheckoutUow(
 ```
 
 At top-level execution the builder is rerun over the persisted set, so `Result` carries the flushed models, including ones registered by composed child UoWs. Under composition (a child's result consumed by a parent) the eagerly built in-memory value is returned, since there is no flush yet, so place `roundtrip { }` in the top-level UoW when you need persisted instances.
+
+### Guarded unit of work
+
+A guarded unit of work writes a guarded model only with a proof that the application allowed the write. The application supplies three things:
+
+- **A `Proof<M>`** for each kind of write: its record that `principal` may do `action` to `target`, as the target was then. `action` is an `Action`, whose `name` goes to the audit row. eva calls `checkAgain(reloaded)` on a retry, with the model as it is stored now; throw there to refuse. A subclass narrows `principal` and `action` to the application's own types.
+- **One `Guarding`**, which lists the model types that need a proof.
+- **The place that issues proofs**: where the application checks permissions. eva never creates a proof, and one proof runs one unit of work.
+
+The params carry each guarded model as a `Proven` field, created in the params lambda with `proven(proof) { reload }`. In the block, `params.x.model()` returns the proof's target on the first attempt, and on a retry the model `reload` returns, after `checkAgain` allowed it. The block must `update` or `notChanged` each model it read, at the version it read, so the write fails if the stored model changed after the proof was issued. `update` refuses a model the block did not read that way, unless its type is listed in `unguardedWrites`, which cannot list a guarded type. A child run with `execute` may not register a guarded model, and a guarded unit of work never runs as a child.
+
+```kotlin
+object Move : Action { override val name = "employee.move" }
+
+class MoveProof(override val principal: Manager, override val target: Employee) : Proof<Employee>() {
+    override val action = Move
+    override suspend fun checkAgain(reloaded: Employee) = check(principal.manages(reloaded)) { "not managed" }
+}
+
+val guarding = Guarding(Employee::class)
+
+class MoveEmployeeUow(
+    executionContext: ExecutionContext,
+    private val department: Department,
+) : GuardedUnitOfWork<Manager, MoveProof, MoveEmployeeUow.Params, Employee>(
+    executionContext, Configuration.default(), guarding, unguardedWrites = setOf(),
+) {
+    @Serializable
+    data class Params(val employee: Proven<MoveProof, Employee>) : UowParams<Params>
+
+    override suspend fun tryPerform(principal: Manager, params: Params) = changes {
+        update(params.employee.model()) { changeDepartment(department) }
+    }
+}
+
+// where the permission check issued the proof
+uowx.execute(MoveEmployeeUow::class, manager) {
+    MoveEmployeeUow.Params(proven(proof) { employeeQueries.get(proof.target.id()) })
+}
+```
+
+The audit row holds a `Proven` field as `{"action": ..., "target": ...}`, where `target` is the model id.
+
+A spec runs an attempt as the executor does, without the write, from the factory and the params lambda an `execute` call takes. `firstAttempt` and `retry` of the eva-test spec bases build the attempt's context, the unit of work with it and the params, run `tryPerform`, apply the executor's checks and return the changes. A retry builds the first attempt's params first, so a guarded block reloads each proven model and a `ModelParam` loads its model again. Both work for every base.
+
+```kotlin
+class MoveEmployeeUowSpec : UowShouldSpec({
+    val move = { ctx: ExecutionContext -> MoveEmployeeUow(ctx, sales) }
+
+    should("move the employee the proof is for") {
+        val changes = move.firstAttempt(manager) { Params(proven(proof) { error("the first attempt does not reload") }) }
+        changes verifyInOrder {
+            updates<Employee> { departmentId shouldBe sales.id() }
+            emits<DepartmentChanged> { newDepartmentId shouldBe sales.id() }
+            returns { departmentId shouldBe sales.id() }
+        }
+    }
+
+    should("refuse a retry when the employee moved out of the manager's reach") {
+        shouldThrow<IllegalStateException> { move.retry(manager) { Params(proven(proof) { movedAway }) } }
+    }
+})
+```
 
 ### Event sourcing
 
