@@ -54,6 +54,10 @@ import java.time.LocalDate
 
 class ChangesDslSpec : FunSpec({
 
+    val notStartedFromParent = "Composed child UnitOfWork did not start from the changes its parent holds now; " +
+        "construct the child with the ExecutionContext given to the factory, and do not register in the " +
+        "parent's block from the params lambda or while the child runs"
+
     val now = millisUTC().instant()
     val clock = fixedUTC(now)
     val executionContext = ExecutionContext(clock, OpenTelemetry.noop())
@@ -1015,7 +1019,7 @@ class ChangesDslSpec : FunSpec({
             modelState = persistentState(V1, null),
         ).rename("Eng v5")
         // the parent registers the aggregate, so the child's write is carried by the flattened set
-        val inherited = ChangesAccumulator().withUpdatedModel(dept)
+        val inherited = ChangesAccumulator().updating(dept)
 
         val child = object : DummyUow<Employee>(executionContext.withInheritedChanges(inherited)) {
             override suspend fun tryPerform(principal: TestPrincipal, params: Params) = noChanges(emp)
@@ -1044,7 +1048,7 @@ class ChangesDslSpec : FunSpec({
         val exception = shouldThrow<IllegalStateException> {
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
-        exception.message.shouldNotBeNull() shouldContain "dropped inherited changes"
+        exception.message shouldBe notStartedFromParent
     }
 
     test("Should throw when a child with real changes was built with a substituted context") {
@@ -1068,7 +1072,7 @@ class ChangesDslSpec : FunSpec({
         val exception = shouldThrow<IllegalStateException> {
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
-        exception.message.shouldNotBeNull() shouldContain "dropped inherited changes"
+        exception.message shouldBe notStartedFromParent
     }
 
     test("Should throw when a context-substituting child loses the parent's entity changes") {
@@ -1093,7 +1097,7 @@ class ChangesDslSpec : FunSpec({
         val exception = shouldThrow<IllegalStateException> {
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
-        exception.message.shouldNotBeNull() shouldContain "dropped inherited entity changes"
+        exception.message shouldBe notStartedFromParent
     }
 
     test("Should throw when a context-substituting child produces conflicting changes for the same model") {
@@ -1118,8 +1122,7 @@ class ChangesDslSpec : FunSpec({
         val exception = shouldThrow<IllegalStateException> {
             uow.tryPerform(TestPrincipal, DummyUow.Params)
         }
-        exception.message.shouldNotBeNull() shouldContain
-            "dropped inherited changes for model [${id.stringValue()}]"
+        exception.message shouldBe notStartedFromParent
     }
 
     test("A stubbed child's changes merge without demoting or anchoring") {

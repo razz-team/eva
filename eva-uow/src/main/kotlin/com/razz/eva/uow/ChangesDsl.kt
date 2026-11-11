@@ -40,7 +40,7 @@ class ChangesDsl internal constructor(private var changes: ChangesAccumulator) {
         ): Changes<R> {
             val dsl = ChangesDsl(changes)
             val res = init(dsl)
-            return dsl.changes.withResult(res)
+            return dsl.changes.withResult(res, null)
         }
     }
 }

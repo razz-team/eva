@@ -254,7 +254,7 @@ class UnitOfWorkExecutor(
                 }
             }
         }
-        check(!changes.stubbed) {
+        check(changes.accumulator != null) {
             "$name returned stubChanges; it builds test doubles only, a real UnitOfWork must go through changes { }"
         }
         checkBuiltBy(uow, changes, name)

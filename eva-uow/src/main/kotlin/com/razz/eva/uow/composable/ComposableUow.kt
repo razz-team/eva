@@ -3,9 +3,9 @@ package com.razz.eva.uow.composable
 /**
  * A unit of work whose change block seeds from [com.razz.eva.uow.ExecutionContext.inheritedChanges],
  * so it can run as a child under [ChangesDsl.execute]: the parent's accumulated changes flow in, the
- * merged set flows back out. The merge is additive, so the parent's changes always survive even under
- * a child constructed with the wrong `ExecutionContext`; the same model changed on diverged event
- * streams fails loudly. Construct the child with the `ExecutionContext` handed to the factory.
+ * merged set flows back out. The child must start from the parent's changes: construct it with the
+ * `ExecutionContext` handed to the factory. `execute` refuses a child that registered anything over another
+ * context.
  *
  * Sealed because only [UnitOfWork] and [WrappingUnitOfWork] in this package are built on the seeding
  * [ChangesDsl]. That is deliberate, and it means a third-party base cannot be composable: seeding, merging

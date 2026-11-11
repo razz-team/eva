@@ -210,14 +210,14 @@ class PersistingSpec : BehaviorSpec({
                     params = params,
                     principal = TestPrincipal,
                     modelChanges = ChangesAccumulator()
-                        .withAddedModel(department1)
-                        .withUpdatedModel(boss1)
-                        .withUnchangedModel(existingCreatedTestModel(param1 = "a", param2 = 1L))
-                        .withUpdatedModel(department3)
-                        .withUnchangedModel(existingCreatedTestModel(param1 = "b", param2 = 2L))
-                        .withAddedModel(department2)
-                        .withUpdatedModel(boss2)
-                        .withResult(Unit)
+                        .adding(department1)
+                        .updating(boss1)
+                        .claimingUnchanged(existingCreatedTestModel(param1 = "a", param2 = 1L))
+                        .updating(department3)
+                        .claimingUnchanged(existingCreatedTestModel(param1 = "b", param2 = 2L))
+                        .adding(department2)
+                        .updating(boss2)
+                        .withResult(Unit, null)
                         .modelChangesToPersist,
                     entityChanges = listOf(
                         AddEntity(tag1),
