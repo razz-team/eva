@@ -5,6 +5,8 @@ package com.razz.eva.uow.composable
  * flow in through [com.razz.eva.uow.ExecutionContext.inheritedChanges], and the merged set flows back out. The
  * child must start from the parent's changes: construct it with the `ExecutionContext` handed to the factory.
  * [UnitOfWork] implements it. A family on [com.razz.eva.uow.WrappingUnitOfWork] opts in by implementing it too.
+ * A child's `Configuration` and `onFailure` are not used under a parent: the parent's run decides retries and
+ * failure.
  *
  * Any class may implement this marker, and that opens nothing a parent does not check. Only eva's change DSLs
  * build a [com.razz.eva.uow.Changes] that carries changes, so a unit of work outside them returns `noChanges`,

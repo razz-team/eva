@@ -11,7 +11,8 @@ import java.util.Collections
 import java.util.IdentityHashMap
 
 /**
- * The template of eva's unit of work bases. [C] names the receiver of the family's `changes` block. A family
+ * The template of eva's unit of work bases. [C] names the receiver of the family's `changes` block for the
+ * reader; the base itself does not use it, and a family on [WrappingUnitOfWork] names its DSL there. A family
  * outside eva extends [WrappingUnitOfWork], which wraps eva's DSL in the family's own, because only eva's DSLs
  * can build [Changes].
  */

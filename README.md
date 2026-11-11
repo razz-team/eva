@@ -611,6 +611,33 @@ val persisting = Persisting(
 )
 ```
 
+### Which unit of work base
+
+| Base | Change block | Runs children with `execute` | Runs as a child |
+|---|---|---|---|
+| `com.razz.eva.uow.UnitOfWork` (plain) | the plain `ChangesDsl`; `update(model)` of an unchanged model registers it as unchanged | no | no |
+| `com.razz.eva.uow.composable.UnitOfWork` | the composable `ChangesDsl` | yes | yes, it implements `ComposableUow` |
+| `com.razz.eva.uow.WrappingUnitOfWork` | the family's own DSL, wrapped around the composable `ChangesDsl` | yes, if the family's DSL offers `execute` | only if the family implements `ComposableUow`; never if it implements `NotComposableUow` |
+
+A parent is a composable unit of work or a wrapping family; a child is any unit of work that implements `ComposableUow`. A child's `Configuration` and `onFailure` are not used under a parent: the parent's run decides retries and failure.
+
+A family with a change block of its own extends `WrappingUnitOfWork`. `wrap` gets the composable `ChangesDsl` of each block and returns the family's own DSL, whose operations call the operations of that DSL (`add`, `update`, `notChanged`, the entity operations, `roundtrip`, `execute`), so they get eva's checks. The units of work keep writing `= changes { ... }`. `finish` runs after the block returns and before its changes are built; throw from it to refuse the block, and nothing is written. Declare both final in the family, because a plain override stays open to its units of work. The wrapped DSL is the composable one: its `update(model)` fails for a model with no change, where the plain DSL registered it as unchanged. A family DSL that kept that behaviour calls `notChanged` for a clean model.
+
+```kotlin
+abstract class CustomUnitOfWork<PRINCIPAL, PARAMS, RESULT>(
+    executionContext: ExecutionContext,
+) : WrappingUnitOfWork<PRINCIPAL, PARAMS, RESULT, CustomChangesDsl>(executionContext)
+    where PRINCIPAL : Principal<*>, PARAMS : UowParams<PARAMS>, RESULT : Any {
+
+    // optional: only this family's changes { } can produce the result; noChanges() no longer compiles
+    abstract override suspend fun tryPerform(principal: PRINCIPAL, params: PARAMS): Block
+
+    final override fun wrap(dsl: ChangesDsl) = CustomChangesDsl(dsl)
+}
+```
+
+Both examples are in eva-examples: `changes/uow` returns `Block`, `composition/uow` implements `ComposableUow` and runs as a child.
+
 ### Composable Unit of Work
 
 When a business operation spans multiple bounded contexts, you can compose units of work together. A parent UoW orchestrates child UoWs, and all changes are collected into a single transaction.
@@ -650,7 +677,7 @@ class CheckoutUow(
 
 The `execute` function takes a UoW factory, a principal, and params. Child UoWs inherit accumulated changes from the parent, and their changes are merged back. All changes from parent and child UoWs are persisted in a single transaction.
 
-Child UoWs must also extend `com.razz.eva.uow.composable.UnitOfWork`. Construct the child with the `ExecutionContext` handed to the factory: a child that registers anything must start from its parent's changes, or `execute` fails loudly. The parent takes in what the child registered, and an aggregate's owned models are listed once, by the block that persists the changes, as in a single block. In tests, build a stubbed child's return value with `stubChanges(result, ...)`; its claims merge without demoting the parent's changes. `stubChanges` is gated by `@TestDoubleApi` (opt-in from test sources only) and the executor refuses it as a real UoW's outcome:
+A child implements `ComposableUow`: `composable.UnitOfWork` does, and a family on `WrappingUnitOfWork` opts in. Construct the child with the `ExecutionContext` handed to the factory: a child that registers anything must start from its parent's changes, or `execute` fails loudly. The parent takes in what the child registered, and an aggregate's owned models are listed once, by the block that persists the changes, as in a single block. In tests, build a stubbed child's return value with `stubChanges(result, ...)`; its claims merge without demoting the parent's changes. `stubChanges` is gated by `@TestDoubleApi` (opt-in from test sources only) and the executor refuses it as a real UoW's outcome:
 
 ```kotlin
 class DebitAccountUow(
@@ -722,30 +749,22 @@ Runtime verification backs this up for every family: when the executor has the m
 
 The witness itself is opt-in, but these changes reach every consumer:
 
-- **Custom UoW families.** `ChangesAccumulator` is internal, so a family can no longer build its `Changes` itself, and `BaseUnitOfWork` no longer declares an abstract `changes`. A family that extended `BaseUnitOfWork` and filled a `ChangesAccumulator` fails to compile. Extend `WrappingUnitOfWork` instead. A family whose units of work also run as children implements `ComposableUow` as well. `wrap` gets the composable `ChangesDsl` of each block and returns the family's own DSL, whose operations call the operations of that DSL (`add`, `update`, `notChanged`, the entity operations, `roundtrip`, `execute`), so they get eva's checks. The units of work keep writing `= changes { ... }`. `finish` runs after the block returns and before its changes are built; throw from it to refuse the block, and nothing is written. Declare both final in the family, because a plain override stays open to its units of work. The wrapped DSL is the composable one: its `update(model)` fails for a model with no change, where the plain DSL registered it as unchanged. A family DSL that kept that behaviour calls `notChanged` for a clean model.
-
-  ```kotlin
-  abstract class CustomUnitOfWork<PRINCIPAL, PARAMS, RESULT>(
-      executionContext: ExecutionContext,
-  ) : WrappingUnitOfWork<PRINCIPAL, PARAMS, RESULT, CustomChangesDsl>(executionContext)
-      where PRINCIPAL : Principal<*>, PARAMS : UowParams<PARAMS>, RESULT : Any {
-
-      // optional: only this family's changes { } can produce the result; noChanges() no longer compiles
-      abstract override suspend fun tryPerform(principal: PRINCIPAL, params: PARAMS): Block
-
-      final override fun wrap(dsl: ChangesDsl) = CustomChangesDsl(dsl)
-  }
-  ```
-
-  Both examples are in eva-examples: `changes/uow` returns `Block`, `composition/uow` runs as a child. No single source shape compiles against both 0.40 and 0.41, and a custom family compiled against 0.40 fails with `NoSuchMethodError`, so recompile it. Any unit of work can implement `ComposableUow`: `composable.UnitOfWork` does, the plain `UnitOfWork` does not. `execute` refuses a child whose block did not start from the parent's changes, so a plain `UnitOfWork` that implements it fails at run time. A family that must never run as a child implements `NotComposableUow`.
+- **Custom UoW families.** `BaseUnitOfWork` no longer declares an abstract `changes`, because each family shapes that function itself. A family that declared `final override suspend fun changes` fails to compile with `'changes' overrides nothing`; drop the `override`, keep the body, and keep it `protected`. No single source shape compiles against both 0.40 and 0.41; binaries compiled against 0.40 still link. `ComposableUow` is sealed, so only the bases eva ships can be composed as children.
 - **New runtime failures** (`IllegalStateException`, before anything is persisted). Each of these silently dropped a write on 0.40:
   - a result holding a new or dirty model that no `add` / `update` registered, including inside nested collections, maps, arrays, pairs, triples and an aggregate's owned models;
   - a result holding a model that carries a write its registered instance lacks;
   - `noChanges(result)` with a dirty model that is neither registered in the parent's change set nor an ancestor of the registered instance;
-  - an `Aggregate` owning an instance that diverges from another instance of the same id in the change set (a registration, or another aggregate's owned instance), or a changed instance of a model claimed `notChanged`. An owned instance that extends the other one persists in its place, which 0.40 dropped.
-- **Composed children.** `execute` fails with `Composed <child> did not start from the changes its parent holds now` when a child that registered anything was not constructed with the `ExecutionContext` handed to its factory; 0.40 silently replaced the parent's changes with the child's. A parent now takes in what a child registered, not the models the child's aggregates own, so it treats those models as a single block does: it cannot `update` or claim `notChanged` a new model that an aggregate a child added owns, nor claim `notChanged` a stale read of a model a child's aggregate changed. Change such a model through its aggregate. After a child ran, a model that an aggregate no longer owns is not persisted. Two rare orders change. An owned model that the parent registers after the child ran is persisted at the place of the parent's registration, not next to its aggregate, so a row registered in between that references a new owned model is inserted before it. An owned model that moves to a new aggregate is persisted after that aggregate. Build the return value of a test double for a composed child with `stubChanges` (eva-uow test fixtures, `@OptIn(TestDoubleApi::class)`): `ChangesAccumulator` is internal, so a spec can no longer assemble one by hand. The executor refuses a stub as a real UoW's outcome.
+  - an `Aggregate` owning an instance that diverges from another instance of the same id in the change set (a registration, a model a composed child flattened, or another aggregate's owned instance), or a changed instance of a model claimed `notChanged`. An owned instance that extends the other one persists in its place, which 0.40 dropped; a model a composed child flattened out of an aggregate, or one an earlier registration of an aggregate owned, stays registered even when the aggregate's later state no longer owns it.
+- **Composed children.** `execute` fails with `Composed <child> dropped inherited changes` when a child that made changes was not constructed with the `ExecutionContext` handed to its factory; 0.40 silently replaced the parent's changes with the child's. A test double for a composed child must be built with `stubChanges` (eva-uow test fixtures, `@OptIn(TestDoubleApi::class)`), not a hand-assembled `ChangesAccumulator`, and the executor refuses a stub as a real UoW's outcome.
 - **UoW specs.** `verifyInOrder` fails a spec whose result holds a model carrying a write its registered instance lacks, the same rule the executor applies. Two correct shapes fail it: a composed child that claims `notChanged(m)` and hands a mutation of `m` back for its parent to register, and a parent whose stubbed child returns an instance that does not descend from the one the parent registered. A stub claims every model its result reaches as unchanged, an aggregate's owned models included, so a parent that then extends one of those through the aggregate fails flattening in the spec but not in production. Build the stub's result from the parent's instance, register such a child model with its own `update(child) { }`, and verify such a child through its parent. A parent that extends a stub's new model registers it as an add, as production inserts it, so its spec verifies `adds`.
 - **A model member named `raise`.** The compiler warns `CONTEXTUAL_OVERLOAD_SHADOWED` on a model that declares or overrides its own `raise`, because `Model.raise` now exists: at language version 2.4 always, below it when `-Xcontext-parameters` is on. Under `allWarningsAsErrors` that is an error. Rename the member, or suppress the warning on the class when the model never calls the witnessed `raise`.
+
+#### Upgrading to 0.42: breaking changes
+
+- **Custom UoW families.** `ChangesAccumulator` is internal, so a family can no longer build its `Changes` itself. A family that extended `BaseUnitOfWork` and filled a `ChangesAccumulator` fails to compile. Extend `WrappingUnitOfWork` instead, as [Which unit of work base](#which-unit-of-work-base) shows. No single source shape compiles against both 0.41 and 0.42, and a custom family compiled against 0.41 fails with `NoSuchMethodError`, so recompile it.
+- **`ComposableUow` is an open marker.** Any unit of work can implement it: `composable.UnitOfWork` does, the plain `UnitOfWork` does not. `execute` refuses a child whose block did not start from the parent's changes, so a plain `UnitOfWork` that implements it fails at run time. A family that must never run as a child implements `NotComposableUow`.
+- **Composed children.** The failure for a child that was not constructed with the `ExecutionContext` handed to its factory is now `Composed <child> did not start from the changes its parent holds now`; on 0.41 it said `dropped inherited changes`. A parent now takes in what a child registered, not the models the child's aggregates own, so it treats those models as a single block does: it cannot `update` or claim `notChanged` a new model that an aggregate a child added owns, nor claim `notChanged` a stale read of a model a child's aggregate changed. Change such a model through its aggregate. After a child ran, a model that an aggregate no longer owns is not persisted. Two rare orders change. An owned model that the parent registers after the child ran is persisted at the place of the parent's registration, not next to its aggregate, so a row registered in between that references a new owned model is inserted before it. An owned model that moves to a new aggregate is persisted after that aggregate. `stubChanges` is the only way to build a test double's return value: a spec can no longer assemble a `ChangesAccumulator` by hand.
+- **Messages.** The registration failures of a change block ("was already registered", "Failed to merge changes", "No changes to persist", "Attempted to register ...") keep their old first sentence and go on to say what to write. A spec that pins the full old text with `shouldBe` fails; pin the first sentence with `shouldStartWith`.
 
 #### Returning persisted models with `roundtrip { }`
 
