@@ -19,6 +19,7 @@ import com.razz.eva.uow.TestDoubleApi
 import com.razz.eva.uow.verify.verifyInOrder
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import io.kotest.matchers.types.shouldBeSameInstanceAs
 
 // The spec base runs an attempt as the executor does, from the factory and params lambda an execute call takes.
@@ -89,6 +90,37 @@ class SpecAttemptsSpec : UowShouldSpec({
         }
         reloads shouldBe 1
         proof.checkedAgain shouldBe listOf(reloaded)
+    }
+
+    should("run the first attempt's block on a retry, discard its changes, and throw what it throws") {
+        var blocks = 0
+        val counting = { ctx: ExecutionContext ->
+            object : com.razz.eva.uow.composable.UnitOfWork<TestPrincipal, ChildParams, TestModel>(ctx) {
+                override fun name() = "Counting"
+                override suspend fun tryPerform(principal: TestPrincipal, params: ChildParams) = changes {
+                    blocks++
+                    add(createdTestModel("attempt $blocks", blocks.toLong()))
+                }
+            }
+        }
+        val retried = counting.retry(TestPrincipal) { ChildParams }
+        blocks shouldBe 2
+        val added = retried.modelChangesToPersist.single().model
+        added.shouldBeInstanceOf<TestModel.CreatedTestModel>().param1 shouldBe "attempt 2"
+        var tries = 0
+        val failingFirst = { ctx: ExecutionContext ->
+            object : com.razz.eva.uow.composable.UnitOfWork<TestPrincipal, ChildParams, TestModel>(ctx) {
+                override fun name() = "FailingFirst"
+                override suspend fun tryPerform(principal: TestPrincipal, params: ChildParams) = changes {
+                    tries++
+                    if (tries == 1) throw Refused("the first attempt's block fails")
+                    add(createdTestModel("second", 2))
+                }
+            }
+        }
+        shouldThrow<Refused> { failingFirst.retry(TestPrincipal) { ChildParams } }
+            .message shouldBe "the first attempt's block fails"
+        tries shouldBe 1
     }
 
     should("refuse a retry whose reload the proof refuses") {

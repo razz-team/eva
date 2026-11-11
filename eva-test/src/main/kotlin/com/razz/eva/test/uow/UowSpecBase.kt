@@ -49,9 +49,10 @@ interface UowSpecBase {
         firstAttempt(executionContext, principal, params)
 
     /**
-     * Runs a retry of a new run, as `UnitOfWorkExecutor.execute` does after the first attempt's write failed: it builds
-     * the first attempt's params with the same lambda, then runs the second attempt as [firstAttempt] runs the first.
-     * A `ModelParam` loads its model again, and a guarded unit of work reloads each proven model.
+     * Runs a retry of a new run, as `UnitOfWorkExecutor.execute` does when the first attempt's write fails: it runs the
+     * first attempt as [firstAttempt] does and discards its changes, then runs the second attempt of the same run, with
+     * the same factory and params lambda, and returns its changes. A failure in the first attempt is thrown. On the
+     * second attempt a `ModelParam` loads its model again, and a guarded unit of work reloads each proven model.
      */
     suspend fun <P, PARAMS, RESULT, UOW> ((ExecutionContext) -> UOW).retry(
         principal: P,

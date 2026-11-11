@@ -382,6 +382,25 @@ class GuardedUnitOfWorkSpec : FunSpec({
             .message shouldBe ungated("MoveEmployeeUow", extra.id().stringValue(), "Employee")
     }
 
+    test("refuses on a retry run as the executor runs it a proven model only the first attempt's block read") {
+        val extra = employee(department = home.id())
+        val extraProof = proof(extra)
+        val employeeProof = proof(employee)
+        var attempts = 0
+        shouldThrow<IllegalStateException> {
+            move.retry(noAttempt, TestPrincipal) {
+                attempts++
+                val read = proven(extraProof) { extra }
+                if (attempts == 1) {
+                    Params(moving(employeeProof), "two", extra = read)
+                } else {
+                    Params(moving(employeeProof), "two", extra = read, how = UNREAD, unread = extra)
+                }
+            }
+        }.message shouldBe ungated("MoveEmployeeUow", extra.id().stringValue(), "Employee")
+        attempts shouldBe 2
+    }
+
     test("updates a model of a type in unguardedWrites without a proof, and refuses to list a guarded type there") {
         val renamed = department("Old")
         shouldThrow<IllegalStateException> {

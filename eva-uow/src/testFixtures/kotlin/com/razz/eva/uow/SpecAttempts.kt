@@ -23,10 +23,11 @@ suspend fun <P, PARAMS, RESULT, UOW> ((ExecutionContext) -> UOW).firstAttempt(
     runAttempt(executionContext, this, principal, params, InstantiationContext.External(0, principal, newRun()))
 
 /**
- * Runs a retry of a new run, as `UnitOfWorkExecutor.execute` does after the first attempt's write failed: it builds
- * the first attempt's params first, then runs the second attempt of the same run as [firstAttempt] runs the first. The
- * first attempt's unit of work is not built and does not run. A spec on an eva-test spec base calls it without
- * [executionContext]: `factory.retry(principal) { params }`.
+ * Runs a retry of a new run, as `UnitOfWorkExecutor.execute` does when the first attempt's write fails: it runs the
+ * first attempt as [firstAttempt] does (its unit of work, its params, its block and the executor's checks) and
+ * discards its changes, as the failed write leaves nothing. Then it runs the second attempt of the same run and
+ * returns its changes. A failure in the first attempt is thrown, as the executor throws it. A spec on an eva-test
+ * spec base calls it without [executionContext]: `factory.retry(principal) { params }`.
  */
 suspend fun <P, PARAMS, RESULT, UOW> ((ExecutionContext) -> UOW).retry(
     executionContext: ExecutionContext,
@@ -38,7 +39,7 @@ suspend fun <P, PARAMS, RESULT, UOW> ((ExecutionContext) -> UOW).retry(
           RESULT : Any,
           UOW : BaseUnitOfWork<P, PARAMS, RESULT, *> {
     val run = newRun()
-    InstantiationContext.External(0, principal, run).params()
+    runAttempt(executionContext, this, principal, params, InstantiationContext.External(0, principal, run))
     return runAttempt(executionContext, this, principal, params, InstantiationContext.External(1, principal, run))
 }
 
