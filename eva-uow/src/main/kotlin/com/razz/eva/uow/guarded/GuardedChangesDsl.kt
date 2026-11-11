@@ -142,9 +142,11 @@ class GuardedChangesDsl<PF : Proof<*, *, *>> internal constructor(
     }
 
     // Registering an aggregate registers the models it owns. A changed one of a guarded type must have been read
-    // with model() at that version. A new one is allowed, as add allows every new model.
-    private fun checkOwnedModels(model: Model<*, *>) {
-        ChangesAccumulator.ownedChangesOf(model)
+    // with model() at that version. A new one is allowed, as add allows every new model. An accumulator that holds only
+    // [model] lists what registering it writes: [model] first, then the models it owns.
+    private fun <MID, E, M> checkOwnedModels(model: M)
+    where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
+        ChangesAccumulator().withUnchangedModel(model).flattenChildModels().drop(1)
             .filter { it is UpdateModel<*, *, *> && guarding.canBeGuarded(it.model::class) }
             .forEach { owned ->
                 check(checkReadVersion(owned.model)) {
@@ -155,8 +157,8 @@ class GuardedChangesDsl<PF : Proof<*, *, *>> internal constructor(
             }
     }
 
-    // The guarded models the child registered itself: those that are not the same instances the block had registered
-    // before the child ran. Models an aggregate owns count as the block's. A Changes holds one change per model id, so
+    // The guarded models the child registered itself: those that are not the same instances the block holds when the
+    // child returns. Models an aggregate owns count as the block's. A Changes holds one change per model id, so
     // the filter cannot hide a later change of the same id.
     private fun registeredByChild(childChanges: Changes<*>): List<Model<*, *>> {
         val parents = Collections.newSetFromMap(IdentityHashMap<Model<*, *>, Boolean>())

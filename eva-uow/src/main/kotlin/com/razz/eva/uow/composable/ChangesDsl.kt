@@ -133,8 +133,8 @@ class ChangesDsl internal constructor(
               UOW : UnitOfWork<PRINCIPAL, PARAMS, RESULT> = execute(uowFactory, principal, params) { _, _ -> }
 
     /**
-     * Runs a child as [execute] does, and passes the child's name and changes to [beforeMerge] before they replace
-     * this block's changes. If [beforeMerge] throws, this block's changes stay as they were.
+     * Runs a child as the public `execute` does, and passes the child's name and changes to [beforeMerge] before they
+     * replace this block's changes. If [beforeMerge] throws, this block's changes stay as they were.
      */
     internal suspend fun <PRINCIPAL, PARAMS, RESULT, UOW> execute(
         uowFactory: (ExecutionContext) -> UOW,

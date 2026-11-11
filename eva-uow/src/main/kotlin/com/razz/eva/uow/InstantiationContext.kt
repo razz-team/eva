@@ -23,7 +23,7 @@ sealed class InstantiationContext(internal val attempt: Int) {
     }
 
     internal companion object Factory {
-        internal operator fun invoke(attempt: Int, principal: Principal<*>, run: Run): External =
+        internal operator fun invoke(attempt: Int, principal: Principal<*>, run: Run): InstantiationContext =
             External(attempt, principal, run)
     }
 }
