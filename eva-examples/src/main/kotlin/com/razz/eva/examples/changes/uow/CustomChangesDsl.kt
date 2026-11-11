@@ -3,11 +3,11 @@ package com.razz.eva.examples.changes.uow
 import com.razz.eva.domain.Model
 import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
-import com.razz.eva.uow.ChangesDsl
+import com.razz.eva.uow.composable.ChangesDsl
 
 /**
- * A family's own change block, built on eva's [ChangesDsl]. Every operation ends in a call to the wrapped
- * DSL, so a registration here gets the same checks as one in a plain `changes { }` block.
+ * A family's own change block, built on the [ChangesDsl] that [CustomUnitOfWork.wrap] hands it. Every operation
+ * ends in a call to the wrapped DSL, so a registration here gets the same checks as one in an eva block.
  */
 class CustomChangesDsl internal constructor(private val changes: ChangesDsl) {
 
@@ -17,7 +17,7 @@ class CustomChangesDsl internal constructor(private val changes: ChangesDsl) {
 
     fun <MID, E, M> update(model: M): M
         where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> =
-        changes.update(model, required = true)
+        changes.update(model)
 
     class ChainOfUpdatesDsl<MID, E, M> internal constructor(private var acc: M)
         where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
@@ -36,7 +36,7 @@ class CustomChangesDsl internal constructor(private val changes: ChangesDsl) {
             changes.notChanged(model)
             null
         } else {
-            changes.update(res, required = true)
+            changes.update(res)
         }
     }
 

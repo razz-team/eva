@@ -19,7 +19,7 @@ class ReduceInventoryUow(
         val items: Map<InventoryItem, Long>,
     ) : UowParams<Params>
 
-    override suspend fun tryPerform(principal: ServicePrincipal, params: Params) = customChanges {
+    override suspend fun tryPerform(principal: ServicePrincipal, params: Params) = changes {
         val inventory = inventoryQueries(params.inventoryId)
         update(inventory.checkout(params.items)).id()
     }

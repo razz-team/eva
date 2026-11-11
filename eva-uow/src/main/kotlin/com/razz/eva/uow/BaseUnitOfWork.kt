@@ -11,9 +11,9 @@ import java.util.Collections
 import java.util.IdentityHashMap
 
 /**
- * The template of eva's two unit of work families. [C] names the receiver of the family's `changes` block.
- * A family outside eva extends `UnitOfWork` or `composable.UnitOfWork` and wraps that block, because only
- * eva's DSLs can build [Changes].
+ * The template of eva's unit of work bases. [C] names the receiver of the family's `changes` block. A family
+ * outside eva extends [WrappingUnitOfWork] or `composable.WrappingUnitOfWork`, which wrap eva's DSL in the
+ * family's own, because only eva's DSLs can build [Changes].
  */
 abstract class BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, C>(
     private val executionContext: ExecutionContext,

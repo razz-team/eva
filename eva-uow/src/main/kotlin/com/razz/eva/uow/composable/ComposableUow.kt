@@ -7,9 +7,9 @@ package com.razz.eva.uow.composable
  * a child constructed with the wrong `ExecutionContext`; the same model changed on diverged event
  * streams fails loudly. Construct the child with the `ExecutionContext` handed to the factory.
  *
- * Sealed because only [UnitOfWork] in this package implements the seeding side of the contract. That
- * is deliberate, and it means a third-party base cannot be composable: seeding, merging and the guards
- * that police them move together, so a family outside this package could satisfy the marker without
- * satisfying the contract.
+ * Sealed because only [UnitOfWork] and [WrappingUnitOfWork] in this package implement the seeding side of
+ * the contract. That is deliberate, and it means a third-party base cannot be composable: seeding, merging
+ * and the guards that police them move together, so a family outside this package could satisfy the marker
+ * without satisfying the contract. A family with a change block of its own extends [WrappingUnitOfWork].
  */
 sealed interface ComposableUow

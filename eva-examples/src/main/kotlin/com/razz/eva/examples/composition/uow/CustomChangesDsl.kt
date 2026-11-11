@@ -12,9 +12,9 @@ import com.razz.eva.uow.composable.ChangesDsl
 import com.razz.eva.uow.composable.ComposableUow
 
 /**
- * A family's own change block, built on eva's composable [ChangesDsl]. Every operation ends in a call to the
- * wrapped DSL, so a block here composes children and merges what they hand back by the same rules as a plain
- * `changes { }` block.
+ * A family's own change block, built on the [ChangesDsl] that [CustomUnitOfWork.wrap] hands it. Every operation
+ * ends in a call to the wrapped DSL, so a block here composes children and merges what they hand back by the
+ * same rules as an eva block.
  */
 class CustomChangesDsl internal constructor(private val changes: ChangesDsl) {
 

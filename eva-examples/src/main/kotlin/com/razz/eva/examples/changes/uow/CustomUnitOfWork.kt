@@ -1,24 +1,24 @@
 package com.razz.eva.examples.changes.uow
 
-import com.razz.eva.uow.BaseUnitOfWork.Configuration.Companion.default
-import com.razz.eva.uow.Changes
 import com.razz.eva.domain.Principal
+import com.razz.eva.uow.BaseUnitOfWork.Configuration.Companion.default
 import com.razz.eva.uow.ExecutionContext
-import com.razz.eva.uow.UnitOfWork
 import com.razz.eva.uow.UowParams
+import com.razz.eva.uow.WrappingUnitOfWork
+import com.razz.eva.uow.composable.ChangesDsl
 
 /**
- * A family with its own change block. It extends eva's [UnitOfWork], and [customChanges] runs inside the
- * inherited `changes { }`. The block needs its own name: a second `changes` that differs only in the
- * receiver of its lambda does not compile.
+ * A family with its own change block: its units of work write `= changes { ... }` over [CustomChangesDsl].
+ * [tryPerform] returns a [WrappingUnitOfWork.Block], so a unit of work of this family cannot return
+ * `noChanges()` or changes from anywhere but its own block.
  */
 abstract class CustomUnitOfWork<PRINCIPAL, PARAMS, RESULT>(
     executionContext: ExecutionContext,
     configuration: Configuration = default(),
-) : UnitOfWork<PRINCIPAL, PARAMS, RESULT>(executionContext, configuration)
+) : WrappingUnitOfWork<PRINCIPAL, PARAMS, RESULT, CustomChangesDsl>(executionContext, configuration)
     where PRINCIPAL : Principal<*>, PARAMS : UowParams<PARAMS>, RESULT : Any {
 
-    protected suspend fun customChanges(init: suspend CustomChangesDsl.() -> RESULT): Changes<RESULT> {
-        return changes { CustomChangesDsl(this).init() }
-    }
+    abstract override suspend fun tryPerform(principal: PRINCIPAL, params: PARAMS): Block<RESULT>
+
+    override fun wrap(dsl: ChangesDsl) = CustomChangesDsl(dsl)
 }

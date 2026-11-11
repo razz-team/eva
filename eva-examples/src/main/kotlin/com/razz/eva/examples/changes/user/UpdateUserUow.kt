@@ -23,7 +23,7 @@ class UpdateUserUow(
         val address: Address?,
     ) : UowParams<Params>
 
-    override suspend fun tryPerform(principal: ServicePrincipal, params: Params) = customChanges {
+    override suspend fun tryPerform(principal: ServicePrincipal, params: Params) = changes {
         val user = userQueries.get(params.userId)
         val updatedUser = updateIfChanged(user) {
             also { updateFirstName(params.firstName) }

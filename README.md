@@ -722,20 +722,22 @@ Runtime verification backs this up for every family: when the executor has the m
 
 The witness itself is opt-in, but these changes reach every consumer:
 
-- **Custom UoW families.** `ChangesAccumulator` is internal, so a family can no longer build its `Changes` itself, and `BaseUnitOfWork` no longer declares an abstract `changes`. A family that extended `BaseUnitOfWork` and filled a `ChangesAccumulator` fails to compile. Extend `UnitOfWork`, or `composable.UnitOfWork` for a family whose units of work compose children or run as children, and wrap its change block: the family's own DSL takes the `ChangesDsl` that `changes { }` gives it, and each of its operations calls the `add`, `update` or `notChanged` of that DSL, so it gets the same checks. Give the family's block function a name of its own: a second `changes` that differs only in the receiver of its lambda does not compile (`Accidental override`), and renaming it for the JVM with `@JvmName` makes every `changes { }` call ambiguous.
+- **Custom UoW families.** `ChangesAccumulator` is internal, so a family can no longer build its `Changes` itself, and `BaseUnitOfWork` no longer declares an abstract `changes`. A family that extended `BaseUnitOfWork` and filled a `ChangesAccumulator` fails to compile. Extend `WrappingUnitOfWork` instead, or `composable.WrappingUnitOfWork` for a family whose units of work also run as children. `wrap` gets the composable `ChangesDsl` of each block and returns the family's own DSL, whose operations call the `add`, `update`, `notChanged` or `execute` of that DSL, so they get eva's checks. The units of work keep writing `= changes { ... }`. `finish` runs after the block returns and before its changes are built; throw from it to refuse the block, and nothing is written.
 
   ```kotlin
   abstract class CustomUnitOfWork<PRINCIPAL, PARAMS, RESULT>(
       executionContext: ExecutionContext,
-  ) : UnitOfWork<PRINCIPAL, PARAMS, RESULT>(executionContext)
+  ) : WrappingUnitOfWork<PRINCIPAL, PARAMS, RESULT, CustomChangesDsl>(executionContext)
       where PRINCIPAL : Principal<*>, PARAMS : UowParams<PARAMS>, RESULT : Any {
 
-      protected suspend fun customChanges(init: suspend CustomChangesDsl.() -> RESULT): Changes<RESULT> =
-          changes { CustomChangesDsl(this).init() }
+      // optional: only this family's changes { } can produce the result; noChanges() no longer compiles
+      abstract override suspend fun tryPerform(principal: PRINCIPAL, params: PARAMS): Block<RESULT>
+
+      override fun wrap(dsl: ChangesDsl) = CustomChangesDsl(dsl)
   }
   ```
 
-  Both examples are in eva-examples: `changes/uow` wraps the plain DSL, `composition/uow` wraps the composable one. No single source shape compiles against both 0.40 and 0.41, and a custom family compiled against 0.40 fails with `NoSuchMethodError`, so recompile it. `ComposableUow` is sealed, so only the bases eva ships, and the families that extend them, can be composed as children.
+  Both examples are in eva-examples: `changes/uow` returns `Block`, `composition/uow` runs as a child. No single source shape compiles against both 0.40 and 0.41, and a custom family compiled against 0.40 fails with `NoSuchMethodError`, so recompile it. `ComposableUow` is sealed, so only the bases eva ships, and the families that extend them, can be composed as children.
 - **New runtime failures** (`IllegalStateException`, before anything is persisted). Each of these silently dropped a write on 0.40:
   - a result holding a new or dirty model that no `add` / `update` registered, including inside nested collections, maps, arrays, pairs, triples and an aggregate's owned models;
   - a result holding a model that carries a write its registered instance lacks;
