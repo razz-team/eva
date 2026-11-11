@@ -847,7 +847,7 @@ uowx.execute(MoveEmployeeUow::class, manager) {
 
 The audit row holds a `Proven` field as `{"action": ..., "target": ...}`, where `target` is the model id.
 
-A spec runs an attempt as the executor does, without the write, from the factory and the params lambda an `execute` call takes. `firstAttempt` and `retry` of the eva-test spec bases build the attempt's context, the unit of work with it and the params, run `tryPerform`, apply the executor's checks and return the changes. A retry builds the first attempt's params first, so a guarded block reloads each proven model and a `ModelParam` loads its model again. Both work for every base.
+A spec runs an attempt as the executor does, without the write, from the factory and the params lambda an `execute` call takes. `firstAttempt` and `retry` of the eva-test spec bases build the attempt's context, the unit of work with it and the params, run `tryPerform`, apply the executor's checks and return the changes. A retry builds the first attempt's params first, so a guarded block reloads each proven model and a `ModelParam` loads its model again. Both work for every base. The runner runs the unit of work as the top unit of a run. A unit that runs only as a child and hands a model back for its parent to register fails the executor's result check there; run it through its parent, or call `tryPerform` directly.
 
 ```kotlin
 class MoveEmployeeUowSpec : UowShouldSpec({

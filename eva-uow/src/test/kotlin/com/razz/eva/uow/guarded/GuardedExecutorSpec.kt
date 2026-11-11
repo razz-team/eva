@@ -153,7 +153,7 @@ class GuardedExecutorSpec : FunSpec({
             }
         }.message shouldBe "The proof for test.write was not wrapped with proven(...) in the first attempt of " +
             "this run. Wrap the same proofs in every attempt. In a spec, run a retry with " +
-            "`uow.retry(principal) { params }`"
+            "`{ ctx -> MyUow(ctx, ...) }.retry(principal) { params }`"
         committed.checkedAgain shouldBe listOf()
         coVerify(exactly = 1) { repo.update(any(), any<Employee>()) }
     }
@@ -179,7 +179,8 @@ class GuardedExecutorSpec : FunSpec({
             }
         }.message shouldBe "MoveEmployeeUow cannot read the Proven for ${employee.id().stringValue()}: its params " +
             "were built in another attempt or another run. Build them in the params lambda of the execute call that " +
-            "runs this unit of work. In a spec, run it with `uow.firstAttempt(principal) { params }`"
+            "runs this unit of work. In a spec, run it with " +
+            "`{ ctx -> MyUow(ctx, ...) }.firstAttempt(principal) { params }`"
         proof.checkedAgain shouldBe listOf()
         coVerify(exactly = 1) { repo.update(any(), any<Employee>()) }
     }
@@ -204,7 +205,8 @@ class GuardedExecutorSpec : FunSpec({
             uowx.execute(OtherPrincipal, anyone) { EmployeeParams(checkNotNull(leaked)) }
         }.message shouldBe "A guarded unit of work cannot read the Proven for ${employee.id().stringValue()}: " +
             "its params were built in another attempt or another run. Build them in the params lambda of the " +
-            "execute call that runs this unit of work. In a spec, run it with `uow.firstAttempt(principal) { params }`"
+            "execute call that runs this unit of work. In a spec, run it with " +
+            "`{ ctx -> MyUow(ctx, ...) }.firstAttempt(principal) { params }`"
         coVerify(exactly = 0) { repo.update(any(), any<Employee>()) }
     }
 

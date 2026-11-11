@@ -11,7 +11,10 @@ object InstantiationContextFixtures {
     fun initial(principal: Principal<*>): InstantiationContext =
         InstantiationContext.External(0, principal, InstantiationContext.Run())
 
-    /** The context of a retry of [first]'s run, as the executor builds it: the same principal and run. */
+    /**
+     * The context of a retry of [first]'s run, as the executor builds it: the same principal and run. For eva's own
+     * specs; an application's spec uses `firstAttempt` / `retry`.
+     */
     fun afterRetry(first: InstantiationContext): InstantiationContext {
         require(first is InstantiationContext.External) { "A retry follows a context the executor builds: use initial" }
         return InstantiationContext.External(first.attempt + 1, first.principal, first.run)
@@ -20,7 +23,7 @@ object InstantiationContextFixtures {
     /**
      * Returns a copy of this context that carries the attempt of [attempt], as the executor builds one for each
      * attempt. A guarded unit of work built with it reads the [com.razz.eva.uow.guarded.Proven] fields of params built
-     * with [attempt].
+     * with [attempt]. For eva's own specs; an application's spec uses `firstAttempt` / `retry`.
      */
     fun ExecutionContext.forAttempt(attempt: InstantiationContext): ExecutionContext = copy(attempt = attempt)
 }

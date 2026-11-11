@@ -148,17 +148,27 @@ class KeptAttemptSpec : FunSpec({
         coVerify(exactly = 0) { repo.update(any(), any<Employee>()) }
     }
 
-    test("a plain unit of work that keeps the first attempt's context for its retry is refused and writes nothing") {
+    test("a retry that returns a guarded block built with the first attempt's context is refused and writes nothing") {
         coEvery { repo.update(any(), any<Employee>()) } throws StaleRecordException(setOf(second.id()), "employee")
         val first = proof(employee)
         var reloads = 0
         var kept: ExecutionContext? = null
         var unread: Proven<TestProof<Employee>, Employee>? = null
         var attempts = 0
+        // the first attempt writes its own change, which goes stale; the retry returns the block of a guarded unit
+        // built with the first attempt's context over the first attempt's unread Proven
         val wrapping = { ctx: ExecutionContext ->
             val held = kept ?: ctx.also { kept = it }
-            val pick = { params: EmployeeParams -> if (attempts > 1) EmployeeParams(checkNotNull(unread)) else params }
-            Wrapper(held, retrying, { anyone(held, Configuration.default()) }, pick)
+            object : UnitOfWork<Principal<*>, EmployeeParams, Employee>(held, retrying) {
+                override fun name() = "Wrapper"
+                override suspend fun tryPerform(principal: Principal<*>, params: EmployeeParams) =
+                    if (attempts == 1) {
+                        changes { update(second) { changeDepartment(away) } }
+                    } else {
+                        val unreadParams = EmployeeParams(checkNotNull(unread))
+                        anyone(held, Configuration.default()).tryPerform(principal, unreadParams)
+                    }
+            }
         }
         shouldThrow<IllegalStateException> {
             uowx.execute(TestPrincipal, wrapping) {
@@ -168,10 +178,12 @@ class KeptAttemptSpec : FunSpec({
                 if (attempts == 1) EmployeeParams(proven(proof(second)) { second }) else EmployeeParams(forFirst)
             }
         }.message shouldBe returnedAnother("Wrapper", "Anyone")
-        attempts shouldBe 1
+        attempts shouldBe 2
         reloads shouldBe 0
         first.checkedAgain shouldBe listOf()
-        coVerify(exactly = 0) { repo.update(any(), any<Employee>()) }
+        // the first attempt's write of the other employee goes stale; nothing writes the proof's target
+        coVerify(exactly = 1) { repo.update(any(), any<Employee>()) }
+        coVerify(exactly = 0) { repo.update(any(), match<Employee> { it.id() == employee.id() }) }
     }
 
     test("a guarded unit of work that a plain one builds with a context that carries no attempt reads no Proven") {
@@ -185,7 +197,7 @@ class KeptAttemptSpec : FunSpec({
         }.message shouldBe "Anyone cannot read the Proven for ${employee.id().stringValue()}: it was built with an " +
             "ExecutionContext that carries no attempt. Build the unit of work in the factory of the execute call, " +
             "with the ExecutionContext the factory receives. A composed child reads no Proven. In a spec, run it " +
-            "with `uow.firstAttempt(principal) { params }`"
+            "with `{ ctx -> MyUow(ctx, ...) }.firstAttempt(principal) { params }`"
         coVerify(exactly = 0) { repo.update(any(), any<Employee>()) }
     }
 

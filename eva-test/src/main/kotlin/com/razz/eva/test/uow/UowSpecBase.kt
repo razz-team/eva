@@ -33,7 +33,10 @@ interface UowSpecBase {
      * Runs the first attempt of a new run of the unit of work this factory builds, as `UnitOfWorkExecutor.execute`
      * does, without the write: `{ ctx: ExecutionContext -> MyUow(ctx, ...) }.firstAttempt(principal) { Params(...) }`.
      * The factory and the params lambda are the ones an `execute` call takes. The unit of work and its params share
-     * the attempt, and the executor's checks run on the changes, which it returns for `verifyInOrder`.
+     * the attempt, and the executor's checks run on the changes, which it returns for `verifyInOrder`. The runner
+     * runs the unit of work as the top unit of a run. A unit that runs only as a child and hands a model back for its
+     * parent to register fails the executor's result check there; run it through its parent, or call `tryPerform`
+     * directly.
      */
     suspend fun <P, PARAMS, RESULT, UOW> ((ExecutionContext) -> UOW).firstAttempt(
         principal: P,

@@ -7,7 +7,9 @@ import com.razz.eva.domain.Principal
  * without the write. It takes the factory and the params lambda an `execute` call takes, builds the attempt's
  * context, the unit of work with that context and the params in the executor's order, runs `tryPerform` and applies
  * the executor's checks to the changes. Returns the changes, for `verifyInOrder`. A spec on an eva-test spec base
- * calls it without [executionContext]: `factory.firstAttempt(principal) { params }`.
+ * calls it without [executionContext]: `factory.firstAttempt(principal) { params }`. The runner runs the unit of work
+ * as the top unit of a run. A unit that runs only as a child and hands a model back for its parent to register fails
+ * the executor's result check there; run it through its parent, or call `tryPerform` directly.
  */
 suspend fun <P, PARAMS, RESULT, UOW> ((ExecutionContext) -> UOW).firstAttempt(
     executionContext: ExecutionContext,

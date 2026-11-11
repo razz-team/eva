@@ -92,7 +92,7 @@ class Proven<out PF : Proof<*>, M : Model<*, *>> private constructor(
                 check(proof.isUsedBy(run)) {
                     "The proof for ${proof.action.name} was not wrapped with proven(...) in the first attempt " +
                         "of this run. Wrap the same proofs in every attempt. In a spec, run a retry with " +
-                        "`uow.retry(principal) { params }`"
+                        "`{ ctx -> MyUow(ctx, ...) }.retry(principal) { params }`"
                 }
             }
             return Proven(proof, reload, this)
