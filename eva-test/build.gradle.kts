@@ -23,6 +23,8 @@ dependencies {
     implementation(project(eva.eva_persistence_jdbc))
     implementation(project(eva.eva_persistence_vertx))
     implementation(testFixtures(project(eva.eva_uow)))
+    // runWitnessed runs a spec body under the fixtures' universal `mutating { }`
+    implementation(testFixtures(project(eva.eva_domain)))
 
     implementation(libs.kotlin.reflect)
     implementation(libs.postgres)
@@ -36,5 +38,4 @@ dependencies {
     implementation(libs.opentelemetry.sdk.testing)
 
     testImplementation(testFixtures(project(eva.eva_repository)))
-    testImplementation(testFixtures(project(eva.eva_domain)))
 }
