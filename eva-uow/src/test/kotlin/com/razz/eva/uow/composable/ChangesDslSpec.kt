@@ -1214,9 +1214,10 @@ class ChangesDslSpec : FunSpec({
         checkNotNull(ex.message) shouldContain "was already registered"
     }
 
-    test("A parent that registers from the params lambda is refused") {
+    test("A parent that registers from the params lambda is refused, and the message names the child") {
         val child = { ctx: ExecutionContext ->
             object : DummyUow<ActiveTestModel>(ctx) {
+                override fun name() = "NamedChild"
                 override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
                     update(existingCreatedTestModel(randomTestModelId(), "child", 1, V1).activate())
                 }
@@ -1233,7 +1234,7 @@ class ChangesDslSpec : FunSpec({
             }
         }
         shouldThrow<IllegalStateException> { uow.tryPerform(TestPrincipal, DummyUow.Params) }
-            .message shouldBe notStartedFromParent
+            .message shouldBe notStartedFromParent.replace("child UnitOfWork", "NamedChild")
     }
 
     test("A parent that registers from the params lambda is refused when the child only keeps its changes") {
@@ -1448,6 +1449,26 @@ class ChangesDslSpec : FunSpec({
             listOf(a.id(), b.id(), g.id(), own.id(), c.id(), d.id(), claimed.id())
         changes.modelChangesToPersist.map { it.modelEvents.size } shouldBe listOf(2, 2, 2, 1, 2, 2, 0)
         changes.entityChangesToPersist shouldHaveSize 1
+    }
+
+    test("An escaped block that runs a child returning noChanges gets the child's result and keeps its changes") {
+        val added = createdTestModel("added", 1)
+        lateinit var escaped: ChangesDsl
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                escaped = this
+                add(added)
+                "K P A C U B O"
+            }
+        }
+        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
+        val child = { ctx: ExecutionContext ->
+            object : DummyUow<String>(ctx) {
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params) = noChanges("none")
+            }
+        }
+        escaped.execute(child, TestPrincipal) { DummyUow.Params } shouldBe "none"
+        changes.modelChangesToPersist shouldBe listOf(AddModel(added))
     }
 })
 

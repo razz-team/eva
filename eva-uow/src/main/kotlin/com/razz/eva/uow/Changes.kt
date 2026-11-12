@@ -309,8 +309,8 @@ internal class ChangesAccumulator private constructor(
      * the child received them and may have extended them.
      */
     internal fun merging(uowName: String, subChanges: Changes<*>) {
-        checkOpen()
         if (subChanges.modelChangesToPersist.isEmpty() && subChanges.entityChangesToPersist.isEmpty()) return
+        checkOpen()
         val child = subChanges.accumulator
         if (child == null) {
             for (change in subChanges.modelChangesToPersist) {
@@ -406,8 +406,9 @@ internal class ChangesAccumulator private constructor(
     /**
      * A block's changes as it handed them to a composed child: the block, and the writes it had made then. It is
      * read-only, so nothing can write into the parent through it. The child's block copies the parent's changes
-     * when it starts. A parent that wrote after the hand-off, from the factory or the params lambda, would leak that
-     * write into the copy, so the block refuses to start; [merging] refuses a child whose parent wrote while it ran.
+     * when it starts. [merging] refuses a child whose parent wrote after the hand-off, so the copy is never taken in
+     * with a parent write missing. The block also refuses to start from such a hand-off: that fails early, before the
+     * child's own rules trip over the parent's write, and gives the message that names the cause.
      */
     internal class HandOff internal constructor(
         private val parent: ChangesAccumulator,
