@@ -136,7 +136,8 @@ class ChangesDsl internal constructor(
               RESULT : Any,
               UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *>,
               UOW : ComposableUow {
-        val uow = uowFactory(executionContext.withInheritedChanges(changes.handOff()))
+        val handOff = changes.handOff()
+        val uow = uowFactory(executionContext.withInheritedChanges(handOff))
         // the bounds already demand ComposableUow; an unchecked cast of the factory, or a class that carries both
         // markers under a suppressed compiler error, can still get past them
         check(ComposableUow::class.isInstance(uow) && !NotComposableUow::class.isInstance(uow)) {
@@ -146,7 +147,10 @@ class ChangesDsl internal constructor(
         val span = uowSpan(uow.name())
         return span.use {
             val subChanges = performingSpan(uow.name()).use {
-                uow.tryPerform(principal, params(InstantiationContext.Internal(0)))
+                val childParams = params(InstantiationContext.Internal(0))
+                // the child copies this block's changes when its block starts, so a write since the hand-off fails now
+                changes.checkUnchangedSince(handOff, uow.name())
+                uow.tryPerform(principal, childParams)
             }
             checkBuiltBy(uow, subChanges, uow.name())
             span.setAttribute(

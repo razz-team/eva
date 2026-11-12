@@ -305,55 +305,79 @@ class ChangesSpec : BehaviorSpec({
                 .activate()
             val tag = Tag(UUID.randomUUID(), "key", "value")
             val stored = existingCreatedTestModel(randomTestModelId(), "stored", 7, V1)
+            val notStarted = "Composed Child did not start from the changes its parent holds now; a child extends " +
+                "composable.UnitOfWork or a WrappingUnitOfWork family and not the plain UnitOfWork, it is " +
+                "constructed with the ExecutionContext given to the factory, and its parent does not register " +
+                "from the params lambda or while the child runs"
 
-            When("the child registers into what the parent handed off") {
+            When("the child registers into its copy of the parent's changes") {
                 val parent = ChangesAccumulator().apply { adding(newModel) }
-                val handedOff = parent.handOff()
-                val child = ChangesAccumulator.seededFrom(handedOff).apply { updating(model1) }
+                val handOff = parent.handOff()
+                val child = ChangesAccumulator.seededFrom(handOff).apply { updating(model1) }
                 // a second block over the same hand-off, as a unit of work that runs changes { } twice
-                val sibling = ChangesAccumulator.seededFrom(handedOff)
+                val sibling = ChangesAccumulator.seededFrom(handOff)
 
                 Then("the child holds the parent's changes, and its own write reaches nobody else") {
                     child.changeFor(newModel.id()) shouldBe AddModel(newModel)
                     parent.changeFor(model1.id()) shouldBe null
-                    handedOff.changeFor(model1.id()) shouldBe null
                     sibling.changeFor(model1.id()) shouldBe null
                 }
             }
 
-            When("the parent merges the child back") {
+            When("the parent merges the child back and goes on") {
                 val parent = ChangesAccumulator().apply { adding(newModel) }
-                val child = ChangesAccumulator.seededFrom(parent.handOff()).apply { updating(model1) }
-                parent.merging("Child", child.withResult(model2, null))
+                val child = ChangesAccumulator.seededFrom(parent.handOff()).apply {
+                    updating(model1)
+                    addingEntity(tag)
+                }
+                val childChanges = child.withResult(model2, null)
+                parent.merging("Child", childChanges)
+                parent.updating(model3)
+                parent.deletingEntity(tag)
                 val changes = parent.withResult(listOf("Gurbanguly", "Berdimuhamedow"), null)
 
                 Then("the parent holds its own changes and the child's") {
-                    changes.modelChangesToPersist shouldBe listOf(AddModel(newModel), UpdateModel(model1))
+                    changes.modelChangesToPersist shouldBe
+                        listOf(AddModel(newModel), UpdateModel(model1), UpdateModel(model3))
+                    changes.entityChangesToPersist shouldBe listOf(AddEntity(tag), DeleteEntity(tag))
                     changes.result shouldBe listOf("Gurbanguly", "Berdimuhamedow")
+                }
+                Then("the child's changes stay as its block ended") {
+                    childChanges.modelChangesToPersist shouldBe listOf(AddModel(newModel), UpdateModel(model1))
+                    childChanges.entityChangesToPersist shouldBe listOf(AddEntity(tag))
                 }
             }
 
             When("the parent registers after the hand-off, as from the params lambda") {
                 val parent = ChangesAccumulator().apply { adding(newModel) }
-                val handedOff = parent.handOff()
+                val handOff = parent.handOff()
                 parent.updating(model3)
-                val child = ChangesAccumulator.seededFrom(handedOff).apply { updating(model1) }
+
+                Then("the parent refuses to run the child") {
+                    shouldThrow<IllegalStateException> { parent.checkUnchangedSince(handOff, "Child") }
+                        .message shouldBe notStarted
+                }
+            }
+
+            When("the parent registers while the child runs") {
+                val parent = ChangesAccumulator().apply { adding(newModel) }
+                val handOff = parent.handOff()
+                parent.checkUnchangedSince(handOff, "Child")
+                val child = ChangesAccumulator.seededFrom(handOff).apply { updating(model1) }
+                parent.updating(model3)
 
                 Then("the child does not see that registration") {
                     child.changeFor(model3.id()) shouldBe null
                 }
                 Then("the seed check refuses the child, and the parent keeps its own changes") {
                     shouldThrow<IllegalStateException> { parent.merging("Child", child.withResult(model2, null)) }
-                        .message shouldBe "Composed Child did not start from the changes its parent holds now; a " +
-                        "child extends composable.UnitOfWork or a WrappingUnitOfWork family and not the plain " +
-                        "UnitOfWork, it is constructed with the ExecutionContext given to the factory, and its " +
-                        "parent does not register from the params lambda or while the child runs"
+                        .message shouldBe notStarted
                     parent.withResult("kept", null).modelChangesToPersist shouldBe
                         listOf(AddModel(newModel), UpdateModel(model3))
                 }
             }
 
-            When("the parent writes after the hand-off in any other way") {
+            When("the parent writes while the child runs in any other way") {
                 val writes: List<ChangesAccumulator.() -> Unit> = listOf(
                     { adding(createdTestModel("late", 1)) },
                     { claimingUnchanged(stored) },
@@ -371,9 +395,37 @@ class ChangesSpec : BehaviorSpec({
                         val child = ChangesAccumulator.seededFrom(parent.handOff()).apply { updating(model1) }
                         parent.write()
                         shouldThrow<IllegalStateException> { parent.merging("Child", child.withResult(model2, null)) }
-                            .message shouldStartWith "Composed Child did not start from the changes its parent holds"
+                            .message shouldBe notStarted
                     }
                 }
+            }
+        }
+
+        When("a block writes after its changes were built") {
+            val accumulator = ChangesAccumulator().apply { adding(newModel) }
+            val changes = accumulator.withResult("built", null)
+            val entities = changes.entityChangesToPersist
+            val writes: List<ChangesAccumulator.() -> Unit> = listOf(
+                { adding(createdTestModel("late", 1)) },
+                { updating(dirtyModel) },
+                { claimingUnchanged(unchangedModel) },
+                { declining(unchangedModel) },
+                { addingEntity(Tag(UUID.randomUUID(), "key", "value")) },
+                { updatingEntity(Tag(UUID.randomUUID(), "key", "value")) },
+                { deletingEntity(Tag(UUID.randomUUID(), "key", "value")) },
+                { deletingEntityByKey(Tag.Key(UUID.randomUUID(), "key"), Tag::class) },
+                { merging("Stub", stubChanges(unchangedModel)) },
+            )
+
+            Then("every write fails, and the changes stay as they were") {
+                writes.forEach { write ->
+                    shouldThrow<IllegalStateException> { accumulator.write() }.message shouldBe
+                        "Attempted to register after the changes { } block ended: its changes are built already, " +
+                        "so the registration would be lost. Register a model inside the block that persists it"
+                }
+                changes.modelChangesToPersist shouldBe listOf(AddModel(newModel))
+                changes.entityChangesToPersist shouldBe listOf()
+                entities shouldBe listOf()
             }
         }
 
