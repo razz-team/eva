@@ -10,7 +10,7 @@ import kotlin.reflect.KClass
  */
 class Guarding(vararg types: KClass<out Model<*, *>>) {
 
-    val types: Set<KClass<out Model<*, *>>> = types.toSet()
+    private val types: Set<KClass<out Model<*, *>>> = types.toSet()
 
     /**
      * Returns true if a model of [type] can be a guarded model: [type] is a guarded type, a subtype of one, or a
