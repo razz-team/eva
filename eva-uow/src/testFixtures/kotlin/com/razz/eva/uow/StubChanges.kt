@@ -7,8 +7,7 @@ import com.razz.eva.domain.ModelId
 /**
  * Builds the [Changes] a TEST DOUBLE of a UoW returns (a mocked composed child, a stubbed executor
  * call). The changes DSL is deliberately unusable for doubles: it refuses an empty change set, which
- * breeds throwaway "anchor" registrations, and hand-assembled accumulators must re-enumerate what the
- * double is supposed to have registered.
+ * breeds throwaway "anchor" registrations.
  *
  * A stub declares child behaviour instead of performing it, so every model reachable from [result]
  * (through iterables, maps, arrays, pairs, triples and an aggregate's owned models) is registered as an unchanged claim
@@ -29,5 +28,15 @@ fun <R> stubChanges(result: R, vararg alsoRegistered: Model<*, *>): Changes<R> {
         @Suppress("UNCHECKED_CAST")
         NoopModel(model as Model<ModelId<out Comparable<*>>, ModelEvent<ModelId<out Comparable<*>>>>)
     }
-    return RealisedChanges(result, changes, listOf(), resultBuilder = null, stubbed = true)
+    return StubbedChanges(result, changes)
+}
+
+// Claims only, and no accumulator: by that the executor refuses a stub as a real outcome, and a composable parent
+// merges it as claims.
+private class StubbedChanges<R>(
+    override val result: R,
+    override val modelChangesToPersist: List<ModelChange>,
+) : Changes<R>() {
+    override val entityChangesToPersist: List<EntityChange> get() = listOf()
+    override val accumulator: ChangesAccumulator? get() = null
 }

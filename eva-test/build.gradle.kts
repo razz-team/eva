@@ -22,9 +22,9 @@ dependencies {
     implementation(project(eva.eva_migrations))
     implementation(project(eva.eva_persistence_jdbc))
     implementation(project(eva.eva_persistence_vertx))
-    implementation(testFixtures(project(eva.eva_uow)))
+    api(testFixtures(project(eva.eva_uow)))
     // runWitnessed runs a spec body under the fixtures' universal `mutating { }`
-    implementation(testFixtures(project(eva.eva_domain)))
+    api(testFixtures(project(eva.eva_domain)))
 
     implementation(libs.kotlin.reflect)
     implementation(libs.postgres)

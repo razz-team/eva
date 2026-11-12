@@ -73,8 +73,10 @@ jobs:
 
       # No signing* vars: signing.required is false for -SNAPSHOT, so signMavenPublication skips.
       # SNAPSHOT_SHA is required - GITHUB_SHA here is the default branch head, not the PR commit.
+      # Sonatype answers 429 Too Many Requests when a snapshot makes too many uploads. The switch skips the
+      # SHA-256/512 checksum uploads, 2 of the 5 uploads per file; md5 and sha1 stay.
       - name: Publish snapshot
-        run: ./gradlew publishToMavenCentral --parallel
+        run: ./gradlew publishToMavenCentral -Dorg.gradle.internal.publish.checksums.insecure=true
         env:
           SNAPSHOT_SHA: ${{ github.event.workflow_run.head_sha }}
           ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.SONATYPE_TOKEN }}
