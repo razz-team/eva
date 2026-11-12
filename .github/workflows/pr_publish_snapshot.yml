@@ -74,7 +74,7 @@ jobs:
       # No signing* vars: signing.required is false for -SNAPSHOT, so signMavenPublication skips.
       # SNAPSHOT_SHA is required - GITHUB_SHA here is the default branch head, not the PR commit.
       - name: Publish snapshot
-        run: ./gradlew publishToMavenCentral --parallel
+        run: ./gradlew publishToMavenCentral
         env:
           SNAPSHOT_SHA: ${{ github.event.workflow_run.head_sha }}
           ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.SONATYPE_TOKEN }}
