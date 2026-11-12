@@ -9,4 +9,5 @@ dependencies {
     implementation(libs.jackson.kotlin)
 
     testImplementation(testFixtures(project(eva.eva_domain)))
+    testImplementation(testFixtures(project(eva.eva_uow)))
 }

@@ -3,6 +3,8 @@ package com.razz.eva.uow
 import com.razz.eva.domain.TestModel
 import com.razz.eva.domain.TestModelId
 import com.razz.eva.domain.TestModelId.Companion.randomTestModelId
+import com.razz.eva.uow.InstantiationContextFixtures.AFTER_RETRY
+import com.razz.eva.uow.InstantiationContextFixtures.INITIAL
 import com.razz.eva.uow.ModelParam.Factory.idModelParam
 import com.razz.eva.uow.ModelParam.Factory.modelParam
 import io.kotest.assertions.throwables.shouldThrow
@@ -22,13 +24,13 @@ class ModelParamSpec : FunSpec({
 
     test("Model param returns id when constructed from model") {
         val model = TestModel.createdTestModel("lel", 1337)
-        val modelParam = InstantiationContext.External(0).modelParam(model) { error("not used") }
+        val modelParam = INITIAL.modelParam(model) { error("not used") }
         modelParam.id() shouldBe model.id()
     }
 
     test("Model param returns model when constructed from model") {
         val model = TestModel.createdTestModel("lel", 1337)
-        val modelParam = InstantiationContext.External(0).modelParam(model) { error("not used") }
+        val modelParam = INITIAL.modelParam(model) { error("not used") }
         modelParam.model().param1 shouldBe model.param1
         modelParam.model().param2 shouldBe model.param2
         modelParam.model().id() shouldBe model.id()
@@ -38,7 +40,7 @@ class ModelParamSpec : FunSpec({
         val oldModel = TestModel.existingCreatedTestModel(param1 = "lel", param2 = 1337)
         val newModel = TestModel.existingCreatedTestModel(id = oldModel.id(), param1 = "pek", param2 = 100500)
         var queryCount = 0
-        val modelParam = InstantiationContext.External(1).modelParam(oldModel) { id ->
+        val modelParam = AFTER_RETRY.modelParam(oldModel) { id ->
             queryCount++
             id shouldBe oldModel.id()
             newModel
@@ -51,25 +53,21 @@ class ModelParamSpec : FunSpec({
 
     test("Model param holds a New model on retry instead of re-querying a never-committed id") {
         val newModel = TestModel.createdTestModel("lel", 1337)
-        val modelParam = InstantiationContext.External(1).modelParam(newModel) {
-            error("must not re-query a New model")
-        }
+        val modelParam = AFTER_RETRY.modelParam(newModel) { error("must not re-query a New model") }
         modelParam.model().id() shouldBe newModel.id()
         modelParam.model().param1 shouldBe newModel.param1
     }
 
     test("Model param holds a Dirty model on retry instead of dropping its uncommitted events") {
         val dirtyModel = TestModel.existingCreatedTestModel(param1 = "lel", param2 = 1337).changeParam1("pek")
-        val modelParam = InstantiationContext.External(1).modelParam(dirtyModel) {
-            error("must not re-query a Dirty model")
-        }
+        val modelParam = AFTER_RETRY.modelParam(dirtyModel) { error("must not re-query a Dirty model") }
         modelParam.model().param1 shouldBe "pek"
     }
 
     test("Model param re-queries when the held model is older than staleAfter") {
         val heldModel = TestModel.existingCreatedTestModel(param1 = "lel", param2 = 1337)
         var queryCount = 0
-        val modelParam = InstantiationContext.External(0).modelParam(heldModel, Duration.ofMillis(1)) { id ->
+        val modelParam = INITIAL.modelParam(heldModel, Duration.ofMillis(1)) { id ->
             queryCount++
             id shouldBe heldModel.id()
             TestModel.existingCreatedTestModel(id = heldModel.id(), param1 = "pek", param2 = 100500)
@@ -83,7 +81,7 @@ class ModelParamSpec : FunSpec({
 
     test("Model param keeps the held model when it is younger than staleAfter") {
         val heldModel = TestModel.existingCreatedTestModel(param1 = "lel", param2 = 1337)
-        val modelParam = InstantiationContext.External(0).modelParam(heldModel, Duration.ofHours(1)) {
+        val modelParam = INITIAL.modelParam(heldModel, Duration.ofHours(1)) {
             error("not used")
         }
         modelParam.model().param1 shouldBe heldModel.param1
@@ -91,7 +89,7 @@ class ModelParamSpec : FunSpec({
 
     test("Model param never re-queries when staleAfter is null even if the held model is old") {
         val heldModel = TestModel.existingCreatedTestModel(param1 = "lel", param2 = 1337)
-        val modelParam = InstantiationContext.External(0).modelParam(heldModel) { error("not used") }
+        val modelParam = INITIAL.modelParam(heldModel) { error("not used") }
         Thread.sleep(STALENESS_SLEEP_MILLIS)
         modelParam.model().param1 shouldBe heldModel.param1
     }

@@ -27,7 +27,7 @@ class ChangesDsl internal constructor(
     private val executionContext: ExecutionContext,
     uowName: String,
 ) {
-    private val changes: ChangesAccumulator =
+    internal val changes: ChangesAccumulator =
         ChangesAccumulator.seededFrom(executionContext.inheritedChanges, uowName)
     // var: assigned by roundtrip { } mid-block; null means no roundtrip, so the executor default-roundtrips.
     private var resultBuilder: ((PersistedLookup) -> Any?)? = null
@@ -137,6 +137,22 @@ class ChangesDsl internal constructor(
               PARAMS : UowParams<PARAMS>,
               RESULT : Any,
               UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *>,
+              UOW : ComposableUow = execute(uowFactory, principal, params) { _, _ -> }
+
+    /**
+     * Runs a child as the public `execute` does, and passes the child's name and changes to [beforeMerge] before they
+     * are merged into this block's changes. If [beforeMerge] throws, this block's changes stay as they were.
+     */
+    internal suspend fun <PRINCIPAL, PARAMS, RESULT, UOW> execute(
+        uowFactory: (ExecutionContext) -> UOW,
+        principal: PRINCIPAL,
+        params: InstantiationContext.Internal.() -> PARAMS,
+        beforeMerge: (childName: String, childChanges: Changes<RESULT>) -> Unit,
+    ): RESULT
+        where PRINCIPAL : Principal<*>,
+              PARAMS : UowParams<PARAMS>,
+              RESULT : Any,
+              UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *>,
               UOW : ComposableUow {
         val uow = uowFactory(executionContext.withInheritedChanges(changes.handOff()))
         // the bounds already demand ComposableUow; an unchecked cast of the factory, or a class that carries both
@@ -155,6 +171,7 @@ class ChangesDsl internal constructor(
                 MODEL_ID,
                 subChanges.modelChangesToPersist.map { it.id.stringValue() },
             )
+            beforeMerge(uow.name(), subChanges)
             changes.merging(uow.name(), subChanges)
             // Under composition the caller gets this in-memory seed; the child's resultBuilder is not rerun.
             subChanges.result

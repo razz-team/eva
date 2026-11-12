@@ -26,6 +26,7 @@ import com.razz.eva.uow.OtelAttributes.UOW_NAME
 import com.razz.eva.uow.OtelAttributes.UOW_OPERATION
 import com.razz.eva.uow.OtelAttributes.WILL_RETRY
 import com.razz.eva.uow.UnitOfWorkExecutor.ClassToUow
+import com.razz.eva.uow.guarded.GuardedUnitOfWork
 import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
@@ -71,6 +72,9 @@ class UnitOfWorkExecutor(
             ?: throw IllegalArgumentException("Attempted to register multiple factories for ${it.key.simpleName}")
     }
 
+    /** The classes of the units of work that have a registered factory, so an application can check them at startup. */
+    val registered: Set<KClass<*>> get() = classToFactory.keys
+
     suspend fun <PRINCIPAL, PARAMS, RESULT, UOW> execute(
         principal: PRINCIPAL,
         uowFactory: (ExecutionContext) -> UOW,
@@ -104,15 +108,19 @@ class UnitOfWorkExecutor(
         var name = uowName
         try {
             var currentAttempt = 0
+            val run = InstantiationContext.Run()
             while (true) {
                 val now = clock.instant()
-                val uow = uowFactory(ExecutionContext(Clocks.fixedUTC(now), openTelemetry))
+                val context = InstantiationContext.External(currentAttempt, principal, run)
+                val executionContext = ExecutionContext(Clocks.fixedUTC(now), openTelemetry, attempt = context)
+                val uow = uowFactory(executionContext)
                 if (currentAttempt == 0) {
                     name = uow.name()
                     uowSpan.updateName(name)
                     uowSpan.setAttribute(UOW_NAME, name)
                 }
-                val constructedParams = params(InstantiationContext.External(currentAttempt))
+                checkBuiltFor(uow, context)
+                val constructedParams = params(context)
                 val attempted = attempt(uow, principal, constructedParams, now, name, uowSpan)
                 val committed = when (attempted) {
                     is Attempted.Conflict -> {
@@ -254,13 +262,7 @@ class UnitOfWorkExecutor(
                 }
             }
         }
-        check(changes.accumulator != null) {
-            "$name returned stubChanges; it builds test doubles only, a real UnitOfWork must go through changes { }"
-        }
-        checkBuiltBy(uow, changes, name)
-        // over the merged set, so a plain family's child may hand a model back for its parent to register
-        verifyResultAccounted(changes.result, changes.modelChangesToPersist)
-        verifyResultInstances(changes.result, changes.modelChangesToPersist)
+        checkOutcome(uow, changes, name)
         uowSpan.setAttribute(
             MODEL_ID,
             changes.modelChangesToPersist.map { it.id.stringValue() },
@@ -532,4 +534,34 @@ class UnitOfWorkExecutor(
         )
         private val ACQUISITION_BUCKET_BOUNDARIES = listOf(0L, 1L, 2L, 3L, 5L, 8L, 13L, 21L, 50L)
     }
+}
+
+/**
+ * What the executor demands of a unit of work its factory built for [context], before the params lambda runs. A
+ * guarded unit of work reads its attempt from the ExecutionContext it holds. One built with a context kept from
+ * another attempt or run would read the proofs of that attempt. No other unit of work reads the attempt, so the check
+ * leaves them alone.
+ */
+internal fun checkBuiltFor(uow: BaseUnitOfWork<*, *, *, *>, context: InstantiationContext) {
+    if (uow is GuardedUnitOfWork<*, *, *, *>) {
+        check(uow.executionContext().attempt === context) {
+            "${uow.name().ifEmpty { "A guarded unit of work" }} was built with an ExecutionContext other than the " +
+                "one its factory received. Build the unit of work in the factory, with the ExecutionContext the " +
+                "factory receives"
+        }
+    }
+}
+
+/**
+ * What the executor demands of the changes a unit of work it runs returned, before it writes them. A spec that runs
+ * an attempt applies the same checks, so it cannot pass on changes the executor refuses.
+ */
+internal fun checkOutcome(uow: BaseUnitOfWork<*, *, *, *>, changes: Changes<*>, name: String) {
+    check(changes.accumulator != null) {
+        "$name returned stubChanges; it builds test doubles only, a real UnitOfWork must go through changes { }"
+    }
+    checkBuiltBy(uow, changes, name)
+    // over the merged set, so a plain family's child may hand a model back for its parent to register
+    verifyResultAccounted(changes.result, changes.modelChangesToPersist)
+    verifyResultInstances(changes.result, changes.modelChangesToPersist)
 }

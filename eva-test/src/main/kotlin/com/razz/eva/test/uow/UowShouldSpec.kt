@@ -19,7 +19,7 @@ abstract class UowShouldSpec(
     val now = millisUTC().instant()
     val clock = fixedUTC(now)
     val principal: Principal<String> = UowSpecPrincipal
-    val executionContext = executionContext(clock, OpenTelemetry.noop())
+    override val executionContext = executionContext(clock, OpenTelemetry.noop())
 
     private object KotestEqualityVerifier : EqualityVerifier {
         override fun <T> verify(expected: T, actual: T) {
