@@ -4,11 +4,11 @@ import com.razz.eva.domain.Model
 import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
 
-class ChangesDsl internal constructor(private var changes: ChangesAccumulator) {
+class ChangesDsl internal constructor(private val changes: ChangesAccumulator) {
 
     fun <MID, E, M> add(model: M): M
         where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
-        changes = changes.adding(model)
+        changes.adding(model)
         return model
     }
 
@@ -19,7 +19,7 @@ class ChangesDsl internal constructor(private var changes: ChangesAccumulator) {
                 "Attempted to register new model [${model.id().stringValue()}] as changed"
             }
         }
-        changes = when (required || model.isDirty()) {
+        when (required || model.isDirty()) {
             true -> changes.updating(model)
             false -> changes.claimingUnchanged(model)
         }
@@ -28,7 +28,7 @@ class ChangesDsl internal constructor(private var changes: ChangesAccumulator) {
 
     fun <MID, E, M> notChanged(model: M): M
         where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
-        changes = changes.claimingUnchanged(model)
+        changes.claimingUnchanged(model)
         return model
     }
 

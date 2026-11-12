@@ -447,4 +447,29 @@ class WrappingUnitOfWorkSpec : FunSpec({
         val ex = shouldThrow<IllegalStateException> { parent.tryPerform(TestPrincipal, DummyUow.Params) }
         checkNotNull(ex.message) shouldContain "did not start from the changes its parent holds now"
     }
+
+    test("A parent that registers from the params lambda is refused, and the message names the family's child") {
+        val child = { exCtx: ExecutionContext ->
+            object : ChildFamily<TestModel>(exCtx) {
+                override fun name() = "NamedFamilyChild"
+                override suspend fun tryPerform(principal: TestPrincipal, params: DummyUow.Params) = changes {
+                    update(existingCreatedTestModel(param1 = "child", param2 = 1).changeParam1("changed"))
+                }
+            }
+        }
+        val parent = object : DummyUow<TestModel>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                add(createdTestModel("parent", 1))
+                execute(child, TestPrincipal) {
+                    update(existingCreatedTestModel(param1 = "lambda", param2 = 1).changeParam1("changed"))
+                    Params
+                }
+            }
+        }
+        shouldThrow<IllegalStateException> { parent.tryPerform(TestPrincipal, DummyUow.Params) }.message shouldBe
+            "Composed NamedFamilyChild did not start from the changes its parent holds now; a child extends " +
+            "composable.UnitOfWork or a WrappingUnitOfWork family and not the plain UnitOfWork, it is constructed " +
+            "with the ExecutionContext given to the factory, and its parent does not register from the params " +
+            "lambda or while the child runs"
+    }
 })

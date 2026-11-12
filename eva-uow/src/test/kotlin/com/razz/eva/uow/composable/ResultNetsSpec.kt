@@ -182,6 +182,24 @@ class ResultNetsSpec : FunSpec({
         verify { persisting wasNot Called }
     }
 
+    test("A result that registers when the executor walks it fails before anything is persisted") {
+        val late = existingCreatedTestModel(param1 = "late", param2 = 1)
+        val persisting = persistingReturning()
+        val ex = shouldThrow<IllegalStateException> {
+            executor(persisting).execute(
+                TestPrincipal,
+                uow<Iterable<TestModel>> {
+                    add(createdTestModel("added", 1))
+                    val registeredWhenWalked by lazy { listOf(notChanged(late)) }
+                    Iterable { registeredWhenWalked.iterator() }
+                },
+            ) { DummyUow.Params }
+        }
+        ex.message shouldBe "Attempted to register after the changes { } block ended: its changes are built " +
+            "already, so the registration would be lost. Register a model inside the block that persists it"
+        verify { persisting wasNot Called }
+    }
+
     test("An unchanged registration vouches only for its instance, not for a mutation of it") {
         val read = existingCreatedTestModel(param1 = "read", param2 = 1)
         val persisting = persistingReturning()
