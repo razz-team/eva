@@ -1,3 +1,7 @@
+import com.vanniktech.maven.publish.JavadocJar
+import com.vanniktech.maven.publish.KotlinJvm
+import com.vanniktech.maven.publish.SourcesJar
+
 plugins {
     id("org.jetbrains.dokka")
     id("com.vanniktech.maven.publish")
@@ -7,6 +11,14 @@ mavenPublishing {
     println("Publishing artifact $group:$name:$version")
 
     publishToMavenCentral()
+
+    // A snapshot publishes its jars only. Each sources or javadoc jar, with its checksums, is more uploads to
+    // Sonatype, which answers 429 Too Many Requests when a snapshot has too many. Releases keep both.
+    if (version.toString().endsWith("-SNAPSHOT")) {
+        plugins.withId("org.jetbrains.kotlin.jvm") {
+            configure(KotlinJvm(javadocJar = JavadocJar.None(), sourcesJar = SourcesJar.None()))
+        }
+    }
 
     signAllPublications()
 
