@@ -25,8 +25,10 @@ import kotlin.reflect.KClass
 
 class ChangesDsl internal constructor(
     private val executionContext: ExecutionContext,
+    uowName: String,
 ) {
-    private val changes: ChangesAccumulator = ChangesAccumulator.seededFrom(executionContext.inheritedChanges)
+    private val changes: ChangesAccumulator =
+        ChangesAccumulator.seededFrom(executionContext.inheritedChanges, uowName)
     // var: assigned by roundtrip { } mid-block; null means no roundtrip, so the executor default-roundtrips.
     private var resultBuilder: ((PersistedLookup) -> Any?)? = null
 
@@ -136,8 +138,7 @@ class ChangesDsl internal constructor(
               RESULT : Any,
               UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *>,
               UOW : ComposableUow {
-        val handOff = changes.handOff()
-        val uow = uowFactory(executionContext.withInheritedChanges(handOff))
+        val uow = uowFactory(executionContext.withInheritedChanges(changes.handOff()))
         // the bounds already demand ComposableUow; an unchecked cast of the factory, or a class that carries both
         // markers under a suppressed compiler error, can still get past them
         check(ComposableUow::class.isInstance(uow) && !NotComposableUow::class.isInstance(uow)) {
@@ -147,10 +148,7 @@ class ChangesDsl internal constructor(
         val span = uowSpan(uow.name())
         return span.use {
             val subChanges = performingSpan(uow.name()).use {
-                val childParams = params(InstantiationContext.Internal(0))
-                // the child copies this block's changes when its block starts, so a write since the hand-off fails now
-                changes.checkUnchangedSince(handOff, uow.name())
-                uow.tryPerform(principal, childParams)
+                uow.tryPerform(principal, params(InstantiationContext.Internal(0)))
             }
             checkBuiltBy(uow, subChanges, uow.name())
             span.setAttribute(
@@ -166,10 +164,11 @@ class ChangesDsl internal constructor(
     companion object {
         internal suspend inline fun <R> changes(
             executionContext: ExecutionContext,
+            uowName: String,
             @Suppress("REDUNDANT_INLINE_SUSPEND_FUNCTION_TYPE")
             init: suspend ChangesDsl.() -> R,
         ): Changes<R> {
-            val dsl = ChangesDsl(executionContext)
+            val dsl = ChangesDsl(executionContext, uowName)
             val res = init(dsl)
             return dsl.withResult(res)
         }

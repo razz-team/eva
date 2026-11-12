@@ -65,7 +65,7 @@ class PersistedLookup internal constructor(
  *
  * An id is inherited when it came from outside the block: the parent's changes a composed child starts from, and
  * every id a merged child registered. [ownIds] are the others, the ids the block registered itself since it
- * started or last took in a child. A block that has inherited nothing does not record them. The block may extend
+ * started or last took in a child, and null while the block has inherited nothing. The block may extend
  * a model it inherited, so an update for an inherited id merges into the change held for it, and `notChanged` for
  * it keeps that change. Any other second registration of an id fails.
  *
@@ -79,15 +79,13 @@ internal class ChangesAccumulator private constructor(
 ) {
     internal constructor() : this(LinkedHashMap(), ArrayList(), null)
 
-    private var inherits = seed != null
-    private val ownIds = HashSet<ModelId<out Comparable<*>>>()
+    private var ownIds: HashSet<ModelId<out Comparable<*>>>? = if (seed == null) null else HashSet()
 
     // every write counts, so a child handed off before one can tell
     private var writes = 0
 
-    // set when the block ends; the entity changes are then kept as they were, since a parent takes the list over
+    // set when the block ends, so its changes stay as they were then
     private var closed = false
-    private var entitiesAtEnd: List<EntityChange>? = null
 
     // the flattened changes, kept until the next write
     private var persisted: List<ModelChange>? = null
@@ -107,7 +105,7 @@ internal class ChangesAccumulator private constructor(
     }
 
     private fun isInherited(modelId: ModelId<out Comparable<*>>) =
-        inherits && modelId in modelChanges && modelId !in ownIds
+        ownIds.let { own -> own != null && modelId in modelChanges && modelId !in own }
 
     internal fun <E : CreatableEntity>
     addingEntity(entity: E) {
@@ -276,7 +274,7 @@ internal class ChangesAccumulator private constructor(
     internal val modelChangesToPersist: List<ModelChange>
         get() = persisted ?: flattenChildModels().also { persisted = it }
 
-    internal val entityChangesToPersist: List<EntityChange> get() = entitiesAtEnd ?: entityChanges.toList()
+    internal val entityChangesToPersist: List<EntityChange> get() = entityChanges
 
     /**
      * True when the change set persists every write [model] carries: the change for its id holds [model] or a
@@ -291,20 +289,6 @@ internal class ChangesAccumulator private constructor(
 
     /** What a composed child starts from: this block and its writes so far. It copies nothing. */
     internal fun handOff(): HandOff = HandOff(this, writes)
-
-    /**
-     * Fails when [handOff] is not this block's, or when this block wrote after it: from the unit of work factory,
-     * from the params lambda, or while the child ran. The child's changes would then lack that write.
-     */
-    internal fun checkUnchangedSince(handOff: HandOff?, uowName: String) {
-        check(handOff != null && handOff.isFrom(this)) {
-            // an anonymous UoW has an empty simple name
-            "Composed ${uowName.ifEmpty { "child UnitOfWork" }} did not start from the changes its parent holds " +
-                "now; a child extends composable.UnitOfWork or a WrappingUnitOfWork family and not the plain " +
-                "UnitOfWork, it is constructed with the ExecutionContext given to the factory, and its parent " +
-                "does not register from the params lambda or while the child runs"
-        }
-    }
 
     /**
      * Takes in a composed child's outcome. A child that registered nothing leaves this block as it is.
@@ -332,17 +316,16 @@ internal class ChangesAccumulator private constructor(
             for (change in subChanges.modelChangesToPersist) {
                 modelChanges.putIfAbsent(change.id, change)
             }
-            inherits = true
-            ownIds.clear()
+            ownIds = HashSet()
             wrote()
             return
         }
-        checkUnchangedSince(child.seed, uowName)
-        // the child's block has ended and its changes hold this block's, so this block takes its maps over
+        check(child.seed?.isFrom(this) == true) { notStartedFromParent(uowName) }
+        // the child's block has ended and its changes hold this block's, so this block takes its model map over;
+        // the entity list is copied, since the child's changes hand it out as they were when its block ended
         modelChanges = child.modelChanges
-        entityChanges = child.entityChanges
-        inherits = true
-        ownIds.clear()
+        entityChanges = ArrayList(child.entityChanges)
+        ownIds = HashSet()
         wrote()
     }
 
@@ -360,7 +343,6 @@ internal class ChangesAccumulator private constructor(
         }
         // the flatten above is kept, since nothing clears it once the accumulator is closed
         closed = true
-        entitiesAtEnd = entityChanges.toList()
         return AccumulatedChanges(result, resultBuilder, this)
     }
 
@@ -417,14 +399,15 @@ internal class ChangesAccumulator private constructor(
                 "update is accepted only for a model the parent or a composed child registered"
         }
         modelChanges[change.id] = change
-        if (inherits) ownIds.add(change.id)
+        ownIds?.add(change.id)
         wrote()
     }
 
     /**
      * A block's changes as it handed them to a composed child: the block, and the writes it had made then. It is
      * read-only, so nothing can write into the parent through it. The child's block copies the parent's changes
-     * when it starts, and [merging] refuses the child if the parent wrote after the hand-off.
+     * when it starts. A parent that wrote after the hand-off, from the factory or the params lambda, would leak that
+     * write into the copy, so the block refuses to start; [merging] refuses a child whose parent wrote while it ran.
      */
     internal class HandOff internal constructor(
         private val parent: ChangesAccumulator,
@@ -432,12 +415,17 @@ internal class ChangesAccumulator private constructor(
     ) {
         internal fun isFrom(accumulator: ChangesAccumulator) = parent === accumulator && writes == accumulator.writes
 
-        /** Asks the parent as it is now, which is as it was at the hand-off while no write came in between. */
+        /**
+         * Asks the parent as it is now, for a child's `noChanges`. A write the parent made after the hand-off
+         * counts: the child adds nothing, so the parent persists that write itself.
+         */
         internal fun persistsWritesOf(model: Model<*, *>): Boolean = parent.persistsWritesOf(model)
 
         // the child's own copy of the parent's changes, every id inherited
-        internal fun start() =
-            ChangesAccumulator(LinkedHashMap(parent.modelChanges), ArrayList(parent.entityChanges), this)
+        internal fun start(uowName: String): ChangesAccumulator {
+            check(writes == parent.writes) { notStartedFromParent(uowName) }
+            return ChangesAccumulator(LinkedHashMap(parent.modelChanges), ArrayList(parent.entityChanges), this)
+        }
     }
 
     companion object {
@@ -445,7 +433,15 @@ internal class ChangesAccumulator private constructor(
          * The accumulator a composed child's block starts from: its own copy of the parent's changes. A block
          * that runs on its own, with no parent, starts empty.
          */
-        internal fun seededFrom(handOff: HandOff?): ChangesAccumulator = handOff?.start() ?: ChangesAccumulator()
+        internal fun seededFrom(handOff: HandOff?, uowName: String): ChangesAccumulator =
+            handOff?.start(uowName) ?: ChangesAccumulator()
+
+        private fun notStartedFromParent(uowName: String) =
+            // an anonymous UoW has an empty simple name
+            "Composed ${uowName.ifEmpty { "child UnitOfWork" }} did not start from the changes its parent holds " +
+                "now; a child extends composable.UnitOfWork or a WrappingUnitOfWork family and not the plain " +
+                "UnitOfWork, it is constructed with the ExecutionContext given to the factory, and its parent " +
+                "does not register from the params lambda or while the child runs"
     }
 }
 

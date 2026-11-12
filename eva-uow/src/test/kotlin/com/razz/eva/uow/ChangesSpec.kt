@@ -80,7 +80,8 @@ class ChangesSpec : BehaviorSpec({
                 "nothing to write, return noChanges(result) in place of changes { }, where the unit of work's family " +
                 "allows it"
             val readAgain = existingCreatedTestModel(dirtyModel.id(), "noscope", 360, V1).activate()
-            val child = ChangesAccumulator.seededFrom(ChangesAccumulator().apply { updating(dirtyModel) }.handOff())
+            val parent = ChangesAccumulator().apply { updating(dirtyModel) }
+            val child = ChangesAccumulator.seededFrom(parent.handOff(), "Child")
             shouldThrow<IllegalStateException> { child.updating(readAgain) }
                 .message shouldBe "Failed to merge changes for model [${id(dirtyModel)}]: the parent or a composed " +
                 "child changed this model before, and the instance given to update does not carry those " +
@@ -313,20 +314,25 @@ class ChangesSpec : BehaviorSpec({
             When("the child registers into its copy of the parent's changes") {
                 val parent = ChangesAccumulator().apply { adding(newModel) }
                 val handOff = parent.handOff()
-                val child = ChangesAccumulator.seededFrom(handOff).apply { updating(model1) }
+                val child = ChangesAccumulator.seededFrom(handOff, "Child").apply {
+                    updating(model1)
+                    addingEntity(tag)
+                }
                 // a second block over the same hand-off, as a unit of work that runs changes { } twice
-                val sibling = ChangesAccumulator.seededFrom(handOff)
+                val sibling = ChangesAccumulator.seededFrom(handOff, "Child")
 
-                Then("the child holds the parent's changes, and its own write reaches nobody else") {
+                Then("the child holds the parent's changes, and its own writes reach nobody else") {
                     child.changeFor(newModel.id()) shouldBe AddModel(newModel)
                     parent.changeFor(model1.id()) shouldBe null
+                    parent.entityChangesToPersist shouldBe listOf()
                     sibling.changeFor(model1.id()) shouldBe null
+                    sibling.entityChangesToPersist shouldBe listOf()
                 }
             }
 
             When("the parent merges the child back and goes on") {
                 val parent = ChangesAccumulator().apply { adding(newModel) }
-                val child = ChangesAccumulator.seededFrom(parent.handOff()).apply {
+                val child = ChangesAccumulator.seededFrom(parent.handOff(), "Child").apply {
                     updating(model1)
                     addingEntity(tag)
                 }
@@ -353,8 +359,8 @@ class ChangesSpec : BehaviorSpec({
                 val handOff = parent.handOff()
                 parent.updating(model3)
 
-                Then("the parent refuses to run the child") {
-                    shouldThrow<IllegalStateException> { parent.checkUnchangedSince(handOff, "Child") }
+                Then("the child's block refuses to start from it") {
+                    shouldThrow<IllegalStateException> { ChangesAccumulator.seededFrom(handOff, "Child") }
                         .message shouldBe notStarted
                 }
             }
@@ -362,8 +368,7 @@ class ChangesSpec : BehaviorSpec({
             When("the parent registers while the child runs") {
                 val parent = ChangesAccumulator().apply { adding(newModel) }
                 val handOff = parent.handOff()
-                parent.checkUnchangedSince(handOff, "Child")
-                val child = ChangesAccumulator.seededFrom(handOff).apply { updating(model1) }
+                val child = ChangesAccumulator.seededFrom(handOff, "Child").apply { updating(model1) }
                 parent.updating(model3)
 
                 Then("the child does not see that registration") {
@@ -392,7 +397,7 @@ class ChangesSpec : BehaviorSpec({
                 Then("the seed check refuses the child each time") {
                     writes.forEach { write ->
                         val parent = ChangesAccumulator().apply { adding(newModel) }
-                        val child = ChangesAccumulator.seededFrom(parent.handOff()).apply { updating(model1) }
+                        val child = ChangesAccumulator.seededFrom(parent.handOff(), "Child").apply { updating(model1) }
                         parent.write()
                         shouldThrow<IllegalStateException> { parent.merging("Child", child.withResult(model2, null)) }
                             .message shouldBe notStarted
@@ -439,7 +444,7 @@ class ChangesSpec : BehaviorSpec({
             reads.add(parent.modelChangesToPersist)
             parent.claimingUnchanged(unchangedModel)
             reads.add(parent.modelChangesToPersist)
-            val child = ChangesAccumulator.seededFrom(parent.handOff())
+            val child = ChangesAccumulator.seededFrom(parent.handOff(), "Child")
             val activated = newModel.activate()
             reads.add(child.modelChangesToPersist)
             child.updating(activated)
@@ -497,7 +502,7 @@ class ChangesSpec : BehaviorSpec({
         }
 
         When("updating is called for an inherited added model") {
-            val acc = ChangesAccumulator.seededFrom(ChangesAccumulator().apply { adding(model1) }.handOff())
+            val acc = ChangesAccumulator.seededFrom(ChangesAccumulator().apply { adding(model1) }.handOff(), "Child")
             val updatedModel1 = model1.activate()
             val statusChanged = TestModelStatusChanged(model1.id(), CREATED, ACTIVE)
             val result = acc.apply { updating(updatedModel1) }.withResult("replaced", null)
@@ -513,7 +518,7 @@ class ChangesSpec : BehaviorSpec({
             val read = existingCreatedTestModel(randomTestModelId(), "read", 300, V1)
             val renamed = read.changeParam1("renamed")
             val activated = renamed.activate()
-            val acc = ChangesAccumulator.seededFrom(ChangesAccumulator().apply { updating(renamed) }.handOff())
+            val acc = ChangesAccumulator.seededFrom(ChangesAccumulator().apply { updating(renamed) }.handOff(), "Child")
             val result = acc.apply { updating(activated) }.withResult("replaced", null)
 
             Then("the change is replaced and stays an update") {
