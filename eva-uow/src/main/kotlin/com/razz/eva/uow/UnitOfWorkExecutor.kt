@@ -72,9 +72,6 @@ class UnitOfWorkExecutor(
             ?: throw IllegalArgumentException("Attempted to register multiple factories for ${it.key.simpleName}")
     }
 
-    /** The classes of the units of work that have a registered factory, so an application can check them at startup. */
-    val registered: Set<KClass<*>> get() = classToFactory.keys
-
     suspend fun <PRINCIPAL, PARAMS, RESULT, UOW> execute(
         principal: PRINCIPAL,
         uowFactory: (ExecutionContext) -> UOW,
