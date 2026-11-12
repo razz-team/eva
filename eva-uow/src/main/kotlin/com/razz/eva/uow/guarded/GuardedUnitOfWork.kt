@@ -31,7 +31,7 @@ abstract class GuardedUnitOfWork<P, PF, PARAMS, RESULT>(
      * The model types the block may `update` without a proof: models the application does not guard yet. The
      * constructor throws if a model of one of them can be guarded.
      */
-    val unguardedWrites: Set<KClass<out Model<*, *>>>,
+    private val unguardedWrites: Set<KClass<out Model<*, *>>>,
 ) : WrappingUnitOfWork<P, PARAMS, RESULT, GuardedChangesDsl<PF>>(executionContext, configuration),
     NotComposableUow
     where P : Principal<*>,
