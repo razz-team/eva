@@ -41,7 +41,7 @@ abstract class WrappingUnitOfWork<PRINCIPAL, PARAMS, RESULT, C : Any>(
 
     protected suspend fun changes(init: suspend C.() -> RESULT): Block =
         Block(
-            ChangesDsl.changes(executionContext) {
+            ChangesDsl.changes(executionContext, name()) {
                 val family = wrap(this)
                 val result = family.init()
                 finish(family, result)

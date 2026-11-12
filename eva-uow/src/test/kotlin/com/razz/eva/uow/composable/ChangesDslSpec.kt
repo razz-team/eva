@@ -29,6 +29,7 @@ import com.razz.eva.domain.Employee.Companion.newEmployee
 import com.razz.eva.domain.Name
 import com.razz.eva.domain.Ration.BUBALEH
 import com.razz.eva.domain.ModelState.PersistentState.Companion.persistentState
+import com.razz.eva.uow.Changes
 import com.razz.eva.uow.ChangesAccumulator
 import com.razz.eva.uow.Clocks.fixedUTC
 import com.razz.eva.uow.Clocks.millisUTC
@@ -1006,7 +1007,7 @@ class ChangesDslSpec : FunSpec({
             modelState = persistentState(V1, null),
         ).rename("Eng v5")
         // the parent registers the aggregate, so the child's write is carried by the flattened set
-        val inherited = ChangesAccumulator().updating(dept)
+        val inherited = ChangesAccumulator().apply { updating(dept) }.handOff()
 
         val child = object : DummyUow<Employee>(executionContext.withInheritedChanges(inherited)) {
             override suspend fun tryPerform(principal: TestPrincipal, params: Params) = noChanges(emp)
@@ -1211,6 +1212,263 @@ class ChangesDslSpec : FunSpec({
         }
         val ex = shouldThrow<IllegalStateException> { uow.tryPerform(TestPrincipal, DummyUow.Params) }
         checkNotNull(ex.message) shouldContain "was already registered"
+    }
+
+    test("A parent that registers from the params lambda is refused, and the message names the child") {
+        val child = { ctx: ExecutionContext ->
+            object : DummyUow<ActiveTestModel>(ctx) {
+                override fun name() = "NamedChild"
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                    update(existingCreatedTestModel(randomTestModelId(), "child", 1, V1).activate())
+                }
+            }
+        }
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                add(createdTestModel("parent", 1))
+                execute(child, TestPrincipal) {
+                    update(existingCreatedTestModel(randomTestModelId(), "lambda", 1, V1).activate())
+                    Params
+                }
+                "K P A C U B O"
+            }
+        }
+        shouldThrow<IllegalStateException> { uow.tryPerform(TestPrincipal, DummyUow.Params) }
+            .message shouldBe notStartedFromParent.replace("child UnitOfWork", "NamedChild")
+    }
+
+    test("A parent that registers from the params lambda is refused when the child only keeps its changes") {
+        val parentModel = createdTestModel("parent", 1)
+        val child = { ctx: ExecutionContext ->
+            object : DummyUow<CreatedTestModel>(ctx) {
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                    notChanged(parentModel)
+                }
+            }
+        }
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                add(parentModel)
+                execute(child, TestPrincipal) {
+                    update(existingCreatedTestModel(randomTestModelId(), "lambda", 1, V1).activate())
+                    Params
+                }
+                "K P A C U B O"
+            }
+        }
+        shouldThrow<IllegalStateException> { uow.tryPerform(TestPrincipal, DummyUow.Params) }
+            .message shouldBe notStartedFromParent
+    }
+
+    test("A parent that registers from the unit of work factory is refused") {
+        lateinit var parent: ChangesDsl
+        val child = { ctx: ExecutionContext ->
+            parent.update(existingCreatedTestModel(randomTestModelId(), "factory", 1, V1).activate())
+            object : DummyUow<ActiveTestModel>(ctx) {
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                    update(existingCreatedTestModel(randomTestModelId(), "child", 1, V1).activate())
+                }
+            }
+        }
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                parent = this
+                add(createdTestModel("parent", 1))
+                execute(child, TestPrincipal) { Params }
+                "K P A C U B O"
+            }
+        }
+        shouldThrow<IllegalStateException> { uow.tryPerform(TestPrincipal, DummyUow.Params) }
+            .message shouldBe notStartedFromParent
+    }
+
+    test("A parent that registers while the child's block runs is refused") {
+        lateinit var parent: ChangesDsl
+        val child = { ctx: ExecutionContext ->
+            object : DummyUow<ActiveTestModel>(ctx) {
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                    parent.update(existingCreatedTestModel(randomTestModelId(), "during", 1, V1).activate())
+                    update(existingCreatedTestModel(randomTestModelId(), "child", 1, V1).activate())
+                }
+            }
+        }
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                parent = this
+                add(createdTestModel("parent", 1))
+                execute(child, TestPrincipal) { Params }
+                "K P A C U B O"
+            }
+        }
+        shouldThrow<IllegalStateException> { uow.tryPerform(TestPrincipal, DummyUow.Params) }
+            .message shouldBe notStartedFromParent
+    }
+
+    test("A block's changes stay as they were when a write comes after the block ended") {
+        val added = createdTestModel("added", 1)
+        lateinit var escaped: ChangesDsl
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                escaped = this
+                add(added)
+                "K P A C U B O"
+            }
+        }
+        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
+        val entities = changes.entityChangesToPersist
+        val late = existingCreatedTestModel(randomTestModelId(), "late", 1, V1).activate()
+        val tag = Tag.environmentTag(randomDepartmentId().id, "production")
+        val closed = "Attempted to register after the changes { } block ended: its changes are built already, so " +
+            "the registration would be lost. Register a model inside the block that persists it"
+        shouldThrow<IllegalStateException> { escaped.update(late) }.message shouldBe closed
+        shouldThrow<IllegalStateException> { escaped.add(tag) }.message shouldBe closed
+        changes.modelChangesToPersist shouldBe listOf(AddModel(added))
+        changes.entityChangesToPersist shouldBe listOf()
+        entities shouldBe listOf()
+    }
+
+    test("A grandchild built with its parent's own context is refused") {
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                add(createdTestModel("root", 1))
+                execute({ parentContext: ExecutionContext ->
+                    object : DummyUow<String>(parentContext) {
+                        override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                            update(existingCreatedTestModel(randomTestModelId(), "child", 1, V1).activate())
+                            execute({ _: ExecutionContext ->
+                                object : DummyUow<ActiveTestModel>(parentContext) {
+                                    override suspend fun tryPerform(principal: TestPrincipal, params: Params) =
+                                        changes {
+                                            update(existingCreatedTestModel(randomTestModelId(), "x", 1, V1).activate())
+                                        }
+                                }
+                            }, TestPrincipal) { Params }
+                            "child"
+                        }
+                    }
+                }, TestPrincipal) { Params }
+                "K P A C U B O"
+            }
+        }
+        shouldThrow<IllegalStateException> { uow.tryPerform(TestPrincipal, DummyUow.Params) }
+            .message shouldBe notStartedFromParent
+    }
+
+    test("noChanges in a child counts a write its parent made while the child ran") {
+        val added = createdTestModel("parent", 1)
+        val during = existingCreatedTestModel(randomTestModelId(), "during", 1, V1).activate()
+        lateinit var parent: ChangesDsl
+        val child = { ctx: ExecutionContext ->
+            object : DummyUow<ActiveTestModel>(ctx) {
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params): Changes<ActiveTestModel> {
+                    parent.update(during)
+                    return noChanges(during)
+                }
+            }
+        }
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                parent = this
+                add(added)
+                execute(child, TestPrincipal) { Params }
+                "K P A C U B O"
+            }
+        }
+        uow.tryPerform(TestPrincipal, DummyUow.Params).modelChangesToPersist shouldBe
+            listOf(AddModel(added), UpdateModel(during))
+    }
+
+    test("A block refuses a second registration of its own ids and extends the ones it inherited") {
+        fun read() = existingCreatedTestModel(randomTestModelId(), "read", 1, V1).changeParam1("dirty")
+        fun <R : Any> child(block: suspend ChangesDsl.() -> R) = { ctx: ExecutionContext ->
+            object : DummyUow<R>(ctx) {
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes(block)
+            }
+        }
+        val noChangesChild = { ctx: ExecutionContext ->
+            object : DummyUow<String>(ctx) {
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params) = noChanges("none")
+            }
+        }
+        val claimed = existingCreatedTestModel(randomTestModelId(), "claimed", 1, V1)
+        val stubChild = { ctx: ExecutionContext ->
+            object : DummyUow<CreatedTestModel>(ctx) {
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params) = stubChanges(claimed)
+            }
+        }
+        val alreadyRegistered = "was already registered"
+        val a = read()
+        val a2 = a.changeParam1("a2")
+        val b = read()
+        val g = read()
+        val own = read()
+        val c = read()
+        val d = read()
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                update(a)
+                execute(child {
+                    update(b)
+                    execute(child {
+                        update(a2)
+                        update(g)
+                    }, TestPrincipal) { Params }
+                    // inherited from the grandchild: an update merges, so the same instance adds nothing
+                    shouldThrow<IllegalStateException> { update(g) }.message shouldStartWith "No-op update for model"
+                    // the child's own
+                    update(own)
+                    checkNotNull(shouldThrow<IllegalStateException> { update(own.changeParam1("z")) }.message)
+                        .shouldContain(alreadyRegistered)
+                    "child"
+                }, TestPrincipal) { Params }
+                update(c)
+                checkNotNull(shouldThrow<IllegalStateException> { update(c.changeParam1("z")) }.message)
+                    .shouldContain(alreadyRegistered)
+                shouldThrow<IllegalArgumentException> { notChanged(c) }
+                update(b.changeParam1("z"))
+                update(g.changeParam1("z"))
+                notChanged(a)
+                // a child that registers nothing leaves c the parent's own
+                execute(noChangesChild, TestPrincipal) { Params }
+                checkNotNull(shouldThrow<IllegalStateException> { update(c.changeParam1("y")) }.message)
+                    .shouldContain(alreadyRegistered)
+                // a child that registers only an entity hands every id back, so c is inherited from then on
+                execute(child { add(Tag.environmentTag(randomDepartmentId().id, "production")) }, TestPrincipal) {
+                    Params
+                }
+                update(c.changeParam1("y"))
+                // a stub child hands every id back as well
+                update(d)
+                execute(stubChild, TestPrincipal) { Params }
+                update(d.changeParam1("z"))
+                "K P A C U B O"
+            }
+        }
+        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
+        changes.modelChangesToPersist.map { it.model.id() } shouldBe
+            listOf(a.id(), b.id(), g.id(), own.id(), c.id(), d.id(), claimed.id())
+        changes.modelChangesToPersist.map { it.modelEvents.size } shouldBe listOf(2, 2, 2, 1, 2, 2, 0)
+        changes.entityChangesToPersist shouldHaveSize 1
+    }
+
+    test("An escaped block that runs a child returning noChanges gets the child's result and keeps its changes") {
+        val added = createdTestModel("added", 1)
+        lateinit var escaped: ChangesDsl
+        val uow = object : DummyUow<String>(executionContext) {
+            override suspend fun tryPerform(principal: TestPrincipal, params: Params) = changes {
+                escaped = this
+                add(added)
+                "K P A C U B O"
+            }
+        }
+        val changes = uow.tryPerform(TestPrincipal, DummyUow.Params)
+        val child = { ctx: ExecutionContext ->
+            object : DummyUow<String>(ctx) {
+                override suspend fun tryPerform(principal: TestPrincipal, params: Params) = noChanges("none")
+            }
+        }
+        escaped.execute(child, TestPrincipal) { DummyUow.Params } shouldBe "none"
+        changes.modelChangesToPersist shouldBe listOf(AddModel(added))
     }
 })
 

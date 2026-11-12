@@ -12,14 +12,15 @@ import java.time.InstantSource
 data class ExecutionContext internal constructor(
     internal val clock: InstantSource,
     internal val otel: OpenTelemetry,
-    internal val inheritedChanges: ChangesAccumulator? = null,
+    internal val inheritedChanges: ChangesAccumulator.HandOff? = null,
     internal val attempt: InstantiationContext? = null,
 ) {
     @ExecutionContextApi
     fun withClock(clock: InstantSource) = copy(clock = clock)
 
     // A child takes no proof, so its context carries no attempt.
-    internal fun withInheritedChanges(changes: ChangesAccumulator) = copy(inheritedChanges = changes, attempt = null)
+    internal fun withInheritedChanges(handOff: ChangesAccumulator.HandOff) =
+        copy(inheritedChanges = handOff, attempt = null)
 }
 
 @RequiresOptIn
