@@ -26,7 +26,7 @@ import kotlin.reflect.KClass
 class ChangesDsl internal constructor(
     private val executionContext: ExecutionContext,
 ) {
-    private var changes: ChangesAccumulator = ChangesAccumulator.seededFrom(executionContext.inheritedChanges)
+    private val changes: ChangesAccumulator = ChangesAccumulator.seededFrom(executionContext.inheritedChanges)
     // var: assigned by roundtrip { } mid-block; null means no roundtrip, so the executor default-roundtrips.
     private var resultBuilder: ((PersistedLookup) -> Any?)? = null
 
@@ -45,13 +45,13 @@ class ChangesDsl internal constructor(
 
     fun <MID, E, M> add(model: M): M
         where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
-        changes = changes.adding(model)
+        changes.adding(model)
         return model
     }
 
     fun <MID, E, M> update(model: M): M
         where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
-        changes = changes.updating(model)
+        changes.updating(model)
         return model
     }
 
@@ -72,7 +72,7 @@ class ChangesDsl internal constructor(
         where M : Model<MID, E>, R : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
         val mutated = context(Witness<MID>()) { model.mutate() }
         if (mutated === model) {
-            changes = changes.declining(model)
+            changes.declining(model)
             return mutated
         }
         check(mutated.id() == model.id()) {
@@ -97,22 +97,22 @@ class ChangesDsl internal constructor(
 
     fun <MID, E, M> notChanged(model: M): M
         where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
-        changes = changes.claimingUnchanged(model)
+        changes.claimingUnchanged(model)
         return model
     }
 
     fun <E : CreatableEntity> add(entity: E): E {
-        changes = changes.addingEntity(entity)
+        changes.addingEntity(entity)
         return entity
     }
 
     fun <E : UpdatableEntity> update(entity: E): E {
-        changes = changes.updatingEntity(entity)
+        changes.updatingEntity(entity)
         return entity
     }
 
     fun <E : DeletableEntity> delete(entity: E): E {
-        changes = changes.deletingEntity(entity)
+        changes.deletingEntity(entity)
         return entity
     }
 
@@ -123,7 +123,7 @@ class ChangesDsl internal constructor(
 
     @PublishedApi
     internal fun <E : DeletableEntity, K : EntityKey<E>> deleteByKeyInternal(key: K, entityClass: KClass<E>) {
-        changes = changes.deletingEntityByKey(key, entityClass)
+        changes.deletingEntityByKey(key, entityClass)
     }
 
     suspend fun <PRINCIPAL, PARAMS, RESULT, UOW> execute(
@@ -136,7 +136,7 @@ class ChangesDsl internal constructor(
               RESULT : Any,
               UOW : BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, *>,
               UOW : ComposableUow {
-        val uow = uowFactory(executionContext.withInheritedChanges(changes))
+        val uow = uowFactory(executionContext.withInheritedChanges(changes.handOff()))
         // the bounds already demand ComposableUow; an unchecked cast of the factory, or a class that carries both
         // markers under a suppressed compiler error, can still get past them
         check(ComposableUow::class.isInstance(uow) && !NotComposableUow::class.isInstance(uow)) {
@@ -153,7 +153,7 @@ class ChangesDsl internal constructor(
                 MODEL_ID,
                 subChanges.modelChangesToPersist.map { it.id.stringValue() },
             )
-            changes = changes.merging(uow.name(), subChanges)
+            changes.merging(uow.name(), subChanges)
             // Under composition the caller gets this in-memory seed; the child's resultBuilder is not rerun.
             subChanges.result
         }

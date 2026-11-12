@@ -1,3 +1,5 @@
+@file:OptIn(com.razz.eva.uow.TestDoubleApi::class)
+
 package com.razz.eva.uow
 
 import com.razz.eva.domain.mutating
@@ -48,7 +50,8 @@ class ChangesSpec : BehaviorSpec({
         fun id(model: Model<*, *>) = model.id().stringValue()
 
         Then("each message says what the block did, what would go wrong and what to write") {
-            shouldThrow<IllegalStateException> { ChangesAccumulator().adding(newModel).adding(newModel) }
+            val added = ChangesAccumulator().apply { adding(newModel) }
+            shouldThrow<IllegalStateException> { added.adding(newModel) }
                 .message shouldBe "Change for a given model [${id(newModel)}] was already registered. The block " +
                 "registered it twice, and the second registration would replace the first and drop its write. " +
                 "Register a model once: make every mutation first, then call add or update with the last " +
@@ -77,7 +80,7 @@ class ChangesSpec : BehaviorSpec({
                 "nothing to write, return noChanges(result) in place of changes { }, where the unit of work's family " +
                 "allows it"
             val readAgain = existingCreatedTestModel(dirtyModel.id(), "noscope", 360, V1).activate()
-            val child = ChangesAccumulator.seededFrom(ChangesAccumulator().updating(dirtyModel))
+            val child = ChangesAccumulator.seededFrom(ChangesAccumulator().apply { updating(dirtyModel) }.handOff())
             shouldThrow<IllegalStateException> { child.updating(readAgain) }
                 .message shouldBe "Failed to merge changes for model [${id(dirtyModel)}]: the parent or a composed " +
                 "child changed this model before, and the instance given to update does not carry those " +
@@ -107,9 +110,9 @@ class ChangesSpec : BehaviorSpec({
         }
 
         When("Principal calling adding and then withResult") {
-            val changes = ChangesAccumulator()
-                .adding(newModel)
-                .withResult("patrice lumumba", null)
+            val changes = ChangesAccumulator().apply {
+                adding(newModel)
+            }.withResult("patrice lumumba", null)
 
             Then("Changes matching added and result produced") {
                 changes.modelChangesToPersist shouldBe listOf(AddModel(newModel))
@@ -119,9 +122,10 @@ class ChangesSpec : BehaviorSpec({
 
         When("Principal calling adding twice for the same model") {
             val attempt = {
-                ChangesAccumulator()
-                    .adding(newModel)
-                    .adding(newModel)
+                ChangesAccumulator().apply {
+                    adding(newModel)
+                    adding(newModel)
+                }
             }
 
             Then("IllegalStateException thrown") {
@@ -133,13 +137,14 @@ class ChangesSpec : BehaviorSpec({
 
         When("Principal calling adding and then updating for the same model") {
             val attempt = {
-                ChangesAccumulator()
-                    .adding(newModel)
+                ChangesAccumulator().apply {
+                    adding(newModel)
                     // I doubt this could ever happen in regular uow
                     // since model has to be round tripped through db
                     // or hacked in some other way to appear in dirty state
                     // but this container must preserve correct behavior nevertheless
-                    .updating(existingCreatedTestModel(newModel.id(), "noscope", 360, V1).activate())
+                    updating(existingCreatedTestModel(newModel.id(), "noscope", 360, V1).activate())
+                }
             }
 
             Then("IllegalStateException thrown") {
@@ -170,9 +175,9 @@ class ChangesSpec : BehaviorSpec({
         }
 
         When("Principal calling updating and then withResult") {
-            val changes = ChangesAccumulator()
-                .updating(dirtyModel)
-                .withResult("angela davis", null)
+            val changes = ChangesAccumulator().apply {
+                updating(dirtyModel)
+            }.withResult("angela davis", null)
 
             Then("Changes matching updated and result produced") {
                 changes.modelChangesToPersist shouldBe listOf(UpdateModel(dirtyModel))
@@ -202,9 +207,10 @@ class ChangesSpec : BehaviorSpec({
 
         When("Principal calling updating twice for the same model") {
             val attempt = {
-                ChangesAccumulator()
-                    .updating(dirtyModel)
-                    .updating(dirtyModel)
+                ChangesAccumulator().apply {
+                    updating(dirtyModel)
+                    updating(dirtyModel)
+                }
             }
 
             Then("IllegalStateException thrown") {
@@ -215,9 +221,9 @@ class ChangesSpec : BehaviorSpec({
         }
 
         When("Principal calling claimingUnchanged for the unchanged model and then withResult") {
-            val changes = ChangesAccumulator()
-                .claimingUnchanged(unchangedModel)
-                .withResult("robert mugabe", null)
+            val changes = ChangesAccumulator().apply {
+                claimingUnchanged(unchangedModel)
+            }.withResult("robert mugabe", null)
 
             Then("NoopModel and result produced") {
                 changes.modelChangesToPersist shouldBe listOf(NoopModel(unchangedModel))
@@ -227,9 +233,10 @@ class ChangesSpec : BehaviorSpec({
 
         When("Principal calling claimingUnchanged twice for the same model") {
             val attempt = {
-                ChangesAccumulator()
-                    .claimingUnchanged(unchangedModel)
-                    .claimingUnchanged(unchangedModel)
+                ChangesAccumulator().apply {
+                    claimingUnchanged(unchangedModel)
+                    claimingUnchanged(unchangedModel)
+                }
             }
 
             Then("IllegalStateException thrown") {
@@ -241,9 +248,10 @@ class ChangesSpec : BehaviorSpec({
 
         When("Principal calling claimingUnchanged and then updating for the same model") {
             val attempt = {
-                ChangesAccumulator()
-                    .claimingUnchanged(unchangedModel)
-                    .updating(unchangedModel.activate())
+                ChangesAccumulator().apply {
+                    claimingUnchanged(unchangedModel)
+                    updating(unchangedModel.activate())
+                }
             }
 
             Then("IllegalStateException thrown") {
@@ -255,9 +263,10 @@ class ChangesSpec : BehaviorSpec({
 
         When("Principal calling claimingUnchanged and then updating for not updated model") {
             val attempt = {
-                ChangesAccumulator()
-                    .claimingUnchanged(unchangedModel)
-                    .updating(unchangedModel)
+                ChangesAccumulator().apply {
+                    claimingUnchanged(unchangedModel)
+                    updating(unchangedModel)
+                }
             }
 
             Then("The state check fails before the second registration does") {
@@ -287,42 +296,118 @@ class ChangesSpec : BehaviorSpec({
             }
         }
 
-        And("initial changes with some additional models") {
-            val changes0 = ChangesAccumulator().adding(newModel)
+        And("a block that hands its changes off to a composed child") {
             val model1 = existingCreatedTestModel(randomTestModelId(), "name1", 1337, V1)
                 .activate()
-            val model1Event = TestModelStatusChanged(model1.id(), CREATED, ACTIVE)
             // clean on purpose: an unregistered dirty model in a result fails at the executor
             val model2 = existingCreatedTestModel(randomTestModelId(), "name2", 100500, V1)
             val model3 = existingCreatedTestModel(randomTestModelId(), "name3", 0xBABE, V1)
                 .activate()
-            val model3Event = TestModelStatusChanged(model3.id(), CREATED, ACTIVE)
+            val tag = Tag(UUID.randomUUID(), "key", "value")
+            val stored = existingCreatedTestModel(randomTestModelId(), "stored", 7, V1)
 
-            When("derived changes produced by adding models to initial changes") {
-                val changes1 = changes0.updating(model1).withResult(model2, null)
+            When("the child registers into what the parent handed off") {
+                val parent = ChangesAccumulator().apply { adding(newModel) }
+                val handedOff = parent.handOff()
+                val child = ChangesAccumulator.seededFrom(handedOff).apply { updating(model1) }
+                // a second block over the same hand-off, as a unit of work that runs changes { } twice
+                val sibling = ChangesAccumulator.seededFrom(handedOff)
 
-                And("initial changes are modified further") {
-                    val changes2 = changes0.updating(model3)
+                Then("the child holds the parent's changes, and its own write reaches nobody else") {
+                    child.changeFor(newModel.id()) shouldBe AddModel(newModel)
+                    parent.changeFor(model1.id()) shouldBe null
+                    handedOff.changeFor(model1.id()) shouldBe null
+                    sibling.changeFor(model1.id()) shouldBe null
+                }
+            }
 
-                    And("initial changes completed with result") {
-                        val finalChanges0 = changes2.withResult(listOf("Gurbanguly", "Berdimuhamedow"), null)
+            When("the parent merges the child back") {
+                val parent = ChangesAccumulator().apply { adding(newModel) }
+                val child = ChangesAccumulator.seededFrom(parent.handOff()).apply { updating(model1) }
+                parent.merging("Child", child.withResult(model2, null))
+                val changes = parent.withResult(listOf("Gurbanguly", "Berdimuhamedow"), null)
 
-                        Then("original changes contain only models were added to it directly") {
-                            finalChanges0.modelChangesToPersist shouldBe listOf(
-                                AddModel(newModel),
-                                UpdateModel(model3),
-                            )
-                            finalChanges0.result shouldBe listOf("Gurbanguly", "Berdimuhamedow")
-                        }
-                        And("derived changes contain only models were added to it directly") {
-                            changes1.modelChangesToPersist shouldBe listOf(
-                                AddModel(newModel),
-                                UpdateModel(model1),
-                            )
-                            changes1.result shouldBe model2
-                        }
+                Then("the parent holds its own changes and the child's") {
+                    changes.modelChangesToPersist shouldBe listOf(AddModel(newModel), UpdateModel(model1))
+                    changes.result shouldBe listOf("Gurbanguly", "Berdimuhamedow")
+                }
+            }
+
+            When("the parent registers after the hand-off, as from the params lambda") {
+                val parent = ChangesAccumulator().apply { adding(newModel) }
+                val handedOff = parent.handOff()
+                parent.updating(model3)
+                val child = ChangesAccumulator.seededFrom(handedOff).apply { updating(model1) }
+
+                Then("the child does not see that registration") {
+                    child.changeFor(model3.id()) shouldBe null
+                }
+                Then("the seed check refuses the child, and the parent keeps its own changes") {
+                    shouldThrow<IllegalStateException> { parent.merging("Child", child.withResult(model2, null)) }
+                        .message shouldBe "Composed Child did not start from the changes its parent holds now; a " +
+                        "child extends composable.UnitOfWork or a WrappingUnitOfWork family and not the plain " +
+                        "UnitOfWork, it is constructed with the ExecutionContext given to the factory, and its " +
+                        "parent does not register from the params lambda or while the child runs"
+                    parent.withResult("kept", null).modelChangesToPersist shouldBe
+                        listOf(AddModel(newModel), UpdateModel(model3))
+                }
+            }
+
+            When("the parent writes after the hand-off in any other way") {
+                val writes: List<ChangesAccumulator.() -> Unit> = listOf(
+                    { adding(createdTestModel("late", 1)) },
+                    { claimingUnchanged(stored) },
+                    { declining(stored) },
+                    { addingEntity(tag) },
+                    { updatingEntity(tag) },
+                    { deletingEntity(tag) },
+                    { deletingEntityByKey(Tag.Key(tag.subjectId, tag.name), Tag::class) },
+                    { merging("Stub", stubChanges(stored)) },
+                )
+
+                Then("the seed check refuses the child each time") {
+                    writes.forEach { write ->
+                        val parent = ChangesAccumulator().apply { adding(newModel) }
+                        val child = ChangesAccumulator.seededFrom(parent.handOff()).apply { updating(model1) }
+                        parent.write()
+                        shouldThrow<IllegalStateException> { parent.merging("Child", child.withResult(model2, null)) }
+                            .message shouldStartWith "Composed Child did not start from the changes its parent holds"
                     }
                 }
+            }
+        }
+
+        When("the flattened changes are read between writes") {
+            val parent = ChangesAccumulator()
+            val reads = mutableListOf<List<ModelChange>>()
+            reads.add(parent.modelChangesToPersist)
+            parent.adding(newModel)
+            reads.add(parent.modelChangesToPersist)
+            parent.updating(dirtyModel)
+            reads.add(parent.modelChangesToPersist)
+            parent.claimingUnchanged(unchangedModel)
+            reads.add(parent.modelChangesToPersist)
+            val child = ChangesAccumulator.seededFrom(parent.handOff())
+            val activated = newModel.activate()
+            reads.add(child.modelChangesToPersist)
+            child.updating(activated)
+            reads.add(child.modelChangesToPersist)
+            val coveredBefore = parent.persistsWritesOf(activated)
+            parent.merging("Child", child.withResult("merged", null))
+            reads.add(parent.modelChangesToPersist)
+
+            Then("every read shows every write before it") {
+                reads shouldBe listOf(
+                    listOf(),
+                    listOf(AddModel(newModel)),
+                    listOf(AddModel(newModel), UpdateModel(dirtyModel)),
+                    listOf(AddModel(newModel), UpdateModel(dirtyModel), NoopModel(unchangedModel)),
+                    listOf(AddModel(newModel), UpdateModel(dirtyModel), NoopModel(unchangedModel)),
+                    listOf(AddModel(activated), UpdateModel(dirtyModel), NoopModel(unchangedModel)),
+                    listOf(AddModel(activated), UpdateModel(dirtyModel), NoopModel(unchangedModel)),
+                )
+                coveredBefore shouldBe false
+                parent.persistsWritesOf(activated) shouldBe true
             }
         }
     }
@@ -342,7 +427,7 @@ class ChangesSpec : BehaviorSpec({
         }
 
         When("changeFor is called for existing model") {
-            val acc = ChangesAccumulator().adding(model1)
+            val acc = ChangesAccumulator().apply { adding(model1) }
             val result = acc.changeFor(model1.id())
 
             Then("the change is returned") {
@@ -351,7 +436,7 @@ class ChangesSpec : BehaviorSpec({
         }
 
         When("changeFor is called for non-existing model") {
-            val acc = ChangesAccumulator().adding(model1)
+            val acc = ChangesAccumulator().apply { adding(model1) }
             val result = acc.changeFor(model2.id())
 
             Then("null is returned") {
@@ -360,10 +445,10 @@ class ChangesSpec : BehaviorSpec({
         }
 
         When("updating is called for an inherited added model") {
-            val acc = ChangesAccumulator.seededFrom(ChangesAccumulator().adding(model1))
+            val acc = ChangesAccumulator.seededFrom(ChangesAccumulator().apply { adding(model1) }.handOff())
             val updatedModel1 = model1.activate()
             val statusChanged = TestModelStatusChanged(model1.id(), CREATED, ACTIVE)
-            val result = acc.updating(updatedModel1).withResult("replaced", null)
+            val result = acc.apply { updating(updatedModel1) }.withResult("replaced", null)
 
             Then("the change is replaced and stays an add") {
                 result.modelChangesToPersist shouldBe
@@ -376,8 +461,8 @@ class ChangesSpec : BehaviorSpec({
             val read = existingCreatedTestModel(randomTestModelId(), "read", 300, V1)
             val renamed = read.changeParam1("renamed")
             val activated = renamed.activate()
-            val acc = ChangesAccumulator.seededFrom(ChangesAccumulator().updating(renamed))
-            val result = acc.updating(activated).withResult("replaced", null)
+            val acc = ChangesAccumulator.seededFrom(ChangesAccumulator().apply { updating(renamed) }.handOff())
+            val result = acc.apply { updating(activated) }.withResult("replaced", null)
 
             Then("the change is replaced and stays an update") {
                 result.modelChangesToPersist shouldBe listOf(UpdateModel(activated))
@@ -394,9 +479,9 @@ class ChangesSpec : BehaviorSpec({
         val allocation = RationAllocation(employeeId, BUBALEH, LocalDate.now(), 5)
 
         When("Principal calling addingEntity and then withResult") {
-            val changes = ChangesAccumulator()
-                .addingEntity(tag1)
-                .withResult("tag added", null)
+            val changes = ChangesAccumulator().apply {
+                addingEntity(tag1)
+            }.withResult("tag added", null)
 
             Then("Changes matching added entity and result produced") {
                 changes.entityChangesToPersist shouldBe listOf(AddEntity(tag1))
@@ -406,10 +491,10 @@ class ChangesSpec : BehaviorSpec({
         }
 
         When("Principal calling addingEntity twice for different entities") {
-            val changes = ChangesAccumulator()
-                .addingEntity(tag1)
-                .addingEntity(tag2)
-                .withResult("tags added", null)
+            val changes = ChangesAccumulator().apply {
+                addingEntity(tag1)
+                addingEntity(tag2)
+            }.withResult("tags added", null)
 
             Then("Changes contain both entities") {
                 changes.entityChangesToPersist shouldBe listOf(AddEntity(tag1), AddEntity(tag2))
@@ -418,10 +503,10 @@ class ChangesSpec : BehaviorSpec({
         }
 
         When("Principal calling addingEntity twice for the same entity") {
-            val changes = ChangesAccumulator()
-                .addingEntity(tag1)
-                .addingEntity(tag1)
-                .withResult("duplicate tag", null)
+            val changes = ChangesAccumulator().apply {
+                addingEntity(tag1)
+                addingEntity(tag1)
+            }.withResult("duplicate tag", null)
 
             Then("Changes contain duplicate entities (no deduplication)") {
                 changes.entityChangesToPersist shouldBe listOf(AddEntity(tag1), AddEntity(tag1))
@@ -430,9 +515,9 @@ class ChangesSpec : BehaviorSpec({
         }
 
         When("Principal calling deletingEntity and then withResult") {
-            val changes = ChangesAccumulator()
-                .deletingEntity(tag1)
-                .withResult("tag deleted", null)
+            val changes = ChangesAccumulator().apply {
+                deletingEntity(tag1)
+            }.withResult("tag deleted", null)
 
             Then("Changes matching deleted entity and result produced") {
                 changes.entityChangesToPersist shouldBe listOf(DeleteEntity(tag1))
@@ -441,10 +526,10 @@ class ChangesSpec : BehaviorSpec({
         }
 
         When("Principal calling addingEntity and deletingEntity") {
-            val changes = ChangesAccumulator()
-                .addingEntity(tag1)
-                .deletingEntity(tag2)
-                .withResult("mixed entity ops", null)
+            val changes = ChangesAccumulator().apply {
+                addingEntity(tag1)
+                deletingEntity(tag2)
+            }.withResult("mixed entity ops", null)
 
             Then("Changes contain both add and delete") {
                 changes.entityChangesToPersist shouldBe listOf(AddEntity(tag1), DeleteEntity(tag2))
@@ -453,9 +538,9 @@ class ChangesSpec : BehaviorSpec({
         }
 
         When("Principal calling updatingEntity and then withResult") {
-            val changes = ChangesAccumulator()
-                .updatingEntity(tag1)
-                .withResult("tag updated", null)
+            val changes = ChangesAccumulator().apply {
+                updatingEntity(tag1)
+            }.withResult("tag updated", null)
 
             Then("Changes matching updated entity and result produced") {
                 changes.entityChangesToPersist shouldBe listOf(UpdateEntity(tag1))
@@ -465,10 +550,10 @@ class ChangesSpec : BehaviorSpec({
         }
 
         When("Principal calling updatingEntity twice for different entities") {
-            val changes = ChangesAccumulator()
-                .updatingEntity(tag1)
-                .updatingEntity(tag2)
-                .withResult("tags updated", null)
+            val changes = ChangesAccumulator().apply {
+                updatingEntity(tag1)
+                updatingEntity(tag2)
+            }.withResult("tags updated", null)
 
             Then("Changes contain both entities") {
                 changes.entityChangesToPersist shouldBe listOf(UpdateEntity(tag1), UpdateEntity(tag2))
@@ -477,10 +562,10 @@ class ChangesSpec : BehaviorSpec({
         }
 
         When("Principal calling updatingEntity twice for the same entity") {
-            val changes = ChangesAccumulator()
-                .updatingEntity(tag1)
-                .updatingEntity(tag1)
-                .withResult("duplicate tag update", null)
+            val changes = ChangesAccumulator().apply {
+                updatingEntity(tag1)
+                updatingEntity(tag1)
+            }.withResult("duplicate tag update", null)
 
             Then("Changes contain duplicate entities (no deduplication)") {
                 changes.entityChangesToPersist shouldBe listOf(UpdateEntity(tag1), UpdateEntity(tag1))
@@ -490,11 +575,11 @@ class ChangesSpec : BehaviorSpec({
 
         When("Principal calling addingEntity and updatingEntity and deletingEntity") {
             val tag3 = Tag(subjectId, "key3", "value3")
-            val changes = ChangesAccumulator()
-                .addingEntity(tag1)
-                .updatingEntity(tag2)
-                .deletingEntity(tag3)
-                .withResult("all entity ops", null)
+            val changes = ChangesAccumulator().apply {
+                addingEntity(tag1)
+                updatingEntity(tag2)
+                deletingEntity(tag3)
+            }.withResult("all entity ops", null)
 
             Then("Changes contain add, update and delete") {
                 changes.entityChangesToPersist shouldBe listOf(
@@ -507,9 +592,9 @@ class ChangesSpec : BehaviorSpec({
         }
 
         When("Principal calling addingEntity for CreatableEntity (not DeletableEntity)") {
-            val changes = ChangesAccumulator()
-                .addingEntity(allocation)
-                .withResult("allocation added", null)
+            val changes = ChangesAccumulator().apply {
+                addingEntity(allocation)
+            }.withResult("allocation added", null)
 
             Then("Changes matching added allocation and result produced") {
                 changes.entityChangesToPersist shouldBe listOf(AddEntity(allocation))
@@ -522,10 +607,10 @@ class ChangesSpec : BehaviorSpec({
             val modelEvent = TestModelCreated(model.id())
 
             When("Principal adds both model and entity") {
-                val changes = ChangesAccumulator()
-                    .adding(model)
-                    .addingEntity(tag1)
-                    .withResult("mixed changes", null)
+                val changes = ChangesAccumulator().apply {
+                    adding(model)
+                    addingEntity(tag1)
+                }.withResult("mixed changes", null)
 
                 Then("Changes contain both model and entity changes") {
                     changes.modelChangesToPersist shouldBe listOf(AddModel(model))
@@ -537,10 +622,10 @@ class ChangesSpec : BehaviorSpec({
             When("Principal updates both model and entity") {
                 val existingModel = existingCreatedTestModel(param1 = "existing", param2 = 1L).activate()
                 val statusEvent = TestModelStatusChanged(existingModel.id(), CREATED, ACTIVE)
-                val changes = ChangesAccumulator()
-                    .updating(existingModel)
-                    .updatingEntity(tag1)
-                    .withResult("mixed updates", null)
+                val changes = ChangesAccumulator().apply {
+                    updating(existingModel)
+                    updatingEntity(tag1)
+                }.withResult("mixed updates", null)
 
                 Then("Changes contain both model and entity updates") {
                     changes.modelChangesToPersist shouldBe listOf(
@@ -565,9 +650,9 @@ class ChangesSpec : BehaviorSpec({
                 val emp = mutating { newEmployee(Name("Alice", "Smith"), d.id(), "alice@test.com", BUBALEH) }
                 d.addEmployee(emp)
             }
-            val changes = ChangesAccumulator()
-                .adding(deptWithEmployee)
-                .withResult("dept added", null)
+            val changes = ChangesAccumulator().apply {
+                adding(deptWithEmployee)
+            }.withResult("dept added", null)
 
             Then("Parent and child are flattened into separate changes") {
                 changes.modelChangesToPersist shouldHaveSize 2
@@ -600,9 +685,9 @@ class ChangesSpec : BehaviorSpec({
                 boss = bossId,
                 ration = BUBALEH,
             )
-            val changes = ChangesAccumulator()
-                .adding(dept)
-                .withResult("no children", null)
+            val changes = ChangesAccumulator().apply {
+                adding(dept)
+            }.withResult("no children", null)
 
             Then("Only parent change is produced") {
                 changes.modelChangesToPersist shouldHaveSize 1
@@ -619,10 +704,10 @@ class ChangesSpec : BehaviorSpec({
             val emp = mutating { newEmployee(Name("Bob", "Jones"), dept.id(), "bob@test.com", BUBALEH) }
             val deptWithEmp = dept.addEmployee(emp)
 
-            val changes = ChangesAccumulator()
-                .adding(emp)
-                .adding(deptWithEmp)
-                .withResult("explicit child", null)
+            val changes = ChangesAccumulator().apply {
+                adding(emp)
+                adding(deptWithEmp)
+            }.withResult("explicit child", null)
 
             Then("Child is not duplicated - explicit registration takes precedence") {
                 changes.modelChangesToPersist shouldHaveSize 2
@@ -639,10 +724,10 @@ class ChangesSpec : BehaviorSpec({
             )
             val moved = mutating { emp.changeDepartment(otherDept) }
             val owner = dept.addEmployee(moved)
-            val changes = ChangesAccumulator()
-                .adding(emp)
-                .adding(owner)
-                .withResult("later", null)
+            val changes = ChangesAccumulator().apply {
+                adding(emp)
+                adding(owner)
+            }.withResult("later", null)
 
             Then("The later instance persists once, in the earlier registration's place") {
                 changes.modelChangesToPersist.map { it.model } shouldBe listOf(moved, owner)
@@ -659,9 +744,10 @@ class ChangesSpec : BehaviorSpec({
             )
             val registered = mutating { emp.changeDepartment(elsewhere("One")) }
             val owned = mutating { emp.changeDepartment(elsewhere("Two")) }
-            val accumulator = ChangesAccumulator()
-                .adding(registered)
-                .adding(dept.addEmployee(owned))
+            val accumulator = ChangesAccumulator().apply {
+                adding(registered)
+                adding(dept.addEmployee(owned))
+            }
 
             Then("Flattening fails instead of dropping one of the two writes") {
                 val ex = shouldThrow<IllegalStateException> { accumulator.withResult("diverged", null) }
@@ -686,8 +772,14 @@ class ChangesSpec : BehaviorSpec({
 
             Then("The move persists once whichever owner is registered first") {
                 listOf(
-                    ChangesAccumulator().claimingUnchanged(keeper).updating(mover),
-                    ChangesAccumulator().updating(mover).claimingUnchanged(keeper),
+                    ChangesAccumulator().apply {
+                        claimingUnchanged(keeper)
+                        updating(mover)
+                    },
+                    ChangesAccumulator().apply {
+                        updating(mover)
+                        claimingUnchanged(keeper)
+                    },
                 ).forEach { accumulator ->
                     val employeeChanges = accumulator.withResult("both", null).modelChangesToPersist
                         .filter { it.id == employee.id() }
@@ -712,9 +804,10 @@ class ChangesSpec : BehaviorSpec({
             fun owning(owned: Employee, name: String) = DeptAggregate(
                 DepartmentId.randomDepartmentId(), name, bossId, 1, BUBALEH, listOf(owned), persistentState(V1, null),
             ).rename("$name v2")
-            val accumulator = ChangesAccumulator()
-                .updating(owning(movedTo("One"), "A"))
-                .updating(owning(movedTo("Two"), "B"))
+            val accumulator = ChangesAccumulator().apply {
+                updating(owning(movedTo("One"), "A"))
+                updating(owning(movedTo("Two"), "B"))
+            }
 
             Then("Flattening fails instead of persisting one move and dropping the other") {
                 val ex = shouldThrow<IllegalStateException> { accumulator.withResult("diverged", null) }
@@ -746,8 +839,14 @@ class ChangesSpec : BehaviorSpec({
 
             Then("The move persists whichever is registered first") {
                 listOf(
-                    ChangesAccumulator().claimingUnchanged(box).updating(dept),
-                    ChangesAccumulator().updating(dept).claimingUnchanged(box),
+                    ChangesAccumulator().apply {
+                        claimingUnchanged(box)
+                        updating(dept)
+                    },
+                    ChangesAccumulator().apply {
+                        updating(dept)
+                        claimingUnchanged(box)
+                    },
                 ).forEach { accumulator ->
                     val persisted = accumulator.withResult("nested", null).modelChangesToPersist
                     persisted.single { it.id == employee.id() }.model shouldBe moved
@@ -763,10 +862,10 @@ class ChangesSpec : BehaviorSpec({
                 DepartmentId.randomDepartmentId(), "Other", bossId, 1, BUBALEH, persistentState(V1, null),
             )
             val moved = mutating { emp.changeDepartment(otherDept) }
-            val changes = ChangesAccumulator()
-                .adding(moved)
-                .adding(dept.addEmployee(emp))
-                .withResult("covered", null)
+            val changes = ChangesAccumulator().apply {
+                adding(moved)
+                adding(dept.addEmployee(emp))
+            }.withResult("covered", null)
 
             Then("The registered instance persists the child, once") {
                 changes.modelChangesToPersist.map { it.model } shouldBe listOf(moved, dept.addEmployee(emp))
@@ -786,9 +885,9 @@ class ChangesSpec : BehaviorSpec({
             val emp = mutating { newEmployee(Name("Carol", "White"), existingDept.id(), "carol@test.com", BUBALEH) }
             val renamedWithEmp = existingDept.rename("Eng v2").addEmployee(emp)
 
-            val changes = ChangesAccumulator()
-                .updating(renamedWithEmp)
-                .withResult("updated parent new child", null)
+            val changes = ChangesAccumulator().apply {
+                updating(renamedWithEmp)
+            }.withResult("updated parent new child", null)
 
             Then("UpdateModel for parent and AddModel for new child") {
                 changes.modelChangesToPersist shouldHaveSize 2
@@ -823,9 +922,9 @@ class ChangesSpec : BehaviorSpec({
             )
             val renamedDept = existingDept.rename("Eng v3")
 
-            val changes = ChangesAccumulator()
-                .updating(renamedDept)
-                .withResult("persistent child skipped", null)
+            val changes = ChangesAccumulator().apply {
+                updating(renamedDept)
+            }.withResult("persistent child skipped", null)
 
             Then("Only UpdateModel for parent, persistent child is skipped") {
                 changes.modelChangesToPersist shouldHaveSize 1
@@ -860,10 +959,10 @@ class ChangesSpec : BehaviorSpec({
 
             Then("The contradiction fails loudly instead of dropping the child's write") {
                 val exception = shouldThrow<IllegalStateException> {
-                    ChangesAccumulator()
-                        .claimingUnchanged(claimed)
-                        .updating(dept)
-                        .withResult("claim hides the child", null)
+                    ChangesAccumulator().apply {
+                        claimingUnchanged(claimed)
+                        updating(dept)
+                    }.withResult("claim hides the child", null)
                 }
                 exception.message shouldBe "Model [${emp.id().stringValue()}] is registered as " +
                     "unchanged, but aggregate [${dept.id().stringValue()}] owns a new instance of " +
@@ -889,9 +988,9 @@ class ChangesSpec : BehaviorSpec({
                 ownedModels = listOf(deptWithEmployee),
             )
 
-            val changes = ChangesAccumulator()
-                .adding(wrapper)
-                .withResult("nested 2 levels", null)
+            val changes = ChangesAccumulator().apply {
+                adding(wrapper)
+            }.withResult("nested 2 levels", null)
 
             Then("All 3 models appear: wrapper, dept, employee") {
                 changes.modelChangesToPersist shouldHaveSize 3
