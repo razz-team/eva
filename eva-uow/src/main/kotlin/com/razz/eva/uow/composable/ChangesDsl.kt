@@ -21,6 +21,9 @@ import com.razz.eva.uow.PersistedLookup
 import com.razz.eva.uow.UowParams
 import com.razz.eva.uow.checkBuiltBy
 import io.opentelemetry.api.trace.Span
+import kotlin.contracts.ExperimentalContracts
+import kotlin.contracts.InvocationKind.EXACTLY_ONCE
+import kotlin.contracts.contract
 import kotlin.reflect.KClass
 
 class ChangesDsl internal constructor(
@@ -70,8 +73,10 @@ class ChangesDsl internal constructor(
      * The witness covers the id type, not the instance: a second model of the same type mutated inside
      * [mutate] is not registered, and the returned instance is checked by id only.
      */
+    @OptIn(ExperimentalContracts::class)
     fun <MID, E, M, R> update(model: M, mutate: context(Witness<MID>) M.() -> R): R
         where M : Model<MID, E>, R : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
+        contract { callsInPlace(mutate, EXACTLY_ONCE) }
         val mutated = context(Witness<MID>()) { model.mutate() }
         if (mutated === model) {
             changes.declining(model)
@@ -93,9 +98,12 @@ class ChangesDsl internal constructor(
      * expected type is wider than the model (`val x: Any = add { }`), inference fails: name the model's
      * type on the receiving value.
      */
+    @OptIn(ExperimentalContracts::class)
     fun <MID, E, M> add(create: context(Witness<MID>) () -> M): M
-        where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> =
-        add(context(Witness<MID>()) { create() })
+        where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
+        contract { callsInPlace(create, EXACTLY_ONCE) }
+        return add(context(Witness<MID>()) { create() })
+    }
 
     fun <MID, E, M> notChanged(model: M): M
         where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
