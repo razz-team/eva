@@ -55,7 +55,7 @@ class Persisting(
         uowName: String,
         params: PARAMS,
         principal: Principal<*>,
-        modelChanges: Collection<ModelChange>,
+        modelChanges: List<ModelChange>,
         entityChanges: Collection<EntityChange>,
         now: Instant,
         persistOrder: PersistOrder,
@@ -64,7 +64,7 @@ class Persisting(
         val (uowEvent, flushed) = inTransaction(now, persistOrder, connectionMode) { persisting, startedAt ->
             // taken before the sort: events keep registration order whatever order the rows are written in
             val events = modelChanges.flatMap(ModelChange::modelEvents)
-            modelChanges.toList().inWriteOrder(persistOrder).forEach { change ->
+            modelChanges.inWriteOrder(persistOrder).forEach { change ->
                 change.persist(persisting)
             }
             entityChanges.forEach { change ->
