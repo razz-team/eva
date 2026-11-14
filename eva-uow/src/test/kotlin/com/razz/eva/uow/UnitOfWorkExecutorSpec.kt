@@ -574,7 +574,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
             val persisting = mockk<Persisting>(relaxed = true)
 
             every { unitOfWork.name() } returns "MockOfCreateDepartmentUow"
-            every { rawUnitOfWork.configuration().supportsOutOfOrderPersisting } returns true
+            every { rawUnitOfWork.configuration().persistOrder } returns PersistOrder.Unspecified
             every { rawUnitOfWork.configuration().writeTxScope } returns WriteTxScope.FLUSH
 
             val uowx = UnitOfWorkExecutor(
@@ -595,13 +595,13 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                         modelChanges = listOf(),
                         entityChanges = listOf(),
                         now = clock.instant(),
-                        uowSupportsOutOfOrderPersisting = true,
+                        persistOrder = PersistOrder.Unspecified,
                         connectionMode = REQUIRE_NEW,
                     )
                 } returns Pair(uowEvent(), listOf(anotherModel, department))
                 every { rawUnitOfWork.configuration() } returns
-                    Configuration(StaleRecordFixedRetry(1, ofMillis(100)), true)
-                val changes = AccumulatedChanges(department, null, ChangesAccumulator())
+                    Configuration(StaleRecordFixedRetry(1, ofMillis(100)), PersistOrder.Unspecified)
+                val changes = AccumulatedChanges(department, null, ChangesAccumulator(), PersistOrder.Unspecified)
                 coEvery {
                     rawUnitOfWork.tryPerform(TestPrincipal, eq(params))
                 } returns changes
@@ -622,7 +622,45 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                                 modelChanges = changes.modelChangesToPersist,
                                 entityChanges = changes.entityChangesToPersist,
                                 now = clock.instant(),
-                                uowSupportsOutOfOrderPersisting = true,
+                                persistOrder = PersistOrder.Unspecified,
+                                connectionMode = REQUIRE_NEW,
+                            )
+                        }
+                    }
+                }
+            }
+
+            And("UnitOfWork's changes carry a custom order its configuration does not name") {
+                val carried = PersistOrder.Custom { _, _ -> 0 }
+                every { rawUnitOfWork.configuration() } returns Configuration.default()
+                val changes = AccumulatedChanges(department, null, ChangesAccumulator(), carried)
+                coEvery { rawUnitOfWork.tryPerform(TestPrincipal, eq(params)) } returns changes
+                coEvery {
+                    persisting.persist(
+                        uowName = "MockOfCreateDepartmentUow",
+                        params = params,
+                        principal = TestPrincipal,
+                        modelChanges = listOf(),
+                        entityChanges = listOf(),
+                        now = clock.instant(),
+                        persistOrder = carried,
+                        connectionMode = REQUIRE_NEW,
+                    )
+                } returns Pair(uowEvent(), listOf(department))
+
+                When("Principal executes UnitOfWork") {
+                    uowx.execute(CreateDepartmentUow::class, TestPrincipal) { params }
+
+                    Then("The changes' order reaches persist, not the configured one") {
+                        coVerify {
+                            persisting.persist(
+                                uowName = "MockOfCreateDepartmentUow",
+                                params = params,
+                                principal = TestPrincipal,
+                                modelChanges = listOf(),
+                                entityChanges = listOf(),
+                                now = clock.instant(),
+                                persistOrder = carried,
                                 connectionMode = REQUIRE_NEW,
                             )
                         }
@@ -654,11 +692,11 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
             And("UnitOfWork has one retry and persisting saves result on second attempt") {
                 val retry = mockk<StaleRecordFixedRetry>()
                 val ex = StaleRecordException(depId, "department")
-                every { rawUnitOfWork.configuration() } returns Configuration(retry, true)
+                every { rawUnitOfWork.configuration() } returns Configuration(retry, PersistOrder.Unspecified)
                 every { retry.getNextDelay(eq(0), eq(ex)) } returns ofMillis(0)
                 coEvery {
                     rawUnitOfWork.tryPerform(TestPrincipal, eq(params))
-                } returns AccumulatedChanges(department, null, ChangesAccumulator())
+                } returns AccumulatedChanges(department, null, ChangesAccumulator(), PersistOrder.Unspecified)
                 coEvery {
                     persisting.persist(
                         uowName = "MockOfCreateDepartmentUow",
@@ -667,7 +705,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                         modelChanges = listOf(),
                         entityChanges = listOf(),
                         now = clock.instant(),
-                        uowSupportsOutOfOrderPersisting = true,
+                        persistOrder = PersistOrder.Unspecified,
                         connectionMode = REQUIRE_NEW,
                     )
                 } throws ex andThen Pair(uowEvent(), listOf(department))
@@ -686,12 +724,12 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
             And("UnitOfWork has one retry and returns onFailure result on second attempt") {
                 val retry = mockk<StaleRecordFixedRetry>()
                 val ex = StaleRecordException(depId, "department")
-                every { rawUnitOfWork.configuration() } returns Configuration(retry, true)
+                every { rawUnitOfWork.configuration() } returns Configuration(retry, PersistOrder.Unspecified)
                 every { retry.getNextDelay(eq(0), eq(ex)) } returns ofMillis(0)
                 every { retry.getNextDelay(eq(1), eq(ex)) } returns null
                 coEvery {
                     rawUnitOfWork.tryPerform(TestPrincipal, eq(params))
-                } returns AccumulatedChanges(department, null, ChangesAccumulator())
+                } returns AccumulatedChanges(department, null, ChangesAccumulator(), PersistOrder.Unspecified)
                 coEvery {
                     persisting.persist(
                         "MockOfCreateDepartmentUow",
@@ -700,7 +738,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                         listOf(),
                         listOf(),
                         ofEpochMilli(0),
-                        true,
+                        PersistOrder.Unspecified,
                         REQUIRE_NEW,
                     )
                 } throws ex andThenThrows ex
@@ -722,7 +760,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                 every { rawUnitOfWork.configuration() } returns Configuration.default()
                 coEvery {
                     rawUnitOfWork.tryPerform(TestPrincipal, eq(params))
-                } returns AccumulatedChanges(department, null, ChangesAccumulator())
+                } returns AccumulatedChanges(department, null, ChangesAccumulator(), PersistOrder.Registration)
                 coEvery {
                     persisting.persist(
                         "MockOfCreateDepartmentUow",
@@ -731,7 +769,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                         listOf(),
                         listOf(),
                         ofEpochMilli(0),
-                        false,
+                        PersistOrder.Registration,
                         REQUIRE_NEW,
                     )
                 } throws ex
@@ -756,7 +794,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                 every { rawUnitOfWork.configuration() } returns Configuration.default()
                 coEvery {
                     rawUnitOfWork.tryPerform(TestPrincipal, eq(params))
-                } returns AccumulatedChanges(department, null, ChangesAccumulator())
+                } returns AccumulatedChanges(department, null, ChangesAccumulator(), PersistOrder.Registration)
                 coEvery {
                     persisting.persist(
                         "MockOfCreateDepartmentUow",
@@ -765,7 +803,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                         listOf(),
                         listOf(),
                         ofEpochMilli(0),
-                        false,
+                        PersistOrder.Registration,
                         REQUIRE_NEW,
                     )
                 } throws ex
@@ -790,7 +828,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                 every { rawUnitOfWork.configuration() } returns Configuration.default()
                 coEvery {
                     rawUnitOfWork.tryPerform(TestPrincipal, eq(params))
-                } returns AccumulatedChanges(department, null, ChangesAccumulator())
+                } returns AccumulatedChanges(department, null, ChangesAccumulator(), PersistOrder.Registration)
                 coEvery {
                     persisting.persist(
                         "MockOfCreateDepartmentUow",
@@ -799,7 +837,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                         listOf(),
                         listOf(),
                         ofEpochMilli(0),
-                        false,
+                        PersistOrder.Registration,
                         REQUIRE_NEW,
                     )
                 } throws ex
@@ -821,7 +859,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                 every { rawUnitOfWork.configuration() } returns Configuration.default()
                 coEvery {
                     rawUnitOfWork.tryPerform(TestPrincipal, eq(params))
-                } returns AccumulatedChanges(department, null, ChangesAccumulator())
+                } returns AccumulatedChanges(department, null, ChangesAccumulator(), PersistOrder.Registration)
                 coEvery {
                     persisting.persist(
                         "MockOfCreateDepartmentUow",
@@ -830,7 +868,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                         listOf(),
                         listOf(),
                         ofEpochMilli(0),
-                        false,
+                        PersistOrder.Registration,
                         REQUIRE_NEW,
                     )
                 } throws ex
@@ -853,7 +891,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                 every { rawUnitOfWork.configuration() } returns Configuration.default()
                 coEvery {
                     rawUnitOfWork.tryPerform(TestPrincipal, eq(params))
-                } returns AccumulatedChanges(department, null, ChangesAccumulator())
+                } returns AccumulatedChanges(department, null, ChangesAccumulator(), PersistOrder.Registration)
                 coEvery {
                     persisting.persist(
                         "MockOfCreateDepartmentUow",
@@ -862,7 +900,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                         listOf(),
                         listOf(),
                         ofEpochMilli(0),
-                        false,
+                        PersistOrder.Registration,
                         REQUIRE_NEW,
                     )
                 } throws ex
@@ -895,10 +933,10 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
             val persisting = mockk<Persisting>(relaxed = true)
             every { unitOfWork.name() } returns uowName
             every { rawUnitOfWork.configuration() } returns
-                Configuration(StaleRecordFixedRetry(1, ofMillis(0)), supportsOutOfOrderPersisting = true)
+                Configuration(StaleRecordFixedRetry(1, ofMillis(0)), persistOrder = PersistOrder.Unspecified)
             coEvery {
                 rawUnitOfWork.tryPerform(TestPrincipal, eq(params))
-            } returns AccumulatedChanges(department, null, ChangesAccumulator())
+            } returns AccumulatedChanges(department, null, ChangesAccumulator(), PersistOrder.Unspecified)
             val metricReader = InMemoryMetricReader.create()
             val uowx = UnitOfWorkExecutor(
                 persisting = persisting,
@@ -917,7 +955,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                         modelChanges = listOf(),
                         entityChanges = listOf(),
                         now = clock.instant(),
-                        uowSupportsOutOfOrderPersisting = true,
+                        persistOrder = PersistOrder.Unspecified,
                         connectionMode = REQUIRE_NEW,
                     )
                 } throws ex andThen Pair(uowEvent(), listOf(department))
@@ -955,7 +993,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                         modelChanges = listOf(),
                         entityChanges = listOf(),
                         now = clock.instant(),
-                        uowSupportsOutOfOrderPersisting = true,
+                        persistOrder = PersistOrder.Unspecified,
                         connectionMode = REQUIRE_NEW,
                     )
                 } throws ex
@@ -982,7 +1020,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                         modelChanges = listOf(),
                         entityChanges = listOf(),
                         now = clock.instant(),
-                        uowSupportsOutOfOrderPersisting = true,
+                        persistOrder = PersistOrder.Unspecified,
                         connectionMode = REQUIRE_NEW,
                     )
                 } returns Pair(uowEvent(), listOf(department))
@@ -1006,7 +1044,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                         modelChanges = listOf(),
                         entityChanges = listOf(),
                         now = clock.instant(),
-                        uowSupportsOutOfOrderPersisting = true,
+                        persistOrder = PersistOrder.Unspecified,
                         connectionMode = REQUIRE_NEW,
                     )
                 } throws ex
@@ -1033,7 +1071,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                         modelChanges = listOf(),
                         entityChanges = listOf(),
                         now = clock.instant(),
-                        uowSupportsOutOfOrderPersisting = true,
+                        persistOrder = PersistOrder.Unspecified,
                         connectionMode = REQUIRE_NEW,
                     )
                 } throws ex
@@ -1073,7 +1111,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
             )
             coEvery {
                 rawUnitOfWork.tryPerform(TestPrincipal, eq(params))
-            } returns AccumulatedChanges(department, null, ChangesAccumulator())
+            } returns AccumulatedChanges(department, null, ChangesAccumulator(), PersistOrder.Registration)
             coEvery { persisting.transactionally(any<suspend () -> Any?>()) } coAnswers {
                 firstArg<suspend () -> Any?>().invoke()
             }
@@ -1093,7 +1131,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                         modelChanges = listOf(),
                         entityChanges = listOf(),
                         now = clock.instant(),
-                        uowSupportsOutOfOrderPersisting = false,
+                        persistOrder = PersistOrder.Registration,
                         connectionMode = REQUIRE_EXISTING,
                     )
                 } returns Pair(uowEvent(), listOf(department))
@@ -1112,7 +1150,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                                 modelChanges = listOf(),
                                 entityChanges = listOf(),
                                 now = clock.instant(),
-                                uowSupportsOutOfOrderPersisting = false,
+                                persistOrder = PersistOrder.Registration,
                                 connectionMode = REQUIRE_EXISTING,
                             )
                             persisting.publish(any())
@@ -1131,7 +1169,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                         modelChanges = listOf(),
                         entityChanges = listOf(),
                         now = clock.instant(),
-                        uowSupportsOutOfOrderPersisting = false,
+                        persistOrder = PersistOrder.Registration,
                         connectionMode = REQUIRE_EXISTING,
                     )
                 } throws ex
@@ -1194,7 +1232,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                 modelChanges = any(),
                 entityChanges = any(),
                 now = any(),
-                uowSupportsOutOfOrderPersisting = any(),
+                persistOrder = any(),
                 connectionMode = any(),
             )
         } returns Pair(uowEvent(), listOf(department))
@@ -1215,7 +1253,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                         modelChanges = match { it.size == 1 && it.single().id == departmentId },
                         entityChanges = listOf(),
                         now = clock.instant(),
-                        uowSupportsOutOfOrderPersisting = any(),
+                        persistOrder = any(),
                         connectionMode = REQUIRE_NEW,
                     )
                 }
@@ -1285,7 +1323,7 @@ class UnitOfWorkExecutorSpec : BehaviorSpec({
                 modelChanges = any(),
                 entityChanges = any(),
                 now = any(),
-                uowSupportsOutOfOrderPersisting = any(),
+                persistOrder = any(),
                 connectionMode = any(),
             )
         } returns Pair(uowEvent(), listOf(flushedDepartment))

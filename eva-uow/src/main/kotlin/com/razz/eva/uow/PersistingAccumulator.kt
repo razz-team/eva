@@ -135,13 +135,13 @@ internal sealed interface PersistingAccumulator : ModelPersisting, EntityPersist
 
     companion object Factory {
         fun newPersistingAccumulator(
-            doBatching: Boolean,
+            persistOrder: PersistOrder,
             modelRepos: ModelRepos,
             entityRepos: EntityRepos,
-        ): PersistingAccumulator = if (doBatching) {
-            BatchesAccumulator(modelRepos, entityRepos)
-        } else {
-            ChangesAccumulator(modelRepos, entityRepos)
+        ): PersistingAccumulator = when (persistOrder) {
+            PersistOrder.Registration -> ChangesAccumulator(modelRepos, entityRepos)
+            is PersistOrder.Custom -> ChangesAccumulator(modelRepos, entityRepos)
+            PersistOrder.Unspecified -> BatchesAccumulator(modelRepos, entityRepos)
         }
     }
 }

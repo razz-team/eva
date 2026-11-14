@@ -55,16 +55,16 @@ class Persisting(
         uowName: String,
         params: PARAMS,
         principal: Principal<*>,
-        modelChanges: Collection<ModelChange>,
+        modelChanges: List<ModelChange>,
         entityChanges: Collection<EntityChange>,
         now: Instant,
-        uowSupportsOutOfOrderPersisting: Boolean,
+        persistOrder: PersistOrder,
         connectionMode: ConnectionMode,
     ): Pair<UowEvent, List<Model<*, *>>> {
-        val (uowEvent, flushed) = inTransaction(now, uowSupportsOutOfOrderPersisting, connectionMode) {
-                persisting, startedAt ->
+        val (uowEvent, flushed) = inTransaction(now, persistOrder, connectionMode) { persisting, startedAt ->
+            // taken before the sort: events keep registration order whatever order the rows are written in
             val events = modelChanges.flatMap(ModelChange::modelEvents)
-            modelChanges.forEach { change ->
+            modelChanges.inWriteOrder(persistOrder).forEach { change ->
                 change.persist(persisting)
             }
             entityChanges.forEach { change ->
@@ -99,16 +99,20 @@ class Persisting(
 
     private suspend fun inTransaction(
         now: Instant,
-        uowSupportsOutOfOrderPersisting: Boolean,
+        persistOrder: PersistOrder,
         connectionMode: ConnectionMode,
         block: (PersistingAccumulator, Instant) -> UowEvent,
     ): Pair<UowEvent, List<Model<*, *>>> {
-        val persistingMode = if (transactionManager.supportsPipelining() && uowSupportsOutOfOrderPersisting) {
-            PARALLEL_OUT_OF_ORDER
-        } else {
-            SEQUENTIAL_FIFO
+        val persistingMode = when (persistOrder) {
+            PersistOrder.Registration -> SEQUENTIAL_FIFO
+            is PersistOrder.Custom -> SEQUENTIAL_FIFO
+            PersistOrder.Unspecified -> if (transactionManager.supportsPipelining()) {
+                PARALLEL_OUT_OF_ORDER
+            } else {
+                SEQUENTIAL_FIFO
+            }
         }
-        val persisting = newPersistingAccumulator(uowSupportsOutOfOrderPersisting, modelRepos, entityRepos)
+        val persisting = newPersistingAccumulator(persistOrder, modelRepos, entityRepos)
         val uowEvent = block(persisting, now)
         val flushed = transactionManager.inTransaction(connectionMode) { _ ->
             flush(persisting, uowEvent, transactionalContext(now), persistingMode)

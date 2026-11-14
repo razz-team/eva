@@ -44,12 +44,12 @@ abstract class BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, C>(
         val inherited = executionContext.inheritedChanges
         checkNoDroppedWrite(result, "noChanges") { model -> inherited?.persistsWritesOf(model) ?: false }
         // an empty accumulator, not none: the executor refuses changes without one as a stub
-        return AccumulatedChanges(result, null, ChangesAccumulator())
+        return AccumulatedChanges(result, null, ChangesAccumulator(), configuration.persistOrder)
     }
 
     data class Configuration(
         val retry: Retry? = DEFAULT,
-        val supportsOutOfOrderPersisting: Boolean = false,
+        val persistOrder: PersistOrder = PersistOrder.Registration,
         val returnRoundtrippedModels: Boolean = true,
         val writeTxScope: WriteTxScope = WriteTxScope.FLUSH,
     ) {

@@ -17,6 +17,7 @@ import com.razz.eva.uow.ModelChange
 import com.razz.eva.uow.NoopModel
 import com.razz.eva.uow.UpdateEntity
 import com.razz.eva.uow.UpdateModel
+import com.razz.eva.uow.inWriteOrder
 import com.razz.eva.uow.verifyResultInstances
 import java.util.ArrayDeque
 import java.util.Deque
@@ -30,6 +31,11 @@ interface EqualityVerifier {
     fun <T> verify(expected: T, actual: T)
 }
 
+/**
+ * Verifies the changes in the order the unit of work writes them: model changes in its persist order (sorted for a
+ * [com.razz.eva.uow.PersistOrder.Custom] one, including one a composed child carried up; as registered otherwise),
+ * entity changes as registered, and the events it publishes in registration order.
+ */
 infix fun <R> Changes<R>.verifyInOrder(block: UowSpec<R>.() -> Unit) {
     val spec = UowSpec(this)
     block(spec)
@@ -55,7 +61,9 @@ class UowSpec<R> private constructor(
         changes: Changes<R>,
     ) : this(
         result = changes.result,
-        modelChangeHistory = ArrayDeque(changes.modelChangesToPersist.filter { it !is NoopModel }),
+        modelChangeHistory = ArrayDeque(
+            changes.modelChangesToPersist.inWriteOrder(changes.persistOrder).filter { it !is NoopModel },
+        ),
         entityChangeHistory = ArrayDeque(changes.entityChangesToPersist),
         publishedEvents = ArrayDeque(changes.modelChangesToPersist.flatMap { it.modelEvents }),
     )

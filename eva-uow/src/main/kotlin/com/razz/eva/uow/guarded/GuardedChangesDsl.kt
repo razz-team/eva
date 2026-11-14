@@ -16,6 +16,9 @@ import com.razz.eva.uow.composable.ChangesDsl
 import com.razz.eva.uow.composable.ComposableUow
 import java.util.Collections
 import java.util.IdentityHashMap
+import kotlin.contracts.ExperimentalContracts
+import kotlin.contracts.InvocationKind.EXACTLY_ONCE
+import kotlin.contracts.contract
 import kotlin.reflect.KClass
 
 /**
@@ -51,9 +54,12 @@ class GuardedChangesDsl<PF : Proof<*>> internal constructor(
     }
 
     /** Adds the model [create] returns, as `add(model)` does. [create] runs with a [Witness] for its id type. */
+    @OptIn(ExperimentalContracts::class)
     fun <MID, E, M> add(create: context(Witness<MID>) () -> M): M
-        where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> =
-        dsl.add { create().also { checkOwnedModels(it) } }
+        where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
+        contract { callsInPlace(create, EXACTLY_ONCE) }
+        return dsl.add { create().also { checkOwnedModels(it) } }
+    }
 
     fun <MID, E, M> update(model: M): M
         where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
@@ -69,8 +75,10 @@ class GuardedChangesDsl<PF : Proof<*>> internal constructor(
      * [mutate] returns is checked as `update` checks it. If [mutate] returns [model] itself, nothing changed: a stored
      * model is kept as `notChanged` keeps it.
      */
+    @OptIn(ExperimentalContracts::class)
     fun <MID, E, M, R> update(model: M, mutate: context(Witness<MID>) M.() -> R): R
         where M : Model<MID, E>, R : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
+        contract { callsInPlace(mutate, EXACTLY_ONCE) }
         checkMayUpdate(model)
         return dsl.update(model) {
             mutate().also { mutated ->

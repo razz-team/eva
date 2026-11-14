@@ -143,7 +143,7 @@ class WrappingUnitOfWorkSpec : FunSpec({
                 modelChanges = any(),
                 entityChanges = any(),
                 now = any(),
-                uowSupportsOutOfOrderPersisting = any(),
+                persistOrder = any(),
                 connectionMode = any(),
             )
         } returns Pair(
