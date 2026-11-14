@@ -1,16 +1,20 @@
 package com.razz.eva.uow.verify
 
+import com.razz.eva.domain.Model
 import com.razz.eva.domain.TestModel
+import com.razz.eva.domain.TestModel.CreatedTestModel
 import com.razz.eva.domain.TestModel.Factory.createdTestModel
 import com.razz.eva.domain.TestModel.Factory.existingCreatedTestModel
 import com.razz.eva.domain.TestModelEvent.TestModelCreated
 import com.razz.eva.domain.TestModelEvent.TestModelStatusChanged
 import com.razz.eva.domain.TestModelId.Companion.randomTestModelId
 import com.razz.eva.domain.Version.Companion.V1
+import com.razz.eva.uow.BaseUnitOfWork.Configuration
 import com.razz.eva.uow.ChangesAccumulator
 import com.razz.eva.uow.Clocks.fixedUTC
 import com.razz.eva.uow.Clocks.millisUTC
 import com.razz.eva.uow.ExecutionContext
+import com.razz.eva.uow.PersistOrder
 import com.razz.eva.uow.TestPrincipal
 import com.razz.eva.uow.composable.DummyUow
 import io.kotest.assertions.throwables.shouldThrow
@@ -20,6 +24,12 @@ import io.kotest.matchers.string.shouldContain
 import io.opentelemetry.api.OpenTelemetry
 import com.razz.eva.uow.composable.UnitOfWork as ComposableUnitOfWork
 import com.razz.eva.uow.PersistOrder.Registration
+
+// Test models by param2, ascending.
+private data object ByParam2 : PersistOrder.Custom {
+    override fun compare(a: Model<*, *>, b: Model<*, *>): Int =
+        (a as CreatedTestModel).param2.compareTo((b as CreatedTestModel).param2)
+}
 
 class UowSpecVerifySpec : BehaviorSpec({
 
@@ -415,6 +425,102 @@ class UowSpecVerifySpec : BehaviorSpec({
                 val exception = shouldThrow<IllegalStateException>(verifying)
                 exception.message shouldContain "Result is not a model at all"
                 exception.message shouldContain "Result was [TestModelId:"
+            }
+        }
+    }
+
+    Given("A unit of work that writes in a custom order") {
+        val second = createdTestModel("second", 2)
+        val first = createdTestModel("first", 1)
+        fun uow(order: PersistOrder, ctx: ExecutionContext) =
+            object : ComposableUnitOfWork<TestPrincipal, DummyUow.Params, String>(
+                ctx,
+                Configuration(persistOrder = order),
+            ) {
+                override suspend fun tryPerform(principal: TestPrincipal, params: DummyUow.Params) = changes {
+                    add(second)
+                    add(first)
+                    "added"
+                }
+            }
+        val changes = uow(ByParam2, executionContext).tryPerform(TestPrincipal, DummyUow.Params)
+
+        When("The spec lists the rows in write order and the events in registration order") {
+            changes verifyInOrder {
+                adds<CreatedTestModel> { param2 shouldBe 1 }
+                adds<CreatedTestModel> { param2 shouldBe 2 }
+                emits<TestModelCreated> { testModelId shouldBe second.id() }
+                emits<TestModelCreated> { testModelId shouldBe first.id() }
+                returnsEq("added")
+            }
+
+            Then("The spec passes") { }
+        }
+
+        When("The spec lists the rows in registration order") {
+            val ex = shouldThrow<AssertionError> {
+                changes verifyInOrder {
+                    adds<CreatedTestModel> { param2 shouldBe 2 }
+                    adds<CreatedTestModel> { param2 shouldBe 1 }
+                    emits<TestModelCreated> { testModelId shouldBe second.id() }
+                    emits<TestModelCreated> { testModelId shouldBe first.id() }
+                    returnsEq("added")
+                }
+            }
+
+            Then("The spec fails on the first row") {
+                checkNotNull(ex.message) shouldContain "expected:<2L> but was:<1L>"
+            }
+        }
+
+        When("The spec lists the events in write order") {
+            val ex = shouldThrow<AssertionError> {
+                changes verifyInOrder {
+                    adds<CreatedTestModel> { param2 shouldBe 1 }
+                    adds<CreatedTestModel> { param2 shouldBe 2 }
+                    emits<TestModelCreated> { testModelId shouldBe first.id() }
+                    emits<TestModelCreated> { testModelId shouldBe second.id() }
+                    returnsEq("added")
+                }
+            }
+
+            Then("The spec fails on the first event") {
+                checkNotNull(ex.message) shouldContain first.id().toString()
+            }
+        }
+
+        When("The unit of work promises no order") {
+            val unspecified = uow(PersistOrder.Unspecified, executionContext).tryPerform(TestPrincipal, DummyUow.Params)
+
+            Then("The spec checks the rows as registered") {
+                unspecified verifyInOrder {
+                    adds<CreatedTestModel> { param2 shouldBe 2 }
+                    adds<CreatedTestModel> { param2 shouldBe 1 }
+                    emits<TestModelCreated> { testModelId shouldBe second.id() }
+                    emits<TestModelCreated> { testModelId shouldBe first.id() }
+                    returnsEq("added")
+                }
+            }
+        }
+
+        When("A parent in registration order composes it") {
+            val parent = object : ComposableUnitOfWork<TestPrincipal, DummyUow.Params, String>(executionContext) {
+                override suspend fun tryPerform(principal: TestPrincipal, params: DummyUow.Params) = changes {
+                    add(createdTestModel("parent", 3))
+                    execute({ ctx -> uow(ByParam2, ctx) }, principal) { DummyUow.Params }
+                }
+            }
+
+            Then("The parent's spec sees the rows of the whole tree in the child's order") {
+                parent.tryPerform(TestPrincipal, DummyUow.Params) verifyInOrder {
+                    adds<CreatedTestModel> { param2 shouldBe 1 }
+                    adds<CreatedTestModel> { param2 shouldBe 2 }
+                    adds<CreatedTestModel> { param2 shouldBe 3 }
+                    emits<TestModelCreated> { }
+                    emits<TestModelCreated> { testModelId shouldBe second.id() }
+                    emits<TestModelCreated> { testModelId shouldBe first.id() }
+                    returnsEq("added")
+                }
             }
         }
     }
