@@ -19,9 +19,10 @@ sealed interface PersistOrder {
      * sibling units' rows, so a row ranked first also moves before rows a parent registered earlier. Model events
      * keep registration order.
      *
-     * Rank what the order is about and return 0 for every other pair. A comparator that ranks a new owned model
-     * before its new root breaks a foreign key that registration order kept. [compare] must be a total order: an
-     * inconsistent one can fail the write before it starts, with "Comparison method violates its general contract".
+     * Rank the models the order is about, put every other model in one rank of its own, and return 0 between two
+     * models of that rank. [compare] must be a total order: an inconsistent one can fail the write before it
+     * starts, with "Comparison method violates its general contract". A comparator that ranks a new owned model
+     * before its new root breaks a foreign key that registration order kept.
      *
      * Implement it as an object or a data class: composition compares orders with `==`, and two lambdas are never
      * equal, even with the same body.
