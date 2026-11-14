@@ -4,8 +4,8 @@ import com.razz.eva.domain.Model
 
 /**
  * The order in which a unit of work's model writes reach the database. It is part of the unit of work's
- * [BaseUnitOfWork.Configuration]. Model events keep registration order whatever the order is, and entity changes
- * are written after the model changes, in registration order.
+ * [BaseUnitOfWork.Configuration]. Model events keep registration order whatever the order is. In [Registration]
+ * and [Custom] order the entity changes are written after the model changes, in registration order.
  */
 sealed interface PersistOrder {
 
@@ -24,16 +24,16 @@ sealed interface PersistOrder {
      * starts, with "Comparison method violates its general contract". A comparator that ranks a new owned model
      * before its new root breaks a foreign key that registration order kept.
      *
-     * Implement it as an object or a data class: composition compares orders with `==`, and two lambdas are never
-     * equal, even with the same body.
+     * Implement it as a named object (one instance) or a data class: composition compares orders with `==`. An
+     * order built for each unit of work, such as an anonymous object or a capturing lambda, equals only itself.
      */
     fun interface Custom : PersistOrder {
         fun compare(a: Model<*, *>, b: Model<*, *>): Int
     }
 
     /**
-     * No order is promised: writes are batched per model class, updates before inserts, and the batches run in
-     * parallel where the transaction manager pipelines.
+     * No order is promised: model writes are batched per model class, updates before inserts, entity writes per
+     * entity class and kind, and the batches run in parallel where the transaction manager pipelines.
      */
     data object Unspecified : PersistOrder
 }

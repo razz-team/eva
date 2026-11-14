@@ -785,7 +785,9 @@ The witness itself is opt-in, but these changes reach every consumer:
 #### Upgrading to 0.43: breaking changes
 
 - **`Configuration.persistOrder` replaces `supportsOutOfOrderPersisting`.** Delete `supportsOutOfOrderPersisting = false`: `PersistOrder.Registration` is the default and writes as `false` did. Write `supportsOutOfOrderPersisting = true` as `persistOrder = PersistOrder.Unspecified`, which batches as `true` did. The second constructor parameter, the `copy` parameter and `component2()` change type, so a positional `Configuration(retry, true)`, a `copy(supportsOutOfOrderPersisting = ...)` and a destructuring that reads the second component fail to compile. Code compiled against 0.42 that builds a `Configuration(...)` fails with `NoSuchMethodError` (`Configuration.default()` still links), so recompile it. See [Write order](#write-order) for `PersistOrder.Custom`.
-- **Smart casts after a witnessed scope.** `update(model) { }` and `add { }` of the composable and the guarded DSL, and both `mutating { }` forms, tell the compiler that they run their lambda exactly once. A `val` can then be assigned inside the lambda and read after it. A `var` assigned inside the lambda is smart-cast after it, so `if (x != null)` on it warns `Condition is always 'true'`, an error under `allWarningsAsErrors`: drop the check, or make `x` a `val`.
+- **Smart casts after a witnessed scope.** `update(model) { }` and `add { }` of the composable and the guarded DSL, and both `mutating { }` forms, tell the compiler that they run their lambda exactly once. A `val` can then be assigned inside the lambda and read after it. A `var` assigned inside the lambda is stable after it, so a null check on it now holds for the code that follows: after `x!!`, `checkNotNull(x)` or `requireNotNull(x)`, a later `if (x != null)` warns `Condition is always 'true'` and `when (x) { null -> ... }` warns `Expression under 'when' is never equal to null`. The same holds for another `var` assigned the same value in the scope. Under `allWarningsAsErrors` these warnings are errors: drop the redundant check, or make `x` a `val`. A bare `if (x != null)` right after the scope does not warn.
+- **Composition refuses conflicting custom orders.** A composed child's `PersistOrder.Custom` now carries up to its parent. A composition whose units carry two different custom orders, or a custom order under an `Unspecified` parent, fails with `IllegalStateException` before anything is written. Without a `Custom` order nothing changes.
+- **`verifyInOrder` checks write order.** A spec of a unit of work whose changes carry a `Custom` order, its own or a composed child's, lists the model changes in write order; the events stay in registration order. A parent's spec over a `stubChanges` double of a `Custom` child sees registration order, because a stub carries none.
 
 #### Returning persisted models with `roundtrip { }`
 
@@ -1045,14 +1047,19 @@ val configuration = UnitOfWork.Configuration(
   models, and under composition the rows of the parent and of every child. Rank the models the order is about, put
   every other model in one rank of its own, and return 0 between two models of that rank. `compare` must be a total
   order: an inconsistent one can fail the write before it starts. An order that ranks a new owned model before its
-  new root breaks a foreign key that registration order kept. Implement it as an object or a data class, because
-  composition compares orders with `==` and two lambdas are never equal.
+  new root breaks a foreign key that registration order kept. Implement it as a named object (one instance) or a
+  data class, because composition compares orders with `==`. An order built for each unit of work, such as an
+  anonymous object or a capturing lambda, equals only itself.
 - `PersistOrder.Unspecified` promises no order: models are written in batches per model class, updates before
-  inserts, and the batches run in parallel where the transaction manager pipelines.
+  inserts, entities in batches per class and kind, and the batches run in parallel where the transaction manager
+  pipelines.
 
-In every order the model events are stored and published in registration order, and the entity changes are written
-after the model changes, as registered. `verifyInOrder` checks the model changes in the order they are written. A
-composed child's custom order carries up to its parent (see [Which unit of work base](#which-unit-of-work-base)).
+In every order the model events are stored and published in registration order. In `Registration` and `Custom`
+order the entity changes are written after the model changes, as registered. `verifyInOrder` checks the model
+changes in the order they are written (as registered for `Unspecified`). The order is the one the changes carry:
+that of the unit of work whose `changes { }` built them, so a unit that returns changes another unit built writes
+in that unit's order. A composed child's custom order carries up to its parent (see
+[Which unit of work base](#which-unit-of-work-base)).
 
 ### Tracing and Monitoring
 If you care about your system's performance, you want to collect metrics so you can create alerts and investigate issues.
