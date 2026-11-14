@@ -49,7 +49,7 @@ abstract class BaseUnitOfWork<PRINCIPAL, PARAMS, RESULT, C>(
 
     data class Configuration(
         val retry: Retry? = DEFAULT,
-        val supportsOutOfOrderPersisting: Boolean = false,
+        val persistOrder: PersistOrder = PersistOrder.Registration,
         val returnRoundtrippedModels: Boolean = true,
         val writeTxScope: WriteTxScope = WriteTxScope.FLUSH,
     ) {
