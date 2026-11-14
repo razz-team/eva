@@ -18,9 +18,10 @@ import com.razz.eva.domain.ModelId
  * accepted, since standing in for a composed child is what this exists for; what keeps a stub out of
  * production is this source set, which ships in the test-fixtures jar and not in the main one.
  *
- * A stub carries [PersistOrder.Registration], whatever the child's configuration says. A child with a
- * [PersistOrder.Custom] order carries it up to its parent in production; a parent's spec over a stub of it
- * sees the parent's rows in registration order instead.
+ * A stub carries [PersistOrder.Registration], whatever the child's configuration says, so it carries no
+ * order up. A child with a [PersistOrder.Custom] order carries it up to its parent in production; a parent's
+ * spec over a stub of it sees the parent's own order instead: registration order, unless the parent has a
+ * custom order of its own.
  */
 @TestDoubleApi
 fun <R> stubChanges(result: R, vararg alsoRegistered: Model<*, *>): Changes<R> {

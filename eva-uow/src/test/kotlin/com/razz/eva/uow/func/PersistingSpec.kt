@@ -832,7 +832,7 @@ class PersistingSpec : BehaviorSpec({
                 },
                 paramsSerializer = KotlinxParamsSerializer(),
             )
-            suspend fun persist(persistOrder: PersistOrder) {
+            suspend fun persist(persistOrder: PersistOrder, connectionMode: ConnectionMode) {
                 steps.clear()
                 persisting.persist(
                     uowName = "Suspending",
@@ -842,30 +842,32 @@ class PersistingSpec : BehaviorSpec({
                     entityChanges = listOf(),
                     now = now(),
                     persistOrder = persistOrder,
-                    connectionMode = REQUIRE_NEW,
+                    connectionMode = connectionMode,
                 )
             }
 
-            When("Principal persists in registration order") {
-                persist(PersistOrder.Registration)
+            listOf(REQUIRE_NEW, REQUIRE_EXISTING).forEach { connectionMode ->
+                When("Principal persists in registration order, connection mode $connectionMode") {
+                    persist(PersistOrder.Registration, connectionMode)
 
-                Then("Each write ends before the next starts") {
-                    steps shouldBe
-                        listOf("start OwnedDepartment", "end OwnedDepartment", "start Employee", "end Employee")
+                    Then("Each write ends before the next starts") {
+                        steps shouldBe
+                            listOf("start OwnedDepartment", "end OwnedDepartment", "start Employee", "end Employee")
+                    }
                 }
-            }
 
-            When("Principal persists in a custom order") {
-                persist(EmployeesFirst)
+                When("Principal persists in a custom order, connection mode $connectionMode") {
+                    persist(EmployeesFirst, connectionMode)
 
-                Then("Each write ends before the next starts, in the order's sort") {
-                    steps shouldBe
-                        listOf("start Employee", "end Employee", "start OwnedDepartment", "end OwnedDepartment")
+                    Then("Each write ends before the next starts, in the order's sort") {
+                        steps shouldBe
+                            listOf("start Employee", "end Employee", "start OwnedDepartment", "end OwnedDepartment")
+                    }
                 }
             }
 
             When("Principal persists with no promised write order") {
-                persist(PersistOrder.Unspecified)
+                persist(PersistOrder.Unspecified, REQUIRE_NEW)
 
                 Then("The batches run in parallel only where the transaction manager pipelines") {
                     steps shouldBe if (pipelines) {
