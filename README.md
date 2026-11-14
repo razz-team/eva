@@ -620,7 +620,7 @@ val persisting = Persisting(
 | `com.razz.eva.uow.WrappingUnitOfWork` | the family's own DSL, wrapped around the composable `ChangesDsl` | yes, if the family's DSL offers `execute` | only if the family implements `ComposableUow`; never if it implements `NotComposableUow` |
 | `com.razz.eva.uow.guarded.GuardedUnitOfWork` | `GuardedChangesDsl`, a wrapping family's DSL: a guarded model is written only through a `Proven` field (see [Guarded unit of work](#guarded-unit-of-work)) | yes; a child may not register a guarded model | never: it implements `NotComposableUow` |
 
-A parent is a composable unit of work or a wrapping family; a child is any unit of work that implements `ComposableUow`. A child's `Configuration` and `onFailure` are not used under a parent: the parent's run decides retries and failure.
+A parent is a composable unit of work or a wrapping family; a child is any unit of work that implements `ComposableUow`. A child's `Configuration` and `onFailure` are not used under a parent: the parent's run decides retries and failure. The exception is the child's `persistOrder` (see [Write order](#write-order)): a `PersistOrder.Custom` carries up, so the parent writes the rows of the whole tree in it, its own and its other children's included. A child in `Registration` or `Unspecified` leaves the parent's order as it is. A composition whose units carry two different custom orders, or a custom order under an `Unspecified` parent, is refused before anything is written. A child stubbed with `stubChanges` carries no order up.
 
 A family with a change block of its own extends `WrappingUnitOfWork`. `wrap` gets the composable `ChangesDsl` of each block and returns the family's own DSL, whose operations call the operations of that DSL (`add`, `update`, `notChanged`, the entity operations, `roundtrip`, `execute`), so they get eva's checks. The units of work keep writing `= changes { ... }`. `finish` runs after the block returns and before its changes are built; throw from it to refuse the block, and nothing is written. Declare both final in the family, because a plain override stays open to its units of work. The wrapped DSL is the composable one: its `update(model)` fails for a model with no change, where the plain DSL registered it as unchanged. A family DSL that kept that behaviour calls `notChanged` for a clean model.
 
@@ -742,7 +742,7 @@ Other tests use `mutating { }` from the eva-domain test-fixtures artifact. A fix
 The guard stops a mutation from being forgotten, not from being smuggled out on purpose. Its limits:
 
 - **Per id type, not per instance.** Inside `update(a) { }` another model of the same type can be mutated, or created by a witnessed factory, and neither is registered. `add { }` witnesses the created model's type only, inferred from the lambda; under an expected type wider than the model (`val x: Any = add { }`, a parameter typed `Model<*, *>`) it cannot infer, so name the model's type on the receiving value.
-- **Aggregates.** `add { }` and `update(root) { }` supply one witness, for the root's id type. Register each witnessed owned child with its own `add { }` or `update(child) { }`, then the root that holds the returned instance. Models persist in registration order, so the children go first: that suits a root that already exists, but against a new root with a non-deferrable foreign key a new child fails on its insert, and an existing child moved into it fails on its update. Register the new root first where you can, create new children with `newState` inside the root's factory, or defer the constraint. Registration order is the default sequential mode's; with `supportsOutOfOrderPersisting`, updates are flushed before inserts. A root factory or mutator that itself calls a witnessed child factory or mutator needs two witnesses at once and cannot be called; keep such children on `newState` / `raiseEvent` for now.
+- **Aggregates.** `add { }` and `update(root) { }` supply one witness, for the root's id type. Register each witnessed owned child with its own `add { }` or `update(child) { }`, then the root that holds the returned instance. Models persist in registration order by default, so the children go first: that suits a root that already exists, but against a new root with a non-deferrable foreign key a new child fails on its insert, and an existing child moved into it fails on its update. Register the new root first where you can, create new children with `newState` inside the root's factory, or defer the constraint. With `persistOrder = PersistOrder.Unspecified` updates are flushed before inserts, and a `PersistOrder.Custom` writes in the order it sorts (see [Write order](#write-order)). A root factory or mutator that itself calls a witnessed child factory or mutator needs two witnesses at once and cannot be called; keep such children on `newState` / `raiseEvent` for now.
 - **Not suspend.** The registration lambdas are plain functions, so a suspend call (a store, a query, a gateway) runs before the block and its result is passed in.
 - **Escapes.** The witness is a plain value with an internal constructor. `contextOf<Witness<X>>()` or a closure created inside the lambda carries it out; a nested `update(b) { }` still sees the outer witness; a witness for a supertype id covers its subtypes; Java code, or a Kotlin caller suppressing `INVISIBLE_REFERENCE`, can construct one. Review those the way you would review a reflective write.
 
@@ -781,6 +781,13 @@ The witness itself is opt-in, but these changes reach every consumer:
 - **Guarded units of work (new).** `com.razz.eva.uow.guarded` adds `GuardedUnitOfWork`, `Proof`, `Proven`, `Guarding`, `Action` and `FailedAttempt`; see [Guarded unit of work](#guarded-unit-of-work). The executor refuses a guarded unit of work that was built with a context other than the one its factory received, and a unit of work that returns the block of a guarded one, so a guarded block is written only when the executor ran its unit of work.
 - **Spec runner (new).** The eva-test spec bases run an attempt as the executor does: `factory.firstAttempt(principal) { params }` and `factory.retry(principal) { params }`. eva-test's `UowSpecBase` now declares `executionContext`; a class that implements it directly, not through `UowShouldSpec` or `UowBehaviorSpec`, declares that property. eva-test's `initial(principal)` builds the context of a first attempt for a spec that builds params only.
 - **Messages.** The registration failures of a change block ("was already registered", "Failed to merge changes", "No changes to persist", "Attempted to register ...") keep their old first sentence and go on to say what to write. A spec that pins the full old text with `shouldBe` fails; pin the first sentence with `shouldStartWith`.
+
+#### Upgrading to 0.43: breaking changes
+
+- **`Configuration.persistOrder` replaces `supportsOutOfOrderPersisting`.** Delete `supportsOutOfOrderPersisting = false`: `PersistOrder.Registration` is the default and writes as `false` did. Write `supportsOutOfOrderPersisting = true` as `persistOrder = PersistOrder.Unspecified`, which batches as `true` did. The second constructor parameter, the `copy` parameter and `component2()` change type, so a positional `Configuration(retry, true)`, a `copy(supportsOutOfOrderPersisting = ...)` and a destructuring that reads the second component fail to compile. Code compiled against 0.42 that builds a `Configuration(...)` fails with `NoSuchMethodError` (`Configuration.default()` still links), so recompile it. See [Write order](#write-order) for `PersistOrder.Custom`.
+- **Smart casts after a witnessed scope.** `update(model) { }` and `add { }` of the composable and the guarded DSL, and both `mutating { }` forms, tell the compiler that they run their lambda exactly once. A `val` can then be assigned inside the lambda and read after it. A `var` assigned inside the lambda is stable after it, so a null check on it now holds for the code that follows: after `x!!`, `checkNotNull(x)` or `requireNotNull(x)`, a later `if (x != null)` warns `Condition is always 'true'` and `when (x) { null -> ... }` warns `Expression under 'when' is never equal to null`. The same holds for another `var` assigned the same value in the scope. Under `allWarningsAsErrors` these warnings are errors: drop the redundant check, or make `x` a `val`. A bare `if (x != null)` right after the scope does not warn.
+- **Composition refuses conflicting custom orders.** A composed child's `PersistOrder.Custom` now carries up to its parent. A composition whose units carry two different custom orders, or a custom order under an `Unspecified` parent, fails with `IllegalStateException` before anything is written. Without a `Custom` order nothing changes.
+- **`verifyInOrder` checks write order.** A spec of a unit of work whose changes carry a `Custom` order, its own or a composed child's, lists the model changes in write order; the events stay in registration order. A parent's spec over a `stubChanges` double of a `Custom` child sees the parent's own order (registration order, unless the parent has a `Custom` order of its own), because a stub carries no order up.
 
 #### Returning persisted models with `roundtrip { }`
 
@@ -1013,6 +1020,46 @@ val configuration = UnitOfWork.Configuration(
 ```
 The connection and the open transaction are held for the whole attempt, so do not use `FULL_UOW` for units of work
 that call external services, do heavy CPU work or run parallel reads inside `tryPerform`.
+
+### Write order
+A unit of work writes its model changes in one transaction, one after the other in the order they were registered:
+`PersistOrder.Registration`, the default. An `update` locks its row until the transaction ends, so the write order is
+the order the rows are locked in, and two units of work that update the same rows in opposite orders can deadlock.
+Give them one order with `persistOrder`:
+```kotlin
+// Departments first, by id; every other model keeps its registration order after them.
+object DepartmentsFirst : PersistOrder.Custom {
+    override fun compare(a: Model<*, *>, b: Model<*, *>): Int = when {
+        a is Department<*> && b is Department<*> -> a.id().stringValue().compareTo(b.id().stringValue())
+        a is Department<*> -> -1
+        b is Department<*> -> 1
+        else -> 0
+    }
+}
+
+val configuration = UnitOfWork.Configuration(
+    persistOrder = DepartmentsFirst,
+)
+```
+- `PersistOrder.Registration` writes the models as registered.
+- `PersistOrder.Custom` is a `Comparator` of models: eva sorts them with it, stably, and writes them one after the
+  other. Models it ranks equal keep their registration order. It sorts the flattened changes, each aggregate root
+  followed by its owned models, and under composition the rows of the parent and of every child. Rank the models the
+  order is about, put every other model in one rank of its own, and return 0 between two models of that rank. `compare`
+  must be a total order: an inconsistent one can fail the write before it starts. An order that ranks a new owned model
+  before its new root breaks a foreign key that registration order kept. Implement it as a named object (one instance)
+  or a data class, because composition compares orders with `==`. An order built for each unit of work, such as an
+  anonymous object or a capturing lambda, equals only itself.
+- `PersistOrder.Unspecified` promises no order: models are written in batches per model class, updates before
+  inserts, entities in batches per class and kind, and the batches run in parallel where the transaction manager
+  pipelines.
+
+In every order the model events are stored and published in registration order. In `Registration` and `Custom`
+order the entity changes are written after the model changes, as registered. `verifyInOrder` checks the model
+changes in the order they are written (as registered for `Unspecified`). The order is the one the changes carry:
+that of the unit of work whose `changes { }` built them, so a unit that returns changes another unit built writes
+in that unit's order. A composed child's custom order carries up to its parent (see
+[Which unit of work base](#which-unit-of-work-base)).
 
 ### Tracing and Monitoring
 If you care about your system's performance, you want to collect metrics so you can create alerts and investigate issues.

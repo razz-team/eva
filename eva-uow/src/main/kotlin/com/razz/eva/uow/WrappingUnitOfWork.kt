@@ -41,7 +41,7 @@ abstract class WrappingUnitOfWork<PRINCIPAL, PARAMS, RESULT, C : Any>(
 
     protected suspend fun changes(init: suspend C.() -> RESULT): Block =
         Block(
-            ChangesDsl.changes(executionContext, name()) {
+            ChangesDsl.changes(executionContext, name(), configuration().persistOrder) {
                 val family = wrap(this)
                 val result = family.init()
                 finish(family, result)
@@ -58,6 +58,7 @@ abstract class WrappingUnitOfWork<PRINCIPAL, PARAMS, RESULT, C : Any>(
         override val result: RESULT get() = changes.result
         override val resultBuilder: ((PersistedLookup) -> Any?)? get() = changes.resultBuilder
         override val accumulator: ChangesAccumulator? get() = changes.accumulator
+        override val persistOrder: PersistOrder get() = changes.persistOrder
     }
 }
 

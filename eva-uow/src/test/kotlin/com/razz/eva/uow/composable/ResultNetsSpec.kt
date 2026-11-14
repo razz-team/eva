@@ -60,7 +60,7 @@ class ResultNetsSpec : FunSpec({
                 modelChanges = any(),
                 entityChanges = any(),
                 now = any(),
-                uowSupportsOutOfOrderPersisting = any(),
+                persistOrder = any(),
                 connectionMode = any(),
             )
         } returns Pair(uowEvent(), flushed.toList())
@@ -79,7 +79,7 @@ class ResultNetsSpec : FunSpec({
                 modelChanges = capture(persisted),
                 entityChanges = any(),
                 now = any(),
-                uowSupportsOutOfOrderPersisting = any(),
+                persistOrder = any(),
                 connectionMode = any(),
             )
         } returns Pair(uowEvent(), listOf())

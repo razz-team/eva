@@ -22,6 +22,8 @@ abstract class Changes<R> {
     // The accumulator a change block built these changes from, so a parent can take the child's registrations
     // and see where the child started. Null only for stubChanges: the executor refuses that as a real outcome.
     internal abstract val accumulator: ChangesAccumulator?
+    // The order these changes are written in: the unit's own, or the custom order a composed child carried up.
+    internal abstract val persistOrder: PersistOrder
 }
 
 /**
@@ -332,6 +334,7 @@ internal class ChangesAccumulator private constructor(
     internal fun <R> withResult(
         result: R,
         resultBuilder: ((PersistedLookup) -> Any?)?,
+        persistOrder: PersistOrder,
     ): Changes<R> {
         // The flatten runs here, so an owned model that contradicts a registration fails where the block ends.
         // Its list is empty exactly when no model is registered.
@@ -343,7 +346,7 @@ internal class ChangesAccumulator private constructor(
         }
         // the flatten above is kept, since nothing clears it once the accumulator is closed
         closed = true
-        return AccumulatedChanges(result, resultBuilder, this)
+        return AccumulatedChanges(result, resultBuilder, this, persistOrder)
     }
 
     private fun flattenChildModels(): List<ModelChange> {
@@ -467,12 +470,13 @@ internal fun verifyResultAccounted(result: Any?, changes: List<ModelChange>) {
 
 /**
  * The changes a change block built, or the empty ones of `noChanges`: the result, the builder `roundtrip { }` set,
- * and the accumulator, which lists the model and entity changes.
+ * the accumulator, which lists the model and entity changes, and the order they are written in.
  */
 internal class AccumulatedChanges<R>(
     override val result: R,
     override val resultBuilder: ((PersistedLookup) -> Any?)?,
     override val accumulator: ChangesAccumulator,
+    override val persistOrder: PersistOrder,
 ) : Changes<R>()
 
 // Reference-identity prefix checks over event lists: composed changes to one model are reconcilable

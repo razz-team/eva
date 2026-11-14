@@ -14,6 +14,6 @@ abstract class UnitOfWork<PRINCIPAL, PARAMS, RESULT>(
     where PRINCIPAL : Principal<*>, PARAMS : UowParams<PARAMS>, RESULT : Any {
 
     protected suspend fun changes(init: suspend ChangesDsl.() -> RESULT): Changes<RESULT> {
-        return ChangesDsl.changes(executionContext, name(), init)
+        return ChangesDsl.changes(executionContext, name(), configuration().persistOrder, init)
     }
 }
