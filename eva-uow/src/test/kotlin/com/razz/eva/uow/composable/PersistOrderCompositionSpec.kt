@@ -28,8 +28,11 @@ import com.razz.eva.uow.Persisting
 import com.razz.eva.uow.SpyModelRepo
 import com.razz.eva.uow.TestDoubleApi
 import com.razz.eva.uow.TestPrincipal
+import com.razz.eva.uow.OtelAttributes
 import com.razz.eva.uow.UnitOfWorkExecutor
 import com.razz.eva.uow.WrappingUnitOfWork
+import com.razz.eva.uow.WriteTxScope
+import com.razz.eva.uow.guarded.Fixtures
 import com.razz.eva.uow.guarded.GuardedChangesDsl
 import com.razz.eva.uow.guarded.GuardedUnitOfWork
 import com.razz.eva.uow.guarded.Guarding
@@ -39,7 +42,10 @@ import com.razz.eva.uow.stubChanges
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldStartWith
+import com.razz.eva.test.tracing.OpenTelemetryTestConfiguration
 import io.opentelemetry.api.OpenTelemetry
+import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter
 import java.time.Instant.ofEpochMilli
 
 // Test models by param2, ascending or descending; a data class, so two equal instances are one order.
@@ -176,6 +182,7 @@ class PersistOrderCompositionSpec : FunSpec({
     suspend fun execute(
         uow: (ExecutionContext) -> BaseUnitOfWork<TestPrincipal, DummyUow.Params, String, *>,
         history: MutableList<ExecutionStep>,
+        openTelemetry: OpenTelemetry,
     ) {
         @Suppress("UNCHECKED_CAST")
         val persisting = Persisting(
@@ -190,15 +197,25 @@ class PersistOrderCompositionSpec : FunSpec({
             },
             paramsSerializer = KotlinxParamsSerializer(),
         )
-        UnitOfWorkExecutor(listOf(), persisting, fixedUTC(ofEpochMilli(0)), OpenTelemetry.noop())
+        UnitOfWorkExecutor(listOf(), persisting, fixedUTC(ofEpochMilli(0)), openTelemetry)
             .execute(TestPrincipal, uow) { DummyUow.Params }
     }
     suspend fun written(uow: (ExecutionContext) -> BaseUnitOfWork<TestPrincipal, DummyUow.Params, String, *>) =
-        mutableListOf<ExecutionStep>().also { execute(uow, it) }
+        mutableListOf<ExecutionStep>().also { execute(uow, it, OpenTelemetry.noop()) }
+    fun unit(name: String, configuration: Configuration, models: List<CreatedTestModel>) = { ctx: ExecutionContext ->
+        object : UnitOfWork<TestPrincipal, DummyUow.Params, String>(ctx, configuration) {
+            override fun name() = name
+            override suspend fun tryPerform(principal: TestPrincipal, params: DummyUow.Params) = changes {
+                models.forEach { add(it) }
+                name
+            }
+        }
+    }
     fun refusal(unit: String, child: String, childOrder: PersistOrder, from: String, order: PersistOrder) =
-        "$unit refuses composed unit of work [$child]: it writes in persist order [$childOrder], and [$from] " +
-            "writes in [$order]. A composition writes in one order: give the units the same " +
-            "PersistOrder.Custom, an object or a data class, as lambdas are never equal"
+        "$unit refuses composed unit of work [$child]: it carries persist order [$childOrder] (its own, or one of " +
+            "its children's), and [$from] writes in [$order]. A composition writes in one order: give its units " +
+            "one PersistOrder.Custom, a named object or a data class. An order built for each unit, such as an " +
+            "anonymous object or a capturing lambda, equals only itself"
 
     Parent.entries.forEach { entry ->
 
@@ -270,9 +287,18 @@ class PersistOrderCompositionSpec : FunSpec({
             val second = composable("Second", descending, listOf(model(4)), listOf())
             val uow = parent(entry, PersistOrder.Registration, model(2), listOf(first, second))
             val history = mutableListOf<ExecutionStep>()
-            shouldThrow<IllegalStateException> { execute(uow, history) }
+            shouldThrow<IllegalStateException> { execute(uow, history, OpenTelemetry.noop()) }
                 .message shouldBe refusal("Parent", "Second", descending, "First", ascending)
             history shouldBe listOf()
+        }
+
+        test("$entry parent: a refusal names the child that brought the order, past a child in Registration") {
+            val first = composable("First", ascending, listOf(model(1)), listOf())
+            val between = composable("Between", PersistOrder.Registration, listOf(model(3)), listOf())
+            val conflicting = composable("Conflicting", descending, listOf(model(4)), listOf())
+            shouldThrow<IllegalStateException> {
+                orderOf(parent(entry, PersistOrder.Registration, model(2), listOf(first, between, conflicting)))
+            }.message shouldBe refusal("Parent", "Conflicting", descending, "First", ascending)
         }
 
         test("$entry parent: a parent that catches the refusal holds none of the child's rows and keeps its order") {
@@ -340,5 +366,90 @@ class PersistOrderCompositionSpec : FunSpec({
             }
         }
         orderOf(uow) shouldBe PersistOrder.Registration
+    }
+
+    test("a unit of work in WriteTxScope.FULL_UOW writes in its custom order, and an inconsistent one writes nothing") {
+        val first = model(2)
+        val second = model(1)
+        val sorted = Configuration(persistOrder = ascending, writeTxScope = WriteTxScope.FULL_UOW)
+        written(unit("FullUow", sorted, listOf(first, second))).map { (it as ModelAdded<*, *>).model } shouldBe
+            listOf(second, first)
+        val inconsistent = PersistOrder.Custom { a, b ->
+            Integer.compare(
+                ((a as CreatedTestModel).param2 * 7 % 5).toInt(),
+                ((b as CreatedTestModel).param2 * 11 % 5).toInt(),
+            )
+        }
+        val failing = Configuration(persistOrder = inconsistent, writeTxScope = WriteTxScope.FULL_UOW)
+        val history = mutableListOf<ExecutionStep>()
+        shouldThrow<IllegalArgumentException> {
+            execute(unit("FullUow", failing, (0L until 100L).map { model(it) }), history, OpenTelemetry.noop())
+        }
+        history shouldBe listOf()
+    }
+
+    test("the unit of work's span lists its model ids in registration order, whatever order it writes them in") {
+        val spans = InMemorySpanExporter.create()
+        val first = model(2)
+        val second = model(1)
+        execute(
+            unit("Spanned", Configuration(persistOrder = ascending), listOf(first, second)),
+            mutableListOf(),
+            OpenTelemetryTestConfiguration.create(spanExporter = spans),
+        )
+        spans.finishedSpanItems.mapNotNull { it.attributes.get(OtelAttributes.MODEL_ID) } shouldBe
+            listOf(listOf(first.id().stringValue(), second.id().stringValue()))
+    }
+
+    test("a parent that catches a custom child's failed merge keeps its own order") {
+        // the child is built over the spec's context, not the one its factory gets, so its merge fails
+        val child = composable("Foreign", ascending, listOf(model(1)), listOf())
+        val foreign = { _: ExecutionContext -> OrderedChild(executionContext, child) }
+        val own = model(2)
+        val uow = { ctx: ExecutionContext ->
+            object : UnitOfWork<TestPrincipal, DummyUow.Params, String>(ctx) {
+                override fun name() = "Parent"
+                override suspend fun tryPerform(principal: TestPrincipal, params: DummyUow.Params) = changes {
+                    add(own)
+                    try {
+                        execute(foreign, principal) { DummyUow.Params }
+                    } catch (ex: IllegalStateException) {
+                        checkNotNull(ex.message) shouldStartWith "Composed Foreign did not start from the changes"
+                    }
+                    "parent"
+                }
+            }
+        }
+        orderOf(uow) shouldBe PersistOrder.Registration
+        written(uow).map { (it as ModelAdded<*, *>).model } shouldBe listOf(own)
+    }
+
+    test("a guarded parent refuses a child that registers a guarded model before it compares their orders") {
+        val employee = Fixtures.employee()
+        val holder = { ctx: ExecutionContext ->
+            object : UnitOfWork<TestPrincipal, DummyUow.Params, String>(ctx, Configuration(persistOrder = descending)) {
+                override fun name() = "Holder"
+                override suspend fun tryPerform(principal: TestPrincipal, params: DummyUow.Params) = changes {
+                    notChanged(employee)
+                    "held"
+                }
+            }
+        }
+        val uow = { ctx: ExecutionContext ->
+            object : GuardedUnitOfWork<TestPrincipal, Proof<*>, DummyUow.Params, String>(
+                ctx,
+                Configuration(persistOrder = ascending),
+                Guarding(Employee::class),
+                setOf(),
+            ) {
+                override fun name() = "Parent"
+                override suspend fun tryPerform(principal: TestPrincipal, params: DummyUow.Params) = changes {
+                    add(model(1))
+                    execute(holder, principal) { DummyUow.Params }
+                }
+            }
+        }
+        checkNotNull(shouldThrow<IllegalStateException> { orderOf(uow) }.message) shouldStartWith
+            "Parent refuses composed unit of work [Holder]: it registered [${employee.id().stringValue()}]"
     }
 })

@@ -216,10 +216,11 @@ class ChangesDsl internal constructor(
     }
 
     private fun conflictingOrders(childName: String, childOrder: PersistOrder) =
-        "${uowName.ifEmpty { "A unit of work" }} refuses composed unit of work " +
-            "[${childName.ifEmpty { "anonymous" }}]: it writes in persist order [$childOrder], and " +
-            "[${orderFrom.ifEmpty { "anonymous" }}] writes in [$persistOrder]. A composition writes in one order: " +
-            "give the units the same PersistOrder.Custom, an object or a data class, as lambdas are never equal"
+        "${uowName.ifEmpty { "An anonymous unit of work" }} refuses composed unit of work " +
+            "[${childName.ifEmpty { "anonymous" }}]: it carries persist order [$childOrder] (its own, or one of its " +
+            "children's), and [${orderFrom.ifEmpty { "anonymous" }}] writes in [$persistOrder]. A composition writes " +
+            "in one order: give its units one PersistOrder.Custom, a named object or a data class. An order built " +
+            "for each unit, such as an anonymous object or a capturing lambda, equals only itself"
 
     companion object {
         internal suspend inline fun <R> changes(

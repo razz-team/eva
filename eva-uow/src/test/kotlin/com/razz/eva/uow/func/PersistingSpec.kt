@@ -26,6 +26,8 @@ import com.razz.eva.domain.Version.Companion.V1
 import com.razz.eva.events.EventPublisher
 import com.razz.eva.events.UowEvent
 import com.razz.eva.events.UowEvent.UowName
+import com.razz.eva.persistence.ConnectionMode
+import com.razz.eva.persistence.ConnectionMode.REQUIRE_EXISTING
 import com.razz.eva.persistence.ConnectionMode.REQUIRE_NEW
 import com.razz.eva.persistence.DummyConnection
 import com.razz.eva.persistence.WithCtxConnectionTransactionManager
@@ -93,6 +95,17 @@ private data object EmployeesFirst : PersistOrder.Custom {
         a is Employee -> -1
         b is Employee -> 1
         else -> 0
+    }
+}
+
+// Sorts as [order] does, and records every model it is asked to compare.
+private class Recording(private val order: PersistOrder.Custom) : PersistOrder.Custom {
+    val seen = mutableSetOf<ModelId<*>>()
+
+    override fun compare(a: Model<*, *>, b: Model<*, *>): Int {
+        seen += a.id()
+        seen += b.id()
+        return order.compare(a, b)
     }
 }
 
@@ -257,10 +270,12 @@ class PersistingSpec : BehaviorSpec({
             coEvery { instant() } returns now
         }
 
+        val unchanged1 = existingCreatedTestModel(param1 = "a", param2 = 1L)
+        val unchanged2 = existingCreatedTestModel(param1 = "b", param2 = 2L)
         listOf(true, false).forEach { pipelining ->
             supporstPipelining = pipelining
             history.clear()
-            val persister: suspend (PersistOrder) -> Unit = { persistOrder ->
+            val persister: suspend (PersistOrder, ConnectionMode) -> Unit = { persistOrder, connectionMode ->
                 val (uowEvent1, _) = persisting.persist(
                     uowName = "Hoba",
                     params = params,
@@ -268,9 +283,9 @@ class PersistingSpec : BehaviorSpec({
                     modelChanges = ChangesAccumulator().apply {
                         adding(department1)
                         updating(boss1)
-                        claimingUnchanged(existingCreatedTestModel(param1 = "a", param2 = 1L))
+                        claimingUnchanged(unchanged1)
                         updating(department3)
-                        claimingUnchanged(existingCreatedTestModel(param1 = "b", param2 = 2L))
+                        claimingUnchanged(unchanged2)
                         adding(department2)
                         updating(boss2)
                     }.withResult(Unit, null, PersistOrder.Registration)
@@ -285,7 +300,7 @@ class PersistingSpec : BehaviorSpec({
                     ),
                     now = clock.instant(),
                     persistOrder = persistOrder,
-                    connectionMode = REQUIRE_NEW,
+                    connectionMode = connectionMode,
                 )
                 persisting.publish(uowEvent1)
             }
@@ -294,7 +309,7 @@ class PersistingSpec : BehaviorSpec({
                 "Principal persists changes of same model with${if (supporstPipelining) "" else " no"}" +
                     " pipelining support and with no promised write order",
             ) {
-                persister(PersistOrder.Unspecified)
+                persister(PersistOrder.Unspecified, REQUIRE_NEW)
 
                 And(
                     "Persisting history matching grouped models and events from changes" +
@@ -373,7 +388,7 @@ class PersistingSpec : BehaviorSpec({
                 "Principal persists changes of same model with${if (supporstPipelining) "" else " no"}" +
                     " pipelining support and in registration order",
             ) {
-                persister(PersistOrder.Registration)
+                persister(PersistOrder.Registration, REQUIRE_NEW)
 
                 And(
                     "Persisting history matching grouped models and events from changes" +
@@ -448,43 +463,59 @@ class PersistingSpec : BehaviorSpec({
                 }
             }
 
-            history.clear()
-            When(
-                "Principal persists changes of same model with${if (supporstPipelining) "" else " no"}" +
-                    " pipelining support and in a custom order",
-            ) {
-                persister(EmployeesFirst)
+            // REQUIRE_EXISTING: the write of a unit of work in WriteTxScope.FULL_UOW, in the transaction it opened
+            listOf(REQUIRE_NEW, REQUIRE_EXISTING).forEach { connectionMode ->
+                history.clear()
+                val recording = Recording(EmployeesFirst)
+                When(
+                    "Principal persists changes of same model with${if (supporstPipelining) "" else " no"}" +
+                        " pipelining support and in a custom order, connection mode $connectionMode",
+                ) {
+                    persister(recording, connectionMode)
 
-                And("Models are written one by one in the order's sort, ties in registration order") {
-                    history should {
-                        it.size shouldBe 15
-                        it[0] shouldBe TransactionStarted(REQUIRE_NEW)
-                        it[1] shouldBe ModelUpdated(transactionalContext(now), boss2)
-                        it[2] shouldBe ModelUpdated(transactionalContext(now), boss1)
-                        it[3] shouldBe ModelAdded(transactionalContext(now), department1)
-                        it[4] shouldBe ModelUpdated(transactionalContext(now), department3)
-                        it[5] shouldBe ModelAdded(transactionalContext(now), department2)
-                        it[6] shouldBe EntityAdded(transactionalContext(now), tag1)
-                        it[7] shouldBe EntityAdded(transactionalContext(now), tag2)
-                        it[8] shouldBe EntityUpdated(transactionalContext(now), tagToUpdate)
-                        it[9] shouldBe EntityAdded(transactionalContext(now), rationAllocation1)
-                        it[10] shouldBe EntityAdded(transactionalContext(now), rationAllocation2)
-                        it[11] shouldBe EntityDeleted(transactionalContext(now), tagToDelete)
-                        it[13] shouldBe TransactionFinished(REQUIRE_NEW)
-                    }
-                }
-
-                And("Events are stored and published in registration order") {
-                    val stored = history[12].shouldBeTypeOf<UowEventAdded>().uowEvent
-                    val published = history[14].shouldBeTypeOf<UowEventPublished>().uowEvent
-                    listOf(stored, published).forEach { uowEvent ->
-                        uowEvent.modelEvents.map(Pair<*, *>::second) shouldBe listOf(
-                            departmentCreatedEvent1,
-                            DepartmentChanged(bossId1, oldDepId, departmentId1),
-                            BossChanged(departmentId3, bossId3, bossId2),
-                            departmentCreatedEvent2,
-                            DepartmentChanged(bossId2, oldDepId, departmentId2),
+                    And("The order compares every flattened change, the unchanged ones included") {
+                        recording.seen shouldBe setOf(
+                            departmentId1,
+                            bossId1,
+                            unchanged1.id(),
+                            departmentId3,
+                            unchanged2.id(),
+                            departmentId2,
+                            bossId2,
                         )
+                    }
+
+                    And("Models are written one by one in the order's sort, ties in registration order") {
+                        history should {
+                            it.size shouldBe 15
+                            it[0] shouldBe TransactionStarted(connectionMode)
+                            it[1] shouldBe ModelUpdated(transactionalContext(now), boss2)
+                            it[2] shouldBe ModelUpdated(transactionalContext(now), boss1)
+                            it[3] shouldBe ModelAdded(transactionalContext(now), department1)
+                            it[4] shouldBe ModelUpdated(transactionalContext(now), department3)
+                            it[5] shouldBe ModelAdded(transactionalContext(now), department2)
+                            it[6] shouldBe EntityAdded(transactionalContext(now), tag1)
+                            it[7] shouldBe EntityAdded(transactionalContext(now), tag2)
+                            it[8] shouldBe EntityUpdated(transactionalContext(now), tagToUpdate)
+                            it[9] shouldBe EntityAdded(transactionalContext(now), rationAllocation1)
+                            it[10] shouldBe EntityAdded(transactionalContext(now), rationAllocation2)
+                            it[11] shouldBe EntityDeleted(transactionalContext(now), tagToDelete)
+                            it[13] shouldBe TransactionFinished(connectionMode)
+                        }
+                    }
+
+                    And("Events are stored and published in registration order") {
+                        val stored = history[12].shouldBeTypeOf<UowEventAdded>().uowEvent
+                        val published = history[14].shouldBeTypeOf<UowEventPublished>().uowEvent
+                        listOf(stored, published).forEach { uowEvent ->
+                            uowEvent.modelEvents.map(Pair<*, *>::second) shouldBe listOf(
+                                departmentCreatedEvent1,
+                                DepartmentChanged(bossId1, oldDepId, departmentId1),
+                                BossChanged(departmentId3, bossId3, bossId2),
+                                departmentCreatedEvent2,
+                                DepartmentChanged(bossId2, oldDepId, departmentId2),
+                            )
+                        }
                     }
                 }
             }
@@ -530,34 +561,35 @@ class PersistingSpec : BehaviorSpec({
                 }
             }
 
-            history.clear()
-            When(
-                "Principal persists changes with${if (supporstPipelining) "" else " no"} pipelining support" +
-                    " in a custom order that is not a total order",
-            ) {
-                val models = (0L until 32L).map { existingCreatedTestModel(param1 = "m", param2 = it) }
-                val inconsistent = PersistOrder.Custom { a, b ->
-                    Integer.compare(
-                        ((a as TestModel.CreatedTestModel).param2 * 7 % 5).toInt(),
-                        ((b as TestModel.CreatedTestModel).param2 * 11 % 5).toInt(),
-                    )
-                }
-                val ex = shouldThrow<IllegalArgumentException> {
-                    persisting.persist(
-                        uowName = "Inconsistent",
-                        params = params,
-                        principal = TestPrincipal,
-                        modelChanges = models.map { UpdateModel(it.changeParam1("n")) },
-                        entityChanges = listOf(),
-                        now = clock.instant(),
-                        persistOrder = inconsistent,
-                        connectionMode = REQUIRE_NEW,
-                    )
-                }
+            listOf(REQUIRE_NEW, REQUIRE_EXISTING).forEach { connectionMode ->
+                history.clear()
+                When(
+                    "Principal persists changes with${if (supporstPipelining) "" else " no"} pipelining support" +
+                        " in a custom order that is not a total order, connection mode $connectionMode",
+                ) {
+                    val models = (0L until 100L).map { existingCreatedTestModel(param1 = "m", param2 = it) }
+                    val inconsistent = PersistOrder.Custom { a, b ->
+                        Integer.compare(
+                            ((a as TestModel.CreatedTestModel).param2 * 7 % 5).toInt(),
+                            ((b as TestModel.CreatedTestModel).param2 * 11 % 5).toInt(),
+                        )
+                    }
+                    shouldThrow<IllegalArgumentException> {
+                        persisting.persist(
+                            uowName = "Inconsistent",
+                            params = params,
+                            principal = TestPrincipal,
+                            modelChanges = models.map { UpdateModel(it.changeParam1("n")) },
+                            entityChanges = listOf(),
+                            now = clock.instant(),
+                            persistOrder = inconsistent,
+                            connectionMode = connectionMode,
+                        )
+                    }
 
-                Then("The sort fails before the transaction starts, and nothing is written") {
-                    ex.message shouldBe "Comparison method violates its general contract!"
-                    history shouldBe listOf()
+                    Then("The sort fails before any write") {
+                        history shouldBe listOf()
+                    }
                 }
             }
 
@@ -777,63 +809,71 @@ class PersistingSpec : BehaviorSpec({
         }
     }
 
-    Given("A transaction manager that pipelines and a repository whose writes suspend") {
-        val steps = mutableListOf<String>()
-        val repo = SuspendingRepo(steps)
-        @Suppress("UNCHECKED_CAST")
-        val persisting = Persisting(
-            transactionManager = WithCtxConnectionTransactionManager(
-                connection = { DummyConnection },
-                setPipelining = { true },
-            ),
-            modelRepos = ModelRepos(
-                Department::class hasRepo repo as ModelRepository<*, Department<*>>,
-                Employee::class hasRepo repo as ModelRepository<*, Employee>,
-            ),
-            entityRepos = EntityRepos(),
-            eventRepository = object : EventRepository {
-                override suspend fun add(uowEvent: UowEvent) = Unit
-            },
-            eventPublisher = object : EventPublisher {
-                override suspend fun publish(uowEvent: UowEvent) = Unit
-            },
-            paramsSerializer = KotlinxParamsSerializer(),
-        )
-        suspend fun persist(persistOrder: PersistOrder) {
-            steps.clear()
-            persisting.persist(
-                uowName = "Suspending",
-                params = params,
-                principal = TestPrincipal,
-                modelChanges = listOf(UpdateModel(department3), UpdateModel(boss1)),
-                entityChanges = listOf(),
-                now = now(),
-                persistOrder = persistOrder,
-                connectionMode = REQUIRE_NEW,
+    listOf(true, false).forEach { pipelines ->
+        Given("A repository whose writes suspend, and a transaction manager that pipelines: $pipelines") {
+            val steps = mutableListOf<String>()
+            val repo = SuspendingRepo(steps)
+            @Suppress("UNCHECKED_CAST")
+            val persisting = Persisting(
+                transactionManager = WithCtxConnectionTransactionManager(
+                    connection = { DummyConnection },
+                    setPipelining = { pipelines },
+                ),
+                modelRepos = ModelRepos(
+                    Department::class hasRepo repo as ModelRepository<*, Department<*>>,
+                    Employee::class hasRepo repo as ModelRepository<*, Employee>,
+                ),
+                entityRepos = EntityRepos(),
+                eventRepository = object : EventRepository {
+                    override suspend fun add(uowEvent: UowEvent) = Unit
+                },
+                eventPublisher = object : EventPublisher {
+                    override suspend fun publish(uowEvent: UowEvent) = Unit
+                },
+                paramsSerializer = KotlinxParamsSerializer(),
             )
-        }
-
-        When("Principal persists in registration order") {
-            persist(PersistOrder.Registration)
-
-            Then("Each write ends before the next starts") {
-                steps shouldBe listOf("start OwnedDepartment", "end OwnedDepartment", "start Employee", "end Employee")
+            suspend fun persist(persistOrder: PersistOrder) {
+                steps.clear()
+                persisting.persist(
+                    uowName = "Suspending",
+                    params = params,
+                    principal = TestPrincipal,
+                    modelChanges = listOf(UpdateModel(department3), UpdateModel(boss1)),
+                    entityChanges = listOf(),
+                    now = now(),
+                    persistOrder = persistOrder,
+                    connectionMode = REQUIRE_NEW,
+                )
             }
-        }
 
-        When("Principal persists in a custom order") {
-            persist(EmployeesFirst)
+            When("Principal persists in registration order") {
+                persist(PersistOrder.Registration)
 
-            Then("Each write ends before the next starts, in the order's sort") {
-                steps shouldBe listOf("start Employee", "end Employee", "start OwnedDepartment", "end OwnedDepartment")
+                Then("Each write ends before the next starts") {
+                    steps shouldBe
+                        listOf("start OwnedDepartment", "end OwnedDepartment", "start Employee", "end Employee")
+                }
             }
-        }
 
-        When("Principal persists with no promised write order") {
-            persist(PersistOrder.Unspecified)
+            When("Principal persists in a custom order") {
+                persist(EmployeesFirst)
 
-            Then("The batches run in parallel") {
-                steps shouldBe listOf("start OwnedDepartment", "start Employee", "end OwnedDepartment", "end Employee")
+                Then("Each write ends before the next starts, in the order's sort") {
+                    steps shouldBe
+                        listOf("start Employee", "end Employee", "start OwnedDepartment", "end OwnedDepartment")
+                }
+            }
+
+            When("Principal persists with no promised write order") {
+                persist(PersistOrder.Unspecified)
+
+                Then("The batches run in parallel only where the transaction manager pipelines") {
+                    steps shouldBe if (pipelines) {
+                        listOf("start OwnedDepartment", "start Employee", "end OwnedDepartment", "end Employee")
+                    } else {
+                        listOf("start OwnedDepartment", "end OwnedDepartment", "start Employee", "end Employee")
+                    }
+                }
             }
         }
     }
