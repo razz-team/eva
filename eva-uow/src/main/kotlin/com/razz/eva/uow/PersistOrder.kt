@@ -13,11 +13,11 @@ sealed interface PersistOrder {
     data object Registration : PersistOrder
 
     /**
-     * Sorted by [compare], stably: models it ranks equal keep their registration order. Written one after the
-     * other, never batched. The models are the flattened changes (each aggregate root followed by its owned
-     * models, and the models a block keeps with `notChanged`); under composition they include the parent's and
-     * sibling units' rows, so a row ranked first also moves before rows a parent registered earlier. Model events
-     * keep registration order.
+     * A [Comparator] of models. The changes are sorted by it, stably: models it ranks equal keep their registration
+     * order. Written one after the other, never batched. The models are the flattened changes (each aggregate root
+     * followed by its owned models, and the models a block keeps with `notChanged`); under composition they include the
+     * parent's and sibling units' rows, so a row ranked first also moves before rows a parent registered earlier. Model
+     * events keep registration order.
      *
      * Rank the models the order is about, put every other model in one rank of its own, and return 0 between two
      * models of that rank. [compare] must be a total order: an inconsistent one can fail the write before it
@@ -27,9 +27,7 @@ sealed interface PersistOrder {
      * Implement it as a named object (one instance) or a data class: composition compares orders with `==`. An
      * order built for each unit of work, such as an anonymous object or a capturing lambda, equals only itself.
      */
-    fun interface Custom : PersistOrder {
-        fun compare(a: Model<*, *>, b: Model<*, *>): Int
-    }
+    fun interface Custom : PersistOrder, Comparator<Model<*, *>>
 
     /**
      * No order is promised: model writes are batched per model class, updates before inserts, entity writes per
@@ -45,5 +43,5 @@ sealed interface PersistOrder {
 internal fun List<ModelChange>.inWriteOrder(order: PersistOrder): List<ModelChange> = when (order) {
     PersistOrder.Registration -> this
     PersistOrder.Unspecified -> this
-    is PersistOrder.Custom -> sortedWith { a, b -> order.compare(a.model, b.model) }
+    is PersistOrder.Custom -> sortedWith(compareBy(order) { it.model })
 }

@@ -1042,13 +1042,13 @@ val configuration = UnitOfWork.Configuration(
 )
 ```
 - `PersistOrder.Registration` writes the models as registered.
-- `PersistOrder.Custom` sorts them with `compare`, stably, and writes them one after the other. Models it ranks
-  equal keep their registration order. It sorts the flattened changes, each aggregate root followed by its owned
-  models, and under composition the rows of the parent and of every child. Rank the models the order is about, put
-  every other model in one rank of its own, and return 0 between two models of that rank. `compare` must be a total
-  order: an inconsistent one can fail the write before it starts. An order that ranks a new owned model before its
-  new root breaks a foreign key that registration order kept. Implement it as a named object (one instance) or a
-  data class, because composition compares orders with `==`. An order built for each unit of work, such as an
+- `PersistOrder.Custom` is a `Comparator` of models: eva sorts them with it, stably, and writes them one after the
+  other. Models it ranks equal keep their registration order. It sorts the flattened changes, each aggregate root
+  followed by its owned models, and under composition the rows of the parent and of every child. Rank the models the
+  order is about, put every other model in one rank of its own, and return 0 between two models of that rank. `compare`
+  must be a total order: an inconsistent one can fail the write before it starts. An order that ranks a new owned model
+  before its new root breaks a foreign key that registration order kept. Implement it as a named object (one instance)
+  or a data class, because composition compares orders with `==`. An order built for each unit of work, such as an
   anonymous object or a capturing lambda, equals only itself.
 - `PersistOrder.Unspecified` promises no order: models are written in batches per model class, updates before
   inserts, entities in batches per class and kind, and the batches run in parallel where the transaction manager
