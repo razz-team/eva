@@ -273,7 +273,7 @@ class PersistingSpec : BehaviorSpec({
                         claimingUnchanged(existingCreatedTestModel(param1 = "b", param2 = 2L))
                         adding(department2)
                         updating(boss2)
-                    }.withResult(Unit, null)
+                    }.withResult(Unit, null, PersistOrder.Registration)
                         .modelChangesToPersist,
                     entityChanges = listOf(
                         AddEntity(tag1),
@@ -510,7 +510,7 @@ class PersistingSpec : BehaviorSpec({
                     params = params,
                     principal = TestPrincipal,
                     modelChanges = ChangesAccumulator().apply { updating(aggregate) }
-                        .withResult(Unit, null)
+                        .withResult(Unit, null, PersistOrder.Registration)
                         .modelChangesToPersist,
                     entityChanges = listOf(),
                     now = clock.instant(),

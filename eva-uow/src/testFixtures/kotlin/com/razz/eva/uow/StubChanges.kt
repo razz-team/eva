@@ -17,6 +17,10 @@ import com.razz.eva.domain.ModelId
  * executor rejects a stub returned by a real UoW's `tryPerform`. Under composition a stub is
  * accepted, since standing in for a composed child is what this exists for; what keeps a stub out of
  * production is this source set, which ships in the test-fixtures jar and not in the main one.
+ *
+ * A stub carries [PersistOrder.Registration], whatever the child's configuration says. A child with a
+ * [PersistOrder.Custom] order carries it up to its parent in production; a parent's spec over a stub of it
+ * sees the parent's rows in registration order instead.
  */
 @TestDoubleApi
 fun <R> stubChanges(result: R, vararg alsoRegistered: Model<*, *>): Changes<R> {
@@ -39,4 +43,5 @@ private class StubbedChanges<R>(
 ) : Changes<R>() {
     override val entityChangesToPersist: List<EntityChange> get() = listOf()
     override val accumulator: ChangesAccumulator? get() = null
+    override val persistOrder: PersistOrder get() = PersistOrder.Registration
 }

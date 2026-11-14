@@ -295,7 +295,7 @@ class UnitOfWorkExecutor(
                         modelChanges = changes.modelChangesToPersist,
                         entityChanges = changes.entityChangesToPersist,
                         now = now,
-                        persistOrder = uow.configuration().persistOrder,
+                        persistOrder = changes.persistOrder,
                         connectionMode = connectionMode,
                     )
                 }

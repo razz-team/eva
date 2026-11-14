@@ -17,6 +17,7 @@ import com.razz.eva.uow.Changes
 import com.razz.eva.uow.ChangesAccumulator
 import com.razz.eva.uow.ExecutionContext
 import com.razz.eva.uow.InstantiationContext
+import com.razz.eva.uow.PersistOrder
 import com.razz.eva.uow.PersistedLookup
 import com.razz.eva.uow.UowParams
 import com.razz.eva.uow.checkBuiltBy
@@ -28,14 +29,20 @@ import kotlin.reflect.KClass
 
 class ChangesDsl internal constructor(
     private val executionContext: ExecutionContext,
-    uowName: String,
+    private val uowName: String,
+    persistOrder: PersistOrder,
 ) {
     internal val changes: ChangesAccumulator =
         ChangesAccumulator.seededFrom(executionContext.inheritedChanges, uowName)
     // var: assigned by roundtrip { } mid-block; null means no roundtrip, so the executor default-roundtrips.
     private var resultBuilder: ((PersistedLookup) -> Any?)? = null
 
-    private fun <R> withResult(result: R): Changes<R> = changes.withResult(result, resultBuilder)
+    // The order the block's changes are written in: the unit's own, until a composed child carries a custom one up.
+    // [orderFrom] names the unit whose configuration set it, for the refusal of a child with another one.
+    private var persistOrder: PersistOrder = persistOrder
+    private var orderFrom: String = uowName
+
+    private fun <R> withResult(result: R): Changes<R> = changes.withResult(result, resultBuilder, persistOrder)
 
     /**
      * Builds the UoW result via [p], which resolves each model to its change-set instance by id. Top-level
@@ -180,20 +187,49 @@ class ChangesDsl internal constructor(
                 subChanges.modelChangesToPersist.map { it.id.stringValue() },
             )
             beforeMerge(uow.name(), subChanges)
+            // refused before the merge, so a parent that catches the refusal holds none of the child's rows
+            val carried = carriedOrder(uow.name(), subChanges.persistOrder)
             changes.merging(uow.name(), subChanges)
+            if (carried != persistOrder) {
+                persistOrder = carried
+                orderFrom = uow.name()
+            }
             // Under composition the caller gets this in-memory seed; the child's resultBuilder is not rerun.
             subChanges.result
         }
     }
 
+    // A child's configuration is not used under a parent, except a custom persist order: it carries up, so the
+    // parent writes the rows of the whole tree in it. A child in Registration or Unspecified leaves the parent's
+    // order. Another custom order than the parent's (its own, or one a sibling carried up) is refused, and so is a
+    // custom one under an Unspecified parent: the tree has one order or none.
+    private fun carriedOrder(childName: String, childOrder: PersistOrder): PersistOrder = when (childOrder) {
+        PersistOrder.Registration -> persistOrder
+        PersistOrder.Unspecified -> persistOrder
+        is PersistOrder.Custom -> when (val own = persistOrder) {
+            PersistOrder.Registration -> childOrder
+            is PersistOrder.Custom -> own.also {
+                check(own == childOrder) { conflictingOrders(childName, childOrder) }
+            }
+            PersistOrder.Unspecified -> error(conflictingOrders(childName, childOrder))
+        }
+    }
+
+    private fun conflictingOrders(childName: String, childOrder: PersistOrder) =
+        "${uowName.ifEmpty { "A unit of work" }} refuses composed unit of work " +
+            "[${childName.ifEmpty { "anonymous" }}]: it writes in persist order [$childOrder], and " +
+            "[${orderFrom.ifEmpty { "anonymous" }}] writes in [$persistOrder]. A composition writes in one order: " +
+            "give the units the same PersistOrder.Custom, an object or a data class, as lambdas are never equal"
+
     companion object {
         internal suspend inline fun <R> changes(
             executionContext: ExecutionContext,
             uowName: String,
+            persistOrder: PersistOrder,
             @Suppress("REDUNDANT_INLINE_SUSPEND_FUNCTION_TYPE")
             init: suspend ChangesDsl.() -> R,
         ): Changes<R> {
-            val dsl = ChangesDsl(executionContext, uowName)
+            val dsl = ChangesDsl(executionContext, uowName, persistOrder)
             val res = init(dsl)
             return dsl.withResult(res)
         }
