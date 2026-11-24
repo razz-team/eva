@@ -28,6 +28,7 @@ dependencies {
         api("team.razz.eva:eva-idempotency-key:$version")
         api("team.razz.eva:eva-jooq:$version")
         api("team.razz.eva:eva-migrations:$version")
+        api("team.razz.eva:eva-polling-outbox-lib:$version")
         api("team.razz.eva:eva-paging:$version")
         api("team.razz.eva:eva-persistence:$version")
         api("team.razz.eva:eva-persistence-jdbc:$version")

@@ -1,0 +1,27 @@
+# db-scheduler's table lives here, see schedulerTableName
+scheduler: &wallets
+  jdbcUrl: jdbc:postgresql://localhost:5432/wallets
+  username: outbox
+  password: ${WALLETS_DB_PASSWORD}
+
+# one task per events database, keyed by task name
+tasks:
+  wallets:
+    # events are published to <serviceName>-<modelName> topics, e.g. wallets-Wallet
+    serviceName: wallets
+    database: *wallets
+    # optional, durations are ISO-8601
+    outbox:
+      batchSize: 100
+      leeway: PT10S
+      maxBackoff: PT1M
+
+kafka:
+  bootstrapServers: localhost:9092
+  security:
+    type: sasl_ssl
+    sasl:
+      type: scram
+      algorithm: SHA_512
+      username: outbox
+      password: ${KAFKA_PASSWORD}
