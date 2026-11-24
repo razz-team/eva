@@ -1,8 +1,15 @@
 package com.razz.eva.uow.guarded
 
+import com.razz.eva.domain.Department
+import com.razz.eva.domain.Department.OrphanedDepartment
+import com.razz.eva.domain.Department.OwnedDepartment
+import com.razz.eva.domain.DepartmentId
 import com.razz.eva.domain.Employee
 import com.razz.eva.domain.EmployeeId
+import com.razz.eva.domain.ModelState.PersistentState.Companion.persistentState
 import com.razz.eva.domain.Principal
+import com.razz.eva.domain.Ration.BUBALEH
+import com.razz.eva.domain.Version.Companion.V1
 import com.razz.eva.persistence.PersistenceException.StaleRecordException
 import com.razz.eva.persistence.WithCtxConnectionTransactionManager
 import com.razz.eva.repository.EntityRepos
@@ -28,6 +35,7 @@ import com.razz.eva.uow.params.kotlinx.KotlinxParamsSerializer
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeSameInstanceAs
 import io.mockk.clearMocks
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -46,11 +54,12 @@ class GuardedExecutorSpec : FunSpec({
     val reloaded = employee(id = employee.id(), department = home.id())
     val persisted = employee(id = employee.id(), department = away.id())
     val repo = mockk<ModelRepository<EmployeeId, Employee>>(relaxed = true)
+    val departments = mockk<ModelRepository<DepartmentId, Department<*>>>(relaxed = true)
     val uowx = UnitOfWorkExecutor(
         listOf(),
         Persisting(
             transactionManager = WithCtxConnectionTransactionManager(),
-            modelRepos = ModelRepos(Employee::class hasRepo repo),
+            modelRepos = ModelRepos(Employee::class hasRepo repo, Department::class hasRepo departments),
             entityRepos = EntityRepos(),
             eventRepository = DummyEventRepository(),
             paramsSerializer = KotlinxParamsSerializer(),
@@ -60,13 +69,21 @@ class GuardedExecutorSpec : FunSpec({
     )
     val retrying = Configuration(retry = StaleRecordFixedRetry(1, ofMillis(0)))
 
-    beforeTest { clearMocks(repo) }
+    beforeTest { clearMocks(repo, departments) }
     fun builtElsewhere(uow: String) = "$uow was built with an ExecutionContext other than the one its factory " +
         "received. Build the unit of work in the factory, with the ExecutionContext the factory receives"
     fun plain(context: ExecutionContext) = object : UnitOfWork<TestPrincipal, ChildParams, String>(context) {
         override fun name() = "Plain"
         override suspend fun tryPerform(principal: TestPrincipal, params: ChildParams) = noChanges("plain")
     }
+    val orphansOnly: (Department<*>) -> OrphanedDepartment = {
+        when (it) {
+            is OrphanedDepartment -> it
+            is OwnedDepartment -> throw Refused("has a boss now")
+        }
+    }
+    val stored = OrphanedDepartment(home.id(), "Stored", 5, BUBALEH, persistentState(V1, null))
+    val stale = StaleRecordException(setOf(home.id()), "department")
 
     test("a stale first write retries with the reloaded model, which the proof allows again, and persists that model") {
         val reloads = mutableListOf<Int>()
@@ -81,6 +98,31 @@ class GuardedExecutorSpec : FunSpec({
         proof.checkedAgain shouldBe listOf(reloaded)
         result shouldBe persisted
         coVerify(exactly = 2) { repo.update(any(), any<Employee>()) }
+    }
+
+    test("a narrowing proof's stale first write retries on the reload it narrowed, and persists that model") {
+        val written = mutableListOf<Department<*>>()
+        val renamed = OrphanedDepartment(home.id(), "Renamed", 5, BUBALEH, persistentState(V1, null))
+        coEvery { departments.update(any(), capture(written)) } throws stale andThen renamed
+        val proof = OrphanProof(home, orphansOnly)
+        val result = uowx.execute(TestPrincipal, { RenameOrphanUow(it, retrying, answering = false) }) {
+            RenameOrphanUow.Params(proven(proof) { stored }, "Renamed")
+        }
+        result shouldBe renamed
+        proof.askedAgain shouldBe 1
+        written.map { it.headcount to it.name } shouldBe listOf(3 to "Renamed", 5 to "Renamed")
+    }
+
+    test("onFailure reads the model the proof narrowed on the retry, as the narrow type, when it stays stale") {
+        coEvery { departments.update(any(), any<Department<*>>()) } throws stale
+        val proof = OrphanProof(home, orphansOnly)
+        val answered: OrphanedDepartment = uowx.execute(
+            TestPrincipal,
+            { RenameOrphanUow(it, retrying, answering = true) },
+        ) { RenameOrphanUow.Params(proven(proof) { stored }, "Renamed") }
+        answered shouldBeSameInstanceAs stored
+        proof.askedAgain shouldBe 1
+        coVerify(exactly = 2) { departments.update(any(), any<Department<*>>()) }
     }
 
     test("a block's roundtrip result is built again over the models the executor persisted") {

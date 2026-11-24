@@ -8,6 +8,7 @@ import com.razz.eva.domain.EmployeeId
 import com.razz.eva.domain.ModelState.PersistentState.Companion.persistentState
 import com.razz.eva.domain.Ration.BUBALEH
 import com.razz.eva.domain.Version.Companion.V1
+import com.razz.eva.uow.BaseUnitOfWork.Configuration
 import com.razz.eva.uow.Clocks.fixedUTC
 import com.razz.eva.uow.Clocks.millisUTC
 import com.razz.eva.uow.ExecutionContext
@@ -28,7 +29,7 @@ import io.opentelemetry.api.OpenTelemetry
 class NarrowingProofSpec : FunSpec({
 
     val noAttempt = ExecutionContext(fixedUTC(millisUTC().instant()), OpenTelemetry.noop())
-    val rename = { ctx: ExecutionContext -> RenameOrphanUow(ctx) }
+    val rename = { ctx: ExecutionContext -> RenameOrphanUow(ctx, Configuration.default(), answering = false) }
     val target = department("Home")
     fun stored(name: String) = OrphanedDepartment(target.id(), name, 3, BUBALEH, persistentState(V1, null))
     val owned: Department<*> =
