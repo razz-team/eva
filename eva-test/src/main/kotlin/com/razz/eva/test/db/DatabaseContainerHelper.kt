@@ -76,9 +76,7 @@ class DatabaseContainerHelper private constructor(
             """
                 CREATE EXTENSION IF NOT EXISTS btree_gist;
                 CREATE EXTENSION IF NOT EXISTS intarray;
-                CREATE EXTENSION IF NOT EXISTS timescaledb;
                 CREATE EXTENSION IF NOT EXISTS pg_trgm;
-                CREATE EXTENSION IF NOT EXISTS unaccent;
                 CREATE EXTENSION IF NOT EXISTS hstore;
                 CREATE EXTENSION IF NOT EXISTS fuzzystrmatch;
             """.trimIndent()
