@@ -1,5 +1,6 @@
 package com.razz.eva.uow.guarded
 
+import com.razz.eva.domain.Employee
 import com.razz.eva.uow.InstantiationContextFixtures.afterRetry
 import com.razz.eva.uow.InstantiationContextFixtures.initial
 import com.razz.eva.uow.TestPrincipal
@@ -25,6 +26,22 @@ class ProvenSpec : FunSpec({
         proven.read() shouldBeSameInstanceAs employee
         proven.read() shouldBeSameInstanceAs employee
         proven.readOrNull() shouldBeSameInstanceAs employee
+    }
+
+    // A target getter that answers another model once proven() read it.
+    class FickleProof(private val checked: Employee, private val later: Employee) : Proof<Employee, Employee>() {
+        private var reads = 0
+        override val principal = TestPrincipal
+        override val action = Write
+        override val target: Employee get() = if (reads++ == 0) checked else later
+        override suspend fun checkAgain(reloaded: Employee) = reloaded
+    }
+
+    test("returns on the first attempt the target proven() checked, however the proof answers it later") {
+        val other = employee(department = employee.departmentId)
+        val proven = first.proven(FickleProof(employee, other)) { error("the first attempt does not reload") }
+        proven.read() shouldBeSameInstanceAs employee
+        proven.targetId shouldBe employee.id().stringValue()
     }
 
     test("asks the proof about a retry's reload once, however often the block reads it") {

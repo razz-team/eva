@@ -30,7 +30,7 @@ class NarrowingProofSpec : FunSpec({
     val noAttempt = ExecutionContext(fixedUTC(millisUTC().instant()), OpenTelemetry.noop())
     val rename = { ctx: ExecutionContext -> RenameOrphanUow(ctx) }
     val target = department("Home")
-    fun stored(): OrphanedDepartment = OrphanedDepartment(target.id(), "Home", 3, BUBALEH, persistentState(V1, null))
+    fun stored(name: String) = OrphanedDepartment(target.id(), name, 3, BUBALEH, persistentState(V1, null))
     val owned: Department<*> =
         OwnedDepartment(target.id(), "Home", EmployeeId(), 3, BUBALEH, persistentState(V1, null))
     val orphansOnly: (Department<*>) -> OrphanedDepartment = {
@@ -49,13 +49,13 @@ class NarrowingProofSpec : FunSpec({
         proof.askedAgain shouldBe 0
     }
 
-    test("writes on a retry the reloaded model the proof narrowed, that same instance") {
+    test("writes on a retry the reloaded model the proof narrowed, not its target") {
         val proof = OrphanProof(target, orphansOnly)
-        val reloaded = stored()
+        val reloaded = stored("Stored")
         val wide: Department<*> = reloaded
         val changes = rename.retry(noAttempt, TestPrincipal) { Params(proven(proof) { wide }, "Renamed") }
         val change = changes.modelChangesToPersist.single().shouldBeInstanceOf<UpdateModel<*, *>>()
-        change.modelEvents shouldBe listOf(NameChanged(target.id(), "Home", "Renamed"))
+        change.modelEvents shouldBe listOf(NameChanged(target.id(), "Stored", "Renamed"))
         proof.askedAgain shouldBe 1
     }
 
@@ -68,21 +68,21 @@ class NarrowingProofSpec : FunSpec({
 
     test("refuses a checkAgain that returns its target, equal to the reload and another instance") {
         val proof = OrphanProof(target) { target }
-        val reloaded = stored()
+        val reloaded = stored("Home")
         reloaded shouldBe target
         shouldThrow<IllegalStateException> {
             rename.retry(noAttempt, TestPrincipal) { Params(proven(proof) { reloaded }, "Renamed") }
         }.message shouldBe "checkAgain of the proof for test.write returned another instance than the model eva " +
-            "reloaded for the retry. Return the reloaded model itself"
+            "reloaded for the retry, ${target.id().stringValue()}. Return the reloaded model itself"
     }
 
     test("refuses a reload with unsaved changes before the proof is asked") {
         val proof = OrphanProof(target, orphansOnly)
-        val unsaved = stored().rename("Unsaved")
+        val unsaved = stored("Home").rename("Unsaved")
         shouldThrow<IllegalStateException> {
             rename.retry(noAttempt, TestPrincipal) { Params(proven(proof) { unsaved }, "Renamed") }
-        }.message shouldBe "The reload of a Proven returned ${target.id().stringValue()} with unsaved changes. " +
-            "The reload must return the model as it is stored"
+        }.message shouldBe "The reload of a Proven returned ${target.id().stringValue()}, which is new or has " +
+            "unsaved changes. The reload must return the model as it is stored"
         proof.askedAgain shouldBe 0
     }
 })

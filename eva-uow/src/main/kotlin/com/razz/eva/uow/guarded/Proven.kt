@@ -22,6 +22,8 @@ import kotlinx.serialization.encoding.encodeStructure
 @Serializable(with = Proven.Audit::class)
 class Proven<out PF : Proof<*, *>, M : Model<*, *>> private constructor(
     private val proof: Proof<*, M>,
+    // Read once in proven(), which checked this instance: a proof's target getter is not trusted to answer it again.
+    private val target: M,
     private val reloadAllowed: suspend () -> M,
     private val context: InstantiationContext,
 ) {
@@ -34,7 +36,7 @@ class Proven<out PF : Proof<*, *>, M : Model<*, *>> private constructor(
      */
     internal suspend fun read(): M {
         readModel?.let { return it }
-        val model = if (context.attempt == 0) proof.target else reloadAllowed()
+        val model = if (context.attempt == 0) target else reloadAllowed()
         readModel = model
         return model
     }
@@ -47,7 +49,7 @@ class Proven<out PF : Proof<*, *>, M : Model<*, *>> private constructor(
 
     val action: String get() = proof.action.name
 
-    val targetId: String get() = proof.target.id().stringValue()
+    val targetId: String get() = target.id().stringValue()
 
     companion object {
 
@@ -86,7 +88,7 @@ class Proven<out PF : Proof<*, *>, M : Model<*, *>> private constructor(
                         "`{ ctx -> MyUow(ctx, ...) }.retry(principal) { params }`"
                 }
             }
-            return Proven(proof, { allowedReload(proof, target, reload) }, this)
+            return Proven(proof, target, { allowedReload(proof, target, reload) }, this)
         }
 
         // Refuses a reload of another model or one with unsaved changes before the proof is asked, then refuses an
@@ -102,13 +104,13 @@ class Proven<out PF : Proof<*, *>, M : Model<*, *>> private constructor(
                     "${target.id().stringValue()}. The reload must load the proof's target by its id"
             }
             check(loaded.isPersisted()) {
-                "The reload of a Proven returned ${loaded.id().stringValue()} with unsaved changes. The reload must " +
-                    "return the model as it is stored"
+                "The reload of a Proven returned ${loaded.id().stringValue()}, which is new or has unsaved changes. " +
+                    "The reload must return the model as it is stored"
             }
             val allowed = proof.checkAgain(loaded)
             check(allowed === loaded) {
                 "checkAgain of the proof for ${proof.action.name} returned another instance than the model eva " +
-                    "reloaded for the retry. Return the reloaded model itself"
+                    "reloaded for the retry, ${loaded.id().stringValue()}. Return the reloaded model itself"
             }
             return allowed
         }

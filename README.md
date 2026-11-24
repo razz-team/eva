@@ -793,6 +793,9 @@ The witness itself is opt-in, but these changes reach every consumer:
 
 - **`Proof<L, M>` replaces `Proof<M>`.** `L` is the type the reload loads and `M` the type the attempts write, so a proof whose check admits only some states can type the model its unit reads; see [Guarded unit of work](#guarded-unit-of-work). Each `Proof<M>` becomes `Proof<M, M>`, and a bound or star projection `Proof<*>` becomes `Proof<*, *>`. `checkAgain(reloaded)` now returns the model the attempt writes: return `reloaded` itself. Returning `target` compiles, and a retry refuses it, because it is another instance than the one eva reloaded, even when the two are equal.
 - **A retry refuses a reload with unsaved changes.** `proven(proof) { reload }` refused such a `target` already; a `reload` that returns a model with unsaved changes now fails the retry with `IllegalStateException` before `checkAgain` runs.
+- **`proven` infers its type arguments.** It now takes three (`PF`, `L`, `M`), so a call that spells them as `proven<PF, M>(...)` fails to compile with an error that does not say why. Drop the explicit type arguments.
+- **The first attempt writes the target `proven` read.** `proven` reads `proof.target` once, checks it and keeps it; a `target` getter is not read again.
+- **Recompile every module that declares a proof.** A proof compiled against 0.43 still links against 0.44, and fails on the first retry.
 
 #### Returning persisted models with `roundtrip { }`
 
@@ -868,9 +871,12 @@ object Rename : Action { override val name = "department.rename" }
 class RenameProof(override val principal: Manager, override val target: OrphanedDepartment) :
     Proof<Department<*>, OrphanedDepartment>() {
     override val action = Rename
-    override suspend fun checkAgain(reloaded: Department<*>): OrphanedDepartment = when (reloaded) {
-        is OrphanedDepartment -> reloaded
-        is OwnedDepartment -> error("the department has a boss now")
+    override suspend fun checkAgain(reloaded: Department<*>): OrphanedDepartment {
+        check(principal.manages(reloaded)) { "not managed" }
+        return when (reloaded) {
+            is OrphanedDepartment -> reloaded
+            is OwnedDepartment -> error("the department has a boss now")
+        }
     }
 }
 
