@@ -11,14 +11,15 @@ internal class TestProof<M : Model<*, *>>(
     override val principal: Principal<*>,
     override val target: M,
     private val recheck: (M) -> Unit,
-) : Proof<M>() {
+) : Proof<M, M>() {
 
     override val action = Write
 
     val checkedAgain = mutableListOf<M>()
 
-    override suspend fun checkAgain(reloaded: M) {
+    override suspend fun checkAgain(reloaded: M): M {
         checkedAgain += reloaded
         recheck(reloaded)
+        return reloaded
     }
 }

@@ -28,8 +28,8 @@ class ScopeContractSpec : FunSpec({
         object : com.razz.eva.uow.composable.UnitOfWork<TestPrincipal, DummyUow.Params, R>(executionContext) {
             override suspend fun tryPerform(principal: TestPrincipal, params: DummyUow.Params) = changes(body)
         }
-    fun <R : Any> guarded(body: suspend GuardedChangesDsl<Proof<*>>.() -> R) =
-        object : GuardedUnitOfWork<TestPrincipal, Proof<*>, DummyUow.Params, R>(
+    fun <R : Any> guarded(body: suspend GuardedChangesDsl<Proof<*, *>>.() -> R) =
+        object : GuardedUnitOfWork<TestPrincipal, Proof<*, *>, DummyUow.Params, R>(
             executionContext,
             BaseUnitOfWork.Configuration.default(),
             Guarding(Employee::class),

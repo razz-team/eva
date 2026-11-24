@@ -36,10 +36,10 @@ class GuardedCompileRejectionSpec : FunSpec({
 
                 object Write : Action { override val name = "probe.write" }
 
-                class Allowed(override val target: TestModel) : Proof<TestModel>() {
+                class Allowed(override val target: TestModel) : Proof<TestModel, TestModel>() {
                     override val principal = TestPrincipal
                     override val action = Write
-                    override suspend fun checkAgain(reloaded: TestModel) = Unit
+                    override suspend fun checkAgain(reloaded: TestModel) = reloaded
                 }
 
                 class Params(val model: Proven<Allowed, TestModel>) : UowParams<Params>

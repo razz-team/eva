@@ -16,13 +16,13 @@ import kotlinx.serialization.encoding.encodeStructure
  * lambda with [proven]. In the `changes` block of a guarded unit of work `params.x.model()` returns the model; only a
  * block for proofs of type [PF] has `model()`. The block then calls `update` or `notChanged` on it. On the first
  * attempt `model()` returns the model the proof was issued for. On a retry it loads the model again and asks the proof
- * to allow the action again. The audit row holds the field as `{"action": ..., "target": ...}`, where `target` is the
- * model id.
+ * to allow the action again. [M] is the type the proof's attempts write, which may be narrower than the type the
+ * reload loads. The audit row holds the field as `{"action": ..., "target": ...}`, where `target` is the model id.
  */
 @Serializable(with = Proven.Audit::class)
-class Proven<out PF : Proof<*>, M : Model<*, *>> private constructor(
-    private val proof: Proof<M>,
-    private val reload: suspend () -> M,
+class Proven<out PF : Proof<*, *>, M : Model<*, *>> private constructor(
+    private val proof: Proof<*, M>,
+    private val reloadAllowed: suspend () -> M,
     private val context: InstantiationContext,
 ) {
 
@@ -34,23 +34,13 @@ class Proven<out PF : Proof<*>, M : Model<*, *>> private constructor(
      */
     internal suspend fun read(): M {
         readModel?.let { return it }
-        val model = if (context.attempt == 0) proof.target else reloaded()
+        val model = if (context.attempt == 0) proof.target else reloadAllowed()
         readModel = model
         return model
     }
 
     /** Returns the model [read] returned in this attempt, or null if the attempt did not read it. */
     internal fun readOrNull(): M? = readModel
-
-    private suspend fun reloaded(): M {
-        val model = reload()
-        check(model.id() == proof.target.id()) {
-            "The reload of a Proven returned ${model.id().stringValue()}, and its proof is for " +
-                "${proof.target.id().stringValue()}. The reload must load the proof's target by its id"
-        }
-        proof.checkAgain(model)
-        return model
-    }
 
     /** Returns true if [attempt] is the attempt whose params lambda created this Proven. */
     internal fun belongsTo(attempt: InstantiationContext?): Boolean = attempt === context
@@ -63,27 +53,28 @@ class Proven<out PF : Proof<*>, M : Model<*, *>> private constructor(
 
         /**
          * Wraps [proof] in a [Proven] for the params of this attempt. Call it in the params lambda of
-         * `UnitOfWorkExecutor.execute`, once per proof. [reload] loads the proof's target again; eva calls it on a
-         * retry only. Throws if the proof was issued for another principal than the one the unit of work runs under;
-         * if the proof's target is new or has unsaved changes; if the proof already ran another unit of work (a retry
-         * of the same run may wrap it again); or if it is called in the params of a child run with `execute` inside a
-         * block.
+         * `UnitOfWorkExecutor.execute`, once per proof. [reload] loads the proof's target again as it is stored; eva
+         * calls it on a retry only, then asks the proof with `checkAgain`. Throws if the proof was issued for another
+         * principal than the one the unit of work runs under; if the proof's target is new or has unsaved changes; if
+         * the proof already ran another unit of work (a retry of the same run may wrap it again); or if it is called
+         * in the params of a child run with `execute` inside a block.
          */
-        fun <PF : Proof<M>, M : Model<*, *>> InstantiationContext.proven(
+        fun <PF, L, M> InstantiationContext.proven(
             proof: PF,
-            reload: suspend () -> M,
-        ): Proven<PF, M> {
+            reload: suspend () -> L,
+        ): Proven<PF, M> where PF : Proof<L, M>, L : Model<*, *>, M : L {
+            val target = proof.target
             check(this is InstantiationContext.External) {
                 "proven(...) was called in the params of a composed child. A child takes no proof: call " +
                     "proven(...) in the params lambda of the unit of work the caller runs, and write the guarded " +
                     "model there"
             }
             check(proof.principal == principal) {
-                "The proof for ${proof.action.name} on ${proof.target.id().stringValue()} was issued for another " +
+                "The proof for ${proof.action.name} on ${target.id().stringValue()} was issued for another " +
                     "principal than the one this unit of work runs under. Run it under the proof's principal"
             }
-            require(proof.target.isPersisted()) {
-                "The proof for ${proof.action.name} is on ${proof.target.id().stringValue()}, which is new or has " +
+            require(target.isPersisted()) {
+                "The proof for ${proof.action.name} is on ${target.id().stringValue()}, which is new or has " +
                     "unsaved changes. Get the proof on the model as it was loaded"
             }
             if (attempt == 0) {
@@ -95,7 +86,31 @@ class Proven<out PF : Proof<*>, M : Model<*, *>> private constructor(
                         "`{ ctx -> MyUow(ctx, ...) }.retry(principal) { params }`"
                 }
             }
-            return Proven(proof, reload, this)
+            return Proven(proof, { allowedReload(proof, target, reload) }, this)
+        }
+
+        // Refuses a reload of another model or one with unsaved changes before the proof is asked, then refuses an
+        // answer other than the reloaded instance, so the attempt writes the model eva loaded, at its stored version.
+        private suspend fun <L : Model<*, *>, M : L> allowedReload(
+            proof: Proof<L, M>,
+            target: M,
+            reload: suspend () -> L,
+        ): M {
+            val loaded = reload()
+            check(loaded.id() == target.id()) {
+                "The reload of a Proven returned ${loaded.id().stringValue()}, and its proof is for " +
+                    "${target.id().stringValue()}. The reload must load the proof's target by its id"
+            }
+            check(loaded.isPersisted()) {
+                "The reload of a Proven returned ${loaded.id().stringValue()} with unsaved changes. The reload must " +
+                    "return the model as it is stored"
+            }
+            val allowed = proof.checkAgain(loaded)
+            check(allowed === loaded) {
+                "checkAgain of the proof for ${proof.action.name} returned another instance than the model eva " +
+                    "reloaded for the retry. Return the reloaded model itself"
+            }
+            return allowed
         }
 
         /** A composed child's params take no proof, so a call here is a compile error. */
@@ -105,10 +120,11 @@ class Proven<out PF : Proof<*>, M : Model<*, *>> private constructor(
             level = DeprecationLevel.ERROR,
         )
         @Suppress("UnusedParameter")
-        fun <PF : Proof<M>, M : Model<*, *>> InstantiationContext.Internal.proven(
+        fun <PF, L, M> InstantiationContext.Internal.proven(
             proof: PF,
-            reload: suspend () -> M,
-        ): Nothing = error("proven(...) was called in the params of a composed child")
+            reload: suspend () -> L,
+        ): Nothing where PF : Proof<L, M>, L : Model<*, *>, M : L =
+            error("proven(...) was called in the params of a composed child")
     }
 
     /**
