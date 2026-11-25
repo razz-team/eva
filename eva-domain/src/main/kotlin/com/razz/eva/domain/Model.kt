@@ -15,7 +15,7 @@ abstract class Model<ID : ModelId<out Comparable<*>>, E : ModelEvent<ID>>(
     final override fun version(): Version = modelState.version()
     internal fun modelEvents(): List<E> = modelState.modelEvents()
 
-    override fun id(): ID = id
+    final override fun id(): ID = id
 
     protected fun raiseEvent(firstEvent: E, vararg newEvents: E): ModelState<ID, E> =
         modelState.raiseEvent(firstEvent, *newEvents)

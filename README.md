@@ -795,6 +795,7 @@ The witness itself is opt-in, but these changes reach every consumer:
 - **A retry refuses a reload with unsaved changes.** `proven(proof) { reload }` refused such a `target` already; a `reload` that returns a model with unsaved changes now fails the retry with `IllegalStateException` before `checkAgain` runs.
 - **`proven` infers its type arguments.** It now takes three (`PF`, `L`, `M`), so a call that spells them as `proven<PF, M>(...)` fails to compile with an error that does not say why. Drop the explicit type arguments.
 - **The first attempt writes the target `proven` read.** `proven` reads `proof.target` once, checks it and keeps it; a `target` getter is not read again.
+- **`Model.id()` is final.** `proven` and a retry's reload compare model ids, so a model cannot answer another id than the one it was built with. A model that overrides `id()` fails to compile: pass the id to the `Model` constructor instead.
 - **Recompile every module that declares a proof.** A proof compiled against 0.43 still links against 0.44, and fails on the first retry.
 
 #### Returning persisted models with `roundtrip { }`
