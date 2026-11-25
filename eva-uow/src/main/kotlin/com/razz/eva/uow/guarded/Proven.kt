@@ -21,8 +21,8 @@ import kotlinx.serialization.encoding.encodeStructure
  */
 @Serializable(with = Proven.Audit::class)
 class Proven<out PF : Proof<*, *>, M : Model<*, *>> private constructor(
-    private val proof: Proof<*, M>,
-    // Read once in proven(), which checked this instance: a proof's target getter is not trusted to answer it again.
+    // proven() read these once and checked the target: a proof's getters are not trusted to answer the same again.
+    val action: String,
     private val target: M,
     private val reloadAllowed: suspend () -> M,
     private val context: InstantiationContext,
@@ -47,9 +47,7 @@ class Proven<out PF : Proof<*, *>, M : Model<*, *>> private constructor(
     /** Returns true if [attempt] is the attempt whose params lambda created this Proven. */
     internal fun belongsTo(attempt: InstantiationContext?): Boolean = attempt === context
 
-    val action: String get() = proof.action.name
-
-    val targetId: String get() = target.id().stringValue()
+    val targetId: String = target.id().stringValue()
 
     companion object {
 
@@ -66,35 +64,37 @@ class Proven<out PF : Proof<*, *>, M : Model<*, *>> private constructor(
             reload: suspend () -> L,
         ): Proven<PF, M> where PF : Proof<L, M>, L : Model<*, *>, M : L {
             val target = proof.target
+            val action = proof.action.name
             check(this is InstantiationContext.External) {
                 "proven(...) was called in the params of a composed child. A child takes no proof: call " +
                     "proven(...) in the params lambda of the unit of work the caller runs, and write the guarded " +
                     "model there"
             }
             check(proof.principal == principal) {
-                "The proof for ${proof.action.name} on ${target.id().stringValue()} was issued for another " +
+                "The proof for $action on ${target.id().stringValue()} was issued for another " +
                     "principal than the one this unit of work runs under. Run it under the proof's principal"
             }
             require(target.isPersisted()) {
-                "The proof for ${proof.action.name} is on ${target.id().stringValue()}, which is new or has " +
+                "The proof for $action is on ${target.id().stringValue()}, which is new or has " +
                     "unsaved changes. Get the proof on the model as it was loaded"
             }
             if (attempt == 0) {
-                proof.markUsedBy(run)
+                proof.markUsedBy(run, action)
             } else {
                 check(proof.isUsedBy(run)) {
-                    "The proof for ${proof.action.name} was not wrapped with proven(...) in the first attempt " +
+                    "The proof for $action was not wrapped with proven(...) in the first attempt " +
                         "of this run. Wrap the same proofs in every attempt. In a spec, run a retry with " +
                         "`{ ctx -> MyUow(ctx, ...) }.retry(principal) { params }`"
                 }
             }
-            return Proven(proof, target, { allowedReload(proof, target, reload) }, this)
+            return Proven(action, target, { allowedReload(proof, action, target, reload) }, this)
         }
 
         // Refuses a reload of another model or one with unsaved changes before the proof is asked, then refuses an
         // answer other than the reloaded instance, so the attempt writes the model eva loaded, at its stored version.
         private suspend fun <L : Model<*, *>, M : L> allowedReload(
             proof: Proof<L, M>,
+            action: String,
             target: M,
             reload: suspend () -> L,
         ): M {
@@ -109,7 +109,7 @@ class Proven<out PF : Proof<*, *>, M : Model<*, *>> private constructor(
             }
             val allowed = proof.checkAgain(loaded)
             check(allowed === loaded) {
-                "checkAgain of the proof for ${proof.action.name} returned another instance than the model eva " +
+                "checkAgain of the proof for $action returned another instance than the model eva " +
                     "reloaded for the retry, ${loaded.id().stringValue()}. Return the reloaded model itself"
             }
             return allowed

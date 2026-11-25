@@ -37,9 +37,9 @@ abstract class Proof<L : Model<*, *>, M : L> {
 
     private val usedBy = AtomicReference<InstantiationContext.Run?>(null)
 
-    internal fun markUsedBy(run: InstantiationContext.Run) =
+    internal fun markUsedBy(run: InstantiationContext.Run, action: String) =
         check(usedBy.compareAndSet(null, run)) {
-            "This proof for ${action.name} was already used to run a unit of work. One proof runs one unit of work: " +
+            "This proof for $action was already used to run a unit of work. One proof runs one unit of work: " +
                 "get a new proof for another run"
         }
 
