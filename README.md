@@ -789,6 +789,15 @@ The witness itself is opt-in, but these changes reach every consumer:
 - **Composition refuses conflicting custom orders.** A composed child's `PersistOrder.Custom` now carries up to its parent. A composition whose units carry two different custom orders, or a custom order under an `Unspecified` parent, fails with `IllegalStateException` before anything is written. Without a `Custom` order nothing changes.
 - **`verifyInOrder` checks write order.** A spec of a unit of work whose changes carry a `Custom` order, its own or a composed child's, lists the model changes in write order; the events stay in registration order. A parent's spec over a `stubChanges` double of a `Custom` child sees the parent's own order (registration order, unless the parent has a `Custom` order of its own), because a stub carries no order up.
 
+#### Upgrading to 0.44: breaking changes
+
+- **`Proof<L, M>` replaces `Proof<M>`.** `L` is the type the reload loads and `M` the type the attempts write, so a proof whose check admits only some states can type the model its unit reads; see [Guarded unit of work](#guarded-unit-of-work). Each `Proof<M>` becomes `Proof<M, M>`, and a bound or star projection `Proof<*>` becomes `Proof<*, *>`. `checkAgain(reloaded)` now returns the model the attempt writes: return `reloaded` itself. Returning `target` compiles, and a retry refuses it, because it is another instance than the one eva reloaded, even when the two are equal.
+- **A retry refuses a reload with unsaved changes.** `proven(proof) { reload }` refused such a `target` already; a `reload` that returns a model with unsaved changes now fails the retry with `IllegalStateException` before `checkAgain` runs.
+- **`proven` infers its type arguments.** It now takes three (`PF`, `L`, `M`), so a call that spells them as `proven<PF, M>(...)` fails to compile with an error that does not say why. Drop the explicit type arguments.
+- **The first attempt writes the target `proven` read.** `proven` reads `proof.target` once, checks it and keeps it; a `target` getter is not read again.
+- **`Model.id()` is final.** `proven` and a retry's reload compare model ids, so a model cannot answer another id than the one it was built with. A model that overrides `id()` fails to compile: pass the id to the `Model` constructor instead.
+- **Recompile every module that declares a proof.** A proof compiled against 0.43 still links against 0.44, and fails on the first retry.
+
 #### Returning persisted models with `roundtrip { }`
 
 When a UoW result is a single model or a collection of models, it is roundtripped through the database for you, so callers receive the flushed (version-bumped) instances. A data class that wraps several models is not roundtripped automatically. Use `roundtrip { p -> ... }` to build such a result: the lookup `p` resolves each model to its persisted instance by id.
@@ -816,18 +825,21 @@ At top-level execution the builder is rerun over the persisted set, so `Result` 
 
 A guarded unit of work writes a guarded model only with a proof that the application allowed the write. The application supplies three things:
 
-- **A `Proof<M>`** for each kind of write: its record that `principal` may do `action` to `target`, as the target was then. `action` is an `Action`, whose `name` goes to the audit row. eva calls `checkAgain(reloaded)` on a retry, with the model as it is stored now; throw there to refuse. A subclass narrows `principal` and `action` to the application's own types.
+- **A `Proof<L, M>`** for each kind of write: its record that `principal` may do `action` to `target`, as the target was then. `action` is an `Action`, whose `name` goes to the audit row. eva calls `checkAgain(reloaded)` on a retry, with the model as it is stored now, of the type `L` the reload loads; throw there to refuse, or return `reloaded` itself as an `M`, the type the attempts write. A proof that does not narrow declares one type twice, `Proof<Employee, Employee>`. A subclass narrows `principal` and `action` to the application's own types.
 - **One `Guarding`**, which lists the model types that need a proof.
 - **The place that issues proofs**: where the application checks permissions. eva never creates a proof, and one proof runs one unit of work.
 
-The params carry each guarded model as a `Proven` field, created in the params lambda with `proven(proof) { reload }`. In the block, `params.x.model()` returns the proof's target on the first attempt, and on a retry the model `reload` returns, after `checkAgain` allowed it. The block must `update` or `notChanged` each model it read, at the version it read, so the write fails if the stored model changed after the proof was issued. `update` refuses a model the block did not read that way, unless its type is listed in `unguardedWrites`, which cannot list a guarded type. A child run with `execute` may not register a guarded model, and a guarded unit of work never runs as a child.
+The params carry each guarded model as a `Proven` field, created in the params lambda with `proven(proof) { reload }`. In the block, `params.x.model()` returns the proof's target on the first attempt, and on a retry the model `reload` returns, after `checkAgain` allowed it. A retry refuses a reload of another id or with unsaved changes, and a `checkAgain` that returns another instance than the one it was given. The block must `update` or `notChanged` each model it read, at the version it read, so the write fails if the stored model changed after the proof was issued. `update` refuses a model the block did not read that way, unless its type is listed in `unguardedWrites`, which cannot list a guarded type. A child run with `execute` may not register a guarded model, and a guarded unit of work never runs as a child.
 
 ```kotlin
 object Move : Action { override val name = "employee.move" }
 
-class MoveProof(override val principal: Manager, override val target: Employee) : Proof<Employee>() {
+class MoveProof(override val principal: Manager, override val target: Employee) : Proof<Employee, Employee>() {
     override val action = Move
-    override suspend fun checkAgain(reloaded: Employee) = check(principal.manages(reloaded)) { "not managed" }
+    override suspend fun checkAgain(reloaded: Employee): Employee {
+        check(principal.manages(reloaded)) { "not managed" }
+        return reloaded
+    }
 }
 
 val guarding = Guarding(Employee::class)
@@ -850,6 +862,29 @@ class MoveEmployeeUow(
 uowx.execute(MoveEmployeeUow::class, manager) {
     MoveEmployeeUow.Params(proven(proof) { employeeQueries.get(proof.target.id()) })
 }
+```
+
+A proof whose check admits only some states of a sealed model declares the type of those states as `M`. Its `target` is of that type when the application issues it, `checkAgain` narrows the reload, and the block reads an `M` with no cast:
+
+```kotlin
+object Rename : Action { override val name = "department.rename" }
+
+class RenameProof(override val principal: Manager, override val target: OrphanedDepartment) :
+    Proof<Department<*>, OrphanedDepartment>() {
+    override val action = Rename
+    override suspend fun checkAgain(reloaded: Department<*>): OrphanedDepartment {
+        check(principal.manages(reloaded)) { "not managed" }
+        return when (reloaded) {
+            is OrphanedDepartment -> reloaded
+            is OwnedDepartment -> error("the department has a boss now")
+        }
+    }
+}
+
+@Serializable
+data class Params(val department: Proven<RenameProof, OrphanedDepartment>) : UowParams<Params>
+
+// in the block: val department: OrphanedDepartment = params.department.model()
 ```
 
 The audit row holds a `Proven` field as `{"action": ..., "target": ...}`, where `target` is the model id.

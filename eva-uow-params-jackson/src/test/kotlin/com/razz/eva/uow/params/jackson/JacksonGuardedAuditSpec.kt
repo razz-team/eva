@@ -25,10 +25,10 @@ class JacksonGuardedAuditSpec : ShouldSpec({
         override val name = "test.write"
     }
 
-    class Allowed(override val target: Employee, write: Action) : Proof<Employee>() {
+    class Allowed(override val target: Employee, write: Action) : Proof<Employee, Employee>() {
         override val principal = TestPrincipal
         override val action = write
-        override suspend fun checkAgain(reloaded: Employee) = Unit
+        override suspend fun checkAgain(reloaded: Employee) = reloaded
     }
 
     data class Params(

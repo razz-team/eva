@@ -120,7 +120,7 @@ private suspend fun ChangesDsl.compose(child: Child) {
     }
 }
 
-private suspend fun GuardedChangesDsl<Proof<*>>.compose(child: Child) {
+private suspend fun GuardedChangesDsl<Proof<*, *>>.compose(child: Child) {
     try {
         when (child.family) {
             Family.COMPOSABLE -> execute({ ctx -> OrderedChild(ctx, child) }, TestPrincipal) { DummyUow.Params }
@@ -161,7 +161,7 @@ class PersistOrderCompositionSpec : FunSpec({
             }
         }
         Parent.GUARDED -> { ctx ->
-            object : GuardedUnitOfWork<TestPrincipal, Proof<*>, DummyUow.Params, String>(
+            object : GuardedUnitOfWork<TestPrincipal, Proof<*, *>, DummyUow.Params, String>(
                 ctx,
                 Configuration(persistOrder = order),
                 Guarding(Employee::class),
@@ -436,7 +436,7 @@ class PersistOrderCompositionSpec : FunSpec({
             }
         }
         val uow = { ctx: ExecutionContext ->
-            object : GuardedUnitOfWork<TestPrincipal, Proof<*>, DummyUow.Params, String>(
+            object : GuardedUnitOfWork<TestPrincipal, Proof<*, *>, DummyUow.Params, String>(
                 ctx,
                 Configuration(persistOrder = ascending),
                 Guarding(Employee::class),

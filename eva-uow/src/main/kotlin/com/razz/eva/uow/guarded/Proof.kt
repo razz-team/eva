@@ -10,9 +10,11 @@ import java.util.concurrent.atomic.AtomicReference
  * The application creates one where it checks permissions; eva never creates one. To use it, wrap it in a [Proven]
  * with `proven(proof, reload)` in the params of a guarded unit of work. One proof runs one unit of work: the first
  * attempt's params mark it as used, and only a retry of the same run can wrap it again. On a retry eva loads the
- * model again and calls [checkAgain].
+ * model again and calls [checkAgain]. [L] is the type the reload loads, and [M] the type the attempts write: a proof
+ * whose check admits only some states of [L] can declare [M] as the type of those states, and the unit of work then
+ * reads an [M]. A proof that does not narrow declares the same type twice.
  */
-abstract class Proof<M : Model<*, *>> {
+abstract class Proof<L : Model<*, *>, M : L> {
 
     /** The principal the action was allowed for. A subclass may narrow the type. */
     abstract val principal: Principal<*>
@@ -28,15 +30,16 @@ abstract class Proof<M : Model<*, *>> {
 
     /**
      * Called on a retry with [reloaded], the model as it is stored now. Check again that [principal] may do [action]
-     * to it, and throw if not.
+     * to it, and throw if not. Return [reloaded] itself, as the type the attempt writes: eva refuses another instance,
+     * an equal one included.
      */
-    abstract suspend fun checkAgain(reloaded: M)
+    abstract suspend fun checkAgain(reloaded: L): M
 
     private val usedBy = AtomicReference<InstantiationContext.Run?>(null)
 
-    internal fun markUsedBy(run: InstantiationContext.Run) =
+    internal fun markUsedBy(run: InstantiationContext.Run, action: String) =
         check(usedBy.compareAndSet(null, run)) {
-            "This proof for ${action.name} was already used to run a unit of work. One proof runs one unit of work: " +
+            "This proof for $action was already used to run a unit of work. One proof runs one unit of work: " +
                 "get a new proof for another run"
         }
 
