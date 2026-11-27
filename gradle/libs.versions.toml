@@ -68,7 +68,7 @@ kotlin-plugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.
 kotlin-serialization-plugin = { module = "org.jetbrains.kotlin:kotlin-serialization", version.ref = "kotlinx-serialization" }
 
 detekt-plugin = { module = "io.gitlab.arturbosch.detekt:detekt-gradle-plugin", version.ref = "detekt" }
-dokka-plugin = { module = "org.jetbrains.dokka:dokka-gradle-plugin", version = "2.2.0" }
+dokka-plugin = { module = "org.jetbrains.dokka:dokka-gradle-plugin", version = "2.3.0" }
 maven-publish-plugin = { module = "com.vanniktech:gradle-maven-publish-plugin", version = "0.37.0" }
 
 [plugins]
