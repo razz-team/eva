@@ -910,6 +910,258 @@ class MoveEmployeeUowSpec : UowShouldSpec({
 })
 ```
 
+### Sagas
+
+A saga is a state machine that moves through a fixed set of steps until it reaches an outcome. It drives a business process that spans several units of work, often with calls to external services in between. Each unit of work commits on its own, so a saga as a whole is not a transaction.
+
+```kotlin
+dependencies {
+    implementation("team.razz.eva:eva-saga:$eva_version")
+}
+```
+
+#### Writing a saga
+
+A saga declares its intermediary steps (states it passes through) and terminal steps (outcomes it ends in) as two sealed hierarchies, then implements two functions:
+- `init` returns the first step from the principal and params.
+- `next` returns the step that follows an intermediary step.
+
+```kotlin
+class PayOutSaga(
+    private val payOutQueries: PayOutQueries,
+    private val uowx: UnitOfWorkExecutor,
+    private val bank: BankClient,
+    sagaExecutionContext: SagaExecutionContext,
+    observers: List<SagaObserver<ServicePrincipal, Params>>,
+) : Saga<ServicePrincipal, PayOutSaga.Params, PayOutSaga.Intermediary, PayOutSaga.Terminal, PayOutSaga>(
+    sagaExecutionContext,
+    observers,
+) {
+
+    data class Params(val payOutId: PayOut.Id)
+
+    sealed interface Intermediary : Saga.Intermediary<PayOutSaga> {
+        data class Requested(val payOut: PayOut) : Intermediary
+        data class Approved(val payOut: PayOut) : Intermediary
+    }
+
+    sealed interface Terminal : Saga.Terminal<PayOutSaga> {
+        data class Sent(val payOut: PayOut) : Terminal
+        data class Rejected(val payOutId: PayOut.Id) : Terminal
+    }
+
+    override suspend fun init(principal: ServicePrincipal, params: Params): Step<PayOutSaga> =
+        when (val payOut = payOutQueries.get(params.payOutId)) {
+            is RequestedPayOut -> Intermediary.Requested(payOut)
+            is ApprovedPayOut -> Intermediary.Approved(payOut)
+            is SentPayOut -> Terminal.Sent(payOut)
+            is RejectedPayOut -> Terminal.Rejected(payOut.id())
+        }
+
+    override suspend fun next(principal: ServicePrincipal, currentStep: Intermediary): Step<PayOutSaga> =
+        when (currentStep) {
+            is Intermediary.Requested -> Intermediary.Approved(
+                uowx.execute(ApprovePayOutUow::class, principal) {
+                    ApprovePayOutUow.Params(currentStep.payOut.id())
+                },
+            )
+            is Intermediary.Approved -> {
+                val reference = bank.send(currentStep.payOut)
+                Terminal.Sent(
+                    uowx.execute(MarkPayOutSentUow::class, principal) {
+                        MarkPayOutSentUow.Params(currentStep.payOut.id(), reference)
+                    },
+                )
+            }
+        }
+}
+```
+
+Run it with `resume`, which returns the terminal step the saga ended in:
+```kotlin
+val outcome: PayOutSaga.Terminal = payOutSaga.resume(principal, PayOutSaga.Params(payOutId))
+```
+
+#### How a run proceeds
+
+A run is one `resume` call. Usually it has a single attempt, but a failure can [restart](#restarts) the saga, and each restart is a new attempt within the same run.
+
+Each attempt starts with `init`. A terminal step ends the run. An intermediary step is passed to `next`, and its result is handled the same way until a terminal step is reached.
+
+Eva persists nothing about a run, so where a `resume` picks up is decided entirely by `init`. A later `resume` with the same params (after a crash, from a retry or from a scheduled job) skips work that already committed only if `init` reads persisted state and returns the step that follows the last committed work, as `PayOutSaga` does above. An `init` that always returns the same step repeats every step on each `resume`. Even with such an `init`, a run can die between a step's external call and the unit of work that records it, so make that work idempotent, e.g. with an [idempotency key](#idempotency).
+
+To guard against loops, each step class can be reached only once within an attempt, so a faulty `next` cannot cycle through steps forever. If `next` returns a step whose class the attempt already passed through, the saga throws `SagaHaltException`, which is handled like any other failure. Steps are compared by class, not by value, so within an attempt a saga cannot return to a step it already passed, even with different data. To repeat work, throw and let `onException` and `restartAfter` [restart the saga](#restarts), or end in a terminal step and `resume` it again later.
+
+Keep per-run data in steps, never in saga fields: a saga instance is usually shared, and concurrent `resume` calls would overwrite each other's fields. `next` receives only the principal and the current step, so a step must carry whatever the steps after it need from params. The engine itself keeps no per-run state on the instance.
+
+#### Failures
+
+An `Exception` thrown by `init` or `next` is passed to `onException`. The default `onException` rethrows `ex`. Overriding `onException` is optional. If `next` threw, `currentStep` is the step it was handling. If `init` threw, `currentStep` is `null`. What `onException` does decides how the run ends:
+
+| `onException` | `resume` |
+|---|---|
+| returns a terminal step | returns that terminal |
+| returns `null` | restarts the saga if `restartAfter` allows it, otherwise throws the original exception |
+| throws (the default rethrows `ex`) | throws what `onException` threw |
+
+```kotlin
+override suspend fun onException(
+    ex: Exception,
+    principal: ServicePrincipal,
+    params: Params,
+    currentStep: Intermediary?,
+): Terminal? = when (ex) {
+    is BankRejectedException -> Terminal.Rejected(params.payOutId)
+    is BankUnavailableException -> null
+    else -> throw ex
+}
+```
+
+#### Restarts
+
+A restart begins a new attempt within the same run (same `runId`, new `attemptId`, see [Run identity](#run-identity)): `init` is called again with the same principal and params. Like a later `resume`, it skips the failed attempt's committed work only if `init` returns the step that follows the last committed work. Override `restartAfter` to decide whether to restart and how long to wait first:
+```kotlin
+override suspend fun restartAfter(attempt: Int, ex: Exception): Duration? =
+    Duration.ofSeconds(1).takeIf { attempt < 4 }
+```
+`attempt` is the zero-based index of the attempt that just failed. Return the delay before the next attempt, or `null` to stop and throw `ex`. The default waits 100 ms and restarts at most twice, so a run makes at most three attempts. `Duration.ZERO` restarts immediately. A negative duration throws `IllegalArgumentException` (with `ex` as its cause) without notifying [observers](#observers) or recording an outcome. A policy that never returns `null` keeps restarting for as long as attempts fail and `onException` returns `null`.
+
+#### Cancellation and errors
+
+- When the coroutine calling `resume` is cancelled, the `CancellationException` propagates straight out. `onException` is not called, nothing restarts, [observers](#observers) get no `Failed` notification and no outcome is recorded.
+- A `TimeoutCancellationException` from a `withTimeout` inside a step, while the caller is still active, is an ordinary step failure and goes through `onException`.
+- A `Throwable` that is not an `Exception` (an `Error`) propagates immediately without reaching `onException`.
+
+#### Run identity
+
+Every attempt is described by a `SagaRun`, which [observers](#observers) receive with each notification:
+
+| Field | Meaning |
+|---|---|
+| `runId` | One per `resume` call, shared by all of its attempts |
+| `attemptId` | New for every attempt |
+| `parentAttemptId` | The attempt this one restarted from, `null` for the first |
+| `attempt` | Zero-based attempt index |
+| `sagaName` | The saga's name |
+| `principal`, `params` | What `resume` was called with |
+
+`sagaName` defaults to the saga class's simple name and names the saga's [spans and metrics](#telemetry). Override it to keep a stable name, e.g. so that dashboards and alerts survive a class rename:
+```kotlin
+override val sagaName = "CustomPayOutSaga"
+```
+
+#### Observers
+
+Pass a list of observers to the saga's constructor to react to its progress: logging, persisting an audit trail, alerting. An observer implements `SagaObserver`, whose only function, `onNotification`, the saga calls with a `SagaNotification` each time an attempt starts, moves to another step, ends or fails.
+```kotlin
+class LoggingSagaObserver<PRINCIPAL : Principal<*>, PARAMS> : SagaObserver<PRINCIPAL, PARAMS> {
+
+    override suspend fun onNotification(notification: SagaNotification<PRINCIPAL, PARAMS>) {
+        when (notification) {
+            is Resumed -> logger.info { "${notification.run} started at ${notification.first}" }
+            is Transitioned -> logger.info { "${notification.run} ${notification.from} -> ${notification.to}" }
+            is Terminated -> logger.info { "${notification.run} ended at ${notification.terminal}" }
+            is Failed -> logger.warn(notification.ex) { "${notification.run} failed, restarting: ${notification.willRestart}" }
+        }
+    }
+
+    private companion object {
+        private val logger = KotlinLogging.logger {}
+    }
+}
+```
+
+| Notification | Sent when | Fields besides `run` |
+|---|---|---|
+| `Resumed` | `init` returned the first step of an attempt | `first`, `stepElapsed` |
+| `Transitioned` | `next` returned a step, terminal steps included | `from`, `to`, `stepElapsed` |
+| `Terminated` | the attempt reached a terminal step returned by `init` or `next` | `terminal`, `attemptElapsed`, `runElapsed` |
+| `Failed` | an attempt failed, once per failed attempt | `step` (`null` when `init` threw), `ex`, `mappedTo`, `willRestart`, `attemptElapsed`, `runElapsed` |
+
+A run that succeeds sends `Resumed`, one `Transitioned` for each `next` call, and `Terminated`. An attempt that fails ends with `Failed` instead of `Terminated`, including when `onException` maps the failure to a terminal: `mappedTo` then holds that terminal. A failed attempt that will be restarted has `willRestart = true`. The `*Elapsed` fields are `Duration`s: `stepElapsed` is how long the `init` or `next` call that produced the step took, `attemptElapsed` is the time spent in the current attempt so far, and `runElapsed` is the time since `resume` was called, restarts and their delays included.
+
+Observers are called one at a time in list order, and the saga waits for each before moving on, so a slow observer slows the saga. Every call is bounded by the observer timeout, 500 ms by default and configurable through the [execution context](#execution-context). An observer that throws an `Exception` or runs out of time is logged at `WARN` and counted in the `saga.observer.failure` [metric](#telemetry). The saga carries on and the remaining observers still run, but nothing the observer did before failing is undone. The timeout is a `withTimeout`, so it only interrupts an observer at a suspension point. Unlike an `Exception`, an `Error` thrown by an observer is not swallowed: it aborts the saga, just like an `Error` thrown by `init` or `next`.
+
+#### Execution context
+
+Pass a `SagaExecutionContext` to the saga's constructor to configure telemetry and the observer timeout:
+```kotlin
+val context = sagaExecutionContext(
+    otel = GlobalOpenTelemetry.get(),
+    observerTimeout = Duration.ofSeconds(1),
+)
+```
+`otel` defaults to `OpenTelemetry.noop()`, which emits nothing. `observerTimeout` must be at least one millisecond.
+
+#### Telemetry
+
+Sagas emit spans and metrics through OpenTelemetry, using the tracer and meter named `eva`.
+
+| Span | Covers | Details |
+|---|---|---|
+| `<sagaName>` | the whole `resume` call, all attempts included | `saga.run_id`; `saga.attempt_count`, the number of attempts so far; `saga.terminal` when the run ended in a terminal step, mapped ones included. An `exception` event for every failure that was mapped or restarted, and a `saga.restart` event per restart carrying the new attempt's `saga.attempt_id`, `saga.parent_attempt_id` and `saga.attempt`. `ERROR` status when `resume` throws. |
+| `<sagaName>-init` | every `init` call | `ERROR` status when `init` throws |
+| `<StepName>-intermediate` | every `next` call, named after the step passed to it | `ERROR` status when `next` throws |
+| `<sagaName>-onResumed`, `-onTransition`, `-onTerminated`, `-onFailed` | every observer dispatch, only when the saga has observers | `ERROR` status when an observer throws an `Error` |
+
+| Metric | Counts | Attributes |
+|---|---|---|
+| `saga.outcome` | `resume` calls, by how they ended. Runs that were cancelled, hit an `Error` or returned a negative restart backoff are not counted. | `saga.name`; `saga.outcome`: `terminal` (reached a terminal step), `mapped` (`onException` returned a terminal), `rethrew` (`onException` threw) or `gave_up` (`restartAfter` returned `null`); `saga.terminal`: the terminal's class name or `none` |
+| `saga.restart` | restarts | `saga.name`; `saga.attempt`, the index of the attempt being started; `saga.exception`, the failure's class name |
+| `saga.observer.failure` | observer calls that threw or timed out | `saga.name`; `saga.observer.outcome`: `threw` or `timed_out` |
+
+A `PayOutSaga` run without observers, whose bank call fails once and is restarted, produces this trace (arrows show the step each call returned):
+```text
+PayOutSaga                        saga.attempt_count=2, saga.terminal=Sent
+├── PayOutSaga-init               → Requested
+├── Requested-intermediate        → Approved
+│   └── ApprovePayOutUow
+│       ├── ApprovePayOutUow-perform
+│       └── ApprovePayOutUow-persist
+├── Approved-intermediate         ERROR: BankUnavailableException
+├── PayOutSaga-init               → Approved (the approval already committed)
+└── Approved-intermediate         → Sent
+    └── MarkPayOutSentUow
+        ├── MarkPayOutSentUow-perform
+        └── MarkPayOutSentUow-persist
+```
+The root span also carries an `exception` event for the `BankUnavailableException` and a `saga.restart` event for the second attempt. With observers, an `-onResumed`, `-onTransition`, `-onTerminated` or `-onFailed` span appears next to each step span, as a sibling under the root.
+
+#### Testing sagas
+
+`eva-test` provides `SagaShouldSpec` and `SagaBehaviorSpec`, which call a saga's protected functions directly so each step can be tested on its own: `afterParams` calls `init`, `afterNext` calls `next`, and `afterOnException` (in `SagaShouldSpec` only) calls `onException`.
+```kotlin
+dependencies {
+    testImplementation("team.razz.eva:eva-test:$eva_version")
+}
+```
+```kotlin
+class PayOutSagaSpec : SagaShouldSpec<ServicePrincipal, Params, Intermediary, Terminal, PayOutSaga>({
+    val principal = ServicePrincipal(Principal.Id("eva-id"), Principal.Name("eva"))
+    val payOutQueries = mockk<PayOutQueries>()
+    setSaga(PayOutSaga(payOutQueries, mockk(), mockk(), sagaExecutionContext(), listOf()))
+
+    should("resume an approved pay-out from Approved") {
+        val payOut = approvedPayOut()
+        coEvery { payOutQueries.get(payOut.id()) } returns payOut
+
+        afterParams(principal, Params(payOut.id())) shouldBe Intermediary.Approved(payOut)
+    }
+
+    should("end a pay-out the bank rejected as Rejected") {
+        val payOutId = PayOut.Id(UUID.randomUUID())
+
+        afterOnException(BankRejectedException(), principal, Params(payOutId), null) shouldBe Terminal.Rejected(payOutId)
+    }
+})
+```
+To test an observer, build notifications yourself. `SagaRun.first` creates a run, and `restarted()` creates the attempt that follows it:
+```kotlin
+val run = SagaRun.first("PayOutSaga", principal, params)
+observer.onNotification(Resumed(run, Intermediary.Requested(payOut), Duration.ofMillis(5)))
+observer.onNotification(Resumed(run.restarted(), Intermediary.Requested(payOut), Duration.ofMillis(5)))
+```
+
 ### Event sourcing
 
 #### Transactional outbox 
