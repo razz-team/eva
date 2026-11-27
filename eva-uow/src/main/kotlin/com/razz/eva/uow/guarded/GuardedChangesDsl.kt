@@ -1,5 +1,6 @@
 package com.razz.eva.uow.guarded
 
+import com.razz.eva.domain.CreatableEntity
 import com.razz.eva.domain.Model
 import com.razz.eva.domain.ModelEvent
 import com.razz.eva.domain.ModelId
@@ -27,8 +28,9 @@ import kotlin.reflect.KClass
  * a model whose type the unit of work lists in `unguardedWrites`; it refuses every other model. `add` accepts every
  * new model. `update(model) { }` and `add { }` run their lambda with a [Witness], as the composable DSL's do, and check
  * the model as `update` and `add` do. A model an aggregate owns is checked as if the block registered it itself.
- * [execute] runs a child unit of work and refuses a child that registers a model of a guarded type ([Guarding]). It has
- * no entity functions: a child registers entities. [PF] is the proof type whose [Proven] fields the block can read.
+ * [execute] runs a child unit of work and refuses a child that registers a model of a guarded type ([Guarding]). The
+ * block's one entity function is `add(entity)`: a child updates and deletes entities. [PF] is the proof type whose
+ * [Proven] fields the block can read.
  */
 class GuardedChangesDsl<PF : Proof<*, *>> internal constructor(
     private val dsl: ChangesDsl,
@@ -60,6 +62,12 @@ class GuardedChangesDsl<PF : Proof<*, *>> internal constructor(
         contract { callsInPlace(create, EXACTLY_ONCE) }
         return dsl.add { create().also { checkOwnedModels(it) } }
     }
+
+    /**
+     * Adds a new entity, as the composable `add(entity)` does. An entity has no guarded type, so this asks for no
+     * proof. The block has no `update` or `delete` of an entity: those go through a child run with [execute].
+     */
+    fun <E : CreatableEntity> add(entity: E): E = dsl.add(entity)
 
     fun <MID, E, M> update(model: M): M
         where M : Model<MID, E>, E : ModelEvent<MID>, MID : ModelId<out Comparable<*>> {
